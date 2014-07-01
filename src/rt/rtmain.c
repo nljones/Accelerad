@@ -29,6 +29,10 @@ extern char	*shm_boundary;		/* boundary of shared memory */
 #define  PCHILD		3		/* child of normal persist */
 #endif
 
+#ifdef OPTIX
+extern double  ralrm;				/* seconds between reports */
+#endif
+
 char  *sigerr[NSIG];			/* signal error messages */
 char  *errfile = NULL;			/* error output file */
 
@@ -81,6 +85,10 @@ main(int  argc, char  *argv[])
 	int  duped1 = -1;
 	int  rval;
 	int  i;
+#ifdef OPTIX
+	time_t rtrace_start_time, rtrace_end_time; // Timer in seconds for long jobs
+	clock_t rtrace_start_clock, rtrace_end_clock; // Timer in clock cycles for short jobs
+#endif
 					/* global program name */
 	progname = argv[0] = fixargv0(argv[0]);
 					/* add trace notify function */
@@ -229,6 +237,12 @@ main(int  argc, char  *argv[])
 					*tralp = NULL;
 				}
 				break;
+#ifdef OPTIX
+			case 't':				/* timer */
+				check(3,"f");
+				ralrm = atof(argv[++i]);
+				break;
+#endif
 			default:
 				goto badopt;
 			}
@@ -325,6 +339,9 @@ main(int  argc, char  *argv[])
 		putchar('\n');
 	}
 
+#ifdef OPTIX
+	if (!use_optix) /* Don't shoot rays here, since the OptiX program should handle this. */
+#endif
 	marksources();			/* find and mark sources */
 
 	setambient();			/* initialize ambient calculation */
@@ -354,7 +371,21 @@ runagain:
 		dupheader();			/* send header to stdout */
 #endif
 					/* trace rays */
+#ifdef OPTIX
+	/* Let's check to see if we're using optix */
+	fprintf(stderr, "use_optix is set to %i\n", use_optix);
+
+	fprintf(stderr, "Starting clock for rtrace.\n");
+	rtrace_start_time = time((time_t *)NULL);
+	rtrace_start_clock = clock();
+#endif
 	rtrace(NULL, nproc);
+#ifdef OPTIX
+	rtrace_end_clock = clock();
+	rtrace_end_time = time((time_t *)NULL);
+	fprintf(stderr, "rtrace time: %u milliseconds.\n", (rtrace_end_clock - rtrace_start_clock) * 1000 / CLOCKS_PER_SEC);
+	fprintf(stderr, "rtrace time: %u seconds.\n", rtrace_end_time - rtrace_start_time);
+#endif
 					/* flush ambient file */
 	ambsync();
 #ifdef  PERSIST

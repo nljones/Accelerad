@@ -12,6 +12,22 @@ static const char	RCSid[] = "$Id$";
 #include  "ray.h"
 #include  "paths.h"
 
+#ifdef OPTIX
+int use_optix = 0;			/* Flag to use OptiX for ray tracing */
+int optix_stack_size = 0;	/* Stack size for OptiX program in bytes */
+
+/* For OptiX iterative ambient sampling */
+unsigned int optix_amb_scale = 16u;		/* Scale to use for ambient sample spacing */
+unsigned int optix_amb_semgents = 1u;	/* Number of segments for ambient sampling */
+
+/* For OptiX k-means ambient sampling */
+unsigned int optix_amb_grid_size = 32u;			/* Size of sphere grid to use for ambient seeding */
+unsigned int optix_amb_seeds_per_thread = 16u;	/* Number of ambient seeds per OptiX thread */
+unsigned int cuda_kmeans_clusters = 1024u;		/* Number of clusters of ambient for k-means */
+unsigned int cuda_kmeans_iterations = 500u;		/* Maximum number of k-means iterations */
+float cuda_kmeans_threshold = 0.001f;			/* Fraction of seeds that must change cluster to continue k-means iteration */
+float cuda_kmeans_error = 0.1f;					/* Weighting of position in k-means error */
+#endif
 
 extern int
 getrenderopt(		/* get next render option */
@@ -45,6 +61,14 @@ getrenderopt(		/* get next render option */
 			return(0);
 		}
 		break;
+#ifdef OPTIX
+	case 'g':				/* OptiX stack size */
+		bool(2,use_optix);
+		check(2,"i");
+		optix_stack_size = atoi(av[1]);
+		//use_optix = 1;
+		return(1);
+#endif
 	case 'd':				/* direct */
 		switch (av[0][2]) {
 		case 't':				/* threshold */
@@ -135,6 +159,40 @@ getrenderopt(		/* get next render option */
 			check(3,"i");
 			ambounce = atoi(av[1]);
 			return(1);
+#ifdef OPTIX
+		case 'l':				/* Scale to use for ambient sample spacing */
+			check(3,"i");
+			optix_amb_scale = atoi(av[1]);
+			return(1);
+		case 'g':				/* Number of segments for ambient sampling */
+			check(3,"i");
+			optix_amb_semgents = atoi(av[1]);
+			return(1);
+		case 'z':				/* Size of sphere grid to use for ambient seeding */
+			check(3,"i");
+			optix_amb_grid_size = atoi(av[1]);
+			return(1);
+		case 'y':				/* Number of ambient seeds per OptiX thread */
+			check(3,"i");
+			optix_amb_seeds_per_thread = atoi(av[1]);
+			return(1);
+		case 'c':				/* Number of clusters of ambient for k-means */
+			check(3,"i");
+			cuda_kmeans_clusters = atoi(av[1]);
+			return(1);
+		case 'm':				/* Maximum number of k-means iterations */
+			check(3,"i");
+			cuda_kmeans_iterations = atoi(av[1]);
+			return(1);
+		case 't':				/* Fraction of seeds that must change cluster to continue k-means iteration */
+			check(3,"f");
+			cuda_kmeans_threshold = atof(av[1]);
+			return(1);
+		case 'x':				/* Weighting of position in k-means error */
+			check(3,"f");
+			cuda_kmeans_error = atof(av[1]);
+			return(1);
+#endif
 		case 'i':				/* include */
 		case 'I':
 			check(3,"s");

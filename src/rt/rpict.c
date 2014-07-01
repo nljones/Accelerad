@@ -44,6 +44,15 @@ static const char RCSid[] = "$Id$";
 #endif
 #endif
 
+#ifdef OPTIX
+/* in optix_radiance.c */
+extern void renderOptix(const VIEW* view, const int width, const int height, const double alarm, COLOR* colors, float* depths);
+extern void endOptix();
+
+static COLOR* color_output = NULL; /* output radiance values from OptiX */
+static float* depth_output = NULL; /* output depth map from OptiX */
+#endif
+
 CUBE  thescene;				/* our scene */
 OBJECT	nsceneobjs;			/* number of objects in our scene */
 
@@ -104,7 +113,11 @@ int  ambounce = 0;			/* ambient bounces */
 char  *amblist[AMBLLEN];		/* ambient include/exclude list */
 int  ambincl = -1;			/* include == 1, exclude == 0 */
 
+#ifdef OPTIX
+double  ralrm = 0.0;				/* seconds between reports */
+#else
 int  ralrm = 0;				/* seconds between reports */
+#endif
 
 double	pctdone = 0.0;			/* percentage done */
 time_t  tlastrept = 0L;			/* time at last report */
@@ -294,6 +307,7 @@ rpict(			/* generate image(s) */
 		pctdone = 0.0;
 		if (pout != NULL) {
 			sprintf(fbuf, pout, seq);
+#ifndef OPTIX /* For testing purposes, we don't care about overwriting existing files. */
 			if (file_exists(fbuf)) {
 				if (prvr != NULL || !strcmp(fbuf, pout)) {
 					sprintf(errmsg,
@@ -304,6 +318,7 @@ rpict(			/* generate image(s) */
 				setview(&ourview);
 				continue;		/* don't clobber */
 			}
+#endif /* OPTIX */
 			if (freopen(fbuf, "w", stdout) == NULL) {
 				sprintf(errmsg,
 					"cannot open output file \"%s\"", fbuf);
@@ -352,6 +367,12 @@ rpict(			/* generate image(s) */
 		prvr = NULL;
 		npicts++;
 	} while (seq++);
+#ifdef OPTIX
+	if (use_optix) {
+		/* Destroy the OptiX context. */
+		endOptix();
+	}
+#endif
 					/* check that we did something */
 	if (npicts == 0)
 		error(WARNING, "no output produced");
@@ -395,6 +416,16 @@ render(				/* render the scene */
 		fprtresolu(0, 0, stdout);
 		return;
 	}
+#ifdef OPTIX
+	if (use_optix) {
+		/* Allocate memory to save the color and depth information once it is retrieved from the output buffer. */
+		color_output = (COLOR *)malloc(sizeof(COLOR) * hres * vres);
+		depth_output = (float *)malloc(sizeof(float) * hres * vres);
+
+		/* Now lets render an image on the graphics card */
+		renderOptix(&ourview, hres, vres, ralrm, color_output, depth_output);
+	}
+#endif
 					/* allocate scanlines */
 	for (i = 0; i <= psample; i++) {
 		scanbar[i] = (COLOR *)malloc(hres*sizeof(COLOR));
@@ -466,6 +497,9 @@ render(				/* render the scene */
 				hres, ypos, hstep);
 							/* fill bar */
 		fillscanbar(scanbar, zbar, hres, ypos, ystep);
+#ifdef OPTIX
+		if (!use_optix) /* Don't shoot rays here, since the OptiX program should handle this. */
+#endif
 		if (directvis)				/* add bitty sources */
 			drawsources(scanbar, zbar, 0, hres, ypos, ystep);
 							/* write it out */
@@ -517,6 +551,13 @@ alldone:
 		report(0);
 #ifdef SIGCONT
 	signal(SIGCONT, SIG_DFL);
+#endif
+#ifdef OPTIX
+	if (use_optix) {
+		/* Unallocate the memory that was used to save the output transfered back from OptiX rendering. */
+		free(color_output);
+		free(depth_output);
+	}
 #endif
 	return;
 writerr:
@@ -666,6 +707,15 @@ pixvalue(		/* compute pixel value */
 	FVECT	lorg, ldir;
 	double	hpos, vpos, vdist, lmax;
 	int	i;
+#ifdef OPTIX
+	if (use_optix) {
+		//fprintf(stderr, "Getting color for (%i, %i).\n", x, y);
+		i = y * hres + x;
+		copycolor(col, color_output[i]);
+		//fprintf(stderr, "Got color (%f, %f, %f).\n", col[0], col[1], col[2]);
+		return depth_output[i];
+	}
+#endif /* OPTIX */
 						/* compute view ray */
 	setcolor(col, 0.0, 0.0, 0.0);
 	hpos = (x+pixjitter())/hres;

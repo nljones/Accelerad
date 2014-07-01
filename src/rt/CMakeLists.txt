@@ -1,6 +1,9 @@
 set(VERSION_FILE "${radiance_BINARY_DIR}/src/rt/Version.c")
 create_version_file("${VERSION_FILE}")
 
+# NLJ addition: OPTIX compiler flag
+option(OptiX_USE "Include the option to use optix when compiling." ON)
+
 add_library(radiance
   ambcomp.c ambient.c ambio.c aniso.c ashikhmin.c data.c dielectric.c fprism.c freeobjmem.c 
   func.c glass.c initotypes.c m_alias.c m_brdf.c m_bsdf.c m_clip.c m_direct.c
@@ -17,11 +20,95 @@ endif()
 
 add_library(raycalls raycalls.c ${rayp_SOURCES} rayfifo.c)
 
-add_executable(rtrace  rtmain.c rtrace.c duphead.c persist.c)
-target_link_libraries(rtrace raycalls radiance rtrad)
+# NLJ addition
+if(OptiX_USE)
+  # This enforces a particular version of CMake that we require to process the script files
+  # properly.
+  cmake_minimum_required(VERSION 2.8.8 FATAL_ERROR)
+  
+  # As of CMake 2.6 policies were introduced in order to provide a mechanism for
+  # adding backwards compatibility one feature at a time.  We will just specify
+  # that all policies will use version 2.6 symantics.
+  cmake_policy(VERSION 2.6)
 
-add_executable(rpict rpmain.c rpict.c srcdraw.c duphead.c persist.c)
-target_link_libraries(rpict radiance rtrad)
+  # Turn off the warning that NVCC issues when generating PTX from our CUDA samples.  This
+  # is a custom extension to the FindCUDA code distributed by CMake.
+  option(CUDA_REMOVE_GLOBAL_MEMORY_SPACE_WARNING "Suppress the \"Advisory: Cannot tell what pointer points to, assuming global memory space\" warning nvcc makes." ON)
+
+  # Find at least a 2.3 version of CUDA.
+  find_package(CUDA 2.3 REQUIRED)
+
+  # Suggest a path to the OptiX SDK directory.
+  # This line is taken from FindOptiX.cmake,
+  # located in C:\ProgramData\NVIDIA Corporation\OptiX SDK 3.6.0\SDK\CMake.
+  set(OptiX_INSTALL_DIR "C:/ProgramData/NVIDIA Corporation/OptiX SDK 3.6.0" CACHE PATH "Path to OptiX installed location.")
+
+  # Add OptiX CMake files to the module path
+  set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${OptiX_INSTALL_DIR}/SDK/CMake)
+
+  # Search for the OptiX libraries and include files.
+  find_package(OptiX REQUIRED)
+
+  # Add OptiX header files
+  include_directories(${OptiX_INCLUDE} ${OptiX_INCLUDE}/optixu ${CUDA_INCLUDE_DIRS})
+
+  # These calls will group PTX and CUDA files into their own directories in the Visual
+  # Studio projects.
+  source_group("PTX Files"  REGULAR_EXPRESSION ".+\\.ptx$")
+  source_group("CUDA Files" REGULAR_EXPRESSION ".+\\.cu$")
+
+  # Add some useful default arguments to the nvcc flags.  This is an example of how we use
+  # PASSED_FIRST_CONFIGURE.  Once you have configured, this variable is TRUE and following
+  # block of code will not be executed leaving you free to edit the values as much as you
+  # wish from the GUI or from ccmake.
+  if(NOT PASSED_FIRST_CONFIGURE)
+    set(flag "--use_fast_math")
+    list(FIND CUDA_NVCC_FLAGS ${flag} index)
+    if(index EQUAL -1)
+      list(APPEND CUDA_NVCC_FLAGS ${flag})
+      set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} CACHE LIST "Semi-colon delimit multiple arguments." FORCE)
+    endif()
+	
+    set(flag "--gpu-architecture sm_20")
+    list(FIND CUDA_NVCC_FLAGS ${flag} index)
+    if(index EQUAL -1)
+      list(APPEND CUDA_NVCC_FLAGS ${flag})
+      set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} CACHE LIST "Semi-colon delimit multiple arguments." FORCE)
+    endif()
+	
+    # Now that everything is done, indicate that we have finished configuring at least once.
+    # We use this variable to set certain defaults only on the first pass, so that we don't
+    # continually set them over and over again.
+    set(PASSED_FIRST_CONFIGURE ON CACHE INTERNAL "Already Configured once?")
+  endif(NOT PASSED_FIRST_CONFIGURE)
+
+  # Include source wrappers for OptiX and CUDA.
+  set(OptiX_SOURCES optix_radiance.c optix_ambient.c optix_util.c)
+  
+  # Compile the CUDA files to OBJ format.
+  # This is a macro found in FindCUDA.cmake that compiles the listed
+  # CUDA files into OBJ files with the prefix "cuda_compile_generated_"
+  # in a subdirectory of the directory specified by CUDA_GENERATED_OUTPUT_DIR.
+  CUDA_COMPILE(generated_CUDA_files cuda_kmeans.cu)
+
+  # Compile the OptiX CUDA files to PTX format.
+  # This is a macro found in FindCUDA.cmake that compiles the listed
+  # CUDA files into PTX files with the prefix "cuda_compile_ptx_generated_"
+  # in the directory specified by CUDA_GENERATED_OUTPUT_DIR.
+  CUDA_COMPILE_PTX(generated_PTX_files_rtrace sensor.cu)
+  CUDA_COMPILE_PTX(generated_PTX_files_rpict camera.cu)
+  CUDA_COMPILE_PTX(generated_PTX_files
+    triangle_mesh.cu background.cu skybright.cu perezlum.cu
+    radiance_normal.cu radiance_glass.cu radiance_light.cu
+    ambient_records.cu ambient_generator.cu ambient_normal.cu
+    ambient_cloud_generator.cu point_cloud_generator.cu point_cloud_normal.cu hemisphere_generator.cu)
+endif()
+
+add_executable(rtrace rtmain.c rtrace.c duphead.c persist.c ${OptiX_SOURCES} ${generated_CUDA_files} ${generated_PTX_files_rtrace} ${generated_PTX_files})
+target_link_libraries(rtrace raycalls radiance rtrad ${optix_LIBRARY} ${optixu_LIBRARY} ${CUDA_CUDART_LIBRARY})
+
+add_executable(rpict rpmain.c rpict.c srcdraw.c duphead.c persist.c ${OptiX_SOURCES} ${generated_CUDA_files} ${generated_PTX_files_rpict} ${generated_PTX_files})
+target_link_libraries(rpict radiance rtrad ${optix_LIBRARY} ${optixu_LIBRARY} ${CUDA_CUDART_LIBRARY})
 
 add_executable(lookamb lookamb.c ambio.c)
 target_link_libraries(lookamb rtrad)

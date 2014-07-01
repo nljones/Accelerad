@@ -74,6 +74,14 @@ static void ourtrace(RAY *r);
 static oputf_t *ray_out[16], *every_out[16];
 static putf_t *putreal;
 
+#ifdef OPTIX
+/* from optix_radiance.c */
+extern void computeOptix(const int width, const int height, const double alarm, RAY* rays);
+
+double  ralrm = 0.0;				/* seconds between reports */
+double	dstrpix = 0.0; //TODO This shouldn't be necessary, but the variable must exist in optix_radiance.c
+#endif
+
 
 void
 quit(			/* quit program */
@@ -119,6 +127,10 @@ rtrace(				/* trace rays from file */
 	FILE  *fp;
 	double	d;
 	FVECT  orig, direc;
+#ifdef OPTIX
+	unsigned int current_ray, total_rays;
+	RAY* ray_cache;
+#endif
 					/* set up input */
 	if (fname == NULL)
 		fp = stdin;
@@ -145,6 +157,13 @@ rtrace(				/* trace rays from file */
 	default:
 		error(CONSISTENCY, "botched output format");
 	}
+#ifdef OPTIX
+	if (use_optix) {
+		/* Populate the set of rays to trace */
+		ray_cache = (RAY *)malloc(sizeof(RAY) * vcount); //TODO what if vcount is zero?
+		current_ray = 0u;
+	} else /* OptiX kernel can only be launched from a single thread. */
+#endif
 	if (nproc > 1) {		/* start multiprocessing */
 		ray_popen(nproc);
 		ray_fifo_out = printvals;
@@ -160,6 +179,11 @@ rtrace(				/* trace rays from file */
 
 		d = normalize(direc);
 		if (d == 0.0) {				/* zero ==> flush */
+#ifdef OPTIX
+			if (use_optix)
+				bogusray();
+			else
+#endif
 			if (--nextflush <= 0 || !vcount) {
 				if (nproc > 1 && ray_fifo_flush() < 0)
 					error(USER, "lost children");
@@ -172,6 +196,9 @@ rtrace(				/* trace rays from file */
 		} else {				/* compute and print */
 			rtcompute(orig, direc, lim_dist ? d : 0.0);
 							/* flush if time */
+#ifdef OPTIX
+			if (!use_optix)
+#endif
 			if (!--nextflush) {
 				if (nproc > 1 && ray_fifo_flush() < 0)
 					error(USER, "lost children");
@@ -179,11 +206,30 @@ rtrace(				/* trace rays from file */
 				nextflush = hresolu;
 			}
 		}
+#ifdef OPTIX
+		if (use_optix) {
+			ray_cache[current_ray++] = thisray;
+		} else /* Nothing ready to write yet. */
+#endif
 		if (ferror(stdout))
 			error(SYSTEM, "write error");
 		if (vcount && !--vcount)		/* check for end */
 			break;
 	}
+#ifdef OPTIX
+	if (use_optix) {
+		/* Run OptiX kernel. */
+		computeOptix( hresolu, vresolu, ralrm, ray_cache );
+
+		/* Write output */
+		total_rays = current_ray;
+		for ( current_ray = 0; current_ray < total_rays; ) {
+			printvals(&ray_cache[current_ray++]);
+		}
+
+		free(ray_cache);
+	} else /* OptiX kernel can only be launched from a single thread. */
+#endif
 	if (nproc > 1) {				/* clean up children */
 		if (ray_fifo_flush() < 0)
 			error(USER, "unable to complete processing");
@@ -297,6 +343,10 @@ bogusray(void)			/* print out empty record */
 	thisray.rorg[0] = thisray.rorg[1] = thisray.rorg[2] =
 	thisray.rdir[0] = thisray.rdir[1] = thisray.rdir[2] = 0.0;
 	thisray.rmax = 0.0;
+#ifdef OPTIX
+	if (use_optix)
+		return; /* The rest will occur after the OptiX kernel runs. */
+#endif
 	rayorigin(&thisray, PRIMARY, NULL, NULL);
 	printvals(&thisray);
 }
@@ -360,6 +410,10 @@ rtcompute(			/* compute and print ray value(s) */
 		if (castonly)
 			thisray.revf = raycast;
 	}
+#ifdef OPTIX
+	if (use_optix)
+		return; /* The rest will occur after the OptiX kernel runs. */
+#endif
 	if (ray_pnprocs > 1) {		/* multiprocessing FIFO? */
 		if (ray_fifo_in(&thisray) < 0)
 			error(USER, "lost children");

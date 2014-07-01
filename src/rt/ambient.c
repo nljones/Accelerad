@@ -32,7 +32,11 @@ OBJECT	ambset[MAXASET+1]={0};	/* ambient include/exclude set */
 double	maxarad;		/* maximum ambient radius */
 double	minarad;		/* minimum ambient radius */
 
+#ifdef OPTIX
+AMBTREE	atrunk;		/* our ambient trunk node */
+#else
 static AMBTREE	atrunk;		/* our ambient trunk node */
+#endif
 
 static FILE  *ambfp = NULL;	/* ambient file pointer */
 static int  nunflshed = 0;	/* number of unflushed ambient values */
@@ -52,9 +56,15 @@ static int  nunflshed = 0;	/* number of unflushed ambient values */
 #endif
 
 
+#ifdef OPTIX
+double  avsum = 0.;		/* computed ambient value sum (log) */
+unsigned int  navsum = 0;	/* number of values in avsum */
+unsigned int  nambvals = 0;	/* total number of indirect values */
+#else
 static double  avsum = 0.;		/* computed ambient value sum (log) */
 static unsigned int  navsum = 0;	/* number of values in avsum */
 static unsigned int  nambvals = 0;	/* total number of indirect values */
+#endif
 static unsigned int  nambshare = 0;	/* number of values from file */
 static unsigned long  ambclock = 0;	/* ambient access clock */
 static unsigned long  lastsort = 0;	/* time of last value sort */
@@ -80,7 +90,11 @@ static long  lastpos = -1;		/* last flush position */
 #define  freeav(av)	free((void *)av);
 
 static void initambfile(int creat);
+#ifdef OPTIX
+void avsave(AMBVAL *av);
+#else
 static void avsave(AMBVAL *av);
+#endif
 static AMBVAL *avstore(AMBVAL  *aval);
 static AMBTREE *newambtree(void);
 static void freeambtree(AMBTREE  *atp);
@@ -955,7 +969,11 @@ initambfile(		/* initialize ambient file */
 }
 
 
+#ifdef OPTIX
+void
+#else
 static void
+#endif
 avsave(				/* insert and save an ambient value */
 	AMBVAL	*av
 )

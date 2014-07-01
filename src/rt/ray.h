@@ -18,6 +18,11 @@ extern "C" {
 #define RNUMBER		unsigned long	/* ray counter (>= sizeof pointer) */
 #endif
 
+#ifndef OPTIX
+/* Compiler setting to use OptiX ray tracing */
+#define OPTIX   
+#endif
+
 #define  MAXDIM		32	/* maximum number of dimensions */
 
 				/* ray type flags */
@@ -93,6 +98,23 @@ extern int	ray_savesiz;	/* size of parameter save buffer */
 extern int	do_irrad;	/* compute irradiance? */
 
 extern int	rand_samp;	/* pure Monte Carlo sampling? */
+
+#ifdef OPTIX
+extern int use_optix;			/* Flag to use OptiX for ray tracing */
+extern int optix_stack_size;	/* Stack size for OptiX program in bytes */
+
+/* For OptiX iterative ambient sampling */
+extern unsigned int optix_amb_scale;	/* Scale to use for ambient sample spacing */
+extern unsigned int optix_amb_semgents;	/* Number of segments for ambient sampling */
+
+/* For OptiX k-means ambient sampling */
+extern unsigned int optix_amb_grid_size;		/* Size of sphere grid to use for ambient seeding */
+extern unsigned int optix_amb_seeds_per_thread;	/* Number of ambient seeds per OptiX thread */
+extern unsigned int cuda_kmeans_clusters;		/* Number of clusters of ambient for k-means */
+extern unsigned int cuda_kmeans_iterations;		/* Maximum number of k-means iterations */
+extern float cuda_kmeans_threshold;				/* Fraction of seeds that must change cluster to continue k-means iteration */
+extern float cuda_kmeans_error;					/* Weighting of position in k-means error */
+#endif
 
 extern double	dstrsrc;	/* square source distribution */
 extern double	shadthresh;	/* shadow threshold */
