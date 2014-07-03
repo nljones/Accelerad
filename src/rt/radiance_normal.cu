@@ -686,7 +686,6 @@ dumbamb:					/* return global value */
 /* sample indirect hemisphere, based on samp_hemi in ambcomp.c */
 static __device__ int doambient( float3 *rcol, const float3& normal, const float3& hit )
 {
-	AMBHEMI	hp;
 	float	d;
 	int	j;
 	float wt = prd.weight;
@@ -698,18 +697,11 @@ static __device__ int doambient( float3 *rcol, const float3& normal, const float
 	int i = 1 + 5 * (ambacc > FTINY);	/* minimum number of samples */
 	if (n < i)
 		n = i;
-					/* allocate sampling array */
-	//hp = (AMBHEMI *)malloc(sizeof(AMBHEMI) + sizeof(AMBSAMP)*(n*n - 1));
-	//if (hp == NULL)
-	//	error(SYSTEM, "out of memory in samp_hemi");
-	hp.ns = n;
-	hp.acol = make_float3( 0.0f );
-	//memset(hp->sa, 0, sizeof(AMBSAMP)*n*n);
-	hp.sampOK = 0;
+	const int nn = n * n;
+	float3 acol = make_float3( 0.0f );
+	unsigned int sampOK = 0u;
 					/* assign coefficient */
-	hp.acoef = *rcol;
-	d = 1.0f / (n*n);
-	hp.acoef *= d;
+	float3 acoef = *rcol / nn;
 
 	/* Setup from ambsample in ambcomp.c */
 	PerRayData_radiance new_prd;
@@ -718,7 +710,7 @@ static __device__ int doambient( float3 *rcol, const float3& normal, const float
 	if (ambacc > FTINY)
 		d = AVGREFL; // Reusing this variable
 	else
-		d = fmaxf(hp.acoef);
+		d = fmaxf( acoef );
 	new_prd.weight = prd.weight * d;
 	if (new_prd.weight < minweight) //if (rayorigin(&ar, AMBIENT, r, ar.rcoef) < 0)
 		return(0);
@@ -732,20 +724,20 @@ static __device__ int doambient( float3 *rcol, const float3& normal, const float
 	/* End ambsample setup */
 
 					/* make tangent plane axes */
-	hp.uy = make_float3( curand_uniform( prd.state ), curand_uniform( prd.state ), curand_uniform( prd.state ) ) - 0.5f;
-	hp.uy = fmaxf( cross_direction( normal ) * 2.0f - 1.0f, hp.uy );
-	hp.ux = cross( hp.uy, normal );
-	hp.ux = normalize( hp.ux );
-	hp.uy = cross( normal, hp.ux );
+	float3 uy = make_float3( curand_uniform( prd.state ), curand_uniform( prd.state ), curand_uniform( prd.state ) ) - 0.5f;
+	uy = fmaxf( cross_direction( normal ) * 2.0f - 1.0f, uy );
+	float3 ux = cross( uy, normal );
+	ux = normalize( ux );
+	uy = cross( normal, ux );
 					/* sample divisions */
-	for (i = hp.ns; i--; )
-	    for (j = hp.ns; j--; ) {
+	for (i = n; i--; )
+	    for (j = n; j--; ) {
 			//hp.sampOK += ambsample( &hp, i, j, normal, hit );
 			/* ambsample in ambcomp.c */
 			float2 spt = 0.1f + 0.8f * make_float2( curand_uniform( prd.state ), curand_uniform( prd.state ) );
-			SDsquare2disk( spt, (j+spt.y) / hp.ns, (i+spt.x) / hp.ns );
+			SDsquare2disk( spt, (j+spt.y) / n, (i+spt.x) / n );
 			float zd = sqrtf( 1.0f - dot( spt, spt ) );
-			amb_ray.direction = normalize( spt.x*hp.ux + spt.y*hp.uy + zd*normal );
+			amb_ray.direction = normalize( spt.x*ux + spt.y*uy + zd*normal );
 			//dimlist[ndims++] = AI(hp,i,j) + 90171;
 
 #ifdef FILL_GAPS
@@ -765,16 +757,14 @@ static __device__ int doambient( float3 *rcol, const float3& normal, const float
 				continue;
 			if ( new_prd.distance <= FTINY )
 				continue;		/* should never happen */
-			new_prd.result *= hp.acoef;	/* apply coefficient */
-			hp.acol += new_prd.result;	/* add to our sum */
-			hp.sampOK++;
+			acol += new_prd.result * acoef;	/* add to our sum */
+			sampOK++;
 		}
-	*rcol = hp.acol;
-	if (!hp.sampOK) {		/* utter failure? */
-		//free(hp);
+	*rcol = acol;
+	if ( !sampOK ) {		/* utter failure? */
 		return( 0 );
 	}
-	if (hp.sampOK < hp.ns * hp.ns) {
+	if ( sampOK < nn ) {
 		//hp.sampOK *= -1;	/* soft failure */
 		return( 1 );
 	}
@@ -785,82 +775,6 @@ static __device__ int doambient( float3 *rcol, const float3& normal, const float
 	//}
 	return( 1 );			/* all is well */
 }
-
-//static __device__ __inline__ int ambsample( AMBHEMI *hp, const int& i, const int& j, const float3 normal, const float3 hit )
-//{
-//	//AMBSAMP	*ap = &ambsam(hp,i,j);
-//	AMBSAMP	ap;
-//	PerRayData_radiance new_prd;
-//	float b2;
-//					/* generate hemispherical sample */
-//					/* ambient coefficient for weight */
-//	if (ambacc > FTINY)
-//		b2 = AVGREFL; // Reusing this variable
-//	else
-//		b2 = fmaxf(hp->acoef);
-//	new_prd.weight = prd.weight * b2;
-//	if (new_prd.weight < minweight) //if (rayorigin(&ar, AMBIENT, r, ar.rcoef) < 0)
-//		return(0);
-//	//if (ambacc > FTINY) {
-//	//	multcolor(ar.rcoef, hp->acoef);
-//	//	scalecolor(ar.rcoef, 1./AVGREFL);
-//	//}
-//	//hlist[0] = hp->rp->rno;
-//	//hlist[1] = j;
-//	//hlist[2] = i;
-//	//multisamp(spt, 2, urand(ilhash(hlist,3)+n));
-//	float2 spt = 0.1f + 0.8f * make_float2( curand_uniform( prd.state ), curand_uniform( prd.state ) );
-//	//if (!n) {			/* avoid border samples for n==0 */
-//	//	if ((spt.x < 0.1f) | (spt.x >= 0.9f))
-//	//		spt.x = 0.1f + 0.8f * curand_uniform( prd.state );
-//	//	if ((spt.y < 0.1f) | (spt.y >= 0.9f))
-//	//		spt.y = 0.1f + 0.8f * curand_uniform( prd.state );
-//	//}
-//	SDsquare2disk( spt, (j+spt.y) / hp->ns, (i+spt.x) / hp->ns );
-//	float zd = sqrtf( 1.0f - dot( spt, spt ) );
-//	float3 rdir = normalize( spt.x*hp->ux + spt.y*hp->uy + zd*normal );
-//	//dimlist[ndims++] = AI(hp,i,j) + 90171;
-//
-//	new_prd.depth = prd.depth + 1;
-//	new_prd.ambient_depth = prd.ambient_depth + 1;
-//	//new_prd.seed = prd.seed;//lcg( prd.seed );
-//	new_prd.state = prd.state;
-//#ifdef FILL_GAPS
-//	new_prd.primary = 0;
-//#endif
-//#ifdef RAY_COUNT
-//	new_prd.ray_count = 1;
-//#endif
-//	Ray amb_ray = make_Ray( hit, rdir, radiance_ray_type, RAY_START, RAY_END );
-//	rtTrace(top_object, amb_ray, new_prd);
-//#ifdef RAY_COUNT
-//	prd.ray_count += new_prd.ray_count;
-//#endif
-//
-//	//ndims--;
-//	if ( isnan( new_prd.result ) ) // TODO How does this happen?
-//		return(0);
-//	if ( new_prd.distance <= FTINY )
-//		return(0);		/* should never happen */
-//	new_prd.result *= hp->acoef;	/* apply coefficient */
-//	//if ( new_prd.distance * ap.d < 1.0f )		/* new/closer distance? */
-//		ap.d = 1.0f / new_prd.distance;
-//	//if (!n) {			/* record first vertex & value */
-//		//if (ar.rt > 10.0*thescene.cusize)
-//		//	ar.rt = 10.0*thescene.cusize;
-//		ap.p = hit + rdir * new_prd.distance;
-//		ap.v = new_prd.result; // only one AMBSAMP, otherwise would need +=
-//	//} else {			/* else update recorded value */
-//	//	hp->acol -= ap.v,RED;
-//	//	zd = 1.0f / (float)(n+1);
-//	//	new_prd.result *= zd;
-//	//	zd *= (float)n;
-//	//	ap.v *= zd;
-//	//	ap.v += new_prd.result;
-//	//}
-//	hp->acol += ap.v;	/* add to our sum */
-//	return(1);
-//}
 #else /* OLDAMB */
 static __device__ float doambient( float3 *rcol, const float3& normal, const float3& hit )
 {

@@ -157,6 +157,7 @@ RT_PROGRAM void exception()
 	const unsigned int code = rtGetExceptionCode();
 	rtPrintf( "Caught exception 0x%X at launch index (%d,%d)\n", code, launch_index.x, launch_index.y );
 	uint3 index = make_uint3( launch_index, segments - 1u ); // record error to last segment
+	ambient_record_buffer[index].lvl = level;
 	ambient_record_buffer[index].val = exceptionToFloat3( code );
 #ifndef OLDAMB
 	ambient_record_buffer[index].rad = make_float2( -1.0f );

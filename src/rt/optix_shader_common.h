@@ -25,7 +25,7 @@
 #endif
 
 #define RAY_START	(1e-4f)	/* FTINY does not seem to be large enough to miss self */
-#define RAY_END		(1e10f)	/* RT_DEFAULT_MAX squared is greater than Float.Inf */
+#define RAY_END		RT_DEFAULT_MAX	/* RT_DEFAULT_MAX squared is greater than Float.Inf */
 #define AMBIENT_RAY_LENGTH	(1e-2f)
 
 /* view types from view.h */
