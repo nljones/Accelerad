@@ -99,30 +99,7 @@ struct PerRayData_point_cloud
 };
 
 /* Ambient data structures */
-#ifndef OLDAMB
-#define AMB_GRID_EDGE	7
-#define AMB_GRID_SIZE	64	/* (AMB_GRID_EDGE+1)^2 */
-
-typedef struct {
-	float3	v;		/* hemisphere sample value */
-	float	d;		/* reciprocal distance (1/rt) */
-	float3	p;		/* intersection point */
-} AMBSAMP;		/* sample value */
-
-typedef struct {
-	int	ns;		/* number of samples per axis */
-	int	sampOK;		/* acquired full sample set? */
-	float3	acoef;		/* division contribution coefficient */
-	float3	acol;		/* accumulated color */
-	float3	ux, uy;		/* tangent axis unit vectors */
-	AMBSAMP	sa[AMB_GRID_SIZE];		/* sample array (extends struct) */
-} AMBHEMI;		/* ambient sample hemisphere */
-
-typedef struct {
-	float3 r_i, r_i1, e_i, rcp, rI2_eJ2;
-	float I1, I2;
-} FFTRI;		/* vectors and coefficients for Hessian calculation */
-#else /* OLDAMB */
+#ifdef OLDAMB
 typedef struct {
 	float3 v;		/* division sum (partial) */
 	float  r;		/* 1/distance sum */
