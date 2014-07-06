@@ -14,6 +14,7 @@ using namespace optix;
 #define FRESTHRESH	0.017999f	/* minimum specularity for approx. */
 #define ROW_SIZE	32	/* Number of entries allowed per row of the ambient hemisphere. */
 #ifndef OLDAMB
+#define CORRAL
 #define AMB_SAVE_MEM
 #ifndef AMB_SAVE_MEM
 #define AMB_GRID_EDGE	7
@@ -99,7 +100,7 @@ static __device__ int check_overlap( const float3& normal, const float3& hit );
 static __device__ int plugaleak( const AmbientRecord* record, const float3& anorm, const float3& normal, const float3& hit, float ang );
 static __device__ int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit );
 #ifdef AMB_SAVE_MEM
-static __device__ int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, float2 *dg, const float3& normal, const float3& hit );
+static __device__ int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit );
 static __device__ int ambsample( AMBHEMI *hp, AMBSAMP *ap, const int& i, const int& j, const float3& normal, const float3& hit );
 static __device__ float back_ambval( const AMBSAMP *n1, const AMBSAMP *n2, const AMBSAMP *n3 );
 static __device__ void comp_fftri( FFTRI *ftp, const AMBSAMP *n0, const AMBSAMP *n1, const float3& hit );
@@ -112,7 +113,7 @@ static __device__ void ambHessian( AMBHEMI *hp, optix::Matrix<2,3> *uv, float2 *
 static __device__ void ambdirgrad( AMBHEMI *hp, const float3& u, const float3& v, float2 *dg, const float3& normal, const float3& hit );
 static __device__ unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, const float2& r, const float3& normal, const float3& hit );
 #endif /* AMB_SAVE_MEM */
-static __device__ void eigenvectors( optix::Matrix<2,3> *uv, float2 *ra, optix::Matrix<3,3> *hessian );
+static __device__ optix::Matrix<2,2> eigenvectors( optix::Matrix<2,3> *uv, float2 *ra, optix::Matrix<3,3> *hessian );
 static __device__ optix::Matrix<3,3> compose_matrix( const float3& va, const float3& vb );
 static __device__ optix::Matrix<3,3> comp_hessian( FFTRI *ftp, const float3& normal );
 static __device__ float3 comp_gradient( FFTRI *ftp, const float3& normal );
@@ -312,9 +313,8 @@ static __device__ int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *r
 	const float wt = prd.result.weight;
 	AMBHEMI hp;
 #ifdef AMB_SAVE_MEM
-	if ( !samp_hemi( &hp, rcol, wt, uv, ra, pg, dg, normal, hit ) )
+	if ( !samp_hemi( &hp, rcol, wt, uv, ra, pg, dg, crlp, normal, hit ) )
 		return(0);
-	float	d;
 #else /* AMB_SAVE_MEM */
 	if ( !samp_hemi( &hp, rcol, wt, normal, hit ) )
 		return(0);
@@ -362,7 +362,6 @@ static __device__ int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *r
 
 	if (dg != NULL)			/* compute direction gradient */
 		ambdirgrad( &hp, uv->getRow(0), uv->getRow(1), dg, normal, hit );
-#endif /* AMB_SAVE_MEM */
 
 	if (ra != NULL) {		/* scale/clamp radii */
 		if (pg != NULL) {
@@ -386,11 +385,11 @@ static __device__ int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *r
 			if ( ra->x > maxarad )
 				ra->x = maxarad;
 		}
-#ifndef AMB_SAVE_MEM
+#ifdef CORRAL
 					/* flag encroached directions */
 		if ( (wt >= 0.89f * AVGREFL) & (crlp != NULL) )
 			*crlp = ambcorral( &hp, uv, *ra * ambacc, normal, hit );
-#endif /* AMB_SAVE_MEM */
+#endif /* CORRAL */
 		if (pg != NULL) {	/* cap gradient if necessary */
 			d = pg->x*pg->x * ra->x*ra->x + pg->y*pg->y * ra->y*ra->y;
 			if ( d > 1.0f ) {
@@ -398,13 +397,14 @@ static __device__ int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *r
 			}
 		}
 	}
+#endif /* AMB_SAVE_MEM */
 	//free(hp);			/* clean up and return */
 	return(1);
 }
 
 /* sample indirect hemisphere, based on samp_hemi in ambcomp.c */
 #ifdef AMB_SAVE_MEM
-static __device__ int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, float2 *dg, const float3& normal, const float3& hit )
+static __device__ int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit )
 #else /* AMB_SAVE_MEM */
 static __device__ int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const float3& normal, const float3& hit )
 #endif /* AMB_SAVE_MEM */
@@ -459,6 +459,17 @@ static __device__ int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const floa
 	/* ambdirgrad from ambcomp.c */
 	float3 dgsum = make_float3( 0.0f );	/* sum values times -tan(theta) */
 
+#ifdef CORRAL
+	/* ambcorral from ambcomp.c */
+	const float max_d = 1.0f / ( minarad * ambacc + 0.001f );
+	const float ang_res = M_PI_2f / ( hp->ns - 1 );
+	const float ang_step = ang_res / ( (int)( 16.0f / M_PIf * ang_res ) + ( 1 + FTINY ) );
+	float avg_d = 0.0f;
+	unsigned int corral_count = 0u;
+	float2 corral_u[4*(ROW_SIZE-1)];
+	float corral_d[4*(ROW_SIZE-1)];
+#endif /* CORRAL */
+
 					/* sample divisions */
 	for ( i = 0; i < hp->ns; i++ ) {
 		optix::Matrix<3,3> hesscol;	/* compute first vertical edge */
@@ -502,6 +513,13 @@ static __device__ int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const floa
 						hessrow[j-1] *= -1.0f;
 						gradrow[j-1] = -gradrow[j-1];
 					}
+
+#ifdef CORRAL
+					/* ambcorral from ambcomp.c */
+					if ( ( i < hp->ns * 3 / 4 ) && ( i >= hp->ns>>2 ) )
+						if ( ( j < hp->ns * 3 / 4 ) && ( j >= hp->ns>>2 ) )
+							avg_d += current.d;
+#endif /* CORRAL */
 				} else {
 					comp_fftri( &fftr, prevrow, &current, hit );
 					hesscol = comp_hessian( &fftr, normal );
@@ -516,9 +534,9 @@ static __device__ int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const floa
 
 			/* ambdirgrad from ambcomp.c */
 					/* use vector for azimuth + 90deg */
-			float3 vd = current.p - hit;
+			const float3 vd = current.p - hit;
 					/* brightness over cosine factor */
-			float gfact = current.v.y / dot( normal, vd );
+			const float gfact = current.v.y / dot( normal, vd );
 					/* sine = proj_radius/vd_length */
 			dgsum += vd * gfact;
 
@@ -527,6 +545,16 @@ static __device__ int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const floa
 			else
 				prevrow[hp->ns-1] = prev;
 			prev = current;
+
+#ifdef CORRAL
+			/* ambcorral from ambcomp.c */
+			if ( !i || !j || i == hp->ns - 1 || j == hp->ns - 1 ) {
+				if ( ( current.d <= FTINY ) | ( current.d >= max_d ) )
+					continue;	/* too far or too near */
+				corral_u[corral_count] = *uv * vd;
+				corral_d[corral_count++] = current.d * current.d;
+			}
+#endif /* CORRAL */
 		}
 	}
 #else /* AMB_SAVE_MEM */
@@ -556,24 +584,91 @@ static __device__ int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const floa
 		d = 0.99f * ( hp->ns * hp->ns ) / d;
 		hessian = d * hessianY + 0.01f * hessian;
 		gradient = d * gradientY + 0.01f * gradient;
-	} else
+	} else {
 		pg = dg = NULL;
+		crlp = NULL;
+	}
 
 	/* ambHessian from ambcomp.c */
-	if (ra != NULL)			/* extract eigenvectors & radii */
-		eigenvectors( uv, ra, &hessian );
+	optix::Matrix<2,2> ab;
+	if ( ra )			/* extract eigenvectors & radii */
+		ab = eigenvectors( uv, ra, &hessian );
 
 	/* ambHessian from ambcomp.c */
-	if (pg != NULL)
+	if ( pg )
 		*pg = *uv * gradient;
 
 	/* ambdirgrad from ambcomp.c */
-	if (dg != NULL) {
+	if ( dg ) {
 		optix::Matrix<2,2> rotate;
 		rotate[0] = rotate[3] = 0.0f;
 		rotate[1] = -1.0f;
 		rotate[2] = 1.0f;
 		*dg = rotate * *uv * dgsum / (hp->ns*hp->ns);
+	}
+
+	/* ambcorral from ambcomp.c */
+	if ( ra ) {
+		if ( pg ) {
+			if ( ra->x * (d = fabsf( pg->x ) ) > 1.0f )
+				ra->x = 1.0f / d;
+			if ( ra->y * (d = fabsf( pg->y ) ) > 1.0f )
+				ra->y = 1.0f / d;
+			if ( ra->x > ra->y )
+				ra->x = ra->y;
+		}
+		if ( ra->x < minarad ) {
+			ra->x = minarad;
+			if ( ra->y < minarad )
+				ra->y = minarad;
+		}
+		*ra *= 1.0f / sqrtf( prd.result.weight );
+		if ( ra->y > 2.0f * ra->x )
+			ra->y = 2.0f * ra->x;
+		if ( ra->y > maxarad ) {
+			ra->y = maxarad;
+			if ( ra->x > maxarad )
+				ra->x = maxarad;
+		}
+
+#ifdef CORRAL
+		if ( crlp ) {
+			unsigned int flgs = 0u;
+			const float2 r = *ra * ambacc;
+			avg_d *= 4.0f / ( hp->ns * hp->ns );
+			if ( ( hp->ns >= 12 ) && ( avg_d * r.x < 1.0f )	&& ( avg_d < max_d ) ) {
+						/* else circle around perimeter */
+				for ( i = 0; i < corral_count; i++ ) {
+					float2 u = ab * corral_u[i];
+					if ( ( r.x*r.x * u.x*u.x + r.y*r.y * u.y*u.y ) * corral_d[i] <= dot( u, u ) )
+						continue;	/* occluder outside ellipse */
+					float ang = atan2f( u.y, u.x );	/* else set direction flags */
+					for ( float a1 = ang - 0.5f * ang_res; a1 <= ang + 0.5f * ang_res; a1 += ang_step )
+						flgs |= 1L<<(int)( 16.0f / M_PIf * ( a1 + 2.0f * M_PIf * ( a1 < 0.0f ) ) );
+				}
+						/* add low-angle incident (< 20deg) */
+				if ( fabsf( dot( ray.direction, normal ) ) <= 0.342f ) {
+					const float2 u = *uv * ray.direction;
+					if ( ( r.x*r.x * u.x*u.x + r.y*r.y * u.y*u.y ) > t_hit * t_hit ) {
+						float ang = atan2f( -u.y, -u.x );
+						ang += 2.0f * M_PIf * ( ang < 0.0f );
+						ang *= 16.0f / M_PIf;
+						if ( ( ang < 0.5f ) | ( ang >= 31.5f ) )
+							flgs |= 0x80000001;
+						else
+							flgs |= 3L<<(int)( ang - 0.5f );
+					}
+				}
+				*crlp = flgs;
+			}
+		}
+#endif /* CORRAL */
+
+		if ( pg ) {	/* cap gradient if necessary */
+			d = pg->x*pg->x * ra->x*ra->x + pg->y*pg->y * ra->y*ra->y;
+			if ( d > 1.0f )
+				*pg *= 1.0f / sqrtf(d);
+		}
 	}
 #endif /* AMB_SAVE_MEM */
 
@@ -767,11 +862,11 @@ static __device__ float3 comp_gradient( FFTRI *ftp, const float3& normal )
 {
 	const float f1 = 2.0f * dot( normal, ftp->rcp );
 	const float3 ncp = cross( normal, ftp->e_i );
-	return M_PI_2f * ( ftp->I1 * ncp + f1 * ftp->rI2_eJ2 );
+	return ( 0.5f * M_1_PIf ) * ( ftp->I1 * ncp + f1 * ftp->rI2_eJ2 );
 }
 
 /* Compute anisotropic radii and eigenvector directions */
-static __device__ void eigenvectors( optix::Matrix<2,3> *uv, float2 *ra, optix::Matrix<3,3> *hessian )
+static __device__ optix::Matrix<2,2> eigenvectors( optix::Matrix<2,3> *uv, float2 *ra, optix::Matrix<3,3> *hessian )
 {
 					/* project Hessian to sample plane */
 	const optix::Matrix<2,2> hess2 = *uv * *hessian * uv->transpose();
@@ -802,6 +897,9 @@ static __device__ void eigenvectors( optix::Matrix<2,3> *uv, float2 *ra, optix::
 	ab[1] = -xmag1;
 	ab[2] = xmag1;
 	*uv = ab * *uv;
+
+	/* needed for ambcorral */
+	return ab;
 }
 
 #ifndef AMB_SAVE_MEM
