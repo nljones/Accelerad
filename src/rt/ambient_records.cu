@@ -236,7 +236,7 @@ static __device__ __inline__ int plugaleak( const AmbientRecord* record, const f
 	float2 t;
 
 	ang += 2.0f * M_PIf * (ang < 0);			/* check direction flags */
-	if ( !(record->corral>>(int)(ang*(16.0f/M_PIf)) & 1) )
+	if ( !(record->corral>>(int)(ang * 16.0f * M_1_PIf) & 1) )
 		return(0);
 	/*
 	 * Generate test ray, targeting 20 degrees above sample point plane
@@ -261,6 +261,6 @@ static __device__ __inline__ int plugaleak( const AmbientRecord* record, const f
 	//PerRayData_shadow shadow_prd;
 	//shadow_prd.result = make_float3( 1.0f );
 	//rtTrace( top_shadower, shadow_ray, shadow_prd );
-	//return( dot( shadow_prd.result, shadow_prd.result ) == 1.0f );	/* check for occluder */
+	//return( dot( shadow_prd.result, shadow_prd.result ) < 1.0f );	/* check for occluder */
 }
 #endif /* OLDAMB */

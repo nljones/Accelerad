@@ -281,7 +281,7 @@ static __device__ int plugaleak( const AmbientRecord* record, const float3& anor
 	float2 t;
 
 	ang += 2.0f * M_PIf * (ang < 0);			/* check direction flags */
-	if ( !(record->corral>>(int)(ang*(16.0f/M_PIf)) & 1) )
+	if ( !(record->corral>>(int)( ang * 16.0f * M_1_PIf ) & 1) )
 		return(0);
 	/*
 	 * Generate test ray, targeting 20 degrees above sample point plane
@@ -305,7 +305,7 @@ static __device__ int plugaleak( const AmbientRecord* record, const float3& anor
 	PerRayData_shadow shadow_prd;
 	shadow_prd.result = make_float3( 1.0f );
 	rtTrace( top_shadower, shadow_ray, shadow_prd );
-	return( dot( shadow_prd.result, shadow_prd.result ) == 1.0f );	/* check for occluder */
+	return( dot( shadow_prd.result, shadow_prd.result ) != 1.0f );	/* check for occluder */
 }
 
 static __device__ int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit )
@@ -463,7 +463,7 @@ static __device__ int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const floa
 	/* ambcorral from ambcomp.c */
 	const float max_d = 1.0f / ( minarad * ambacc + 0.001f );
 	const float ang_res = M_PI_2f / ( hp->ns - 1 );
-	const float ang_step = ang_res / ( (int)( 16.0f / M_PIf * ang_res ) + ( 1 + FTINY ) );
+	const float ang_step = ang_res / ( (int)( 16.0f * M_1_PIf * ang_res ) + ( 1 + FTINY ) );
 	float avg_d = 0.0f;
 	unsigned int corral_count = 0u;
 	float2 corral_u[4*(ROW_SIZE-1)];
@@ -644,7 +644,7 @@ static __device__ int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const floa
 						continue;	/* occluder outside ellipse */
 					float ang = atan2f( u.y, u.x );	/* else set direction flags */
 					for ( float a1 = ang - 0.5f * ang_res; a1 <= ang + 0.5f * ang_res; a1 += ang_step )
-						flgs |= 1L<<(int)( 16.0f / M_PIf * ( a1 + 2.0f * M_PIf * ( a1 < 0.0f ) ) );
+						flgs |= 1L<<(int)( 16.0f * M_1_PIf * ( a1 + 2.0f * M_PIf * ( a1 < 0.0f ) ) );
 				}
 						/* add low-angle incident (< 20deg) */
 				if ( fabsf( dot( ray.direction, normal ) ) <= 0.342f ) {
@@ -652,7 +652,7 @@ static __device__ int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const floa
 					if ( ( r.x*r.x * u.x*u.x + r.y*r.y * u.y*u.y ) > t_hit * t_hit ) {
 						float ang = atan2f( -u.y, -u.x );
 						ang += 2.0f * M_PIf * ( ang < 0.0f );
-						ang *= 16.0f / M_PIf;
+						ang *= 16.0f * M_1_PIf;
 						if ( ( ang < 0.5f ) | ( ang >= 31.5f ) )
 							flgs |= 0x80000001;
 						else
@@ -877,7 +877,7 @@ static __device__ optix::Matrix<2,2> eigenvectors( optix::Matrix<2,3> *uv, float
 	//	evalue.y = evalue.x;
 	if (!i || ((evalue.x = fabsf(evalue.x)) <= FTINY*FTINY) | ((evalue.y = fabsf(evalue.y)) <= FTINY*FTINY) ) {
 		*ra = make_float2( maxarad );
-		return;
+		return optix::Matrix<2,2>::identity();
 	}
 	float slope1;
 	if ( evalue.x > evalue.y ) {
@@ -889,7 +889,7 @@ static __device__ optix::Matrix<2,2> eigenvectors( optix::Matrix<2,3> *uv, float
 	}
 					/* compute unit eigenvectors */
 	if ( fabsf( hess2[1] ) <= FTINY )
-		return;			/* uv OK as is */
+		return optix::Matrix<2,2>::identity();			/* uv OK as is */
 	slope1 = ( slope1 - hess2[0] ) / hess2[1];
 	const float xmag1 = sqrtf( 1.0f / ( 1.0f + slope1 * slope1 ) );
 	optix::Matrix<2,2> ab;
@@ -1024,7 +1024,7 @@ static __device__ unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, c
 {
 	const float max_d = 1.0f / ( minarad * ambacc + 0.001f );
 	const float ang_res = M_PI_2f / ( hp->ns - 1 );
-	const float ang_step = ang_res / ( (int)( 16.0f / M_PIf * ang_res ) + ( 1 + FTINY ) );
+	const float ang_step = ang_res / ( (int)( 16.0f * M_1_PIf * ang_res ) + ( 1 + FTINY ) );
 	float avg_d = 0.0f;
 	unsigned int flgs = 0u;
 	int i, j;
@@ -1051,7 +1051,7 @@ static __device__ unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, c
 				continue;	/* occluder outside ellipse */
 			const float ang = atan2f( u.y, u.x );	/* else set direction flags */
 			for ( float a1 = ang - 0.5f * ang_res; a1 <= ang + 0.5f * ang_res; a1 += ang_step )
-				flgs |= 1L<<(int)( 16.0f / M_PIf * ( a1 + 2.0f * M_PIf * ( a1 < 0.0f ) ) );
+				flgs |= 1L<<(int)( 16.0f * M_1_PIf * ( a1 + 2.0f * M_PIf * ( a1 < 0.0f ) ) );
 	    }
 					/* add low-angle incident (< 20deg) */
 	if ( fabsf( dot( ray.direction, normal ) ) <= 0.342f ) {
@@ -1059,7 +1059,7 @@ static __device__ unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, c
 		if ( ( r.x*r.x * u.x*u.x + r.y*r.y * u.y*u.y ) > t_hit * t_hit ) {
 			float ang = atan2f( -u.y, -u.x );
 			ang += 2.0f * M_PIf * ( ang < 0.0f );
-			ang *= 16.0f / M_PIf;
+			ang *= 16.0f * M_1_PIf;
 			if ( ( ang < 0.5f ) | ( ang >= 31.5f ) )
 				flgs |= 0x80000001;
 			else
@@ -1234,7 +1234,7 @@ static __device__ float doambient( float3 *rcol, float3 *pg, float3 *dg, const f
 			b = 1.0f / b;	/* compute & normalize gradient(s) */
 			//if (pg != NULL) {
 				//posgradient(pg, div, &hemi);
-				*pg = ( xdp * hemi.ux + ydp * hemi.uy ) * ( (hemi.nt * hemi.np) / M_PIf );
+				*pg = ( xdp * hemi.ux + ydp * hemi.uy ) * ( hemi.nt * hemi.np * M_1_PIf );
 				*pg *= b;
 			//}
 			//if (dg != NULL) {
@@ -1276,7 +1276,7 @@ static __device__ __inline__ void inithemi( AMBHEMI  *hp, const float3& ac, cons
 					/* set number of divisions */
 	if (ambacc <= FTINY && wt > (d = 0.8f * fmaxf(ac) * wt / (ambdiv*minweight)))
 		wt = d;			/* avoid ray termination */
-	hp->nt = sqrtf(ambdiv * wt / M_PIf) + 0.5f;
+	hp->nt = sqrtf(ambdiv * wt * M_1_PIf) + 0.5f;
 	i = ambacc > FTINY ? 3 : 1;	/* minimum number of samples */
 	if (hp->nt < i)
 		hp->nt = i;

@@ -353,7 +353,7 @@ RT_PROGRAM void closest_hit_radiance()
 						 *  color.  The diffuse reflected component will always be
 						 *  modified by the color of the material.
 						 */
-						float dtmp = ldot * light.solid_angle * lrdiff * (1.0f/M_PIf);
+						float dtmp = ldot * light.solid_angle * lrdiff * M_1_PIf;
 						cval += mcolor * dtmp;
 					}
 					if (ldot > FTINY && (specfl&(SP_REFL|SP_PURE)) == SP_REFL) {
@@ -365,7 +365,7 @@ RT_PROGRAM void closest_hit_radiance()
 						float dtmp = alpha2;
 						/* + source if flat */
 						if (specfl & SP_FLAT)
-							dtmp += light.solid_angle * (0.25f/M_PIf);
+							dtmp += light.solid_angle * 0.25f * M_1_PIf;
 						/* half vector */
 						float3 vtmp = shadow_ray.direction - ray.direction;
 						float d2 = dot( vtmp, ffnormal );
@@ -385,7 +385,7 @@ RT_PROGRAM void closest_hit_radiance()
 						/*
 						 *  Compute diffuse transmission.
 						 */
-						float dtmp = -ldot * light.solid_angle * ltdiff * (1.0f/M_PIf);
+						float dtmp = -ldot * light.solid_angle * ltdiff * M_1_PIf;
 						cval += mcolor * dtmp;
 					}
 					if (ldot < -FTINY && (specfl&(SP_TRAN|SP_PURE)) == SP_TRAN) {
@@ -394,7 +394,7 @@ RT_PROGRAM void closest_hit_radiance()
 						 *  is always modified by material color.
 						 */
 										/* roughness + source */
-						float dtmp = alpha2 + light.solid_angle * (1.0f/M_PIf);
+						float dtmp = alpha2 + light.solid_angle * M_1_PIf;
 										/* Gaussian */
 						dtmp = expf( ( 2.0f * dot( ray.direction, shadow_ray.direction ) - 2.0f ) / dtmp ) / ( M_PIf * dtmp ); // may need to perturb direction
 										/* worth using? */
@@ -921,7 +921,7 @@ static __device__ __inline__ void inithemi( AMBHEMI  *hp, float3 ac, const float
 					/* set number of divisions */
 	if (ambacc <= FTINY && wt > (d = 0.8f * fmaxf(ac) * wt / (ambdiv*minweight)))
 		wt = d;			/* avoid ray termination */
-	hp->nt = sqrtf(ambdiv * wt / M_PIf) + 0.5f;
+	hp->nt = sqrtf(ambdiv * wt * M_1_PIf) + 0.5f;
 	i = ambacc > FTINY ? 3 : 1;	/* minimum number of samples */
 	if (hp->nt < i)
 		hp->nt = i;
@@ -1075,13 +1075,41 @@ static __device__ int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit )
 #endif /* OLDAMB */
 #endif /* AMBIENT */
 
+//#define spart(pt,pi)	((pt)[(pi)>>2] >> (((pi)&3)<<1) & 3)
+//
+//static __device__ int skipparts( int3 *ct, int3 *sz, int2 *pp, unsigned int *pt )
+//{
+//	int  p;
+//					/* check this partition */
+//	p = spart(pt, pp.x);
+//	pp.x++;
+//	if (p == S0) {			/* leaf partition */
+//		if (pp.y) {
+//			pp.y--;
+//			return(0);	/* not there yet */
+//		} else
+//			return(1);	/* we've arrived */
+//	}
+//				/* else check lower */
+//	sz[p] >>= 1;
+//	ct[p] -= sz[p];
+//	if (skipparts(ct, sz, pp, pt))
+//		return(1);	/* return hit */
+//				/* else check upper */
+//	ct[p] += sz[p] << 1;
+//	if (skipparts(ct, sz, pp, pt))
+//		return(1);	/* return hit */
+//				/* else return to starting position */
+//	ct[p] -= sz[p];
+//	sz[p] <<= 1;
+//	return(0);		/* return miss */
+//}
+//
 //static __device__ float nextssamp( float3 *rdir, const DistantLight* light, const float3 hit,			/* compute sample for source, rtn. distance */
 //	RAY  *r,		/* origin is read, direction is set */
-//	SRCINDEX  *si		/* source index (modified to current) */\
+//	SRCINDEX  *si		/* source index (modified to current) */
 //)
 //{
-//	int3  cent, size;
-//	int2  parr;
 ////	SRCREC  *srcp;
 //	float3  vpos;
 //	float  d;
@@ -1103,9 +1131,9 @@ static __device__ int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit )
 //	//	si->sp = -1;
 //	//}
 //					/* get partition */
-//	cent = make_int3( 0 );
-//	size = make_int3( MAXSPART );
-//	parr = make_int2( 0, si->sp );
+//	int3 cent = make_int3( 0 );
+//	int3 size = make_int3( MAXSPART );
+//	int2 parr = make_int2( 0, si->sp );
 //	//if (!skipparts(cent, size, parr, si->spt)) //TODO implement this
 //	//	error(CONSISTENCY, "bad source partition in nextssamp");
 //					/* compute sample */
