@@ -29,7 +29,7 @@ float cuda_kmeans_threshold = 0.001f;			/* Fraction of seeds that must change cl
 float cuda_kmeans_error = 0.1f;					/* Weighting of position in k-means error */
 #endif
 
-extern int
+int
 getrenderopt(		/* get next render option */
 	int  ac,
 	char  *av[]
@@ -273,7 +273,7 @@ getrenderopt(		/* get next render option */
 }
 
 
-extern void
+void
 print_rdefaults(void)		/* print default render values to stdout */
 {
 	printf(do_irrad ? "-i+\t\t\t\t# irradiance calculation on\n" :
