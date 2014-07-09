@@ -11,6 +11,7 @@
 //#define HIT_COUNT
 //#define CALLABLE
 //#define OLDAMB
+#define LIGHTS
 
 /* Types of sky that may be displayed with an OptiX miss program. */
 #ifndef CALLABLE

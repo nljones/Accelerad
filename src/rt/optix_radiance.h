@@ -139,6 +139,7 @@ void createBuffer3D( const RTcontext context, const RTbuffertype type, const RTf
 void createCustomBuffer3D( const RTcontext context, const RTbuffertype type, const int element_size, const int x_count, const int y_count, const int z_count, RTbuffer* buffer );
 void applyContextObject( const RTcontext context, const char* name, const RTobject object );
 void applyGeometryObject( const RTcontext context, const RTgeometry geometry, const char* name, const RTobject object );
+void applyGeometryInstanceObject( const RTcontext context, const RTgeometryinstance instance, const char* name, const RTobject object );
 void handleError( const RTcontext context, const RTresult code, const char* file, const int line, const int fatal );
 void printException( const float3 code, const char* location, const int index );
 void ptxFile( char* path, const char* name );

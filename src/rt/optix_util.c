@@ -242,6 +242,13 @@ void applyGeometryObject( const RTcontext context, const RTgeometry geometry, co
 	RT_CHECK_ERROR( rtVariableSetObject( var, object ) );
 }
 
+void applyGeometryInstanceObject( const RTcontext context, const RTgeometryinstance instance, const char* name, const RTobject object )
+{
+	RTvariable var;
+	RT_CHECK_ERROR( rtGeometryInstanceDeclareVariable( instance, name, &var ) );
+	RT_CHECK_ERROR( rtVariableSetObject( var, object ) );
+}
+
 void handleError( const RTcontext context, const RTresult code, const char* file, const int line, const int fatal )
 {
 	if ( context ) {

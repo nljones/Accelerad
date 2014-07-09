@@ -19,6 +19,17 @@
 #include "optix_common.h"
 
 
+/* Structure to track the number of each data type in the model. */
+typedef struct struct_object_count
+{
+	unsigned int vertex, triangle, material, light, distant_light;
+#ifdef CALLABLE
+	unsigned int function;
+#else
+	unsigned int sky_bright, perez_lum;
+#endif
+} ObjectCount;
+
 void renderOptix( const VIEW* view, const int width, const int height, const double alarm, COLOR* colors, float* depths );
 void computeOptix( const int width, const int height, const double alarm, RAY* rays );
 void endOptix();
@@ -29,10 +40,8 @@ static void setupKernel( const RTcontext context, const VIEW* view, const int wi
 static void applyRadianceSettings( const RTcontext context );
 static void createCamera( const RTcontext context, const VIEW* view );
 static void updateCamera( const RTcontext context, const VIEW* view );
-#ifdef CALLABLE
-static void countObjectsInScene( unsigned int* vertex_count, unsigned int* triangle_count, unsigned int* material_count, unsigned int* point_light_count, unsigned int* function_count );
-#else
-static void countObjectsInScene( unsigned int* vertex_count, unsigned int* triangle_count, unsigned int* material_count, unsigned int* point_light_count, unsigned int* sky_bright_count, unsigned int* perez_lum_count );
+static void countObjectsInScene( ObjectCount* count );
+#ifndef CALLABLE
 static int getSkyType( const OBJREC* bright_func );
 #endif
 static void createGeometryInstance( const RTcontext context, RTgeometryinstance* instance );
@@ -62,9 +71,12 @@ static RTbuffer buffer_handle = NULL;
 static RTvariable camera_type, camera_eye, camera_u, camera_v, camera_w, camera_fov, camera_shift, camera_clip;
 
 /* Handles to intersection program objects used by multiple materials */
-static RTprogram radiance_normal_closest_hit_program, radiance_normal_any_hit_program, ambient_normal_closest_hit_program;
+static RTprogram radiance_normal_closest_hit_program, ambient_normal_closest_hit_program;
+#ifndef LIGHTS
+static RTprogram shadow_normal_any_hit_program;
+#endif
 static RTprogram radiance_glass_closest_hit_program, shadow_glass_closest_hit_program, ambient_glass_any_hit_program;
-static RTprogram radiance_light_closest_hit_program;
+static RTprogram radiance_light_closest_hit_program, shadow_light_closest_hit_program;
 #ifdef KMEANS_IC
 static RTprogram point_cloud_closest_hit_program, point_cloud_any_hit_program;
 #endif
@@ -443,20 +455,16 @@ static void updateCamera( const RTcontext context, const VIEW* view )
 }
 
 /* Count the number of vertices and triangles belonging to all faces in the scene. */
-#ifdef CALLABLE
-static void countObjectsInScene( unsigned int* vertex_count, unsigned int* triangle_count, unsigned int* material_count, unsigned int* distant_light_count, unsigned int* function_count )
-#else
-static void countObjectsInScene( unsigned int* vertex_count, unsigned int* triangle_count, unsigned int* material_count, unsigned int* distant_light_count, unsigned int* sky_bright_count, unsigned int* perez_lum_count )
-#endif
+static void countObjectsInScene( ObjectCount* count )
 {
-	OBJREC* rec;
-	FACE face;
+	OBJREC* rec, *material;
+	FACE* face;
 #ifdef CALLABLE
-	unsigned int i, v_count, t_count, m_count, dl_count, f_count;
-	v_count = t_count = m_count = dl_count = f_count = 0u;
+	unsigned int i, v_count, t_count, m_count, l_count, dl_count, f_count;
+	v_count = t_count = m_count = l_count = dl_count = f_count = 0u;
 #else
-	unsigned int i, v_count, t_count, m_count, dl_count, cie_count, perez_count;
-	v_count = t_count = m_count = dl_count = cie_count = perez_count = 0;
+	unsigned int i, v_count, t_count, m_count, l_count, dl_count, cie_count, perez_count;
+	v_count = t_count = m_count = l_count = dl_count = cie_count = perez_count = 0;
 #endif
 
 	for (i = 0; i < nobjects; i++) {
@@ -473,9 +481,14 @@ static void countObjectsInScene( unsigned int* vertex_count, unsigned int* trian
 			m_count++;
 			break;
 		case OBJ_FACE: // Typical polygons
-			face = *getface(rec);
-			v_count += face.nv;
-			t_count += face.nv - 2;
+			face = getface(rec);
+			v_count += face->nv;
+			t_count += face->nv - 2;
+#ifdef LIGHTS
+			material = findmaterial(rec);
+			if (islight(material->otype) && (material->otype != MAT_GLOW || material->oargs.farg[3] > 0))
+				l_count += face->nv - 2;
+#endif
 			break;
 		case OBJ_SOURCE: // The sun, for example
 			dl_count++;
@@ -501,15 +514,18 @@ static void countObjectsInScene( unsigned int* vertex_count, unsigned int* trian
 		}
 	}
 
-	*vertex_count = v_count;
-	*triangle_count = t_count;
-	*material_count = m_count;
-	*distant_light_count = dl_count;
+	count->vertex = v_count;
+	count->triangle = t_count;
+	count->material = m_count;
+#ifdef LIGHTS
+	count->light = l_count;
+#endif
+	count->distant_light = dl_count;
 #ifdef CALLABLE
-	*function_count = f_count;
+	count->function = f_count;
 #else
-	*sky_bright_count = cie_count;
-	*perez_lum_count = perez_count;
+	count->sky_bright = cie_count;
+	count->perez_lum = perez_count;
 #endif
 }
 
@@ -561,15 +577,19 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	int*       t_index_buffer_data;
 	unsigned int* m_index_buffer_data;
 
+#ifdef LIGHTS
+	RTbuffer   light_index_buffer;
+	int*       l_index_buffer_data;
+#endif
+
 	int i, j, t;
 #ifdef CALLABLE
-	unsigned int vi, ni, ti, mi, vii, nii, tii, mii, dli, fi;
-	unsigned int vertex_count, triangle_count, material_count, distant_light_count, function_count;
+	unsigned int vi, ni, ti, mi, vii, nii, tii, mii, li, dli, fi;
 #else
-	unsigned int vi, ni, ti, mi, vii, nii, tii, mii, dli, sbi, pli;
-	unsigned int vertex_count, triangle_count, material_count, distant_light_count, sky_bright_count, perez_lum_count;
+	unsigned int vi, ni, ti, mi, vii, nii, tii, mii, li, dli, sbi, pli;
 #endif
-	OBJREC* rec, *parent;
+	ObjectCount count;
+	OBJREC* rec, *material;
 	FACE* face;
 	SRCREC source;
 	DistantLight light;
@@ -589,15 +609,11 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	buffer_entry_index = (int *)malloc(sizeof(int) * nobjects);
 
 	/* Count the number of each type of object in the scene. */
-#ifdef CALLABLE
-	countObjectsInScene(&vertex_count, &triangle_count, &material_count, &distant_light_count, &function_count);
-#else
-	countObjectsInScene(&vertex_count, &triangle_count, &material_count, &distant_light_count, &sky_bright_count, &perez_lum_count);
-#endif
+	countObjectsInScene(&count);
 
 	/* Create the geometry reference for OptiX. */
 	RT_CHECK_ERROR( rtGeometryCreate( context, &mesh ) );
-	RT_CHECK_ERROR( rtGeometrySetPrimitiveCount( mesh, triangle_count ) );
+	RT_CHECK_ERROR( rtGeometrySetPrimitiveCount( mesh, count.triangle ) );
 
 	ptxFile( path_to_ptx, "triangle_mesh" );
 	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "mesh_bounds", &mesh_bounding_box_program ) );
@@ -609,49 +625,54 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	/* Create the geometry instance containing the geometry. */
 	RT_CHECK_ERROR( rtGeometryInstanceCreate( context, instance ) );
 	RT_CHECK_ERROR( rtGeometryInstanceSetGeometry( *instance, mesh ) );
-	RT_CHECK_ERROR( rtGeometryInstanceSetMaterialCount( *instance, material_count ) );
+	RT_CHECK_ERROR( rtGeometryInstanceSetMaterialCount( *instance, count.material ) );
 
 	/* Create buffers for storing lighting information. */
-	createCustomBuffer1D( context, RT_BUFFER_INPUT, sizeof(DistantLight), distant_light_count, &light_buffer );
+	createCustomBuffer1D( context, RT_BUFFER_INPUT, sizeof(DistantLight), count.distant_light, &light_buffer );
 	RT_CHECK_ERROR( rtBufferMap( light_buffer, (void**)&light_buffer_data ) );
 
 #ifdef CALLABLE
-	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_PROGRAM_ID, function_count, &function_buffer );
+	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_PROGRAM_ID, count.function, &function_buffer );
 	RT_CHECK_ERROR( rtBufferMap( function_buffer, (void**)&function_buffer_data ) );
 #else
-	createCustomBuffer1D( context, RT_BUFFER_INPUT, sizeof(SkyBright), sky_bright_count, &cie_buffer );
+	createCustomBuffer1D( context, RT_BUFFER_INPUT, sizeof(SkyBright), count.sky_bright, &cie_buffer );
 	RT_CHECK_ERROR( rtBufferMap( cie_buffer, &cie_buffer_data ) );
 
-	createCustomBuffer1D( context, RT_BUFFER_INPUT, sizeof(PerezLum), perez_lum_count, &perez_buffer );
+	createCustomBuffer1D( context, RT_BUFFER_INPUT, sizeof(PerezLum), count.perez_lum, &perez_buffer );
 	RT_CHECK_ERROR( rtBufferMap( perez_buffer, &perez_buffer_data ) );
 #endif
 
 	/* Create buffers for storing geometry information. */
-	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, vertex_count, &vertex_buffer );
+	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, count.vertex, &vertex_buffer );
 	RT_CHECK_ERROR( rtBufferMap( vertex_buffer, (void**)&vertex_buffer_data ) );
 
-	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, vertex_count, &normal_buffer );
+	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, count.vertex, &normal_buffer );
 	RT_CHECK_ERROR( rtBufferMap( normal_buffer, (void**)&normal_buffer_data ) );
 
-	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT2, vertex_count, &tex_coord_buffer );
+	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT2, count.vertex, &tex_coord_buffer );
 	RT_CHECK_ERROR( rtBufferMap( tex_coord_buffer, (void**)&tex_coord_buffer_data ) );
 
-	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_INT3, triangle_count, &vertex_index_buffer );
+	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_INT3, count.triangle, &vertex_index_buffer );
 	RT_CHECK_ERROR( rtBufferMap( vertex_index_buffer, (void**)&v_index_buffer_data ) );
 
-	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_INT3, triangle_count, &normal_index_buffer );
+	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_INT3, count.triangle, &normal_index_buffer );
 	RT_CHECK_ERROR( rtBufferMap( normal_index_buffer, (void**)&n_index_buffer_data ) );
 
-	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_INT3, triangle_count, &tex_coord_index_buffer );
+	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_INT3, count.triangle, &tex_coord_index_buffer );
 	RT_CHECK_ERROR( rtBufferMap( tex_coord_index_buffer, (void**)&t_index_buffer_data ) );
 
-	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_UNSIGNED_INT, triangle_count, &material_index_buffer );
+	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_UNSIGNED_INT, count.triangle, &material_index_buffer );
 	RT_CHECK_ERROR( rtBufferMap( material_index_buffer, (void**)&m_index_buffer_data ) );
 
+#ifdef LIGHTS
+	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_INT3, count.light, &light_index_buffer );
+	RT_CHECK_ERROR( rtBufferMap( light_index_buffer, (void**)&l_index_buffer_data ) );
+#endif
+
 #ifdef CALLABLE
-	vi = ni = ti = mi = vii = nii = tii = mii = dli = fi = 0u;
+	vi = ni = ti = mi = vii = nii = tii = mii = li = dli = fi = 0u;
 #else
-	vi = ni = ti = mi = vii = nii = tii = mii = dli = sbi = pli = 0u;
+	vi = ni = ti = mi = vii = nii = tii = mii = li = dli = sbi = pli = 0u;
 #endif
 
 	/* Get the scene geometry as a list of triangles. */
@@ -686,10 +707,11 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 			break;
 		case OBJ_FACE:
 			face = getface(rec);
+			material = findmaterial(rec);
+			t = vi / 3;
 
 			/* Write the indices to the buffers */
 			for (j = 2; j < face->nv; j++) {
-				t = vi / 3;
 				v_index_buffer_data[vii++] = t;
 				v_index_buffer_data[vii++] = t + j - 1;
 				v_index_buffer_data[vii++] = t + j;
@@ -703,7 +725,15 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 				t_index_buffer_data[tii++] = t + j;
 
 				//m_index_buffer_data[mii++] = buffer_entry_index[rec.omod]; //This may be the case once texture functions are implemented
-				m_index_buffer_data[mii++] = buffer_entry_index[objndx(findmaterial(rec))]; // internal calls seem redundant
+				m_index_buffer_data[mii++] = buffer_entry_index[objndx(material)];
+
+#ifdef LIGHTS
+				if (islight(material->otype) && (material->otype != MAT_GLOW || material->oargs.farg[3] > 0)) {
+					l_index_buffer_data[li++] = t;
+					l_index_buffer_data[li++] = t + j - 1;
+					l_index_buffer_data[li++] = t + j;
+				}
+#endif
 			}
 
 			/* Write the vertices to the buffers */
@@ -726,26 +756,22 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 			break;
 		case OBJ_SOURCE:
 			ssetsrc(&source, rec);
-			parent = findmaterial(rec);
-			light.color.x = parent->oargs.farg[0]; // TODO these are given in RGB radiance value (watts/steradian/m2)
-			light.color.y = parent->oargs.farg[1];
-			light.color.z = parent->oargs.farg[2];
+			material = findmaterial(rec);
+			light.color.x = material->oargs.farg[0]; // TODO these are given in RGB radiance value (watts/steradian/m2)
+			light.color.y = material->oargs.farg[1];
+			light.color.z = material->oargs.farg[2];
 			light.pos.x   = source.sloc[0];
 			light.pos.y   = source.sloc[1];
 			light.pos.z   = source.sloc[2];
 			light.solid_angle = source.ss2;
-			if (parent->oargs.nfargs > 3 && parent->oargs.farg[3] == 0) {
-				light.casts_shadow = 0;
-			} else {
-				light.casts_shadow = 1;
-			}
+			light.casts_shadow = material->otype != MAT_GLOW; // Glow cannot cast shadow infinitely far away
 
 			/* Check for a parent function. */
-			if (parent->omod > -1) {
+			if (material->omod > -1) {
 #ifndef CALLABLE
-				light.type = getSkyType(objptr(parent->omod));
+				light.type = getSkyType(objptr(material->omod));
 #endif
-				light.function = buffer_entry_index[parent->omod];
+				light.function = buffer_entry_index[material->omod];
 			} else {
 #ifndef CALLABLE
 				light.type = SKY_NONE;
@@ -754,7 +780,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 			}
 
 			//fprintf(stderr, "Source [%f, %f, %f]\n", source.sloc[0], source.sloc[1], source.sloc[2]);
-			//fprintf(stderr, "Color [%f, %f, %f]\n", parent.oargs.farg[0], parent.oargs.farg[1], parent.oargs.farg[2]);
+			//fprintf(stderr, "Color [%f, %f, %f]\n", material.oargs.farg[0], material.oargs.farg[1], material.oargs.farg[2]);
 			//fprintf(stderr, "Solid Angle %f\n", source.ss2);
 			//fprintf(stderr, "DimU [%f, %f, %f]\n", source.ss[0][0], source.ss[0][1], source.ss[0][2]);
 			//fprintf(stderr, "DimV [%f, %f, %f]\n", source.ss[1][0], source.ss[1][1], source.ss[1][2]);
@@ -862,25 +888,30 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 
 	/* Unmap and apply the geometry buffers. */
 	RT_CHECK_ERROR( rtBufferUnmap( vertex_buffer ) );
-	applyGeometryObject( context, mesh, "vertex_buffer", vertex_buffer );
+	applyGeometryInstanceObject( context, *instance, "vertex_buffer", vertex_buffer );
 
 	RT_CHECK_ERROR( rtBufferUnmap( normal_buffer ) );
-	applyGeometryObject( context, mesh, "normal_buffer", normal_buffer );
+	applyGeometryInstanceObject( context, *instance, "normal_buffer", normal_buffer );
 
 	RT_CHECK_ERROR( rtBufferUnmap( tex_coord_buffer ) );
-	applyGeometryObject( context, mesh, "texcoord_buffer", tex_coord_buffer );
+	applyGeometryInstanceObject( context, *instance, "texcoord_buffer", tex_coord_buffer );
 
 	RT_CHECK_ERROR( rtBufferUnmap( vertex_index_buffer ) );
-	applyGeometryObject( context, mesh, "vindex_buffer", vertex_index_buffer );
+	applyGeometryInstanceObject( context, *instance, "vindex_buffer", vertex_index_buffer );
 
 	RT_CHECK_ERROR( rtBufferUnmap( normal_index_buffer ) );
-	applyGeometryObject( context, mesh, "nindex_buffer", normal_index_buffer );
+	applyGeometryInstanceObject( context, *instance, "nindex_buffer", normal_index_buffer );
 
 	RT_CHECK_ERROR( rtBufferUnmap( tex_coord_index_buffer ) );
-	applyGeometryObject( context, mesh, "tindex_buffer", tex_coord_index_buffer );
+	applyGeometryInstanceObject( context, *instance, "tindex_buffer", tex_coord_index_buffer );
 
 	RT_CHECK_ERROR( rtBufferUnmap( material_index_buffer ) );
-	applyGeometryObject( context, mesh, "material_buffer", material_index_buffer );
+	applyGeometryInstanceObject( context, *instance, "material_buffer", material_index_buffer );
+
+#ifdef LIGHTS
+	RT_CHECK_ERROR( rtBufferUnmap( light_index_buffer ) );
+	applyGeometryInstanceObject( context, *instance, "lindex_buffer", light_index_buffer );
+#endif
 }
 
 static void createNormalMaterial( const RTcontext context, const RTgeometryinstance instance, const int index, const OBJREC* rec )
@@ -888,20 +919,20 @@ static void createNormalMaterial( const RTcontext context, const RTgeometryinsta
 	RTmaterial material;
 
 	/* Create our hit programs to be shared among all materials */
-	if ( !radiance_normal_closest_hit_program || !radiance_normal_any_hit_program ) {
+	if ( !radiance_normal_closest_hit_program ) {
 		ptxFile( path_to_ptx, "radiance_normal" );
 		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "closest_hit_radiance", &radiance_normal_closest_hit_program ) );
 		applyProgramVariable1ui( context, radiance_normal_closest_hit_program, "metal", MAT_METAL );
-		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "any_hit_shadow", &radiance_normal_any_hit_program ) );
+#ifndef LIGHTS
+		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "any_hit_shadow", &shadow_normal_any_hit_program ) );
+#endif
 	}
 
 	RT_CHECK_ERROR( rtMaterialCreate( context, &material ) );
-
-	/* Note that we are leaving anyHitProgram[0] and closestHitProgram[1] as NULL.
-	 * This is because our radiance rays only need closest_hit and shadow rays only
-	 * need any_hit */
 	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, RADIANCE_RAY, radiance_normal_closest_hit_program ) );
-	RT_CHECK_ERROR( rtMaterialSetAnyHitProgram( material, SHADOW_RAY, radiance_normal_any_hit_program ) );
+#ifndef LIGHTS
+	RT_CHECK_ERROR( rtMaterialSetAnyHitProgram( material, SHADOW_RAY, shadow_normal_any_hit_program ) ); // Cannot use any hit program because closest might be light source
+#endif
 
 	if ( calc_ambient ) {
 		if ( !ambient_normal_closest_hit_program ) {
@@ -945,10 +976,6 @@ static void createGlassMaterial( const RTcontext context, const RTgeometryinstan
 	}
 
 	RT_CHECK_ERROR( rtMaterialCreate( context, &material ) );
-
-	/* Note that we are leaving anyHitProgram[0] and closestHitProgram[1] as NULL.
-	 * This is because our radiance rays only need closest_hit and shadow rays only
-	 * need any_hit */
 	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, RADIANCE_RAY, radiance_glass_closest_hit_program ) );
 	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, SHADOW_RAY, shadow_glass_closest_hit_program ) );
 
@@ -982,17 +1009,15 @@ void createLightMaterial( const RTcontext context, const RTgeometryinstance inst
 	RTmaterial material;
 
 	/* Create our hit programs to be shared among all materials */
-	if ( !radiance_light_closest_hit_program ) {
+	if ( !radiance_light_closest_hit_program || !shadow_light_closest_hit_program ) {
 		ptxFile( path_to_ptx, "radiance_light" );
 		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "closest_hit_radiance", &radiance_light_closest_hit_program ) );
+		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "closest_hit_shadow", &shadow_light_closest_hit_program ) );
 	}
 
 	RT_CHECK_ERROR( rtMaterialCreate( context, &material ) );
-
-	/* Note that we are leaving anyHitProgram[0] and closestHitProgram[1] as NULL.
-	 * This is because our radiance rays only need closest_hit and shadow rays only
-	 * need any_hit */
 	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, RADIANCE_RAY, radiance_light_closest_hit_program ) );
+	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, SHADOW_RAY, shadow_light_closest_hit_program ) );
 
 #ifdef KMEANS_IC
 	if ( calc_ambient ) {
@@ -1006,6 +1031,8 @@ void createLightMaterial( const RTcontext context, const RTgeometryinstance inst
 
 	/* Set variables to be consumed by material for this geometry instance */
 	applyMaterialVariable3f( context, material, "color", rec->oargs.farg[0], rec->oargs.farg[1], rec->oargs.farg[2] );
+	if (rec->otype == MAT_GLOW)
+		applyMaterialVariable1f( context, material, "maxrad", rec->oargs.farg[3] );
 
 	/* Apply this material to the geometry instance. */
 	RT_CHECK_ERROR( rtGeometryInstanceSetMaterial( instance, index, material ) );

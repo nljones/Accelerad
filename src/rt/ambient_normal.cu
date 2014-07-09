@@ -305,7 +305,7 @@ static __device__ int plugaleak( const AmbientRecord* record, const float3& anor
 	PerRayData_shadow shadow_prd;
 	shadow_prd.result = make_float3( 1.0f );
 	rtTrace( top_shadower, shadow_ray, shadow_prd );
-	return( dot( shadow_prd.result, shadow_prd.result ) != 1.0f );	/* check for occluder */
+	return( dot( shadow_prd.result, shadow_prd.result ) < 1.0f );	/* check for occluder */
 }
 
 static __device__ int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit )

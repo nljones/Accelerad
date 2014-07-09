@@ -77,6 +77,12 @@ rtDeclareVariable(float,        rough, , ); /* The material roughness given by t
 rtDeclareVariable(float,        transm, , ) = 0.0f; /* The material transmissivity given by the rad file "trans" object */
 rtDeclareVariable(float,        tspecu, , ) = 0.0f; /* The material transmitted specular component given by the rad file "trans" object */
 
+/* Geometry instance variables */
+#ifdef LIGHTS
+rtBuffer<float3> vertex_buffer;
+rtBuffer<int3>   lindex_buffer;    // position indices
+#endif
+
 /* OptiX variables */
 rtDeclareVariable(Ray, ray, rtCurrentRay, );
 rtDeclareVariable(float, t_hit, rtIntersectionDistance, );
@@ -89,6 +95,7 @@ rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );
 rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
 
 
+static __device__ float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const unsigned int& specfl, const float3& scolor, const float3& mcolor, const float3& normal, const float& trans, const float& rspec, const float& tspec, const float& rdiff, const float& tdiff, const float& alpha2, const float& omega );
 static __device__ float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mcolor, const float3& normal, const float3& hit, const float& alpha2, const float& tspec );
 #ifdef AMBIENT
 static __device__ float3 multambient( float3 aval, const float3& normal, const float3& hit );
@@ -108,12 +115,14 @@ static __device__ int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit );
 static __device__ __inline__ float bright( const float3 &rgb );
 
 
+#ifndef LIGHTS
 RT_PROGRAM void any_hit_shadow()
 {
 	// this material is opaque, so it fully attenuates all shadow rays
 	prd_shadow.result = make_float3(0.0f);
 	rtTerminateRay();
 }
+#endif
 
 
 RT_PROGRAM void closest_hit_radiance()
@@ -307,108 +316,53 @@ RT_PROGRAM void closest_hit_radiance()
 				aval *= tdiff;
 			result += multambient(aval, -ffnormal, hit_point);	/* add to returned color */
 		}
-#endif
-#endif
+#endif /* TRANSMISSION */
+#endif /* AMBIENT */
 
 		/* add direct component */
 		// This is the call to direct() in source.c
 		// Let's start at line 447, and not bother with sorting for now
 
 		// compute direct lighting
-		unsigned int num_lights = lights.size();
 		PerRayData_shadow shadow_prd;
 		Ray shadow_ray = make_Ray( hit_point, ffnormal, shadow_ray_type, RAY_START, RAY_END );
-		for(int i = 0; i < num_lights; ++i) {
-			DistantLight light = lights[i];
-			//float Ldist = optix::length(light.pos - hit_point);
-			//float3 L = optix::normalize(light.pos - hit_point);
-			shadow_ray.direction = normalize(light.pos);
-			float ldot = dot( ffnormal, shadow_ray.direction );
 
-			// cast shadow ray
-#ifdef TRANSMISSION
+		/* contributions from distant lights (mainly the sun) */
+		unsigned int num_lights = lights.size();
+		for ( int i = 0; i < num_lights; i++ ) {
+			const DistantLight light = lights[i];
 			if ( light.casts_shadow ) {
-#else
-			if ( ldot > 0.0f && light.casts_shadow ) { // assuming it's not a TRANS material
-#endif
-				shadow_prd.result = make_float3(0.0f);
-				rtTrace(top_shadower, shadow_ray, shadow_prd);
-				if( fmaxf(shadow_prd.result) > 0.0f ) {
-
-					/* This comes from direct() in normal.c */
-					float3 cval = make_float3( 0.0f );
-
-					/* Fresnel estimate */
-					float lrdiff = rdiff;
-					float ltdiff = tdiff;
-					if (specfl & SP_PURE && rspec >= FRESTHRESH && (lrdiff > FTINY) | (ltdiff > FTINY)) {
-						float dtmp = 1.0f - FRESNE(fabs(ldot));
-						lrdiff *= dtmp;
-						ltdiff *= dtmp;
-					}
-
-					if (ldot > FTINY && lrdiff > FTINY) {
-						/*
-						 *  Compute and add diffuse reflected component to returned
-						 *  color.  The diffuse reflected component will always be
-						 *  modified by the color of the material.
-						 */
-						float dtmp = ldot * light.solid_angle * lrdiff * M_1_PIf;
-						cval += mcolor * dtmp;
-					}
-					if (ldot > FTINY && (specfl&(SP_REFL|SP_PURE)) == SP_REFL) {
-						/*
-						 *  Compute specular reflection coefficient using
-						 *  Gaussian distribution model.
-						 */
-						/* roughness */
-						float dtmp = alpha2;
-						/* + source if flat */
-						if (specfl & SP_FLAT)
-							dtmp += light.solid_angle * 0.25f * M_1_PIf;
-						/* half vector */
-						float3 vtmp = shadow_ray.direction - ray.direction;
-						float d2 = dot( vtmp, ffnormal );
-						d2 *= d2;
-						float d3 = dot( vtmp, vtmp );
-						float d4 = (d3 - d2) / d2;
-						/* new W-G-M-D model */
-						dtmp = expf(-d4/dtmp) * d3 / (M_PIf * d2*d2 * dtmp);
-						/* worth using? */
-						if (dtmp > FTINY) {
-							dtmp *= ldot * light.solid_angle;
-							cval += scolor * dtmp;
-						}
-					}
-#ifdef TRANSMISSION
-					if (ldot < -FTINY && ltdiff > FTINY) {
-						/*
-						 *  Compute diffuse transmission.
-						 */
-						float dtmp = -ldot * light.solid_angle * ltdiff * M_1_PIf;
-						cval += mcolor * dtmp;
-					}
-					if (ldot < -FTINY && (specfl&(SP_TRAN|SP_PURE)) == SP_TRAN) {
-						/*
-						 *  Compute specular transmission.  Specular transmission
-						 *  is always modified by material color.
-						 */
-										/* roughness + source */
-						float dtmp = alpha2 + light.solid_angle * M_1_PIf;
-										/* Gaussian */
-						dtmp = expf( ( 2.0f * dot( ray.direction, shadow_ray.direction ) - 2.0f ) / dtmp ) / ( M_PIf * dtmp ); // may need to perturb direction
-										/* worth using? */
-						if (dtmp > FTINY) {
-							dtmp *= tspec * light.solid_angle * sqrtf( -ldot / pdot );
-							cval += mcolor * dtmp;
-						}
-					}
-#endif
-					result += cval * shadow_prd.result;
-				} /* End direct() in normal.c */
+				shadow_ray.direction = normalize( light.pos );
+				result += dirnorm( &shadow_ray, &shadow_prd, specfl, scolor, mcolor, ffnormal, trans, rspec, tspec, rdiff, tdiff, alpha2, light.solid_angle );
 			}
 		}
 
+#ifdef LIGHTS
+		/* contributions from nearby lights */
+		num_lights = lindex_buffer.size();
+		for ( int i = 0; i < num_lights; i++ ) {
+			const int3 v_idx = lindex_buffer[i];
+
+			const float3 r0 = vertex_buffer[ v_idx.x ] - hit_point;
+			const float3 r1 = vertex_buffer[ v_idx.y ] - hit_point;
+			const float3 r2 = vertex_buffer[ v_idx.z ] - hit_point;
+
+			const float l0 = length( r0 );
+			const float l1 = length( r1 );
+			const float l2 = length( r2 );
+
+			/* Solid angle calculation from "The solid angle of a plane triangle", A van Oosterom and J Strackee */
+			const float numerator = dot( r0, cross( r1, r2 ) );
+			const float denominator = l0 * l1 * l2 + dot( r0, r1 ) * l2 + dot( r0, r2 ) * l1 + dot( r1, r2 ) * l0;
+			const float omega = 2.0f * fabsf( atan2( numerator, denominator ) );
+
+			if ( omega > FTINY ) { //if ( light.casts_shadow ) {
+				shadow_ray.direction = normalize( r0 + r1 + r2 ); // aim for centroid TODO pick random point
+				shadow_ray.tmax = fmaxf( l0, fmaxf( l1, l2 ) ) + FTINY; //TODO use better predicted ray length
+				result += dirnorm( &shadow_ray, &shadow_prd, specfl, scolor, mcolor, ffnormal, trans, rspec, tspec, rdiff, tdiff, alpha2, omega );
+			}
+		}
+#endif /* LIGHTS */
 	}
 
 	/* check distance */
@@ -429,6 +383,94 @@ RT_PROGRAM void closest_hit_radiance()
 #ifdef HIT_TYPE
 	prd.hit_type = type;
 #endif
+}
+
+/* compute source contribution */
+static __device__ float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const unsigned int& specfl, const float3& scolor, const float3& mcolor, const float3& normal, const float& trans, const float& rspec, const float& tspec, const float& rdiff, const float& tdiff, const float& alpha2, const float& omega )
+{
+	float3 cval = make_float3( 0.0f );
+	float ldot = dot( normal, shadow_ray->direction );
+
+#ifdef TRANSMISSION
+	if ( ldot < 0.0f ? trans <= FTINY : trans >= 1.0f - FTINY )
+#else
+	if ( ldot <= FTINY )
+#endif
+		return cval;
+
+	// cast shadow ray
+	shadow_prd->result = make_float3( 0.0f );
+	rtTrace( top_shadower, *shadow_ray, *shadow_prd );
+	if( fmaxf( shadow_prd->result ) <= 0.0f )
+		return cval;
+	
+	/* Fresnel estimate */
+	float lrdiff = rdiff;
+	float ltdiff = tdiff;
+	if (specfl & SP_PURE && rspec >= FRESTHRESH && (lrdiff > FTINY) | (ltdiff > FTINY)) {
+		float dtmp = 1.0f - FRESNE(fabs(ldot));
+		lrdiff *= dtmp;
+		ltdiff *= dtmp;
+	}
+
+	if (ldot > FTINY && lrdiff > FTINY) {
+		/*
+		 *  Compute and add diffuse reflected component to returned
+		 *  color.  The diffuse reflected component will always be
+		 *  modified by the color of the material.
+		 */
+		float dtmp = ldot * omega * lrdiff * M_1_PIf;
+		cval += mcolor * dtmp;
+	}
+	if (ldot > FTINY && (specfl&(SP_REFL|SP_PURE)) == SP_REFL) {
+		/*
+		 *  Compute specular reflection coefficient using
+		 *  Gaussian distribution model.
+		 */
+		/* roughness */
+		float dtmp = alpha2;
+		/* + source if flat */
+		if (specfl & SP_FLAT)
+			dtmp += omega * 0.25f * M_1_PIf;
+		/* half vector */
+		float3 vtmp = shadow_ray->direction - ray.direction;
+		float d2 = dot( vtmp, normal );
+		d2 *= d2;
+		float d3 = dot( vtmp, vtmp );
+		float d4 = (d3 - d2) / d2;
+		/* new W-G-M-D model */
+		dtmp = expf(-d4/dtmp) * d3 / (M_PIf * d2*d2 * dtmp);
+		/* worth using? */
+		if (dtmp > FTINY) {
+			dtmp *= ldot * omega;
+			cval += scolor * dtmp;
+		}
+	}
+#ifdef TRANSMISSION
+	if (ldot < -FTINY && ltdiff > FTINY) {
+		/*
+		 *  Compute diffuse transmission.
+		 */
+		float dtmp = -ldot * omega * ltdiff * M_1_PIf;
+		cval += mcolor * dtmp;
+	}
+	if (ldot < -FTINY && (specfl&(SP_TRAN|SP_PURE)) == SP_TRAN) {
+		/*
+		 *  Compute specular transmission.  Specular transmission
+		 *  is always modified by material color.
+		 */
+						/* roughness + source */
+		float dtmp = alpha2 + omega * M_1_PIf;
+						/* Gaussian */
+		dtmp = expf( ( 2.0f * dot( ray.direction, shadow_ray->direction ) - 2.0f ) / dtmp ) / ( M_PIf * dtmp ); // may need to perturb direction
+						/* worth using? */
+		if (dtmp > FTINY) {
+			dtmp *= tspec * omega * sqrtf( -ldot / pdot );
+			cval += mcolor * dtmp;
+		}
+	}
+#endif
+	return cval * shadow_prd->result;
 }
 
 // sample Gaussian specular
