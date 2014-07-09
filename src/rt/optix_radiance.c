@@ -1033,6 +1033,12 @@ void createLightMaterial( const RTcontext context, const RTgeometryinstance inst
 	applyMaterialVariable3f( context, material, "color", rec->oargs.farg[0], rec->oargs.farg[1], rec->oargs.farg[2] );
 	if (rec->otype == MAT_GLOW)
 		applyMaterialVariable1f( context, material, "maxrad", rec->oargs.farg[3] );
+	else if (rec->otype == MAT_SPOT) {
+		SPOT* spot = makespot(rec);
+		applyMaterialVariable1f( context, material, "siz", spot->siz );
+		applyMaterialVariable1f( context, material, "flen", spot->flen );
+		applyMaterialVariable3f( context, material, "aim", spot->aim[0], spot->aim[1], spot->aim[2] );
+	}
 
 	/* Apply this material to the geometry instance. */
 	RT_CHECK_ERROR( rtGeometryInstanceSetMaterial( instance, index, material ) );
