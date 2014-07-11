@@ -9,6 +9,11 @@
 
 using namespace optix;
 
+/* Program variables */
+#ifdef HIT_TYPE
+rtDeclareVariable(unsigned int, type, , ); /* The material type representing "source" */
+#endif
+
 /* Context variables */
 rtBuffer<DistantLight> lights;
 #ifdef CALLABLE
@@ -128,7 +133,7 @@ RT_PROGRAM void miss()
 	}
 
 #ifdef HIT_TYPE
-	prd_radiance.hit_type = OBJ_SOURCE;
+	prd_radiance.hit_type = type;
 #endif
 }
 

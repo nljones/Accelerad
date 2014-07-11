@@ -9,6 +9,7 @@
 
 //#define RAY_COUNT
 //#define HIT_COUNT
+//#define HIT_TYPE
 //#define CALLABLE
 //#define OLDAMB
 #define LIGHTS

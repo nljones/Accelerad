@@ -10,11 +10,6 @@
 #include "optix_common.h"
 
 //#define FILL_GAPS
-//#define HIT_TYPE
-
-#ifdef HIT_TYPE
-#include "otypes.h"
-#endif
 
 #ifndef FTINY
 #define  FTINY		(1e-6f)

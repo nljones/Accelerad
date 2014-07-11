@@ -14,6 +14,7 @@
 #include "source.h"
 #include "ambient.h"
 #include <face.h>
+#include "data.h"
 
 #include "optix_radiance.h"
 #include "optix_common.h"
@@ -47,8 +48,14 @@ static int getSkyType( const OBJREC* bright_func );
 static void createGeometryInstance( const RTcontext context, RTgeometryinstance* instance );
 static void createNormalMaterial( const RTcontext context, const RTgeometryinstance instance, const int index, const OBJREC* rec );
 static void createGlassMaterial( const RTcontext context, const RTgeometryinstance instance, const int index, const OBJREC* rec );
-static void createLightMaterial( const RTcontext context, const RTgeometryinstance instance, const int index, const OBJREC* rec );
+static void createLightMaterial( const RTcontext context, const RTgeometryinstance instance, const int index, const int* buffer_entry_index, OBJREC* rec );
+static DistantLight createDistantLight( const RTcontext context, const int* buffer_entry_index, OBJREC* rec );
+#ifdef CALLABLE
+static int createFunction( const RTcontext context, const OBJREC* rec );
+#endif
+static int createTexture( const RTcontext context, const OBJREC* rec );
 static void createAcceleration( const RTcontext context, const RTgeometryinstance instance );
+static void printObect( const OBJREC* rec );
 static void getRay( RayData* data, const RAY* ray );
 static void setRay( RAY* ray, const RayData* data );
 
@@ -438,6 +445,9 @@ static void createCamera( const RTcontext context, const VIEW* view )
 	RT_CHECK_ERROR( rtContextSetMissProgram( context, RADIANCE_RAY, miss_program ) );
 	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "miss_shadow", &miss_shadow_program ) );
 	RT_CHECK_ERROR( rtContextSetMissProgram( context, SHADOW_RAY, miss_shadow_program ) );
+#ifdef HIT_TYPE
+	applyProgramVariable1ui( context, miss_program, "type", OBJ_SOURCE );
+#endif
 }
 
 static void updateCamera( const RTcontext context, const VIEW* view )
@@ -478,6 +488,7 @@ static void countObjectsInScene( ObjectCount* count )
 		case MAT_DIELECTRIC: // Dielectric material
 		case MAT_LIGHT: // primary light source material, may modify a face or a source (solid angle)
 		case MAT_GLOW: // Glow material
+		case MAT_SPOT: // Spotlight material
 			m_count++;
 			break;
 		case OBJ_FACE: // Typical polygons
@@ -507,6 +518,11 @@ static void countObjectsInScene( ObjectCount* count )
 			default:
 				break;
 			}
+#endif
+			break;
+		case PAT_BDATA: // brightness texture, used for IES lighting data
+#ifdef CALLABLE
+			f_count++;
 #endif
 			break;
 		default:
@@ -591,12 +607,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	ObjectCount count;
 	OBJREC* rec, *material;
 	FACE* face;
-	SRCREC source;
-	DistantLight light;
-#ifdef CALLABLE
-	RTprogram program;
-	int program_id = RT_PROGRAM_ID_NULL;
-#else
+#ifndef CALLABLE
 	SkyBright cie;
 	PerezLum perez;
 #endif
@@ -701,9 +712,10 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 			createGlassMaterial( context, *instance, mi++, rec );
 			break;
 		case MAT_LIGHT: // primary light source material, may modify a face or a source (solid angle)
-		case MAT_GLOW: // Glow material TODO handle fall-off
+		case MAT_GLOW: // Glow material
+		case MAT_SPOT: // Spotlight material
 			buffer_entry_index[i] = mi;
-			createLightMaterial( context, *instance, mi++, rec );
+			createLightMaterial( context, *instance, mi++, buffer_entry_index, rec );
 			break;
 		case OBJ_FACE:
 			face = getface(rec);
@@ -755,67 +767,12 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 			}
 			break;
 		case OBJ_SOURCE:
-			ssetsrc(&source, rec);
-			material = findmaterial(rec);
-			light.color.x = material->oargs.farg[0]; // TODO these are given in RGB radiance value (watts/steradian/m2)
-			light.color.y = material->oargs.farg[1];
-			light.color.z = material->oargs.farg[2];
-			light.pos.x   = source.sloc[0];
-			light.pos.y   = source.sloc[1];
-			light.pos.z   = source.sloc[2];
-			light.solid_angle = source.ss2;
-			light.casts_shadow = material->otype != MAT_GLOW; // Glow cannot cast shadow infinitely far away
-
-			/* Check for a parent function. */
-			if (material->omod > -1) {
-#ifndef CALLABLE
-				light.type = getSkyType(objptr(material->omod));
-#endif
-				light.function = buffer_entry_index[material->omod];
-			} else {
-#ifndef CALLABLE
-				light.type = SKY_NONE;
-#endif
-				light.function = -1;
-			}
-
-			//fprintf(stderr, "Source [%f, %f, %f]\n", source.sloc[0], source.sloc[1], source.sloc[2]);
-			//fprintf(stderr, "Color [%f, %f, %f]\n", material.oargs.farg[0], material.oargs.farg[1], material.oargs.farg[2]);
-			//fprintf(stderr, "Solid Angle %f\n", source.ss2);
-			//fprintf(stderr, "DimU [%f, %f, %f]\n", source.ss[0][0], source.ss[0][1], source.ss[0][2]);
-			//fprintf(stderr, "DimV [%f, %f, %f]\n", source.ss[1][0], source.ss[1][1], source.ss[1][2]);
-			//fprintf(stderr, "DimW [%f, %f, %f]\n", source.ss[2][0], source.ss[2][1], source.ss[2][2]);
-			light_buffer_data[dli++] = light;
+			light_buffer_data[dli++] = createDistantLight( context, buffer_entry_index, rec );
 			break;
 		case PAT_BFUNC: // brightness function, used for sky brightness
 #ifdef CALLABLE
-			if ( rec->oargs.nsargs == 2 ) {
-				if ( !strcmp(rec->oargs.sarg[0], "skybr") && !strcmp(rec->oargs.sarg[1], "skybright.cal") ) {
-					ptxFile( path_to_ptx, "skybright" );
-					RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "sky_bright", &program ) );
-					applyProgramVariable1ui( context, program, "type", rec->oargs.farg[0] );
-					applyProgramVariable1f( context, program, "zenith", rec->oargs.farg[1] );
-					applyProgramVariable1f( context, program, "ground", rec->oargs.farg[2] );
-					applyProgramVariable1f( context, program, "factor", rec->oargs.farg[3] );
-					applyProgramVariable3f( context, program, "sun", rec->oargs.farg[4], rec->oargs.farg[5], rec->oargs.farg[6] );
-				} else if ( !strcmp(rec->oargs.sarg[0], "skybright") && !strcmp(rec->oargs.sarg[1], "perezlum.cal") ) {
-					ptxFile( path_to_ptx, "perezlum" );
-					RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "perez_lum", &program ) );
-					applyProgramVariable1f( context, program, "diffuse", rec->oargs.farg[0] );
-					applyProgramVariable1f( context, program, "ground", rec->oargs.farg[1] );
-					applyProgramVariable3f( context, program, "coef0", rec->oargs.farg[2], rec->oargs.farg[3], rec->oargs.farg[4] );
-					applyProgramVariable2f( context, program, "coef1", rec->oargs.farg[5], rec->oargs.farg[6] );
-					applyProgramVariable3f( context, program, "sun", rec->oargs.farg[7], rec->oargs.farg[8], rec->oargs.farg[9] );
-				} else
-					break;
-			} else
-				break;
-
-			RT_CHECK_ERROR( rtProgramGetId( program, &program_id ) );
 			buffer_entry_index[i] = fi;
-			function_buffer_data[fi++] = program_id;
-			//applyContextVariable1i( context, "func", program_id );
-			//applyContextObject( context, "func", program );
+			function_buffer_data[fi++] = createFunction( context, rec );
 #else /* CALLLABLE */
 			switch (getSkyType(rec)) {
 			case SKY_CIE: // CIE sky
@@ -848,22 +805,20 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 			}
 #endif /* CALLLABLE */
 			break;
+		case PAT_BDATA: // brightness texture, used for IES lighting data
+#ifdef CALLABLE
+			buffer_entry_index[i] = fi;
+			function_buffer_data[fi++] = createTexture( context, rec );
+#else /* CALLLABLE */
+			buffer_entry_index[i] = createTexture( context, rec );
+#endif /* CALLLABLE */
+			break;
 		case TEX_FUNC:
 			break;
 		default:
-			fprintf(stderr, "Object %i: %s\n", i, rec->oname);
-			fprintf(stderr, "Object %i modifies: %i\n", i, rec->omod);
-			fprintf(stderr, "Object %i type: %i\n", i, rec->otype);
-			fprintf(stderr, "Object %i structure: %s\n", i, rec->os);
-
-			for (j = 0; j < rec->oargs.nsargs; j++) {
-				fprintf(stderr, "S Arg %i: %s\n", j, rec->oargs.sarg[j]);
-			}
-			for (j = 0; j < rec->oargs.nfargs; j++) {
-				fprintf(stderr, "R Arg %i: %f\n", j, rec->oargs.farg[j]);
-			}
-
-			fprintf(stderr, "\n");
+#ifdef DEBUG_OPTIX
+			printObect( rec );
+#endif
 			break;
 		}
 		//fprintf(stderr, "\n");
@@ -996,6 +951,9 @@ static void createGlassMaterial( const RTcontext context, const RTgeometryinstan
 	}
 
 	/* Set variables to be consumed by material for this geometry instance */
+#ifdef HIT_TYPE
+	applyMaterialVariable1ui( context, material, "type", rec->otype );
+#endif
 	applyMaterialVariable3f( context, material, "color", rec->oargs.farg[0], rec->oargs.farg[1], rec->oargs.farg[2] );
 	if (rec->oargs.nfargs > 3)
 		applyMaterialVariable1f( context, material, "rindex", rec->oargs.farg[3] );
@@ -1004,7 +962,7 @@ static void createGlassMaterial( const RTcontext context, const RTgeometryinstan
 	RT_CHECK_ERROR( rtGeometryInstanceSetMaterial( instance, index, material ) );
 }
 
-void createLightMaterial( const RTcontext context, const RTgeometryinstance instance, const int index, const OBJREC* rec )
+static void createLightMaterial( const RTcontext context, const RTgeometryinstance instance, const int index, const int* buffer_entry_index, OBJREC* rec )
 {
 	RTmaterial material;
 
@@ -1030,6 +988,9 @@ void createLightMaterial( const RTcontext context, const RTgeometryinstance inst
 #endif
 
 	/* Set variables to be consumed by material for this geometry instance */
+#ifdef HIT_TYPE
+	applyMaterialVariable1ui( context, material, "type", rec->otype );
+#endif
 	applyMaterialVariable3f( context, material, "color", rec->oargs.farg[0], rec->oargs.farg[1], rec->oargs.farg[2] );
 	if (rec->otype == MAT_GLOW)
 		applyMaterialVariable1f( context, material, "maxrad", rec->oargs.farg[3] );
@@ -1040,8 +1001,181 @@ void createLightMaterial( const RTcontext context, const RTgeometryinstance inst
 		applyMaterialVariable3f( context, material, "aim", spot->aim[0], spot->aim[1], spot->aim[2] );
 	}
 
+	/* Check for a parent function. */
+	if (rec->omod > -1) {
+		applyMaterialVariable1ui( context, material, "function", buffer_entry_index[rec->omod] );
+	}
+
 	/* Apply this material to the geometry instance. */
 	RT_CHECK_ERROR( rtGeometryInstanceSetMaterial( instance, index, material ) );
+}
+
+static DistantLight createDistantLight( const RTcontext context, const int* buffer_entry_index, OBJREC* rec )
+{
+	SRCREC source;
+	OBJREC* material;
+	DistantLight light;
+
+	ssetsrc(&source, rec);
+	material = findmaterial(rec);
+	light.color.x = material->oargs.farg[0]; // TODO these are given in RGB radiance value (watts/steradian/m2)
+	light.color.y = material->oargs.farg[1];
+	light.color.z = material->oargs.farg[2];
+	light.pos.x   = source.sloc[0];
+	light.pos.y   = source.sloc[1];
+	light.pos.z   = source.sloc[2];
+	light.solid_angle = source.ss2;
+	light.casts_shadow = material->otype != MAT_GLOW; // Glow cannot cast shadow infinitely far away
+
+	/* Check for a parent function. */
+	if (material->omod > -1) {
+#ifndef CALLABLE
+		light.type = getSkyType(objptr(material->omod));
+#endif
+		light.function = buffer_entry_index[material->omod];
+	} else {
+#ifndef CALLABLE
+		light.type = SKY_NONE;
+#endif
+		light.function = -1;
+	}
+
+	return light;
+}
+
+#ifdef CALLABLE
+static int createFunction( const RTcontext context, int* buffer_entry_index, const OBJREC* rec )
+	RTprogram program;
+	int program_id = RT_PROGRAM_ID_NULL;
+
+	if ( rec->oargs.nsargs == 2 ) {
+		if ( !strcmp(rec->oargs.sarg[0], "skybr") && !strcmp(rec->oargs.sarg[1], "skybright.cal") ) {
+			ptxFile( path_to_ptx, "skybright" );
+			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "sky_bright", &program ) );
+			applyProgramVariable1ui( context, program, "type", rec->oargs.farg[0] );
+			applyProgramVariable1f( context, program, "zenith", rec->oargs.farg[1] );
+			applyProgramVariable1f( context, program, "ground", rec->oargs.farg[2] );
+			applyProgramVariable1f( context, program, "factor", rec->oargs.farg[3] );
+			applyProgramVariable3f( context, program, "sun", rec->oargs.farg[4], rec->oargs.farg[5], rec->oargs.farg[6] );
+		} else if ( !strcmp(rec->oargs.sarg[0], "skybright") && !strcmp(rec->oargs.sarg[1], "perezlum.cal") ) {
+			ptxFile( path_to_ptx, "perezlum" );
+			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "perez_lum", &program ) );
+			applyProgramVariable1f( context, program, "diffuse", rec->oargs.farg[0] );
+			applyProgramVariable1f( context, program, "ground", rec->oargs.farg[1] );
+			applyProgramVariable3f( context, program, "coef0", rec->oargs.farg[2], rec->oargs.farg[3], rec->oargs.farg[4] );
+			applyProgramVariable2f( context, program, "coef1", rec->oargs.farg[5], rec->oargs.farg[6] );
+			applyProgramVariable3f( context, program, "sun", rec->oargs.farg[7], rec->oargs.farg[8], rec->oargs.farg[9] );
+		} else {
+			printObect(rec);
+			return RT_PROGRAM_ID_NULL;
+		}
+	} else {
+		printObect(rec);
+		return RT_PROGRAM_ID_NULL;
+	}
+
+	RT_CHECK_ERROR( rtProgramGetId( program, &program_id ) );
+	//applyContextVariable1i( context, "func", program_id );
+	//applyContextObject( context, "func", program );
+	return program_id;
+}
+#endif /* CALLLABLE */
+
+static int createTexture( const RTcontext context, const OBJREC* rec )
+{
+#ifdef CALLABLE
+	RTprogram        program;
+#endif /* CALLLABLE */
+	RTtexturesampler tex_sampler;
+	RTformat         tex_format;
+	RTbuffer         tex_buffer;
+	float*           tex_buffer_data;
+
+	int tex_id = RT_TEXTURE_ID_NULL;
+	unsigned int i, entries;
+	double multiplier = 1.0;
+
+	DATARRAY *dp;
+	COLORV* color;
+
+	/* Load texture data */
+	dp = getdata(rec->oargs.sarg[1]); //TODO for Texdata and Colordata, use 3, 4, 5
+	if (rec->oargs.nfargs > 0)
+		multiplier = rec->oargs.farg[0];
+
+	/* Create buffer for texture data */
+	if (dp->type == DATATY) // floats
+		tex_format = RT_FORMAT_FLOAT;
+	else // colors
+		tex_format = RT_FORMAT_FLOAT3;
+	switch (dp->nd) {
+	case 1:
+		createBuffer1D( context, RT_BUFFER_INPUT, tex_format, dp->dim[0].ne, &tex_buffer );
+		entries = dp->dim[0].ne;
+		break;
+	case 2:
+		createBuffer2D( context, RT_BUFFER_INPUT, tex_format, dp->dim[1].ne, dp->dim[0].ne, &tex_buffer );
+		entries = dp->dim[0].ne * dp->dim[1].ne;
+		break;
+	case 3:
+		createBuffer3D( context, RT_BUFFER_INPUT, tex_format, dp->dim[2].ne, dp->dim[1].ne, dp->dim[0].ne, &tex_buffer );
+		entries = dp->dim[0].ne * dp->dim[1].ne * dp->dim[2].ne;
+		break;
+	default:
+		fprintf(stderr, "Texture %s has bad number of dimensions %u.\n", rec->oname, dp->nd);
+		printObect(rec);
+		return RT_TEXTURE_ID_NULL;
+	}
+
+	/* Populate buffer with texture data */
+	RT_CHECK_ERROR( rtBufferMap( tex_buffer, (void**)&tex_buffer_data ) );
+	if (dp->type == DATATY) // floats
+		for (i = 0u; i < entries; i++)
+			tex_buffer_data[i] = dp->arr.d[i] * multiplier;
+	else // colors
+		for (i = 0u; i < entries; i++) {
+			colr_color(color, dp->arr.c[i]);
+			copycolor(tex_buffer_data, color);
+			scalecolor(tex_buffer_data, multiplier);// TODO do this in callable program
+			tex_buffer_data += 3;
+		}
+	RT_CHECK_ERROR( rtBufferUnmap( tex_buffer ) );
+
+	/* Create texture sampler */
+	RT_CHECK_ERROR( rtTextureSamplerCreate( context, &tex_sampler ) );
+	for (i = 0u; i < dp->nd; i++) {
+		RT_CHECK_ERROR( rtTextureSamplerSetWrapMode( tex_sampler, i, RT_WRAP_CLAMP_TO_EDGE ) );
+	}
+	RT_CHECK_ERROR( rtTextureSamplerSetFilteringModes( tex_sampler, RT_FILTER_LINEAR, RT_FILTER_LINEAR, RT_FILTER_NONE ) );
+	RT_CHECK_ERROR( rtTextureSamplerSetIndexingMode( tex_sampler, RT_TEXTURE_INDEX_NORMALIZED_COORDINATES ) );
+	RT_CHECK_ERROR( rtTextureSamplerSetReadMode( tex_sampler, RT_TEXTURE_READ_ELEMENT_TYPE ) );
+	RT_CHECK_ERROR( rtTextureSamplerSetMaxAnisotropy( tex_sampler, 0.0f ) );
+	RT_CHECK_ERROR( rtTextureSamplerSetMipLevelCount( tex_sampler, 1u ) ); // Currently only one mipmap level supported
+	RT_CHECK_ERROR( rtTextureSamplerSetArraySize( tex_sampler, 1u ) ); // Currently only one element supported
+	RT_CHECK_ERROR( rtTextureSamplerSetBuffer( tex_sampler, 0u, 0u, tex_buffer ) );
+
+#ifdef CALLABLE
+	/* Create program to access texture sampler */
+	if ( rec->oargs.nsargs == 5 ) {
+		if ( !strcmp(rec->oargs.sarg[0], "flatcorr") && !strcmp(rec->oargs.sarg[1], "source.cal") ) {
+			ptxFile( path_to_ptx, "source" );
+			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "flatcorr", &program ) );
+			applyProgramObject( context, program, "data", tex_sampler ); //TODO add other parameters
+			applyProgramVariable1f( context, program, "multiplier", multiplier );
+		} else {
+			printObect(rec);
+			return RT_PROGRAM_ID_NULL;
+		}
+	} else {
+		printObect(rec);
+		return RT_PROGRAM_ID_NULL;
+	}
+	RT_CHECK_ERROR( rtProgramGetId( program, &tex_id ) );
+#else /* CALLLABLE */
+	RT_CHECK_ERROR( rtTextureSamplerGetId( tex_sampler, &tex_id ) );
+#endif /* CALLLABLE */
+
+	return tex_id;
 }
 
 static void createAcceleration( const RTcontext context, const RTgeometryinstance instance )
@@ -1070,6 +1204,24 @@ static void createAcceleration( const RTcontext context, const RTgeometryinstanc
 
 	/* mark acceleration as dirty */
 	RT_CHECK_ERROR( rtAccelerationMarkDirty( acceleration ) );
+}
+
+static void printObect( const OBJREC* rec )
+{
+	unsigned int i;
+
+	fprintf(stderr, "Object name: %s\n", rec->oname);
+	fprintf(stderr, "Object type: %s (%i)\n", ofun[rec->otype].funame, rec->otype);
+	if (rec->omod > -1) // does not modify void
+		fprintf(stderr, "Object modifies: %s (%i)\n", ofun[rec->omod].funame, rec->omod);
+	fprintf(stderr, "Object structure: %s\n", rec->os);
+
+	for (i = 0u; i < rec->oargs.nsargs; i++)
+		fprintf(stderr, "S Arg %i: %s\n", i, rec->oargs.sarg[i]);
+	for (i = 0u; i < rec->oargs.nfargs; i++)
+		fprintf(stderr, "R Arg %i: %f\n", i, rec->oargs.farg[i]);
+
+	fprintf(stderr, "\n");
 }
 
 static void getRay( RayData* data, const RAY* ray )

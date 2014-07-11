@@ -235,6 +235,13 @@ void applyContextObject( const RTcontext context, const char* name, const RTobje
 	RT_CHECK_ERROR( rtVariableSetObject( var, object ) );
 }
 
+void applyProgramObject( const RTcontext context, const RTprogram program, const char* name, const RTobject object )
+{
+	RTvariable var;
+	RT_CHECK_ERROR( rtProgramDeclareVariable( program, name, &var ) );
+	RT_CHECK_ERROR( rtVariableSetObject( var, object ) );
+}
+
 void applyGeometryObject( const RTcontext context, const RTgeometry geometry, const char* name, const RTobject object )
 {
 	RTvariable var;

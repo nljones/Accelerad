@@ -21,6 +21,9 @@ rtDeclareVariable(float,        minweight, , ); /* minimum ray weight */
 rtDeclareVariable(int,          maxdepth, , ); /* maximum recursion depth */
 
 /* Material variables */
+#ifdef HIT_TYPE
+rtDeclareVariable(unsigned int, type, , ); /* The material type representing "glass" or "dielectric" */
+#endif
 rtDeclareVariable(float,        rindex, , ) = 1.52f; /* Refractive index, usually 1.52 */
 rtDeclareVariable(float3,       color, , ); /* The material color given by the rad file "glass" object */
 
@@ -225,7 +228,7 @@ RT_PROGRAM void closest_hit_radiance()
 	prd.result = result;
 	
 #ifdef HIT_TYPE
-	prd.hit_type = MAT_GLASS;
+	prd.hit_type = type;
 #endif
 }
 

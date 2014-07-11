@@ -138,6 +138,7 @@ void createCustomBuffer2D( const RTcontext context, const RTbuffertype type, con
 void createBuffer3D( const RTcontext context, const RTbuffertype type, const RTformat format, const int x_count, const int y_count, const int z_count, RTbuffer* buffer );
 void createCustomBuffer3D( const RTcontext context, const RTbuffertype type, const int element_size, const int x_count, const int y_count, const int z_count, RTbuffer* buffer );
 void applyContextObject( const RTcontext context, const char* name, const RTobject object );
+void applyProgramObject( const RTcontext context, const RTprogram program, const char* name, const RTobject object );
 void applyGeometryObject( const RTcontext context, const RTgeometry geometry, const char* name, const RTobject object );
 void applyGeometryInstanceObject( const RTcontext context, const RTgeometryinstance instance, const char* name, const RTobject object );
 void handleError( const RTcontext context, const RTresult code, const char* file, const int line, const int fatal );
