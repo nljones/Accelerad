@@ -61,6 +61,16 @@ typedef struct struct_PerezLum
 	float coef[5]; /* coefficients for the Perez model */
 	float3 sun;    /* sun direction */
 } PerezLum;
+
+/* Structure for the parameters necessary to run source.cal. */
+typedef struct struct_Light
+{
+#if defined(__cplusplus)
+	typedef optix::float3 float3;
+#endif
+	float3 min, max;	/* range of texture in degrees */
+	int texture;	/* texture ID */
+} Light;
 #endif
 
 /* Structure to hold an ambient record */

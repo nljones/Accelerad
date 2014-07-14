@@ -27,7 +27,7 @@ typedef struct struct_object_count
 #ifdef CALLABLE
 	unsigned int function;
 #else
-	unsigned int sky_bright, perez_lum;
+	unsigned int sky_bright, perez_lum, light_source;
 #endif
 } ObjectCount;
 
@@ -52,8 +52,10 @@ static void createLightMaterial( const RTcontext context, const RTgeometryinstan
 static DistantLight createDistantLight( const RTcontext context, const int* buffer_entry_index, OBJREC* rec );
 #ifdef CALLABLE
 static int createFunction( const RTcontext context, const OBJREC* rec );
-#endif
 static int createTexture( const RTcontext context, const OBJREC* rec );
+#else
+static int createTexture( const RTcontext context, const OBJREC* rec, float* range );
+#endif
 static void createAcceleration( const RTcontext context, const RTgeometryinstance instance );
 static void printObect( const OBJREC* rec );
 static void getRay( RayData* data, const RAY* ray );
@@ -371,7 +373,7 @@ static void applyRadianceSettings( const RTcontext context )
 	//applyContextVariable1f( context, "shadcert", shadcert ); // -dc
 	//applyContextVariable1i( context, "directrelay", directrelay ); // -dr
 	//applyContextVariable1i( context, "vspretest", vspretest ); // -dp
-	//applyContextVariable1i( context, "directvis", directvis ); // -dv
+	applyContextVariable1i( context, "directvis", directvis ); // -dv
 
 	/* Set specular parameters */
 	applyContextVariable1f( context, "specthresh", specthresh ); // -st
@@ -473,8 +475,8 @@ static void countObjectsInScene( ObjectCount* count )
 	unsigned int i, v_count, t_count, m_count, l_count, dl_count, f_count;
 	v_count = t_count = m_count = l_count = dl_count = f_count = 0u;
 #else
-	unsigned int i, v_count, t_count, m_count, l_count, dl_count, cie_count, perez_count;
-	v_count = t_count = m_count = l_count = dl_count = cie_count = perez_count = 0;
+	unsigned int i, v_count, t_count, m_count, l_count, dl_count, cie_count, perez_count, source_count;
+	v_count = t_count = m_count = l_count = dl_count = cie_count = perez_count = source_count = 0u;
 #endif
 
 	for (i = 0; i < nobjects; i++) {
@@ -523,6 +525,8 @@ static void countObjectsInScene( ObjectCount* count )
 		case PAT_BDATA: // brightness texture, used for IES lighting data
 #ifdef CALLABLE
 			f_count++;
+#else
+			source_count++;
 #endif
 			break;
 		default:
@@ -542,6 +546,7 @@ static void countObjectsInScene( ObjectCount* count )
 #else
 	count->sky_bright = cie_count;
 	count->perez_lum = perez_count;
+	count->light_source = source_count;
 #endif
 }
 
@@ -576,6 +581,10 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 
 	RTbuffer   perez_buffer;
 	void*      perez_buffer_data;
+
+	RTbuffer   source_buffer;
+	void*      source_buffer_data;
+	float      range[6];
 #endif
 
 	RTbuffer   vertex_buffer;
@@ -602,7 +611,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 #ifdef CALLABLE
 	unsigned int vi, ni, ti, mi, vii, nii, tii, mii, li, dli, fi;
 #else
-	unsigned int vi, ni, ti, mi, vii, nii, tii, mii, li, dli, sbi, pli;
+	unsigned int vi, ni, ti, mi, vii, nii, tii, mii, li, dli, sbi, pli, lsi;
 #endif
 	ObjectCount count;
 	OBJREC* rec, *material;
@@ -610,6 +619,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 #ifndef CALLABLE
 	SkyBright cie;
 	PerezLum perez;
+	Light light_source;
 #endif
 
 	/* This array gives the OptiX buffer index of each rad file object.
@@ -651,6 +661,9 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 
 	createCustomBuffer1D( context, RT_BUFFER_INPUT, sizeof(PerezLum), count.perez_lum, &perez_buffer );
 	RT_CHECK_ERROR( rtBufferMap( perez_buffer, &perez_buffer_data ) );
+
+	createCustomBuffer1D( context, RT_BUFFER_INPUT, sizeof(Light), count.light_source, &source_buffer );
+	RT_CHECK_ERROR( rtBufferMap( source_buffer, &source_buffer_data ) );
 #endif
 
 	/* Create buffers for storing geometry information. */
@@ -683,7 +696,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 #ifdef CALLABLE
 	vi = ni = ti = mi = vii = nii = tii = mii = li = dli = fi = 0u;
 #else
-	vi = ni = ti = mi = vii = nii = tii = mii = li = dli = sbi = pli = 0u;
+	vi = ni = ti = mi = vii = nii = tii = mii = li = dli = sbi = pli = lsi = 0u;
 #endif
 
 	/* Get the scene geometry as a list of triangles. */
@@ -782,9 +795,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 				cie.zenith = rec->oargs.farg[1];
 				cie.ground = rec->oargs.farg[2];
 				cie.factor = rec->oargs.farg[3];
-				cie.sun.x = rec->oargs.farg[4];
-				cie.sun.y = rec->oargs.farg[5];
-				cie.sun.z = rec->oargs.farg[6];
+				array2cuda3(cie.sun, (rec->oargs.farg + 4));
 				((SkyBright*)cie_buffer_data)[sbi++] = cie;
 				break;
 			case SKY_PEREZ: // Perez sky
@@ -795,9 +806,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 				for (j = 0; j < 5; j++) {
 					perez.coef[j] = rec->oargs.farg[j + 2];
 				}
-				perez.sun.x = rec->oargs.farg[7];
-				perez.sun.y = rec->oargs.farg[8];
-				perez.sun.z = rec->oargs.farg[9];
+				array2cuda3(perez.sun, (rec->oargs.farg + 7));
 				((PerezLum*)perez_buffer_data)[pli++] = perez;
 				break;
 			default:
@@ -810,7 +819,12 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 			buffer_entry_index[i] = fi;
 			function_buffer_data[fi++] = createTexture( context, rec );
 #else /* CALLLABLE */
-			buffer_entry_index[i] = createTexture( context, rec );
+			buffer_entry_index[i] = lsi;
+
+			light_source.texture = createTexture( context, rec, range );
+			array2cuda3(light_source.min, range);
+			array2cuda3(light_source.max, (range + 3));
+			((Light*)source_buffer_data)[lsi++] = light_source;
 #endif /* CALLLABLE */
 			break;
 		case TEX_FUNC:
@@ -839,6 +853,9 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 
 	RT_CHECK_ERROR( rtBufferUnmap( perez_buffer ) );
 	applyContextObject( context, "perez_lums", perez_buffer );
+
+	RT_CHECK_ERROR( rtBufferUnmap( source_buffer ) );
+	applyGeometryInstanceObject( context, *instance, "light_sources", source_buffer );
 #endif
 
 	/* Unmap and apply the geometry buffers. */
@@ -1003,7 +1020,11 @@ static void createLightMaterial( const RTcontext context, const RTgeometryinstan
 
 	/* Check for a parent function. */
 	if (rec->omod > -1) {
+#ifdef CALLABLE
 		applyMaterialVariable1ui( context, material, "function", buffer_entry_index[rec->omod] );
+#else
+		applyMaterialVariable1i( context, material, "lindex", buffer_entry_index[rec->omod] );
+#endif
 	}
 
 	/* Apply this material to the geometry instance. */
@@ -1045,6 +1066,7 @@ static DistantLight createDistantLight( const RTcontext context, const int* buff
 
 #ifdef CALLABLE
 static int createFunction( const RTcontext context, int* buffer_entry_index, const OBJREC* rec )
+{
 	RTprogram program;
 	int program_id = RT_PROGRAM_ID_NULL;
 
@@ -1079,9 +1101,11 @@ static int createFunction( const RTcontext context, int* buffer_entry_index, con
 	//applyContextObject( context, "func", program );
 	return program_id;
 }
-#endif /* CALLLABLE */
 
 static int createTexture( const RTcontext context, const OBJREC* rec )
+#else /* CALLLABLE */
+static int createTexture( const RTcontext context, const OBJREC* rec, float* range )
+#endif /* CALLLABLE */
 {
 #ifdef CALLABLE
 	RTprogram        program;
@@ -1160,8 +1184,11 @@ static int createTexture( const RTcontext context, const OBJREC* rec )
 		if ( !strcmp(rec->oargs.sarg[0], "flatcorr") && !strcmp(rec->oargs.sarg[1], "source.cal") ) {
 			ptxFile( path_to_ptx, "source" );
 			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "flatcorr", &program ) );
-			applyProgramObject( context, program, "data", tex_sampler ); //TODO add other parameters
-			applyProgramVariable1f( context, program, "multiplier", multiplier );
+			applyProgramObject( context, program, "data", tex_sampler );
+			applyProgramVariable3f( context, program, "min", dp->dim[dp->nd-1].org, dp->nd > 1 ? dp->dim[dp->nd-2].org : 0.0f, dp->nd > 2 ? dp->dim[dp->nd-3].org : 0.0f );
+			applyProgramVariable3f( context, program, "max", dp->dim[dp->nd-1].siz, dp->nd > 1 ? dp->dim[dp->nd-2].siz : 1.0f, dp->nd > 2 ? dp->dim[dp->nd-3].siz : 1.0f );
+			if (rec->oargs.nfargs > 0)
+				applyProgramVariable1f( context, program, "multiplier", rec->oargs.farg[0] ); //TODO handle per-color channel multipliers
 		} else {
 			printObect(rec);
 			return RT_PROGRAM_ID_NULL;
@@ -1173,6 +1200,11 @@ static int createTexture( const RTcontext context, const OBJREC* rec )
 	RT_CHECK_ERROR( rtProgramGetId( program, &tex_id ) );
 #else /* CALLLABLE */
 	RT_CHECK_ERROR( rtTextureSamplerGetId( tex_sampler, &tex_id ) );
+
+	for (i = 0u; i < dp->nd; i++) {
+		range[i]     = dp->dim[dp->nd - i - 1].org;
+		range[3 + i] = dp->dim[dp->nd - i - 1].siz;
+	}
 #endif /* CALLLABLE */
 
 	return tex_id;
