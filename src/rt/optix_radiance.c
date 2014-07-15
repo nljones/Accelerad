@@ -70,6 +70,9 @@ extern double  avsum;		/* computed ambient value sum (log) */
 extern unsigned int  navsum;	/* number of values in avsum */
 extern unsigned int  nambvals;	/* total number of indirect values */
 
+/* from func.c */
+extern XF  unitxf;
+
 /* Ambient calculation flags */
 static unsigned int use_ambient = 0u;
 static unsigned int calc_ambient = 0u;
@@ -584,7 +587,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 
 	RTbuffer   source_buffer;
 	void*      source_buffer_data;
-	float      range[6];
+	float      range[16];
 #endif
 
 	RTbuffer   vertex_buffer;
@@ -824,6 +827,10 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 			light_source.texture = createTexture( context, rec, range );
 			array2cuda3(light_source.min, range);
 			array2cuda3(light_source.max, (range + 3));
+			array2cuda3(light_source.u, (range + 6));
+			array2cuda3(light_source.v, (range + 9));
+			array2cuda3(light_source.w, (range + 12));
+			light_source.multiplier = range[15];
 			((Light*)source_buffer_data)[lsi++] = light_source;
 #endif /* CALLLABLE */
 			break;
@@ -1117,15 +1124,29 @@ static int createTexture( const RTcontext context, const OBJREC* rec, float* ran
 
 	int tex_id = RT_TEXTURE_ID_NULL;
 	unsigned int i, entries;
-	double multiplier = 1.0;
 
 	DATARRAY *dp;
 	COLORV* color;
+	XF bxp;
 
 	/* Load texture data */
 	dp = getdata(rec->oargs.sarg[1]); //TODO for Texdata and Colordata, use 3, 4, 5
-	if (rec->oargs.nfargs > 0)
-		multiplier = rec->oargs.farg[0];
+
+	/* Get transform - from getfunc in func.c */
+	i = 0u;
+	while (i < rec->oargs.nsargs && rec->oargs.sarg[i][0] != '-')
+		i++;
+	if (i == rec->oargs.nsargs) {			/* no transform */
+		bxp = unitxf;
+	} else {			/* get transform */
+		if (invxf(&bxp, rec->oargs.nsargs - i, rec->oargs.sarg + i) != rec->oargs.nsargs - i) {
+			fprintf(stderr, "Texture %s has bad transform.\n", rec->oname);
+			printObect(rec);
+			return RT_TEXTURE_ID_NULL;
+		}
+		if (bxp.sca < 0.0) 
+			bxp.sca = -bxp.sca;
+	}
 
 	/* Create buffer for texture data */
 	if (dp->type == DATATY) // floats
@@ -1154,13 +1175,11 @@ static int createTexture( const RTcontext context, const OBJREC* rec, float* ran
 	/* Populate buffer with texture data */
 	RT_CHECK_ERROR( rtBufferMap( tex_buffer, (void**)&tex_buffer_data ) );
 	if (dp->type == DATATY) // floats
-		for (i = 0u; i < entries; i++)
-			tex_buffer_data[i] = dp->arr.d[i] * multiplier;
+		memcpy(tex_buffer_data, dp->arr.d, entries * sizeof(float));
 	else // colors
 		for (i = 0u; i < entries; i++) {
 			colr_color(color, dp->arr.c[i]);
 			copycolor(tex_buffer_data, color);
-			scalecolor(tex_buffer_data, multiplier);// TODO do this in callable program
 			tex_buffer_data += 3;
 		}
 	RT_CHECK_ERROR( rtBufferUnmap( tex_buffer ) );
@@ -1187,6 +1206,9 @@ static int createTexture( const RTcontext context, const OBJREC* rec, float* ran
 			applyProgramObject( context, program, "data", tex_sampler );
 			applyProgramVariable3f( context, program, "min", dp->dim[dp->nd-1].org, dp->nd > 1 ? dp->dim[dp->nd-2].org : 0.0f, dp->nd > 2 ? dp->dim[dp->nd-3].org : 0.0f );
 			applyProgramVariable3f( context, program, "max", dp->dim[dp->nd-1].siz, dp->nd > 1 ? dp->dim[dp->nd-2].siz : 1.0f, dp->nd > 2 ? dp->dim[dp->nd-3].siz : 1.0f );
+			applyProgramVariable3f( context, program, "u", bxp.xfm[0][0], bxp.xfm[1][0], bxp.xfm[2][0]);
+			applyProgramVariable3f( context, program, "v", bxp.xfm[0][1], bxp.xfm[1][1], bxp.xfm[2][1]);
+			applyProgramVariable3f( context, program, "w", bxp.xfm[0][2], bxp.xfm[1][2], bxp.xfm[2][2]);
 			if (rec->oargs.nfargs > 0)
 				applyProgramVariable1f( context, program, "multiplier", rec->oargs.farg[0] ); //TODO handle per-color channel multipliers
 		} else {
@@ -1205,6 +1227,10 @@ static int createTexture( const RTcontext context, const OBJREC* rec, float* ran
 		range[i]     = dp->dim[dp->nd - i - 1].org;
 		range[3 + i] = dp->dim[dp->nd - i - 1].siz;
 	}
+	range[6]  = bxp.xfm[0][0]; range[7]  = bxp.xfm[1][0]; range[8]  = bxp.xfm[2][0];
+	range[9]  = bxp.xfm[0][1]; range[10] = bxp.xfm[1][1]; range[11] = bxp.xfm[2][1];
+	range[12] = bxp.xfm[0][2]; range[13] = bxp.xfm[1][2]; range[14] = bxp.xfm[2][2];
+	range[15] = rec->oargs.nfargs > 0 ? rec->oargs.farg[0]: 1.0f;
 #endif /* CALLLABLE */
 
 	return tex_id;

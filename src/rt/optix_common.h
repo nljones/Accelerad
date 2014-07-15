@@ -69,7 +69,9 @@ typedef struct struct_Light
 	typedef optix::float3 float3;
 #endif
 	float3 min, max;	/* range of texture in degrees */
-	int texture;	/* texture ID */
+	float3 u, v, w;		/* transformation matrix associated with function */
+	int texture;		/* texture ID */
+	float multiplier;	/* intensity multiplier */
 } Light;
 #endif
 

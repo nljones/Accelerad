@@ -119,12 +119,8 @@ static __device__ __inline__ float texture_function( const float3& normal )
 {
 	const Light light_source = light_sources[lindex];
 
-	const float3 u = make_float3( 1.0f, 0.0f, 0.0f ); //TODO use orientation of fixture
-	const float3 v = make_float3( 0.0f, 1.0f, 0.0f );
-	const float3 w = make_float3( 0.0f, 0.0f, 1.0f );
-
-	float phi = acosf( dot( ray.direction, w ) );
-	float theta = atan2f( -dot( ray.direction, v ), -dot( ray.direction, u ) );
+	float phi = acosf( dot( ray.direction, normalize( light_source.w ) ) );
+	float theta = atan2f( -dot( ray.direction, normalize( light_source.v ) ), -dot( ray.direction, normalize( light_source.u ) ) );
 	theta += 2.0f * M_PIf * ( theta < 0.0f );
 
 	/* Normalize to [0, 1] within range */
@@ -132,6 +128,6 @@ static __device__ __inline__ float texture_function( const float3& normal )
 	theta = ( 180.0f * M_1_PIf * theta - light_source.min.y ) / ( light_source.max.y - light_source.min.y );
 
 	float rdot = dot( ray.direction, normal );
-	return rtTex2D<float>( light_source.texture, phi, theta ) / fabsf( rdot ); // this is flatcorr from source.cal
+	return light_source.multiplier * rtTex2D<float>( light_source.texture, phi, theta ) / fabsf( rdot ); // this is flatcorr from source.cal
 }
 #endif /* CALLLABLE */
