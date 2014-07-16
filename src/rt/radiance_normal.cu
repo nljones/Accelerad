@@ -38,27 +38,36 @@ rtDeclareVariable(rtObject,     top_object, , );
 rtDeclareVariable(rtObject,     top_shadower, , );
 rtDeclareVariable(rtObject,     top_ambient, , );
 
-rtDeclareVariable(float3,       CIE_rgbf, , ); /* This is the value [ CIE_rf, CIE_gf, CIE_bf ] from color.h */
+rtDeclareVariable(float3,       CIE_rgbf, , );	/* This is the value [ CIE_rf, CIE_gf, CIE_bf ] from color.h */
 
-rtDeclareVariable(float,        specthresh, , ); /* This is the minimum fraction of reflection or transmission, under which no specular sampling is performed */
-rtDeclareVariable(float,        specjitter, , );
+rtDeclareVariable(float,        specthresh, , );	/* This is the minimum fraction of reflection or transmission, under which no specular sampling is performed */
+rtDeclareVariable(float,        specjitter, , );	/* specular sampling (ss) */
+
+#ifdef LIGHTS
+rtDeclareVariable(float,        dstrsrc, , ); /* direct jitter (dj) */
+//rtDeclareVariable(float,        srcsizerat, , );	/* direct sampling ratio (ds) */
+//rtDeclareVariable(float,        shadthresh, , );	/* direct threshold (dt) */
+//rtDeclareVariable(float,        shadcert, , );	/* direct certainty (dc) */
+//rtDeclareVariable(int,          directrelay, , );	/* direct relays for secondary sources (dr) */
+//rtDeclareVariable(int,          vspretest, , );	/* direct presampling density for secondary sources (dp) */
+#endif /* LIGHTS */
 
 #ifdef AMBIENT
-rtDeclareVariable(float3,       ambval, , ); /* This is the final value used in place of an indirect light calculation */
-rtDeclareVariable(int,          ambvwt, , ); /* As new indirect irradiances are computed, they will modify the default ambient value in a moving average, with the specified weight assigned to the initial value given on the command and all other weights set to 1 */
-rtDeclareVariable(int,          ambounce, , ); /* Ambient bounces (ab) */
-//rtDeclareVariable(int,          ambres, , ); /* Ambient resolution (ar) */
-rtDeclareVariable(float,        ambacc, , ); /* Ambient accuracy (aa). This value will approximately equal the error from indirect illuminance interpolation */
-rtDeclareVariable(int,          ambdiv, , ); /* Ambient divisions (ad) */
-rtDeclareVariable(int,          ambssamp, , ); /* Ambient super-samples (as) */
-rtDeclareVariable(float,        maxarad, , ); /* maximum ambient radius */
-rtDeclareVariable(float,        minarad, , ); /* minimum ambient radius */
-rtDeclareVariable(float,        avsum, , ); /* computed ambient value sum (log) */
-rtDeclareVariable(unsigned int, navsum, , ); /* number of values in avsum */
+rtDeclareVariable(float3,       ambval, , );	/* This is the final value used in place of an indirect light calculation */
+rtDeclareVariable(int,          ambvwt, , );	/* As new indirect irradiances are computed, they will modify the default ambient value in a moving average, with the specified weight assigned to the initial value given on the command and all other weights set to 1 */
+rtDeclareVariable(int,          ambounce, , );	/* Ambient bounces (ab) */
+//rtDeclareVariable(int,          ambres, , );	/* Ambient resolution (ar) */
+rtDeclareVariable(float,        ambacc, , );	/* Ambient accuracy (aa). This value will approximately equal the error from indirect illuminance interpolation */
+rtDeclareVariable(int,          ambdiv, , );	/* Ambient divisions (ad) */
+rtDeclareVariable(int,          ambssamp, , );	/* Ambient super-samples (as) */
+rtDeclareVariable(float,        maxarad, , );	/* maximum ambient radius */
+rtDeclareVariable(float,        minarad, , );	/* minimum ambient radius */
+rtDeclareVariable(float,        avsum, , );		/* computed ambient value sum (log) */
+rtDeclareVariable(unsigned int, navsum, , );	/* number of values in avsum */
 #endif /* AMBIENT */
 
-rtDeclareVariable(float,        minweight, , ); /* minimum ray weight (lw) */
-rtDeclareVariable(int,          maxdepth, , ); /* maximum recursion depth (lr) */
+rtDeclareVariable(float,        minweight, , );	/* minimum ray weight (lw) */
+rtDeclareVariable(int,          maxdepth, , );	/* maximum recursion depth (lr) */
 
 //#ifdef FILL_GAPS_LAST_ONLY
 //rtDeclareVariable(unsigned int, level, , ) = 0u;
@@ -67,15 +76,15 @@ rtDeclareVariable(int,          maxdepth, , ); /* maximum recursion depth (lr) *
 rtBuffer<DistantLight> lights;
 
 /* Program variables */
-rtDeclareVariable(unsigned int, metal, , ); /* The material type representing "metal" */
+rtDeclareVariable(unsigned int, metal, , );	/* The material type representing "metal" */
 
 /* Material variables */
-rtDeclareVariable(unsigned int, type, , ); /* The material type representing "plastic", "metal", or "trans" */
-rtDeclareVariable(float3,       color, , ); /* The material color given by the rad file "plastic", "metal", or "trans" object */
-rtDeclareVariable(float,        spec, , ); /* The material specularity given by the rad file "plastic", "metal", or "trans" object */
-rtDeclareVariable(float,        rough, , ); /* The material roughness given by the rad file "plastic", "metal", or "trans" object */
-rtDeclareVariable(float,        transm, , ) = 0.0f; /* The material transmissivity given by the rad file "trans" object */
-rtDeclareVariable(float,        tspecu, , ) = 0.0f; /* The material transmitted specular component given by the rad file "trans" object */
+rtDeclareVariable(unsigned int, type, , );	/* The material type representing "plastic", "metal", or "trans" */
+rtDeclareVariable(float3,       color, , );	/* The material color given by the rad file "plastic", "metal", or "trans" object */
+rtDeclareVariable(float,        spec, , );	/* The material specularity given by the rad file "plastic", "metal", or "trans" object */
+rtDeclareVariable(float,        rough, , );	/* The material roughness given by the rad file "plastic", "metal", or "trans" object */
+rtDeclareVariable(float,        transm, , ) = 0.0f;	/* The material transmissivity given by the rad file "trans" object */
+rtDeclareVariable(float,        tspecu, , ) = 0.0f;	/* The material transmitted specular component given by the rad file "trans" object */
 
 /* Geometry instance variables */
 #ifdef LIGHTS
@@ -357,8 +366,19 @@ RT_PROGRAM void closest_hit_radiance()
 			const float omega = 2.0f * fabsf( atan2( numerator, denominator ) );
 
 			if ( omega > FTINY ) { //if ( light.casts_shadow ) {
-				shadow_ray.direction = normalize( r0 + r1 + r2 ); // aim for centroid TODO pick random point
-				shadow_ray.tmax = fmaxf( l0, fmaxf( l1, l2 ) ) + FTINY; //TODO use better predicted ray length
+				/* from nextssamp in srcsamp.c */
+				float3 rdir = ( r0 + r1 + r2 ) / 3.0f;
+				if ( dstrsrc > FTINY ) {
+					/* jitter sample using random barycentric coordinates */
+					float2 barycentric = make_float2( curand_uniform( prd.state ), curand_uniform( prd.state ) );
+					if ( barycentric.x + barycentric.y >= 1.0f )
+						barycentric = 1.0f - barycentric;
+					float3 vpos = r0 * barycentric.x + r1 * barycentric.y + r2 * ( 1.0f - barycentric.x - barycentric.y );
+					rdir += dstrsrc * ( vpos - rdir );
+				}
+
+				shadow_ray.direction = normalize( rdir );
+				shadow_ray.tmax = length( rdir ) + FTINY;
 				result += dirnorm( &shadow_ray, &shadow_prd, specfl, scolor, mcolor, ffnormal, trans, rspec, tspec, rdiff, tdiff, alpha2, omega );
 			}
 		}
@@ -1117,6 +1137,7 @@ static __device__ int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit )
 #endif /* OLDAMB */
 #endif /* AMBIENT */
 
+#ifdef LIGHTS
 //#define spart(pt,pi)	((pt)[(pi)>>2] >> (((pi)&3)<<1) & 3)
 //
 //static __device__ int skipparts( int3 *ct, int3 *sz, int2 *pp, unsigned int *pt )
@@ -1147,10 +1168,8 @@ static __device__ int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit )
 //	return(0);		/* return miss */
 //}
 //
-//static __device__ float nextssamp( float3 *rdir, const DistantLight* light, const float3 hit,			/* compute sample for source, rtn. distance */
-//	RAY  *r,		/* origin is read, direction is set */
-//	SRCINDEX  *si		/* source index (modified to current) */
-//)
+///* compute sample for source, rtn. distance */
+//static __device__ float nextssamp( float3 *rdir, const float3& sloc, const float3& hit )
 //{
 ////	SRCREC  *srcp;
 //	float3  vpos;
@@ -1219,25 +1238,21 @@ static __device__ int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit )
 //		vpos *= trim;
 //	}
 //					/* compute direction */
-//	*rdir = light.pos + //TODO
-//	for (i = 0; i < 3; i++)
-//		r->rdir[i] = srcp->sloc[i] +
-//				vpos[SU]*srcp->ss[SU][i] +
-//				vpos[SV]*srcp->ss[SV][i] +
-//				vpos[SW]*srcp->ss[SW][i];
+//	*rdir = sloc + srcp->ss * vpos; // ss is transformation matrix of light (u, v, w vectors)
 //
 //	if (!(srcp->sflags & SDISTANT))
 //		*rdir -= hit;
 //					/* compute distance */
-//	if ((d = normalize(r->rdir)) == 0.0)
+//	if ((d = dot( *rdir, *rdir )) == 0.0)
 //		goto nextsample;		/* at source! */
+//	*rdir = normalize( *rdir );
 //
 //					/* compute sample size */
 //	if (srcp->sflags & SFLAT) {
-//		si->dom = sflatform(si->sn, r->rdir);
+//		si->dom = sflatform(si->sn, rdir);
 //		si->dom *= size.x * size.y * ( 1.0f / ( MAXSPART * MAXSPART ) );
 //	} else if (srcp->sflags & SCYL) {
-//		si->dom = scylform(si->sn, r->rdir);
+//		si->dom = scylform(si->sn, rdir);
 //		si->dom *= size.x * ( 1.0f / MAXSPART );
 //	} else {
 //		si->dom = size.x * size.y * size.z * ( 1.0f / ( MAXSPART * MAXSPART * MAXSPART ) );
@@ -1248,9 +1263,60 @@ static __device__ int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit )
 //	}
 //	if (si->dom <= 1e-4)
 //		goto nextsample;		/* behind source? */
-//	si->dom *= srcp->ss2/(d*d);
-//	return(d);		/* sample OK, return distance */
+//	si->dom *= srcp->ss2/(d);
+//	return(sqrtf(d));		/* sample OK, return distance */
 //}
+
+//static __device__ float nextssamp( Ray *shadow_ray, PerRayData_shadow *shadow_prd, float3 *result, const unsigned int& specfl, const float3& scolor, const float3& mcolor, const float3& normal, const float& trans, const float& rspec, const float& tspec, const float& rdiff, const float& tdiff, const float& alpha2, const float3 *corners, const unsigned int& max_part )
+//{
+//	const float l0 = length( corners[0] );
+//	const float l1 = length( corners[1] );
+//	const float l2 = length( corners[2] );
+//
+//	/* Solid angle calculation from "The solid angle of a plane triangle", A van Oosterom and J Strackee */
+//	const float numerator = dot( corners[0], cross( corners[1], corners[2] ) );
+//	const float denominator = l0 * l1 * l2 + dot( corners[0], corners[1] ) * l2 + dot( corners[0], corners[2] ) * l1 + dot( corners[1], corners[2] ) * l0;
+//	const float omega = 2.0f * fabsf( atan2( numerator, denominator ) );
+//
+//	if ( omega <= FTINY )
+//		return 0.0f; // No contribution
+//
+//	float omega_copy = omega;
+//	unsigned int flag = 0u; // bits indicate if corner sub-triangles need their own samples
+//	float3 rdir = ( corners[0] + corners[1] + corners[2] ) / 3.0f; // center of triangle
+//
+//	if ( max_part && srcsizerat > FTINY ) {
+//		float3 corners_copy[3];
+//		/* do subsamples */
+//		for ( unsigned int i = 0u; i < 3u; i++ ) {
+//			float3 subcenter = ( corners[i] + rdir ) / 2.0f; // centers of corner sub-triangles
+//			float3 delta = subcenter - rdir;
+//			if ( 1.5f * 1.5f * dot( delta, delta ) > srcsizerat * srcsizerat * dot( rdir, rdir ) ) {
+//				flag |= 1u << i;
+//				for ( unsigned int j = 0u; j < 3u; j++ )
+//					corners_copy[j] = ( corners[i] + corners[j] ) / 2.0f;
+//				omega_copy -= nextssamp( shadow_ray, shadow_prd, result, specfl, scolor, mcolor, normal, trans, rspec, tspec, rdiff, tdiff, alpha2, corners_copy, max_part >> 2 );
+//			}
+//		}
+//	}
+//
+//	if ( dstrsrc > FTINY ) {
+//		/* jitter sample using random barycentric coordinates */
+//		float2 barycentric = make_float2( curand_uniform( prd.state ), curand_uniform( prd.state ) );
+//		if ( barycentric.x + barycentric.y >= 1.0f )
+//			barycentric = 1.0f - barycentric;
+//		float3 vpos = corners[0] * barycentric.x + corners[1] * barycentric.y + corners[2] * ( 1.0f - barycentric.x - barycentric.y );
+//		rdir += dstrsrc * ( vpos - rdir );
+//	}
+//
+//	/* Sample the point */
+//	shadow_ray->direction = normalize( rdir );
+//	shadow_ray->tmax = length( rdir ) + FTINY;
+//	*result += dirnorm( shadow_ray, shadow_prd, specfl, scolor, mcolor, normal, trans, rspec, tspec, rdiff, tdiff, alpha2, omega_copy );
+//
+//	return omega;
+//}
+#endif /* LIGHTS */
 
 /* convert 1-dimensional sample to 2 dimensions, based on multisamp.c */
 //static __device__ __inline__ float2 multisamp2(float r)	/* 1-dimensional sample [0,1) */

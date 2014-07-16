@@ -370,7 +370,7 @@ static void applyRadianceSettings( const RTcontext context )
 	applyContextVariable3f( context, "CIE_rgbf", CIE_rf, CIE_gf, CIE_bf ); // from color.h
 
 	/* Set direct parameters */
-	//applyContextVariable1f( context, "dstrsrc", dstrsrc ); // -dj
+	applyContextVariable1f( context, "dstrsrc", dstrsrc ); // -dj
 	//applyContextVariable1f( context, "srcsizerat", srcsizerat ); // -ds
 	//applyContextVariable1f( context, "shadthresh", shadthresh ); // -dt
 	//applyContextVariable1f( context, "shadcert", shadcert ); // -dc
@@ -617,7 +617,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	unsigned int vi, ni, ti, mi, vii, nii, tii, mii, li, dli, sbi, pli, lsi;
 #endif
 	ObjectCount count;
-	OBJREC* rec, *material;
+	OBJREC* rec, *parent, *material;
 	FACE* face;
 #ifndef CALLABLE
 	SkyBright cie;
@@ -735,7 +735,8 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 			break;
 		case OBJ_FACE:
 			face = getface(rec);
-			material = findmaterial(rec);
+			parent = objptr(rec->omod);
+			material = findmaterial(parent);
 			t = vi / 3;
 
 			/* Write the indices to the buffers */
@@ -770,16 +771,48 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 				vertex_buffer_data[vi++] = face->va[3 * j + 1];
 				vertex_buffer_data[vi++] = face->va[3 * j + 2];
 
-				//TODO Implement bump maps from texfunc and texdata
-				// This might be done in the Intersecion program in triangle_mesh.cu rather than here
-				normal_buffer_data[ni++] = face->norm[0];
-				normal_buffer_data[ni++] = face->norm[1];
-				normal_buffer_data[ni++] = face->norm[2];
+				if (parent->otype == TEX_FUNC && parent->oargs.nsargs == 4 && !strcmp(parent->oargs.sarg[3], "tmesh.cal")) {
+					/* Normal calculation from tmesh.cal */
+					double bu, bv;
+					FVECT v;
 
-				//TODO Implement texture maps from colorfunc, brightfunc, colordata, brightdata, and colorpict
-				// This might be done in the Intersecion program in triangle_mesh.cu rather than here
-				tex_coord_buffer_data[ti++] = 0.0f;
-				tex_coord_buffer_data[ti++] = 0.0f;
+					t = (int)parent->oargs.farg[0];
+					bu = face->va[3 * j + (t + 1) % 3];
+					bv = face->va[3 * j + (t + 2) % 3];
+
+					v[0] = bu * parent->oargs.farg[1] + bv * parent->oargs.farg[2] + parent->oargs.farg[3];
+					v[1] = bu * parent->oargs.farg[4] + bv * parent->oargs.farg[5] + parent->oargs.farg[6];
+					v[2] = bu * parent->oargs.farg[7] + bv * parent->oargs.farg[8] + parent->oargs.farg[9];
+
+					normalize(v);
+
+					normal_buffer_data[ni++] = v[0];
+					normal_buffer_data[ni++] = v[1];
+					normal_buffer_data[ni++] = v[2];
+				} else {
+					//TODO Implement bump maps from texfunc and texdata
+					// This might be done in the Intersecion program in triangle_mesh.cu rather than here
+					normal_buffer_data[ni++] = face->norm[0];
+					normal_buffer_data[ni++] = face->norm[1];
+					normal_buffer_data[ni++] = face->norm[2];
+				}
+
+				if (parent->otype == TEX_FUNC && parent->oargs.nsargs == 3 && !strcmp(parent->oargs.sarg[2], "tmesh.cal")) {
+					/* Texture coordinate calculation from tmesh.cal */
+					double bu, bv;
+
+					t = (int)parent->oargs.farg[0];
+					bu = face->va[3 * j + (t + 1) % 3];
+					bv = face->va[3 * j + (t + 2) % 3];
+
+					tex_coord_buffer_data[ti++] = bu * parent->oargs.farg[1] + bv * parent->oargs.farg[2] + parent->oargs.farg[3];
+					tex_coord_buffer_data[ti++] = bu * parent->oargs.farg[4] + bv * parent->oargs.farg[5] + parent->oargs.farg[6];
+				} else {
+					//TODO Implement texture maps from colorfunc, brightfunc, colordata, brightdata, and colorpict
+					// This might be done in the Intersecion program in triangle_mesh.cu rather than here
+					tex_coord_buffer_data[ti++] = 0.0f;
+					tex_coord_buffer_data[ti++] = 0.0f;
+				}
 			}
 			break;
 		case OBJ_SOURCE:
@@ -835,6 +868,12 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 #endif /* CALLLABLE */
 			break;
 		case TEX_FUNC:
+			if (rec->oargs.nsargs == 3) {
+				if (!strcmp(parent->oargs.sarg[2], "tmesh.cal")) break; // Handled by face
+			} else if (rec->oargs.nsargs == 4) {
+				if (!strcmp(parent->oargs.sarg[3], "tmesh.cal")) break; // Handled by face
+			}
+			printObect( rec );
 			break;
 		default:
 #ifdef DEBUG_OPTIX
@@ -1270,8 +1309,8 @@ static void printObect( const OBJREC* rec )
 
 	fprintf(stderr, "Object name: %s\n", rec->oname);
 	fprintf(stderr, "Object type: %s (%i)\n", ofun[rec->otype].funame, rec->otype);
-	if (rec->omod > -1) // does not modify void
-		fprintf(stderr, "Object modifies: %s (%i)\n", ofun[rec->omod].funame, rec->omod);
+	if (rec->omod > OVOID) // does not modify void
+		fprintf(stderr, "Object modifies: %s (%i)\n", objptr(rec->omod)->oname, rec->omod);
 	fprintf(stderr, "Object structure: %s\n", rec->os);
 
 	for (i = 0u; i < rec->oargs.nsargs; i++)
