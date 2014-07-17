@@ -371,7 +371,7 @@ static void applyRadianceSettings( const RTcontext context )
 
 	/* Set direct parameters */
 	applyContextVariable1f( context, "dstrsrc", dstrsrc ); // -dj
-	//applyContextVariable1f( context, "srcsizerat", srcsizerat ); // -ds
+	applyContextVariable1f( context, "srcsizerat", srcsizerat ); // -ds
 	//applyContextVariable1f( context, "shadthresh", shadthresh ); // -dt
 	//applyContextVariable1f( context, "shadcert", shadcert ); // -dc
 	//applyContextVariable1i( context, "directrelay", directrelay ); // -dr

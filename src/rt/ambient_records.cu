@@ -25,7 +25,7 @@ rtDeclareVariable(float, t_hit, rtIntersectionDistance, );
 
 
 #ifndef OLDAMB
-static __device__ __inline__ int plugaleak( const AmbientRecord* record, const float3& anorm, float ang );
+RT_METHOD int plugaleak( const AmbientRecord* record, const float3& anorm, float ang );
 #endif
 
 
@@ -230,7 +230,7 @@ RT_PROGRAM void ambient_record_bounds (int primIdx, float result[6])
 
 #ifndef OLDAMB
 /* Plug a potential leak where ambient cache value is occluded */
-static __device__ __inline__ int plugaleak( const AmbientRecord* record, const float3& anorm, float ang )
+RT_METHOD int plugaleak( const AmbientRecord* record, const float3& anorm, float ang )
 {
 	const float cost70sq = 0.1169778f;	/* cos(70deg)^2 */
 	float2 t;

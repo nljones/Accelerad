@@ -45,7 +45,7 @@ rtDeclareVariable(float,        specjitter, , );	/* specular sampling (ss) */
 
 #ifdef LIGHTS
 rtDeclareVariable(float,        dstrsrc, , ); /* direct jitter (dj) */
-//rtDeclareVariable(float,        srcsizerat, , );	/* direct sampling ratio (ds) */
+rtDeclareVariable(float,        srcsizerat, , );	/* direct sampling ratio (ds) */
 //rtDeclareVariable(float,        shadthresh, , );	/* direct threshold (dt) */
 //rtDeclareVariable(float,        shadcert, , );	/* direct certainty (dc) */
 //rtDeclareVariable(int,          directrelay, , );	/* direct relays for secondary sources (dr) */
@@ -104,24 +104,29 @@ rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );
 rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
 
 
-static __device__ float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const unsigned int& specfl, const float3& scolor, const float3& mcolor, const float3& normal, const float& trans, const float& rspec, const float& tspec, const float& rdiff, const float& tdiff, const float& alpha2, const float& omega );
-static __device__ float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mcolor, const float3& normal, const float3& hit, const float& alpha2, const float& tspec );
+RT_METHOD float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const unsigned int& specfl, const float3& scolor, const float3& mcolor, const float3& normal, const float& trans, const float& rspec, const float& tspec, const float& rdiff, const float& tdiff, const float& alpha2, const float& omega );
+RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mcolor, const float3& normal, const float3& hit, const float& alpha2, const float& tspec );
 #ifdef AMBIENT
-static __device__ float3 multambient( float3 aval, const float3& normal, const float3& hit );
+RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& hit );
 #ifndef OLDAMB
-static __device__ int doambient( float3 *rcol, const float3& normal, const float3& hit );
-//static __device__ __inline__ int ambsample( AMBHEMI *hp, const int& i, const int& j, const float3 normal, const float3 hit );
+RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit );
+//RT_METHOD int ambsample( AMBHEMI *hp, const int& i, const int& j, const float3 normal, const float3 hit );
 #else /* OLDAMB */
-static __device__ float doambient( float3 *rcol, const float3& normal, const float3& hit );
-static __device__ __inline__ void inithemi( AMBHEMI  *hp, float3 ac, const float3& normal );
-static __device__ int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit );
-//static __device__ void comperrs( AMBSAMP *da, AMBHEMI *hp );
-//static __device__ int ambcmp( const void *p1, const void *p2 );
+RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& hit );
+RT_METHOD void inithemi( AMBHEMI  *hp, float3 ac, const float3& normal );
+RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit );
+//RT_METHOD void comperrs( AMBSAMP *da, AMBHEMI *hp );
+//RT_METHOD int ambcmp( const void *p1, const void *p2 );
 #endif /* OLDAMB */
 #endif /* AMBIENT */
-//static __device__ float2 multisamp2(float r);
-//static __device__ __inline__ int ilhash(int3 d);
-static __device__ __inline__ float bright( const float3 &rgb );
+#ifdef LIGHTS
+RT_METHOD unsigned int flatpart( const float3& v, const float3& r0, const float3& r1, const float3& r2 );
+RT_METHOD float solid_angle( const float3& r0, const float3& r1, const float3& r2 );
+RT_METHOD float3 barycentric( float2& lambda, const float3& r0, const float3& r1, const float3& r2, const int flip );
+#endif /* LIGHTS */
+//RT_METHOD float2 multisamp2(float r);
+//RT_METHOD int ilhash(int3 d);
+RT_METHOD float bright( const float3 &rgb );
 
 
 #ifndef LIGHTS
@@ -355,32 +360,39 @@ RT_PROGRAM void closest_hit_radiance()
 			const float3 r0 = vertex_buffer[ v_idx.x ] - hit_point;
 			const float3 r1 = vertex_buffer[ v_idx.y ] - hit_point;
 			const float3 r2 = vertex_buffer[ v_idx.z ] - hit_point;
+			float3 rdir = ( r0 + r1 + r2 ) / 3.0f;
 
-			const float l0 = length( r0 );
-			const float l1 = length( r1 );
-			const float l2 = length( r2 );
+			const unsigned int divs = flatpart( rdir, r0, r1, r2 ); //TODO divisions should be smaller closer to the light source
+			const float step = 1.0f / divs;
 
-			/* Solid angle calculation from "The solid angle of a plane triangle", A van Oosterom and J Strackee */
-			const float numerator = dot( r0, cross( r1, r2 ) );
-			const float denominator = l0 * l1 * l2 + dot( r0, r1 ) * l2 + dot( r0, r2 ) * l1 + dot( r1, r2 ) * l0;
-			const float omega = 2.0f * fabsf( atan2( numerator, denominator ) );
+			for ( int j = 0; j < divs; j++ )
+				for ( int k = 0; k < divs; k++ ) {
+					float2 lambda = make_float2( step * j, step * k );
+					const float3 p0 = barycentric( lambda, r0, r1, r2, k + j >= divs );
 
-			if ( omega > FTINY ) { //if ( light.casts_shadow ) {
-				/* from nextssamp in srcsamp.c */
-				float3 rdir = ( r0 + r1 + r2 ) / 3.0f;
-				if ( dstrsrc > FTINY ) {
-					/* jitter sample using random barycentric coordinates */
-					float2 barycentric = make_float2( curand_uniform( prd.state ), curand_uniform( prd.state ) );
-					if ( barycentric.x + barycentric.y >= 1.0f )
-						barycentric = 1.0f - barycentric;
-					float3 vpos = r0 * barycentric.x + r1 * barycentric.y + r2 * ( 1.0f - barycentric.x - barycentric.y );
-					rdir += dstrsrc * ( vpos - rdir );
+					lambda = make_float2( step * ( j + 1 ), step * k );
+					const float3 p1 = barycentric( lambda, r0, r1, r2, k + j >= divs );
+
+					lambda = make_float2( step * j, step * ( k + 1 ) );
+					const float3 p2 = barycentric( lambda, r0, r1, r2, k + j >= divs );
+
+					const float omega = solid_angle( p0, p1, p2 );
+
+					if ( omega > FTINY ) {
+						/* from nextssamp in srcsamp.c */
+						rdir = ( p0 + p1 + p2 ) / 3.0f;
+						if ( dstrsrc > FTINY ) {
+							/* jitter sample using random barycentric coordinates */
+							lambda = make_float2( curand_uniform( prd.state ), curand_uniform( prd.state ) );
+							float3 vpos = barycentric( lambda, p0, p1, p2, lambda.x + lambda.y >= 1.0f );
+							rdir += dstrsrc * ( vpos - rdir );
+						}
+
+						shadow_ray.direction = normalize( rdir );
+						shadow_ray.tmax = length( rdir ) + FTINY;
+						result += dirnorm( &shadow_ray, &shadow_prd, specfl, scolor, mcolor, ffnormal, trans, rspec, tspec, rdiff, tdiff, alpha2, omega );
+					}
 				}
-
-				shadow_ray.direction = normalize( rdir );
-				shadow_ray.tmax = length( rdir ) + FTINY;
-				result += dirnorm( &shadow_ray, &shadow_prd, specfl, scolor, mcolor, ffnormal, trans, rspec, tspec, rdiff, tdiff, alpha2, omega );
-			}
 		}
 #endif /* LIGHTS */
 	}
@@ -406,7 +418,7 @@ RT_PROGRAM void closest_hit_radiance()
 }
 
 /* compute source contribution */
-static __device__ float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const unsigned int& specfl, const float3& scolor, const float3& mcolor, const float3& normal, const float& trans, const float& rspec, const float& tspec, const float& rdiff, const float& tdiff, const float& alpha2, const float& omega )
+RT_METHOD float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const unsigned int& specfl, const float3& scolor, const float3& mcolor, const float3& normal, const float& trans, const float& rspec, const float& tspec, const float& rdiff, const float& tdiff, const float& alpha2, const float& omega )
 {
 	float3 cval = make_float3( 0.0f );
 	float ldot = dot( normal, shadow_ray->direction );
@@ -494,7 +506,7 @@ static __device__ float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd
 }
 
 // sample Gaussian specular
-static __device__ float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mcolor, const float3& normal, const float3& hit, const float& alpha2, const float& tspec )
+RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mcolor, const float3& normal, const float3& hit, const float& alpha2, const float& tspec )
 {
 	float3 rcol = make_float3( 0.0f );
 
@@ -654,7 +666,7 @@ static __device__ float3 gaussamp( const unsigned int& specfl, float3 scolor, fl
 
 #ifdef AMBIENT
 // Compute the ambient component and multiply by the coefficient.
-static __device__ float3 multambient( float3 aval, const float3& normal, const float3& hit )
+RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& hit )
 {
 	//static int  rdepth = 0;			/* ambient recursion */ //This is part of the ray for parallelism
 	float 	d;
@@ -746,7 +758,7 @@ dumbamb:					/* return global value */
 
 #ifndef OLDAMB
 /* sample indirect hemisphere, based on samp_hemi in ambcomp.c */
-static __device__ int doambient( float3 *rcol, const float3& normal, const float3& hit )
+RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit )
 {
 	float	d;
 	int	j;
@@ -838,7 +850,7 @@ static __device__ int doambient( float3 *rcol, const float3& normal, const float
 	return( 1 );			/* all is well */
 }
 #else /* OLDAMB */
-static __device__ float doambient( float3 *rcol, const float3& normal, const float3& hit )
+RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& hit )
 {
 	float  b;//, d;
 	AMBHEMI  hemi;
@@ -975,7 +987,7 @@ static __device__ float doambient( float3 *rcol, const float3& normal, const flo
 }
 
 /* initialize sampling hemisphere */
-static __device__ __inline__ void inithemi( AMBHEMI  *hp, float3 ac, const float3& normal )
+RT_METHOD void inithemi( AMBHEMI  *hp, float3 ac, const float3& normal )
 {
 	float	d;
 	int  i;
@@ -1002,7 +1014,7 @@ static __device__ __inline__ void inithemi( AMBHEMI  *hp, float3 ac, const float
 }
 
 /* sample a division */
-static __device__ int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit )
+RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit )
 {
 	PerRayData_radiance new_prd;
 	//RAY  ar;
@@ -1075,7 +1087,7 @@ static __device__ int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit )
 }
 
 /* compute initial error estimates */
-//static __device__ void comperrs( AMBSAMP *da, AMBHEMI *hp )
+//RT_METHOD void comperrs( AMBSAMP *da, AMBHEMI *hp )
 //{
 //	float  b, b2;
 //	int  i, j;
@@ -1123,7 +1135,7 @@ static __device__ int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit )
 //}
 
 /* decreasing order */
-//static __device__ int ambcmp( const void *p1, const void *p2 )
+//RT_METHOD int ambcmp( const void *p1, const void *p2 )
 //{
 //	const AMBSAMP	*d1 = (const AMBSAMP *)p1;
 //	const AMBSAMP	*d2 = (const AMBSAMP *)p2;
@@ -1138,188 +1150,64 @@ static __device__ int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit )
 #endif /* AMBIENT */
 
 #ifdef LIGHTS
-//#define spart(pt,pi)	((pt)[(pi)>>2] >> (((pi)&3)<<1) & 3)
-//
-//static __device__ int skipparts( int3 *ct, int3 *sz, int2 *pp, unsigned int *pt )
-//{
-//	int  p;
-//					/* check this partition */
-//	p = spart(pt, pp.x);
-//	pp.x++;
-//	if (p == S0) {			/* leaf partition */
-//		if (pp.y) {
-//			pp.y--;
-//			return(0);	/* not there yet */
-//		} else
-//			return(1);	/* we've arrived */
-//	}
-//				/* else check lower */
-//	sz[p] >>= 1;
-//	ct[p] -= sz[p];
-//	if (skipparts(ct, sz, pp, pt))
-//		return(1);	/* return hit */
-//				/* else check upper */
-//	ct[p] += sz[p] << 1;
-//	if (skipparts(ct, sz, pp, pt))
-//		return(1);	/* return hit */
-//				/* else return to starting position */
-//	ct[p] -= sz[p];
-//	sz[p] <<= 1;
-//	return(0);		/* return miss */
-//}
-//
-///* compute sample for source, rtn. distance */
-//static __device__ float nextssamp( float3 *rdir, const float3& sloc, const float3& hit )
-//{
-////	SRCREC  *srcp;
-//	float3  vpos;
-//	float  d;
-//	//int  i;
-//nextsample:
-//	//while (++si->sp >= si->np) {	/* get next sample */
-//	//	if (++si->sn >= nsources)
-//	//		return(0.0);	/* no more */
-//	//	if (srcskip(source+si->sn, r->rorg))
-//	//		si->np = 0;
-//	//	else if (srcsizerat <= FTINY)
-//	//		nopart(si, r);
-//	//	else {
-//	//		for (i = si->sn; source[i].sflags & SVIRTUAL;
-//	//				i = source[i].sa.sv.sn)
-//	//			;		/* partition source */
-//	//		(*sfun[source[i].so->otype].of->partit)(si, r);
-//	//	}
-//	//	si->sp = -1;
-//	//}
-//					/* get partition */
-//	int3 cent = make_int3( 0 );
-//	int3 size = make_int3( MAXSPART );
-//	int2 parr = make_int2( 0, si->sp );
-//	//if (!skipparts(cent, size, parr, si->spt)) //TODO implement this
-//	//	error(CONSISTENCY, "bad source partition in nextssamp");
-//					/* compute sample */
-//	//srcp = source + si->sn;
-//	if (dstrsrc > FTINY) {			/* jitter sample */
-//		//dimlist[ndims] = si->sn + 8831;
-//		//dimlist[ndims+1] = si->sp + 3109;
-//		//d = urand(ilhash(dimlist,ndims+2)+samplendx);
-//		if (srcp->sflags & SFLAT) {
-//			//multisamp(vpos, 2, d);
-//			vpos = make_float3( curand_uniform( prd.state ), curand_uniform( prd.state ), 0.5f );
-//		} else
-//			//multisamp(vpos, 3, d);
-//			vpos = make_float3( curand_uniform( prd.state ), curand_uniform( prd.state ), curand_uniform( prd.state ) );
-//		vpos = dstrsrc * ( 1.0f - 2.0f * vpos ) * (float3)size * ( 1.0f / MAXSPART );
-//	} else
-//		vpos = make_float3( 0.0f );
-//
-//	vpos += cent * ( 1.0f / MAXSPART );
-//					/* avoid circular aiming failures */
-//	if ((srcp->sflags & SCIR) && (si->np > 1 || dstrsrc > 0.7f)) {
-//		float3 trim = make_float3( 0.0f );
-//		if (srcp->sflags & (SFLAT|SDISTANT)) {
-//			d = 1.12837917f;		/* correct setflatss() */
-//			trim.x = d * sqrtf( 1.0f - 0.5f * vpos.y*vpos.y );
-//			trim.y = d * sqrtf( 1.0f - 0.5f * vpos.x*vpos.x );
-//		} else {
-//			trim.z = trim.x = vpos.x*vpos.x;
-//			d = vpos.y*vpos.y;
-//			if (d > trim.z) trim.z = d;
-//			trim.x += d;
-//			d = vpos.z*vpos.z;
-//			if (d > trim.z) trim.z = d;
-//			trim.x += d;
-//			if (trim.x > FTINY*FTINY) {
-//				d = 1.0f / 0.7236f;	/* correct sphsetsrc() */
-//				trim = make_float3( d * sqrtf( trim.z / trim.x ) );
-//			} else
-//				trim = make_float3( 0.0f );
-//		}
-//		vpos *= trim;
-//	}
-//					/* compute direction */
-//	*rdir = sloc + srcp->ss * vpos; // ss is transformation matrix of light (u, v, w vectors)
-//
-//	if (!(srcp->sflags & SDISTANT))
-//		*rdir -= hit;
-//					/* compute distance */
-//	if ((d = dot( *rdir, *rdir )) == 0.0)
-//		goto nextsample;		/* at source! */
-//	*rdir = normalize( *rdir );
-//
-//					/* compute sample size */
-//	if (srcp->sflags & SFLAT) {
-//		si->dom = sflatform(si->sn, rdir);
-//		si->dom *= size.x * size.y * ( 1.0f / ( MAXSPART * MAXSPART ) );
-//	} else if (srcp->sflags & SCYL) {
-//		si->dom = scylform(si->sn, rdir);
-//		si->dom *= size.x * ( 1.0f / MAXSPART );
-//	} else {
-//		si->dom = size.x * size.y * size.z * ( 1.0f / ( MAXSPART * MAXSPART * MAXSPART ) );
-//	}
-//	if (srcp->sflags & SDISTANT) {
-//		si->dom *= srcp->ss2;
-//		return(FHUGE);
-//	}
-//	if (si->dom <= 1e-4)
-//		goto nextsample;		/* behind source? */
-//	si->dom *= srcp->ss2/(d);
-//	return(sqrtf(d));		/* sample OK, return distance */
-//}
+/* partition a flat source */
+RT_METHOD unsigned int flatpart( const float3& v, const float3& r0, const float3& r1, const float3& r2 )
+{
+	//float3 vp = source[si->sn].snorm;
+	//if ( dot( v, vp ) <= 0.0f )		/* behind source */
+	//	return 0u;
 
-//static __device__ float nextssamp( Ray *shadow_ray, PerRayData_shadow *shadow_prd, float3 *result, const unsigned int& specfl, const float3& scolor, const float3& mcolor, const float3& normal, const float& trans, const float& rspec, const float& tspec, const float& rdiff, const float& tdiff, const float& alpha2, const float3 *corners, const unsigned int& max_part )
-//{
-//	const float l0 = length( corners[0] );
-//	const float l1 = length( corners[1] );
-//	const float l2 = length( corners[2] );
-//
-//	/* Solid angle calculation from "The solid angle of a plane triangle", A van Oosterom and J Strackee */
-//	const float numerator = dot( corners[0], cross( corners[1], corners[2] ) );
-//	const float denominator = l0 * l1 * l2 + dot( corners[0], corners[1] ) * l2 + dot( corners[0], corners[2] ) * l1 + dot( corners[1], corners[2] ) * l0;
-//	const float omega = 2.0f * fabsf( atan2( numerator, denominator ) );
-//
-//	if ( omega <= FTINY )
-//		return 0.0f; // No contribution
-//
-//	float omega_copy = omega;
-//	unsigned int flag = 0u; // bits indicate if corner sub-triangles need their own samples
-//	float3 rdir = ( corners[0] + corners[1] + corners[2] ) / 3.0f; // center of triangle
-//
-//	if ( max_part && srcsizerat > FTINY ) {
-//		float3 corners_copy[3];
-//		/* do subsamples */
-//		for ( unsigned int i = 0u; i < 3u; i++ ) {
-//			float3 subcenter = ( corners[i] + rdir ) / 2.0f; // centers of corner sub-triangles
-//			float3 delta = subcenter - rdir;
-//			if ( 1.5f * 1.5f * dot( delta, delta ) > srcsizerat * srcsizerat * dot( rdir, rdir ) ) {
-//				flag |= 1u << i;
-//				for ( unsigned int j = 0u; j < 3u; j++ )
-//					corners_copy[j] = ( corners[i] + corners[j] ) / 2.0f;
-//				omega_copy -= nextssamp( shadow_ray, shadow_prd, result, specfl, scolor, mcolor, normal, trans, rspec, tspec, rdiff, tdiff, alpha2, corners_copy, max_part >> 2 );
-//			}
-//		}
-//	}
-//
-//	if ( dstrsrc > FTINY ) {
-//		/* jitter sample using random barycentric coordinates */
-//		float2 barycentric = make_float2( curand_uniform( prd.state ), curand_uniform( prd.state ) );
-//		if ( barycentric.x + barycentric.y >= 1.0f )
-//			barycentric = 1.0f - barycentric;
-//		float3 vpos = corners[0] * barycentric.x + corners[1] * barycentric.y + corners[2] * ( 1.0f - barycentric.x - barycentric.y );
-//		rdir += dstrsrc * ( vpos - rdir );
-//	}
-//
-//	/* Sample the point */
-//	shadow_ray->direction = normalize( rdir );
-//	shadow_ray->tmax = length( rdir ) + FTINY;
-//	*result += dirnorm( shadow_ray, shadow_prd, specfl, scolor, mcolor, normal, trans, rspec, tspec, rdiff, tdiff, alpha2, omega_copy );
-//
-//	return omega;
-//}
+	if ( srcsizerat <= FTINY )
+		return 1u;
+
+	float d;
+
+	/* Find longest edge */
+	float3 vp = r1 - r0;
+	float d2 = dot( vp, vp );
+	vp = r2 - r1;
+	if ( ( d = dot( vp, vp ) ) > d2 )
+		d2 = d;
+	vp = r2 - r0;
+	if ( ( d = dot( vp, vp ) ) > d2 )
+		d2 = d;
+
+	/* Find minimum partition size */
+	d = srcsizerat / prd.weight;
+	d *= d * dot( v, v );
+
+	/* Find number of partions */
+	d2 /= d;
+	if ( d2 < 1.0f )
+		return 1u;
+	if ( d2 > ( d = MAXSPART >> 1 ) ) // Divide maximum partitions by two going from rectangle to triangle
+		d2 = d;
+	return (unsigned int)sqrtf( d2 );
+}
+
+/* Solid angle calculation from "The solid angle of a plane triangle", A van Oosterom and J Strackee */
+RT_METHOD float solid_angle( const float3& r0, const float3& r1, const float3& r2 )
+{
+	const float l0 = length( r0 );
+	const float l1 = length( r1 );
+	const float l2 = length( r2 );
+
+	const float numerator = dot( r0, cross( r1, r2 ) );
+	const float denominator = l0 * l1 * l2 + dot( r0, r1 ) * l2 + dot( r0, r2 ) * l1 + dot( r1, r2 ) * l0;
+	return 2.0f * fabsf( atan2( numerator, denominator ) );
+}
+
+/* Compute point from barycentric coordinates and flip if outside triangle */
+RT_METHOD float3 barycentric( float2& lambda, const float3& r0, const float3& r1, const float3& r2, const int flip )
+{
+	if ( flip )
+		lambda = 1.0f - lambda;
+	return r0 * ( 1.0f - lambda.x - lambda.y ) + r1 * lambda.x + r2 * lambda.y;
+}
 #endif /* LIGHTS */
 
 /* convert 1-dimensional sample to 2 dimensions, based on multisamp.c */
-//static __device__ __inline__ float2 multisamp2(float r)	/* 1-dimensional sample [0,1) */
+//RT_METHOD float2 multisamp2(float r)	/* 1-dimensional sample [0,1) */
 //{
 //	int	j;
 //	register int	k;
@@ -1338,7 +1226,7 @@ static __device__ int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit )
 //}
 
 /* hash a set of integer values */
-//static __device__ __inline__ int ilhash(int3 d)
+//RT_METHOD int ilhash(int3 d)
 //{
 //	register int  hval;
 //
@@ -1349,7 +1237,7 @@ static __device__ int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit )
 //	return(hval & 0x7fffffff);
 //}
 
-static __device__ __inline__ float bright( const float3 &rgb )
+RT_METHOD float bright( const float3 &rgb )
 {
 	return dot( rgb, CIE_rgbf );
 }

@@ -34,7 +34,7 @@ rtDeclareVariable(float, time_view_scale, , ) = 1e-6f;
 
 
 // Initialize the random state
-static __device__ void init_state( PerRayData_radiance* prd )
+RT_METHOD void init_state( PerRayData_radiance* prd )
 {
 	rand_state state;
 	prd->state = &state;

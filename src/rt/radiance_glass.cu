@@ -38,7 +38,7 @@ rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );
 rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
 
 
-static __device__ __inline__ float bright( const float3 &rgb );
+RT_METHOD float bright( const float3 &rgb );
 
 
 RT_PROGRAM void closest_hit_shadow()
@@ -232,7 +232,7 @@ RT_PROGRAM void closest_hit_radiance()
 #endif
 }
 
-static __device__ __inline__ float bright( const float3 &rgb )
+RT_METHOD float bright( const float3 &rgb )
 {
 	return dot( rgb, CIE_rgbf );
 }

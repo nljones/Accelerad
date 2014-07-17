@@ -29,7 +29,7 @@ rtDeclareVariable(unsigned int,  seeds, , ) = 1u; /* number of seed points to di
 rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
 rtDeclareVariable(uint2, launch_dim,   rtLaunchDim, );
 
-static __device__ float3 uniform_solid_angle( float2 in )
+RT_METHOD float3 uniform_solid_angle( float2 in )
 {
 	float2 d = 2.0f * in - 1.0f; // map input from [0, 1] to [-1, 1]
 	float z = d.y > 0.0f ? 1.0f : -1.0f;

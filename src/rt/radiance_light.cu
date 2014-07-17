@@ -41,9 +41,9 @@ rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );
 rtDeclareVariable(float3, shading_normal, attribute shading_normal, ); 
 
 
-static __device__ __inline__ int spotout();
+RT_METHOD int spotout();
 #ifndef CALLABLE
-static __device__ __inline__ float texture_function( const float3& normal );
+RT_METHOD float texture_function( const float3& normal );
 #endif
 
 
@@ -93,7 +93,7 @@ RT_PROGRAM void closest_hit_radiance()
 #endif
 }
 
-static __device__ __inline__ int spotout()
+RT_METHOD int spotout()
 {
 	if ( siz < -FTINY )
 		return(0); /* Not a spotlight */
@@ -115,7 +115,7 @@ static __device__ __inline__ int spotout()
 }
 
 #ifndef CALLABLE
-static __device__ __inline__ float texture_function( const float3& normal )
+RT_METHOD float texture_function( const float3& normal )
 {
 	const Light light_source = light_sources[lindex];
 

@@ -33,7 +33,7 @@ rtDeclareVariable(optix::Ray, ray, rtCurrentRay, );
 #ifndef CALLABLE
 // Calculate the sky brightness function for sunny and cloudy skies.
 // This function replicates the algorithm in skybright.cal.
-static __device__ __inline__ float sky_bright( SkyBright cie )
+RT_METHOD float sky_bright( SkyBright cie )
 {
 	float cosgamma = optix::dot( ray.direction, cie.sun ); // cosgamma = Dx*A8 + Dy*A9 + Dz*A10;
 	float gamma = acosf(cosgamma); // gamma = Acos(cosgamma);		{ angle from sun to this point in sky }
@@ -68,7 +68,7 @@ static __device__ __inline__ float sky_bright( SkyBright cie )
 
 // Calculate the All-weather Angular Sky Luminance Distribution value for the current ray direction.
 // This function replicates the algorithm in perezlum.cal.
-static __device__ __inline__ float perez_lum( PerezLum perez )
+RT_METHOD float perez_lum( PerezLum perez )
 {
 	float cosgamma = optix::dot( ray.direction, perez.sun ); // cosgamma = Dx*A8 + Dy*A9 + Dz*A10;
 	float gamma = acosf(cosgamma); // gamma = Acos(cosgamma);		{ angle from sun to this point in sky }

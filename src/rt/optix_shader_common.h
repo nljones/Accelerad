@@ -11,6 +11,9 @@
 
 //#define FILL_GAPS
 
+/* OptiX method declaration in the style of RT_PROGRAM */
+#define RT_METHOD	static __inline__ __device__
+
 #ifndef FTINY
 #define  FTINY		(1e-6f)
 #endif
@@ -114,7 +117,7 @@ typedef struct {
 /* The following is from the random.h associated with OptiX. */
 
 //// Generate random unsigned int in [0, 2^24)
-//static __device__ __inline__ unsigned int lcg(unsigned int &prev)
+//RT_METHOD unsigned int lcg(unsigned int &prev)
 //{
 //	const unsigned int LCG_A = 1664525u;
 //	const unsigned int LCG_C = 1013904223u;
@@ -123,51 +126,51 @@ typedef struct {
 //}
 //
 //// Generate random float in [0, 1)
-//static __device__ __inline__ float rnd(unsigned int &prev)
+//RT_METHOD float rnd(unsigned int &prev)
 //{
 //	return ((float) lcg(prev) / (float) 0x01000000);
 //}
 
-static __device__ __inline__ int isnan( const float3& v );
-static __device__ __inline__ int isinf( const float3& v );
-static __device__ __inline__ int isfinite( const float3& v );
-static __device__ __inline__ float2 sqrtf( const float2& v );
-static __device__ __inline__ float3 sqrtf( const float3& v );
-static __device__ __inline__ float3 cross_direction( const float3& v );
-static __device__ __inline__ float3 exceptionToFloat3( const unsigned int& code );
+RT_METHOD int isnan( const float3& v );
+RT_METHOD int isinf( const float3& v );
+RT_METHOD int isfinite( const float3& v );
+RT_METHOD float2 sqrtf( const float2& v );
+RT_METHOD float3 sqrtf( const float3& v );
+RT_METHOD float3 cross_direction( const float3& v );
+RT_METHOD float3 exceptionToFloat3( const unsigned int& code );
 
 /* Test if any vector elements are NaN. */
-static __device__ __inline__ int isnan( const float3& v )
+RT_METHOD int isnan( const float3& v )
 {
 	return isnan(v.x) || isnan(v.y) || isnan(v.z);
 }
 
 /* Test if any vector elements are infinite. */
-static __device__ __inline__ int isinf( const float3& v )
+RT_METHOD int isinf( const float3& v )
 {
 	return isinf(v.x) || isinf(v.y) || isinf(v.z);
 }
 
 /* Test if all vector elements are finite. */
-static __device__ __inline__ int isfinite( const float3& v )
+RT_METHOD int isfinite( const float3& v )
 {
 	return isfinite(v.x) && isfinite(v.y) && isfinite(v.z);
 }
 
 /* Element-wise square root. */
-static __device__ __inline__ float2 sqrtf( const float2& v )
+RT_METHOD float2 sqrtf( const float2& v )
 {
 	return make_float2(sqrtf(v.x), sqrtf(v.y));
 }
 
 /* Element-wise square root. */
-static __device__ __inline__ float3 sqrtf( const float3& v )
+RT_METHOD float3 sqrtf( const float3& v )
 {
 	return make_float3(sqrtf(v.x), sqrtf(v.y), sqrtf(v.z));
 }
 
 /* Create a normal vector near orthogonal to the given vector. */
-static __device__ __inline__ float3 cross_direction( const float3& v )
+RT_METHOD float3 cross_direction( const float3& v )
 {
 	if ( v.x < 0.6f && v.x > -0.6f )
 		return make_float3( 1.0f, 0.0f, 0.0f );
@@ -177,7 +180,7 @@ static __device__ __inline__ float3 cross_direction( const float3& v )
 }
 
 /* Convert exception to float3 code. */
-static __device__ __inline__ float3 exceptionToFloat3( const unsigned int& code )
+RT_METHOD float3 exceptionToFloat3( const unsigned int& code )
 {
 	if ( code < RT_EXCEPTION_USER )
 		return make_float3( 0.0f, RT_EXCEPTION_USER - code, 0.0f );
@@ -185,17 +188,17 @@ static __device__ __inline__ float3 exceptionToFloat3( const unsigned int& code 
 }
 
 #ifndef RANDOM
-static __device__ __inline__ void curand_init( const int& x, const int& y, const int& z, rand_state* state );
-static __device__ __inline__ float curand_uniform( rand_state* state );
+RT_METHOD void curand_init( const int& x, const int& y, const int& z, rand_state* state );
+RT_METHOD float curand_uniform( rand_state* state );
 
 /* Initialize the non-random number generator with zero. */
-static __device__ __inline__ void curand_init( const int& x, const int& y, const int& z, rand_state* state )
+RT_METHOD void curand_init( const int& x, const int& y, const int& z, rand_state* state )
 {
 	*state = 0.0f;
 }
 
 /* Return the value of the non-random number. */
-static __device__ __inline__ float curand_uniform( rand_state* state )
+RT_METHOD float curand_uniform( rand_state* state )
 {
 	return *state;
 }
@@ -212,13 +215,13 @@ static __device__ __inline__ float curand_uniform( rand_state* state )
 #define F2SFT		18
 #define FMASK		0x1fff
 
-static __device__ __inline__ int encodedir( const float3& dv );
-static __device__ __inline__ float3 decodedir( const int& dc );
-static __device__ __inline__ void SDsquare2disk( float2& ds, const float& seedx, const float& seedy );
-static __device__ __inline__ unsigned int quadratic( float2* r, const float& a, const float& b, const float& c );
+RT_METHOD int encodedir( const float3& dv );
+RT_METHOD float3 decodedir( const int& dc );
+RT_METHOD void SDsquare2disk( float2& ds, const float& seedx, const float& seedy );
+RT_METHOD unsigned int quadratic( float2* r, const float& a, const float& b, const float& c );
 
 /* Encode a normalized direction vector. */
-static __device__ __inline__ int encodedir( const float3& dv )
+RT_METHOD int encodedir( const float3& dv )
 {
 	int dc = 0;
 	int	cd[3], cm;
@@ -257,7 +260,7 @@ static __device__ __inline__ int encodedir( const float3& dv )
 }
 
 /* Decode a normalized direction vector. */
-static __device__ __inline__ float3 decodedir( const int& dc )
+RT_METHOD float3 decodedir( const int& dc )
 {
 	if (!dc)		/* special code for zero normal */
 		return make_float3( 0.0f );
@@ -279,7 +282,7 @@ static __device__ __inline__ float3 decodedir( const int& dc )
 }
 
 /* Map a [0,1]^2 square to a unit radius disk */
-static __device__ __inline__ void SDsquare2disk( float2& ds, const float& seedx, const float& seedy )
+RT_METHOD void SDsquare2disk( float2& ds, const float& seedx, const float& seedy )
 {
 	float phi, r;
 	const float a = 2.0f * seedx - 1.0f;   /* (a,b) is now on [-1,1]^2 */
@@ -311,7 +314,7 @@ static __device__ __inline__ void SDsquare2disk( float2& ds, const float& seedx,
 }
 
 /* find real roots of quadratic equation (from zeros.c) */
-static __device__ __inline__ unsigned int quadratic( float2* r, const float& a, const float& b, const float& c )
+RT_METHOD unsigned int quadratic( float2* r, const float& a, const float& b, const float& c )
 {
 	int  first;
 

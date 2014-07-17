@@ -25,7 +25,7 @@ rtDeclareVariable(uint2, launch_dim,   rtLaunchDim, );
 //rtDeclareVariable(unsigned int, launch_dim,   rtLaunchDim, );
 
 // Initialize the random state
-static __device__ void init_state( PerRayData_ambient_record* prd )
+RT_METHOD void init_state( PerRayData_ambient_record* prd )
 {
 	rand_state state;
 	prd->state = &state;

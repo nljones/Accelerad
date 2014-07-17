@@ -95,38 +95,38 @@ typedef struct {
 #endif /* OLDAMB */
 
 
-static __device__ int check_overlap( const float3& normal, const float3& hit );
+RT_METHOD int check_overlap( const float3& normal, const float3& hit );
 #ifndef OLDAMB
-static __device__ int plugaleak( const AmbientRecord* record, const float3& anorm, const float3& normal, const float3& hit, float ang );
-static __device__ int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit );
+RT_METHOD int plugaleak( const AmbientRecord* record, const float3& anorm, const float3& normal, const float3& hit, float ang );
+RT_METHOD int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit );
 #ifdef AMB_SAVE_MEM
-static __device__ int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit );
-static __device__ int ambsample( AMBHEMI *hp, AMBSAMP *ap, const int& i, const int& j, const float3& normal, const float3& hit );
-static __device__ float back_ambval( const AMBSAMP *n1, const AMBSAMP *n2, const AMBSAMP *n3 );
-static __device__ void comp_fftri( FFTRI *ftp, const AMBSAMP *n0, const AMBSAMP *n1, const float3& hit );
+RT_METHOD int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit );
+RT_METHOD int ambsample( AMBHEMI *hp, AMBSAMP *ap, const int& i, const int& j, const float3& normal, const float3& hit );
+RT_METHOD float back_ambval( const AMBSAMP *n1, const AMBSAMP *n2, const AMBSAMP *n3 );
+RT_METHOD void comp_fftri( FFTRI *ftp, const AMBSAMP *n0, const AMBSAMP *n1, const float3& hit );
 #else /* AMB_SAVE_MEM */
-static __device__ int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const float3& normal, const float3& hit );
-static __device__ int ambsample( AMBHEMI *hp, const int& i, const int& j, const float3& normal, const float3& hit );
-static __device__ float back_ambval( AMBHEMI *hp, const int& n1, const int& n2, const int& n3 );
-static __device__ void comp_fftri( FFTRI *ftp, AMBHEMI *hp, const int& n0, const int& n1, const float3& hit );
-static __device__ void ambHessian( AMBHEMI *hp, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, const float3& normal, const float3& hit );
-static __device__ void ambdirgrad( AMBHEMI *hp, const float3& u, const float3& v, float2 *dg, const float3& normal, const float3& hit );
-static __device__ unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, const float2& r, const float3& normal, const float3& hit );
+RT_METHOD int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const float3& normal, const float3& hit );
+RT_METHOD int ambsample( AMBHEMI *hp, const int& i, const int& j, const float3& normal, const float3& hit );
+RT_METHOD float back_ambval( AMBHEMI *hp, const int& n1, const int& n2, const int& n3 );
+RT_METHOD void comp_fftri( FFTRI *ftp, AMBHEMI *hp, const int& n0, const int& n1, const float3& hit );
+RT_METHOD void ambHessian( AMBHEMI *hp, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, const float3& normal, const float3& hit );
+RT_METHOD void ambdirgrad( AMBHEMI *hp, const float3& u, const float3& v, float2 *dg, const float3& normal, const float3& hit );
+RT_METHOD unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, const float2& r, const float3& normal, const float3& hit );
 #endif /* AMB_SAVE_MEM */
-static __device__ optix::Matrix<2,2> eigenvectors( optix::Matrix<2,3> *uv, float2 *ra, optix::Matrix<3,3> *hessian );
-static __device__ optix::Matrix<3,3> compose_matrix( const float3& va, const float3& vb );
-static __device__ optix::Matrix<3,3> comp_hessian( FFTRI *ftp, const float3& normal );
-static __device__ float3 comp_gradient( FFTRI *ftp, const float3& normal );
+RT_METHOD optix::Matrix<2,2> eigenvectors( optix::Matrix<2,3> *uv, float2 *ra, optix::Matrix<3,3> *hessian );
+RT_METHOD optix::Matrix<3,3> compose_matrix( const float3& va, const float3& vb );
+RT_METHOD optix::Matrix<3,3> comp_hessian( FFTRI *ftp, const float3& normal );
+RT_METHOD float3 comp_gradient( FFTRI *ftp, const float3& normal );
 #else /* OLDAMB */
-static __device__ float doambient( float3 *rcol, float3 *pg, float3 *dg, const float3& normal, const float3& hit );
-static __device__ __inline__ void inithemi( AMBHEMI  *hp, const float3& ac, const float3& normal );
-static __device__ int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit );
-//static __device__ void comperrs( AMBSAMP *da, AMBHEMI *hp );
-//static __device__ int ambcmp( const void *p1, const void *p2 );
+RT_METHOD float doambient( float3 *rcol, float3 *pg, float3 *dg, const float3& normal, const float3& hit );
+RT_METHOD void inithemi( AMBHEMI  *hp, const float3& ac, const float3& normal );
+RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit );
+//RT_METHOD void comperrs( AMBSAMP *da, AMBHEMI *hp );
+//RT_METHOD int ambcmp( const void *p1, const void *p2 );
 #endif /* OLDAMB */
-//static __device__ float2 multisamp2(float r);
-//static __device__ __inline__ int ilhash(int3 d);
-static __device__ __inline__ float bright( const float3& rgb );
+//RT_METHOD float2 multisamp2(float r);
+//RT_METHOD int ilhash(int3 d);
+RT_METHOD float bright( const float3& rgb );
 
 RT_PROGRAM void any_hit_ambient_glass()
 {
@@ -201,7 +201,7 @@ RT_PROGRAM void closest_hit_ambient()
 }
 
 // based on sumambient from ambient.c
-static __device__ int check_overlap( const float3& normal, const float3& hit )
+RT_METHOD int check_overlap( const float3& normal, const float3& hit )
 {
 	// Check that there is a parent
 	if ( !prd.parent )
@@ -275,7 +275,7 @@ static __device__ int check_overlap( const float3& normal, const float3& hit )
 
 #ifndef OLDAMB
 /* Plug a potential leak where ambient cache value is occluded */
-static __device__ int plugaleak( const AmbientRecord* record, const float3& anorm, const float3& normal, const float3& hit, float ang )
+RT_METHOD int plugaleak( const AmbientRecord* record, const float3& anorm, const float3& normal, const float3& hit, float ang )
 {
 	const float cost70sq = 0.1169778f;	/* cos(70deg)^2 */
 	float2 t;
@@ -308,7 +308,7 @@ static __device__ int plugaleak( const AmbientRecord* record, const float3& anor
 	return( dot( shadow_prd.result, shadow_prd.result ) < 1.0f );	/* check for occluder */
 }
 
-static __device__ int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit )
+RT_METHOD int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit )
 {
 	const float wt = prd.result.weight;
 	AMBHEMI hp;
@@ -404,9 +404,9 @@ static __device__ int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *r
 
 /* sample indirect hemisphere, based on samp_hemi in ambcomp.c */
 #ifdef AMB_SAVE_MEM
-static __device__ int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit )
+RT_METHOD int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit )
 #else /* AMB_SAVE_MEM */
-static __device__ int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const float3& normal, const float3& hit )
+RT_METHOD int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const float3& normal, const float3& hit )
 #endif /* AMB_SAVE_MEM */
 {
 	float	d;
@@ -676,10 +676,10 @@ static __device__ int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const floa
 }
 
 #ifdef AMB_SAVE_MEM
-static __device__ int ambsample( AMBHEMI *hp, AMBSAMP *ap, const int& i, const int& j, const float3& normal, const float3& hit )
+RT_METHOD int ambsample( AMBHEMI *hp, AMBSAMP *ap, const int& i, const int& j, const float3& normal, const float3& hit )
 {
 #else /* AMB_SAVE_MEM */
-static __device__ int ambsample( AMBHEMI *hp, const int& i, const int& j, const float3& normal, const float3& hit )
+RT_METHOD int ambsample( AMBHEMI *hp, const int& i, const int& j, const float3& normal, const float3& hit )
 {
 	AMBSAMP	*ap = &ambsam(hp,i,j);
 #endif /* AMB_SAVE_MEM */
@@ -757,7 +757,7 @@ static __device__ int ambsample( AMBHEMI *hp, const int& i, const int& j, const 
 
 #ifdef AMB_SAVE_MEM
 /* Return brightness of farthest ambient sample */
-static __device__ float back_ambval( const AMBSAMP *n1, const AMBSAMP *n2, const AMBSAMP *n3 )
+RT_METHOD float back_ambval( const AMBSAMP *n1, const AMBSAMP *n2, const AMBSAMP *n3 )
 {
 	if (n1->d <= n2->d) { //TODO how to get these three sample points
 		if (n1->d <= n3->d)
@@ -770,7 +770,7 @@ static __device__ float back_ambval( const AMBSAMP *n1, const AMBSAMP *n2, const
 }
 
 /* Compute vectors and coefficients for Hessian/gradient calcs */
-static __device__ void comp_fftri( FFTRI *ftp, const AMBSAMP *n0, const AMBSAMP *n1, const float3& hit )
+RT_METHOD void comp_fftri( FFTRI *ftp, const AMBSAMP *n0, const AMBSAMP *n1, const float3& hit )
 {
 	ftp->r_i = n0->p - hit;
 	ftp->r_i1 = n1->p - hit;
@@ -788,7 +788,7 @@ static __device__ void comp_fftri( FFTRI *ftp, const AMBSAMP *n0, const AMBSAMP 
 }
 #else /* AMB_SAVE_MEM */
 /* Return brightness of farthest ambient sample */
-static __device__ float back_ambval( AMBHEMI *hp, const int& n1, const int& n2, const int& n3 )
+RT_METHOD float back_ambval( AMBHEMI *hp, const int& n1, const int& n2, const int& n3 )
 {
 	if (hp->sa[n1].d <= hp->sa[n2].d) { //TODO how to get these three sample points
 		if (hp->sa[n1].d <= hp->sa[n3].d)
@@ -801,7 +801,7 @@ static __device__ float back_ambval( AMBHEMI *hp, const int& n1, const int& n2, 
 }
 
 /* Compute vectors and coefficients for Hessian/gradient calcs */
-static __device__ void comp_fftri( FFTRI *ftp, AMBHEMI *hp, const int& n0, const int& n1, const float3& hit )
+RT_METHOD void comp_fftri( FFTRI *ftp, AMBHEMI *hp, const int& n0, const int& n1, const float3& hit )
 {
 	ftp->r_i = hp->sa[n0].p - hit;
 	ftp->r_i1 = hp->sa[n1].p - hit;
@@ -820,7 +820,7 @@ static __device__ void comp_fftri( FFTRI *ftp, AMBHEMI *hp, const int& n0, const
 #endif /* AMB_SAVE_MEM */
 
 /* Compose 3x3 matrix from two vectors */
-static __device__ optix::Matrix<3,3> compose_matrix( const float3& va, const float3& vb )
+RT_METHOD optix::Matrix<3,3> compose_matrix( const float3& va, const float3& vb )
 {
 	optix::Matrix<3,3> mat;
 	mat.setRow( 0, va * vb.x + vb * va.x );
@@ -831,7 +831,7 @@ static __device__ optix::Matrix<3,3> compose_matrix( const float3& va, const flo
 }
 
 /* Compute partial 3x3 Hessian matrix for edge */
-static __device__ optix::Matrix<3,3> comp_hessian( FFTRI *ftp, const float3& normal )
+RT_METHOD optix::Matrix<3,3> comp_hessian( FFTRI *ftp, const float3& normal )
 {
 					/* compute intermediate coefficients */
 	float d1 = 1.0f / dot( ftp->r_i, ftp->r_i );
@@ -858,7 +858,7 @@ static __device__ optix::Matrix<3,3> comp_hessian( FFTRI *ftp, const float3& nor
 }
 
 /* Compute partial displacement form factor gradient for edge */
-static __device__ float3 comp_gradient( FFTRI *ftp, const float3& normal )
+RT_METHOD float3 comp_gradient( FFTRI *ftp, const float3& normal )
 {
 	const float f1 = 2.0f * dot( normal, ftp->rcp );
 	const float3 ncp = cross( normal, ftp->e_i );
@@ -866,7 +866,7 @@ static __device__ float3 comp_gradient( FFTRI *ftp, const float3& normal )
 }
 
 /* Compute anisotropic radii and eigenvector directions */
-static __device__ optix::Matrix<2,2> eigenvectors( optix::Matrix<2,3> *uv, float2 *ra, optix::Matrix<3,3> *hessian )
+RT_METHOD optix::Matrix<2,2> eigenvectors( optix::Matrix<2,3> *uv, float2 *ra, optix::Matrix<3,3> *hessian )
 {
 					/* project Hessian to sample plane */
 	const optix::Matrix<2,2> hess2 = *uv * *hessian * uv->transpose();
@@ -903,7 +903,7 @@ static __device__ optix::Matrix<2,2> eigenvectors( optix::Matrix<2,3> *uv, float
 }
 
 #ifndef AMB_SAVE_MEM
-static __device__ void ambHessian( AMBHEMI *hp, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, const float3& normal, const float3& hit )
+RT_METHOD void ambHessian( AMBHEMI *hp, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, const float3& normal, const float3& hit )
 {
 	optix::Matrix<3,3> hessrow[AMB_GRID_EDGE]; //array of Matrix<3,3>
 	float3 gradrow[AMB_GRID_EDGE];
@@ -1001,7 +1001,7 @@ static __device__ void ambHessian( AMBHEMI *hp, optix::Matrix<2,3> *uv, float2 *
 }
 
 /* Compute direction gradient from a hemispherical sampling */
-static __device__ void ambdirgrad( AMBHEMI *hp, const float3& u, const float3& v, float2 *dg, const float3& normal, const float3& hit )
+RT_METHOD void ambdirgrad( AMBHEMI *hp, const float3& u, const float3& v, float2 *dg, const float3& normal, const float3& hit )
 {
 	AMBSAMP	*ap;
 	int	n;
@@ -1020,7 +1020,7 @@ static __device__ void ambdirgrad( AMBHEMI *hp, const float3& u, const float3& v
 }
 
 /* Compute potential light leak direction flags for cache value */
-static __device__ unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, const float2& r, const float3& normal, const float3& hit )
+RT_METHOD unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, const float2& r, const float3& normal, const float3& hit )
 {
 	const float max_d = 1.0f / ( minarad * ambacc + 0.001f );
 	const float ang_res = M_PI_2f / ( hp->ns - 1 );
@@ -1071,7 +1071,7 @@ static __device__ unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, c
 #endif /* AMB_SAVE_MEM */
 #else /* OLDAMB */
 
-static __device__ float doambient( float3 *rcol, float3 *pg, float3 *dg, const float3& nrm, const float3& hit_point )
+RT_METHOD float doambient( float3 *rcol, float3 *pg, float3 *dg, const float3& nrm, const float3& hit_point )
 {
 	float  b, d;
 	AMBHEMI  hemi;
@@ -1268,7 +1268,7 @@ static __device__ float doambient( float3 *rcol, float3 *pg, float3 *dg, const f
 }
 
 /* initialize sampling hemisphere */
-static __device__ __inline__ void inithemi( AMBHEMI  *hp, const float3& ac, const float3& nrm )
+RT_METHOD void inithemi( AMBHEMI  *hp, const float3& ac, const float3& nrm )
 {
 	float	d;
 	int  i;
@@ -1295,7 +1295,7 @@ static __device__ __inline__ void inithemi( AMBHEMI  *hp, const float3& ac, cons
 }
 
 /* sample a division */
-static __device__ int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point )
+RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point )
 {
 	PerRayData_radiance new_prd;
 	//RAY  ar;
@@ -1374,7 +1374,7 @@ static __device__ int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_po
 }
 
 /* compute initial error estimates */
-//static __device__ void comperrs( AMBSAMP *da, AMBHEMI *hp )
+//RT_METHOD void comperrs( AMBSAMP *da, AMBHEMI *hp )
 //{
 //	float  b, b2;
 //	int  i, j;
@@ -1422,7 +1422,7 @@ static __device__ int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_po
 //}
 
 /* decreasing order */
-//static __device__ int ambcmp( const void *p1, const void *p2 )
+//RT_METHOD int ambcmp( const void *p1, const void *p2 )
 //{
 //	const AMBSAMP	*d1 = (const AMBSAMP *)p1;
 //	const AMBSAMP	*d2 = (const AMBSAMP *)p2;
@@ -1436,7 +1436,7 @@ static __device__ int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_po
 #endif /* OLDAMB */
 
 /* convert 1-dimensional sample to 2 dimensions, based on multisamp.c */
-//static __device__ __inline__ float2 multisamp2(float r)	/* 1-dimensional sample [0,1) */
+//RT_METHOD float2 multisamp2(float r)	/* 1-dimensional sample [0,1) */
 //{
 //	int	j;
 //	register int	k;
@@ -1455,7 +1455,7 @@ static __device__ int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_po
 //}
 
 /* hash a set of integer values */
-//static __device__ __inline__ int ilhash(int3 d)
+//RT_METHOD int ilhash(int3 d)
 //{
 //	register int  hval;
 //
@@ -1466,7 +1466,7 @@ static __device__ int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_po
 //	return(hval & 0x7fffffff);
 //}
 
-static __device__ __inline__ float bright( const float3& rgb )
+RT_METHOD float bright( const float3& rgb )
 {
 	return dot( rgb, CIE_rgbf );
 }

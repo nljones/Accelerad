@@ -32,14 +32,14 @@ rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
 rtDeclareVariable(uint2, launch_dim,   rtLaunchDim, );
 
 // Initialize the random state
-static __device__ void init_state( PerRayData_ambient_record* prd )
+RT_METHOD void init_state( PerRayData_ambient_record* prd )
 {
 	rand_state state;
 	prd->state = &state;
 	curand_init( launch_index.x + launch_dim.x * launch_index.y, 0, 0, prd->state );
 }
 
-static __device__ float2 get_offset( unsigned int segment )
+RT_METHOD float2 get_offset( unsigned int segment )
 {
 	float2 offset = make_float2( 0.5f );
 	float delta = 0.5f;
