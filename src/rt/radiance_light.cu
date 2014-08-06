@@ -19,7 +19,7 @@ rtDeclareVariable(float,        siz, , ) = -1.0f;		/* output solid angle or area
 rtDeclareVariable(float,        flen, , );				/* focal length (negative if distant source) */
 rtDeclareVariable(float3,       aim, , );				/* aim direction or center */
 #ifdef CALLABLE
-rtDeclareVariable(unsigned int, function, , ) = RT_PROGRAM_ID_NULL;		/* function or texture modifier */
+rtDeclareVariable(rtCallableProgramId<float(float3)>, function, , );		/* function or texture modifier */
 #else
 rtDeclareVariable(int,          lindex, , ) = -1;		/* function or texture modifier */
 

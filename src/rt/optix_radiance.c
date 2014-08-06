@@ -1065,13 +1065,14 @@ static void createLightMaterial( const RTcontext context, const RTgeometryinstan
 	}
 
 	/* Check for a parent function. */
-	if (rec->omod > -1) {
+	if (rec->omod > -1)
 #ifdef CALLABLE
-		applyMaterialVariable1ui( context, material, "function", buffer_entry_index[rec->omod] );
+		applyMaterialVariable1i( context, material, "function", buffer_entry_index[rec->omod] );
+	else
+		applyMaterialVariable1i( context, material, "function", RT_PROGRAM_ID_NULL );
 #else
 		applyMaterialVariable1i( context, material, "lindex", buffer_entry_index[rec->omod] );
 #endif
-	}
 
 	/* Apply this material to the geometry instance. */
 	RT_CHECK_ERROR( rtGeometryInstanceSetMaterial( instance, index, material ) );
@@ -1111,7 +1112,7 @@ static DistantLight createDistantLight( const RTcontext context, const int* buff
 }
 
 #ifdef CALLABLE
-static int createFunction( const RTcontext context, int* buffer_entry_index, const OBJREC* rec )
+static int createFunction( const RTcontext context, const OBJREC* rec )
 {
 	RTprogram program;
 	int program_id = RT_PROGRAM_ID_NULL;
