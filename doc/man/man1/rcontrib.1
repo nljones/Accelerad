@@ -21,6 +21,8 @@ rcontrib - compute contribution coefficients in a RADIANCE scene
 ][
 .B "\-o ospec"
 ][
+.B "\-p p1=V1,p2=V2"
+][
 .B "\-b binv"
 ][
 .B "\-bn nbins"
@@ -172,6 +174,7 @@ option.
 Since bin numbers start from zero, the bin count is always equal to
 the last bin plus one.
 The most recent
+.I \-p,
 .I \-b,
 .I \-bn
 and
@@ -201,8 +204,14 @@ These parameters may be combined with definitions given in
 arguments and files read using the
 .I \-f
 option.
+Additional parameter values that apply only to this modifier may be specified
+with a
+.I \-p
+option, which contains a list of variable names and assigned values, separated
+by commas or semicolons.
 The computed bin value will be
 rounded to the nearest whole number.
+(Negative bin values will be silently ignored.)\0
 For a single bin, you may specify
 .I "\-b 0",
 which is the default.
@@ -297,4 +306,5 @@ RAYPATH		path to search for \-f and \-M files
 Greg Ward
 .SH "SEE ALSO"
 cnt(1), genklemsamp(1), getinfo(1), pcomb(1), pfilt(1), ra_rgbe(1),
-rcalc(1), rpict(1), rsensor(1), rtrace(1), total(1), vwrays(1), ximage(1)
+rcalc(1), rfluxmtx(1), rmtxop(1),
+rpict(1), rsensor(1), rtrace(1), total(1), vwrays(1), ximage(1)

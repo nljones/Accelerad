@@ -572,7 +572,7 @@ main(int argc, char *argv[])
 		SET_FILE_BINARY(stdout);
 	}
 						/* check for no-op */
-	if (!transpose & (i_header == o_header) && (comp_size ||
+	if (!transpose & !i_header & !o_header && (comp_size ||
 			(no_columns == ni_columns) & (no_rows == ni_rows))) {
 		if (warnings)
 			fprintf(stderr, "%s: no-op -- copying input verbatim\n",
@@ -617,8 +617,11 @@ main(int argc, char *argv[])
 		}
 		if (!do_transpose(&myMem))
 			return(1);
-		/* free_load(&myMem); */
-	} else if (!do_resize(stdin))		/* just reshaping input */
+		/* free_load(&myMem);	about to exit, so don't bother */
+	} else if (comp_size || (no_columns==ni_columns) & (no_rows==ni_rows)) {
+		if (!output_stream(stdin))	/* just changed header */
+			return(1);
+	} else if (!do_resize(stdin))		/* reshaping input */
 		return(1);
 	return(0);
 userr:

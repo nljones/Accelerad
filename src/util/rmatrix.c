@@ -12,10 +12,7 @@ static const char RCSid[] = "$Id$";
 #include "resolu.h"
 #include "rmatrix.h"
 
-typedef struct {
-	int	nrows, ncols, ncomp;
-	int	dtype;
-} DMINFO;
+static char	rmx_mismatch_warn[] = "WARNING: data type mismatch\n";
 
 /* Allocate a nr x nc matrix with n components */
 RMATRIX *
@@ -30,16 +27,58 @@ rmx_alloc(int nr, int nc, int n)
 	if (dnew == NULL)
 		return(NULL);
 	dnew->nrows = nr; dnew->ncols = nc; dnew->ncomp = n;
+	dnew->dtype = DTdouble;
+	dnew->info = NULL;
 	return(dnew);
+}
+
+/* Free a RMATRIX array */
+void
+rmx_free(RMATRIX *rm)
+{
+	if (!rm) return;
+	if (rm->info)
+		free(rm->info);
+	free(rm);
+}
+
+/* Resolve data type based on two input types (returns 0 for mismatch) */
+int
+rmx_newtype(int dtyp1, int dtyp2)
+{
+	if ((dtyp1==DTxyze) | (dtyp1==DTrgbe) && dtyp1 != dtyp2)
+		return(0);
+	if (dtyp1 < dtyp2)
+		return(dtyp1);
+	return(dtyp2);
+}
+
+/* Append header information associated with matrix data */
+int
+rmx_addinfo(RMATRIX *rm, const char *info)
+{
+	if (!info || !*info)
+		return(0);
+	if (!rm->info)
+		rm->info = (char *)malloc(strlen(info)+1);
+	else
+		rm->info = (char *)realloc(rm->info,
+				strlen(rm->info)+strlen(info)+1);
+	if (!rm->info)
+		return(0);
+	strcat(rm->info, info);
+	return(1);
 }
 
 static int
 get_dminfo(char *s, void *p)
 {
-	DMINFO	*ip = (DMINFO *)p;
-	char	fmt[32];
+	RMATRIX	*ip = (RMATRIX *)p;
+	char	fmt[64];
 	int	i;
 
+	if (headidval(fmt, s))
+		return(0);
 	if (!strncmp(s, "NCOMP=", 6)) {
 		ip->ncomp = atoi(s+6);
 		return(0);
@@ -52,8 +91,10 @@ get_dminfo(char *s, void *p)
 		ip->ncols = atoi(s+6);
 		return(0);
 	}
-	if (!formatval(fmt, s))
+	if (!formatval(fmt, s)) {
+		rmx_addinfo(ip, s);
 		return(0);
+	}
 	for (i = 1; i < DTend; i++)
 		if (!strcmp(fmt, cm_fmt_id[i])) {
 			ip->dtype = i;
@@ -145,11 +186,14 @@ RMATRIX *
 rmx_load(const char *fname)
 {
 	FILE		*fp = stdin;
-	DMINFO		dinfo;
+	RMATRIX		dinfo;
 	RMATRIX		*dnew;
 
 	if (fname == NULL) {			/* reading from stdin? */
 		fname = "<stdin>";
+#ifdef _WIN32
+		_setmode(fileno(stdin), _O_BINARY);
+#endif
 	} else {
 		const char	*sp = fname;	/* check suffix */
 		while (*sp)
@@ -172,23 +216,31 @@ rmx_load(const char *fname)
 	flockfile(fp);
 #endif
 	dinfo.nrows = dinfo.ncols = dinfo.ncomp = 0;
-	dinfo.dtype = DTascii;
+	dinfo.dtype = DTascii;			/* assumed w/o FORMAT */
+	dinfo.info = NULL;
 	if (getheader(fp, get_dminfo, &dinfo) < 0) {
 		fclose(fp);
 		return(NULL);
 	}
-	if ((dinfo.dtype == DTrgbe) | (dinfo.dtype == DTxyze)) {
+	if ((dinfo.nrows <= 0) | (dinfo.ncols <= 0)) {
 		if (!fscnresolu(&dinfo.ncols, &dinfo.nrows, fp)) {
 			fclose(fp);
 			return(NULL);
 		}
-		dinfo.ncomp = 3;
+		if (dinfo.ncomp <= 0)
+			dinfo.ncomp = 3;
+		else if ((dinfo.dtype == DTrgbe) | (dinfo.dtype == DTxyze) &&
+				dinfo.ncomp != 3) {
+			fclose(fp);
+			return(NULL);
+		}
 	}
 	dnew = rmx_alloc(dinfo.nrows, dinfo.ncols, dinfo.ncomp);
 	if (dnew == NULL) {
 		fclose(fp);
 		return(NULL);
 	}
+	dnew->info = dinfo.info;
 	switch (dinfo.dtype) {
 	case DTascii:
 		if (!rmx_load_ascii(dnew, fp))
@@ -197,15 +249,18 @@ rmx_load(const char *fname)
 	case DTfloat:
 		if (!rmx_load_float(dnew, fp))
 			goto loaderr;
+		dnew->dtype = DTfloat;
 		break;
 	case DTdouble:
 		if (!rmx_load_double(dnew, fp))
 			goto loaderr;
+		dnew->dtype = DTdouble;
 		break;
 	case DTrgbe:
 	case DTxyze:
 		if (!rmx_load_rgbe(dnew, fp))
 			goto loaderr;
+		dnew->dtype = dinfo.dtype;
 		break;
 	default:
 		goto loaderr;
@@ -299,7 +354,7 @@ rmx_write_rgbe(const RMATRIX *rm, FILE *fp)
 	return(1);
 }
 
-/* Write matrix to file type indicated by dt */
+/* Write matrix to file type indicated by dtype */
 long
 rmx_write(const RMATRIX *rm, int dtype, FILE *fp)
 {
@@ -309,6 +364,14 @@ rmx_write(const RMATRIX *rm, int dtype, FILE *fp)
 	if ((rm == NULL) | (fp == NULL))
 		return(0);
 						/* complete header */
+	if (rm->info)
+		fputs(rm->info, fp);
+	if (dtype == DTfromHeader)
+		dtype = rm->dtype;
+	else if ((dtype == DTrgbe) & (rm->dtype == DTxyze))
+		dtype = DTxyze;
+	else if ((dtype = DTxyze) & (rm->dtype == DTrgbe))
+		dtype = DTrgbe;
 	if ((dtype != DTrgbe) & (dtype != DTxyze)) {
 		fprintf(fp, "NROWS=%d\n", rm->nrows);
 		fprintf(fp, "NCOLS=%d\n", rm->ncols);
@@ -377,6 +440,8 @@ rmx_copy(const RMATRIX *rm)
 	dnew = rmx_alloc(rm->nrows, rm->ncols, rm->ncomp);
 	if (dnew == NULL)
 		return(NULL);
+	rmx_addinfo(dnew, rm->info);
+	dnew->dtype = rm->dtype;
 	memcpy(dnew->mtx, rm->mtx,
 		sizeof(rm->mtx[0])*rm->ncomp*rm->nrows*rm->ncols);
 	return(dnew);
@@ -394,6 +459,11 @@ rmx_transpose(const RMATRIX *rm)
 	dnew = rmx_alloc(rm->ncols, rm->nrows, rm->ncomp);
 	if (dnew == NULL)
 		return(NULL);
+	if (rm->info) {
+		rmx_addinfo(dnew, rm->info);
+		rmx_addinfo(dnew, "Transposed rows and columns\n");
+	}
+	dnew->dtype = rm->dtype;
 	for (i = dnew->nrows; i--; )
 	    for (j = dnew->ncols; j--; )
 		for (k = dnew->ncomp; k--; )
@@ -414,6 +484,11 @@ rmx_multiply(const RMATRIX *m1, const RMATRIX *m2)
 	mres = rmx_alloc(m1->nrows, m2->ncols, m1->ncomp);
 	if (mres == NULL)
 		return(NULL);
+	i = rmx_newtype(m1->dtype, m2->dtype);
+	if (i)
+		mres->dtype = i;
+	else
+		rmx_addinfo(mres, rmx_mismatch_warn);
 	for (i = mres->nrows; i--; )
 	    for (j = mres->ncols; j--; )
 	        for (h = m1->ncols; h--; ) {
@@ -446,6 +521,11 @@ rmx_sum(RMATRIX *msum, const RMATRIX *madd, const double sf[])
 			mysf[k] = 1;
 		sf = mysf;
 	}
+	i = rmx_newtype(msum->dtype, madd->dtype);
+	if (i)
+		msum->dtype = i;
+	else
+		rmx_addinfo(msum, rmx_mismatch_warn);
 	for (i = msum->nrows; i--; )
 	    for (j = msum->ncols; j--; )
 		for (k = msum->ncomp; k--; )
@@ -483,6 +563,7 @@ rmx_transform(const RMATRIX *msrc, int n, const double cmat[])
 	dnew = rmx_alloc(msrc->nrows, msrc->ncols, n);
 	if (dnew == NULL)
 		return(NULL);
+	dnew->dtype = msrc->dtype;
 	for (i = dnew->nrows; i--; )
 	    for (j = dnew->ncols; j--; )
 	        for (kd = dnew->ncomp; kd--; ) {
@@ -506,6 +587,7 @@ rmx_from_cmatrix(const CMATRIX *cm)
 	dnew = rmx_alloc(cm->nrows, cm->ncols, 3);
 	if (dnew == NULL)
 		return(NULL);
+	dnew->dtype = DTfloat;
 	for (i = dnew->nrows; i--; )
 	    for (j = dnew->ncols; j--; ) {
 		const COLORV	*cv = cm_lval(cm,i,j);

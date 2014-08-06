@@ -1807,7 +1807,7 @@ of KitWare and sponsored by NREL.  This includes a qt-based
 driver for rvu, which is built in the new subdirectory src/qtrvu.
 
 =====================
-Version 4.2
+Version 4.2 (Release date 7/31/2014)
 
 Axel Jacobs added -cp and -palettes options to falsecolor.
 
@@ -1946,3 +1946,24 @@ Introduced new Hessian-based error control in irradiance caching (ambient)
 calculation.  Since the format of the stored ambient values is different,
 the old files will be rejected with an error message and must be removed.
 The programs may be compiled with the -DOLDAMB option if this is a problem.
+
+Added -p option to rcontrib to set function file parameters on a per-modifier
+basis to simplify bin evaluation.
+
+Created rfluxmtx program to compute flux transfer matrices from a sender
+surface to one or more receiver surfaces.  (Renamed the file klems_int.cal
+to klems_full.cal in the process.)
+
+Added "-c" option to getinfo to execute command on data segment.
+
+=====================
+Version 4.3
+
+Changed rmtxop so it writes out same type as lesser of inputs unless
+direction otherwise using -f? option.
+
+Changed order of oconv arguments in rfluxmtx so user can specify input
+octree using -i option at the end instead of (or in addition to) a
+list of scene files.
+
+Added support for argument expansion to rfluxmtx.

@@ -869,9 +869,9 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 			break;
 		case TEX_FUNC:
 			if (rec->oargs.nsargs == 3) {
-				if (!strcmp(parent->oargs.sarg[2], "tmesh.cal")) break; // Handled by face
+				if (!strcmp(rec->oargs.sarg[2], "tmesh.cal")) break; // Handled by face
 			} else if (rec->oargs.nsargs == 4) {
-				if (!strcmp(parent->oargs.sarg[3], "tmesh.cal")) break; // Handled by face
+				if (!strcmp(rec->oargs.sarg[3], "tmesh.cal")) break; // Handled by face
 			}
 			printObect( rec );
 			break;
