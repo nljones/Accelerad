@@ -19,6 +19,19 @@
 #include "optix_radiance.h"
 #include "optix_common.h"
 
+#define TRIANGULATE
+#ifdef TRIANGULATE
+#include "triangulate.h"
+
+
+/* Structure to track triangulation of planar faces. */
+typedef struct {
+	int	ntris;				/* number of triangles */
+	struct ptri {
+		short	vndx[3];	/* vertex indices */
+	}	tri[1];				/* triangle array (extends struct) */
+} POLYTRIS;					/* triangulated polygon */
+#endif /* TRIANGULATE */
 
 /* Structure to track the number of each data type in the model. */
 typedef struct struct_object_count
@@ -46,6 +59,10 @@ static void countObjectsInScene( ObjectCount* count );
 static int getSkyType( const OBJREC* bright_func );
 #endif
 static void createGeometryInstance( const RTcontext context, RTgeometryinstance* instance );
+#ifdef TRIANGULATE
+static int createTriangles( const FACE *face, POLYTRIS *ptp );
+static int addTriangle( const Vert2_list *tp, int a, int b, int c );
+#endif /* TRIANGULATE */
 static void createNormalMaterial( const RTcontext context, const RTgeometryinstance instance, const int index, const OBJREC* rec );
 static void createGlassMaterial( const RTcontext context, const RTgeometryinstance instance, const int index, const OBJREC* rec );
 static void createLightMaterial( const RTcontext context, const RTgeometryinstance instance, const int index, const int* buffer_entry_index, OBJREC* rec );
@@ -615,22 +632,26 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	unsigned int vi, ni, ti, mi, vii, nii, tii, mii, li, dli, fi;
 #else
 	unsigned int vi, ni, ti, mi, vii, nii, tii, mii, li, dli, sbi, pli, lsi;
-#endif
-	ObjectCount count;
-	OBJREC* rec, *parent, *material;
-	FACE* face;
-#ifndef CALLABLE
 	SkyBright cie;
 	PerezLum perez;
 	Light light_source;
 #endif
+	ObjectCount count;
+	OBJREC* rec, *parent, *material;
+	FACE* face;
+#ifdef TRIANGULATE
+	POLYTRIS *triangles;
+#endif
+
+	/* Timers */
+	clock_t geometry_start_clock, geometry_end_clock;
 
 	/* This array gives the OptiX buffer index of each rad file object.
 	 * The OptiX buffer refered to depends on the type of object.
 	 * If the object does not have an index in an OptiX buffer, -1 is given. */
-	int* buffer_entry_index;
+	int* buffer_entry_index = (int *)malloc(sizeof(int) * nobjects);
 
-	buffer_entry_index = (int *)malloc(sizeof(int) * nobjects);
+	geometry_start_clock = clock();
 
 	/* Count the number of each type of object in the scene. */
 	countObjectsInScene(&count);
@@ -738,20 +759,42 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 			parent = objptr(rec->omod);
 			material = findmaterial(parent);
 			t = vi / 3;
+#ifdef TRIANGULATE
+			triangles = (POLYTRIS *)malloc(sizeof(POLYTRIS) + sizeof(struct ptri)*(face->nv - 3));
 
+			/* Triangulate the face */
+			if (!createTriangles(face, triangles)) {
+				fprintf(stderr, "Unable to triangulate face %s\n", rec->oname);
+				printObect( rec );
+				exit(1);
+			}
+			/* Write the indices to the buffers */
+			for (j = 0; j < triangles->ntris; j++) {
+				//fprintf(stderr, "Face %s: %i, %i, %i\n", rec->oname, triangles->tri[j].vndx[0], triangles->tri[j].vndx[2], triangles->tri[j].vndx[3]);
+
+				v_index_buffer_data[vii++] = n_index_buffer_data[nii++] = t_index_buffer_data[tii++] = t + triangles->tri[j].vndx[0];
+				v_index_buffer_data[vii++] = n_index_buffer_data[nii++] = t_index_buffer_data[tii++] = t + triangles->tri[j].vndx[1];
+				v_index_buffer_data[vii++] = n_index_buffer_data[nii++] = t_index_buffer_data[tii++] = t + triangles->tri[j].vndx[2];
+
+				//m_index_buffer_data[mii++] = buffer_entry_index[rec.omod]; //This may be the case once texture functions are implemented
+				m_index_buffer_data[mii++] = buffer_entry_index[objndx(material)];
+
+#ifdef LIGHTS
+				if (islight(material->otype) && (material->otype != MAT_GLOW || material->oargs.farg[3] > 0)) {
+					l_index_buffer_data[li++] = t + triangles->tri[j].vndx[0];
+					l_index_buffer_data[li++] = t + triangles->tri[j].vndx[1];
+					l_index_buffer_data[li++] = t + triangles->tri[j].vndx[2];
+				}
+#endif /* LIGHTS */
+			}
+
+			free(triangles);
+#else /* TRIANGULATE */
 			/* Write the indices to the buffers */
 			for (j = 2; j < face->nv; j++) {
-				v_index_buffer_data[vii++] = t;
-				v_index_buffer_data[vii++] = t + j - 1;
-				v_index_buffer_data[vii++] = t + j;
-
-				n_index_buffer_data[nii++] = t;
-				n_index_buffer_data[nii++] = t + j - 1;
-				n_index_buffer_data[nii++] = t + j;
-
-				t_index_buffer_data[tii++] = t;
-				t_index_buffer_data[tii++] = t + j - 1;
-				t_index_buffer_data[tii++] = t + j;
+				v_index_buffer_data[vii++] = n_index_buffer_data[nii++] = t_index_buffer_data[tii++] = t;
+				v_index_buffer_data[vii++] = n_index_buffer_data[nii++] = t_index_buffer_data[tii++] = t + j - 1;
+				v_index_buffer_data[vii++] = n_index_buffer_data[nii++] = t_index_buffer_data[tii++] = t + j;
 
 				//m_index_buffer_data[mii++] = buffer_entry_index[rec.omod]; //This may be the case once texture functions are implemented
 				m_index_buffer_data[mii++] = buffer_entry_index[objndx(material)];
@@ -762,12 +805,13 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 					l_index_buffer_data[li++] = t + j - 1;
 					l_index_buffer_data[li++] = t + j;
 				}
-#endif
+#endif /* LIGHTS */
 			}
+#endif /* TRIANGULATE */
 
 			/* Write the vertices to the buffers */
 			for (j = 0; j < face->nv; j++) {
-				vertex_buffer_data[vi++] = face->va[3 * j]; //TODO this only works for convex polygons
+				vertex_buffer_data[vi++] = face->va[3 * j];
 				vertex_buffer_data[vi++] = face->va[3 * j + 1];
 				vertex_buffer_data[vi++] = face->va[3 * j + 2];
 
@@ -930,7 +974,51 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	RT_CHECK_ERROR( rtBufferUnmap( light_index_buffer ) );
 	applyGeometryInstanceObject( context, *instance, "lindex_buffer", light_index_buffer );
 #endif
+
+	geometry_end_clock = clock();
+	fprintf(stderr, "Geometry build time: %u milliseconds.\n", (geometry_end_clock - geometry_start_clock) * 1000 / CLOCKS_PER_SEC);
 }
+
+#ifdef TRIANGULATE
+/* Generate origin on polygon surface from uniform random variable */
+static int createTriangles( const FACE *face, POLYTRIS *ptp )
+{
+	if (face->nv == 3) {	/* simple case */
+		ptp->ntris = 1;
+		ptp->tri[0].vndx[0] = 0;
+		ptp->tri[0].vndx[1] = 1;
+		ptp->tri[0].vndx[2] = 2;
+		return(1);
+	} else if (face->nv > 3) {	/* degenerate case */
+		int i;
+		Vert2_list	*v2l = polyAlloc(face->nv);
+		if (v2l == NULL)
+			return(0);
+		for (i = v2l->nv; i--; ) {
+			v2l->v[i].mX = (face->va+3*i)[(face->ax + 1) % 3];
+			v2l->v[i].mY = (face->va+3*i)[(face->ax + 2) % 3];
+		}
+		ptp->ntris = 0;
+		v2l->p = (void *)ptp;
+		i = polyTriangulate(v2l, addTriangle);
+		polyFree(v2l);
+		return(i);
+	}
+	return(0);	/* degenerate case */
+}
+
+/* Add triangle to polygon's list (call-back function) */
+static int addTriangle( const Vert2_list *tp, int a, int b, int c )
+{
+	POLYTRIS	*ptp = (POLYTRIS *)tp->p;
+	struct ptri	*trip = ptp->tri + ptp->ntris++;
+
+	trip->vndx[0] = a;
+	trip->vndx[1] = b;
+	trip->vndx[2] = c;
+	return(1);
+}
+#endif /* TRIANGULATE */
 
 static void createNormalMaterial( const RTcontext context, const RTgeometryinstance instance, const int index, const OBJREC* rec )
 {
