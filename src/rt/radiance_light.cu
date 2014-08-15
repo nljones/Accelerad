@@ -11,7 +11,7 @@ using namespace optix;
 
 /* Material variables */
 #ifdef HIT_TYPE
-rtDeclareVariable(unsigned int, type, , ); /* The material type representing "light", "glow", or "spot" */
+rtDeclareVariable(unsigned int, type, , ); /* The material type representing "light", "illum", "glow", or "spot" */
 #endif
 rtDeclareVariable(float3,       color, , );
 rtDeclareVariable(float,        maxrad, , ) = RAY_END;
@@ -54,7 +54,7 @@ RT_PROGRAM void closest_hit_shadow()
 
 	//float3 ffnormal = faceforward( world_shading_normal, -ray.direction, world_geometric_normal );
 
-	if ( t_hit > maxrad || spotout() )
+	if ( t_hit > maxrad || spotout() || dot( world_shading_normal, ray.direction ) > 0.0f )
 		prd_shadow.result = make_float3( 0.0f );
 #ifdef CALLABLE
 	else if ( function > RT_PROGRAM_ID_NULL )
@@ -75,7 +75,7 @@ RT_PROGRAM void closest_hit_radiance()
 	//float3 ffnormal = faceforward( world_shading_normal, -ray.direction, world_geometric_normal );
 
 	// no contribution to ambient calculation
-	if ( !directvis || t_hit > maxrad || prd.ambient_depth > 0 || spotout() ) //TODO need a better ambient test and handle maxrad < 0
+	if ( !directvis || t_hit > maxrad || prd.ambient_depth > 0 || spotout() || dot( world_shading_normal, ray.direction ) > 0.0f ) //TODO need a better ambient test and handle maxrad < 0
 		prd.result = make_float3( 0.0f );
 #ifdef CALLABLE
 	else if ( function > RT_PROGRAM_ID_NULL )

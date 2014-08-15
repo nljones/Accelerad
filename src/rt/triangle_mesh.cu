@@ -32,15 +32,17 @@ using namespace optix;
 
 /* Program variables */
 rtDeclareVariable(unsigned int, backvis, , ); /* backface visibility (bv) */
+rtDeclareVariable(int,          num_materials, , ); /* number of materials */
 
 /* Contex variables */
 rtBuffer<float3> vertex_buffer;
 rtBuffer<float3> normal_buffer;
 rtBuffer<float2> texcoord_buffer;
 rtBuffer<int3>   vindex_buffer;    // position indices 
-rtBuffer<int3>   nindex_buffer;    // normal indices
-rtBuffer<int3>   tindex_buffer;    // texcoord indices
-rtBuffer<uint>   material_buffer; // per-face material index
+//rtBuffer<int3>   nindex_buffer;    // normal indices
+//rtBuffer<int3>   tindex_buffer;    // texcoord indices
+rtBuffer<int>   material_buffer; // per-face material index
+rtDeclareVariable(unsigned int, shadow_ray_type, , );
 
 /* OptiX variables */
 rtDeclareVariable(optix::Ray, ray, rtCurrentRay, );
@@ -63,33 +65,41 @@ RT_PROGRAM void mesh_intersect( int primIdx )
 	float  t, beta, gamma;
 	if( intersect_triangle( ray, p0, p1, p2, n, t, beta, gamma ) && ( backvis || optix::dot( n, ray.direction ) < 0) ) {
 
+		int mat = material_buffer[primIdx];
+		if ( mat >= num_materials ) {
+			if ( ray.ray_type == shadow_ray_type ) // For materials whose type depends on ray type (such as illum)
+				mat = mat % num_materials;
+			else
+				mat = mat / num_materials - 2;
+		}
+		if ( mat < 0 ) return; /* Material void or missing */
+
 		if ( rtPotentialIntersection( t ) ) {
 
-			int3 n_idx = nindex_buffer[ primIdx ];
-
-			if ( normal_buffer.size() == 0 || n_idx.x < 0 || n_idx.y < 0 || n_idx.z < 0 ) {
+			//int3 n_idx = nindex_buffer[ primIdx ];
+			if ( normal_buffer.size() == 0 ) { //|| n_idx.x < 0 || n_idx.y < 0 || n_idx.z < 0 ) {
 				shading_normal = normalize( n );
 			} else {
-				float3 n0 = normal_buffer[ n_idx.x ];
-				float3 n1 = normal_buffer[ n_idx.y ];
-				float3 n2 = normal_buffer[ n_idx.z ];
+				float3 n0 = normal_buffer[ v_idx.x ];
+				float3 n1 = normal_buffer[ v_idx.y ];
+				float3 n2 = normal_buffer[ v_idx.z ];
 				shading_normal = normalize( n1*beta + n2*gamma + n0*(1.0f-beta-gamma) );
 			}
 			geometric_normal = normalize( n );
 
-			int3 t_idx = tindex_buffer[ primIdx ];
-			if ( texcoord_buffer.size() == 0 || t_idx.x < 0 || t_idx.y < 0 || t_idx.z < 0 ) {
+			//int3 t_idx = tindex_buffer[ primIdx ];
+			if ( texcoord_buffer.size() == 0 ) { //|| t_idx.x < 0 || t_idx.y < 0 || t_idx.z < 0 ) {
 				texcoord = make_float3( 0.0f, 0.0f, 0.0f );
 			} else {
-				float2 t0 = texcoord_buffer[ t_idx.x ];
-				float2 t1 = texcoord_buffer[ t_idx.y ];
-				float2 t2 = texcoord_buffer[ t_idx.z ];
+				float2 t0 = texcoord_buffer[ v_idx.x ];
+				float2 t1 = texcoord_buffer[ v_idx.y ];
+				float2 t2 = texcoord_buffer[ v_idx.z ];
 				texcoord = make_float3( t1*beta + t2*gamma + t0*(1.0f-beta-gamma) );
 			}
 
 			//TODO check do_irrad.  If true, primary rays should intersect Lambert material.  See rayshade() in raytrace.c.
 
-			rtReportIntersection(material_buffer[primIdx]);
+			rtReportIntersection( mat );
 		}
 	}
 }

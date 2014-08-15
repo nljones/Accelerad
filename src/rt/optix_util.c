@@ -106,18 +106,18 @@ void runKernel3D( const RTcontext context, const unsigned int entry, const int w
 
 /* Helper functions */
 
-void applyContextVariable1ui( const RTcontext context, const char* name, const unsigned int value )
-{
-	RTvariable var;
-	RT_CHECK_ERROR( rtContextDeclareVariable( context, name, &var ) );
-	RT_CHECK_ERROR( rtVariableSet1ui( var, value ) );
-}
-
 void applyContextVariable1i( const RTcontext context, const char* name, const int value )
 {
 	RTvariable var;
 	RT_CHECK_ERROR( rtContextDeclareVariable( context, name, &var ) );
 	RT_CHECK_ERROR( rtVariableSet1i( var, value ) );
+}
+
+void applyContextVariable1ui( const RTcontext context, const char* name, const unsigned int value )
+{
+	RTvariable var;
+	RT_CHECK_ERROR( rtContextDeclareVariable( context, name, &var ) );
+	RT_CHECK_ERROR( rtVariableSet1ui( var, value ) );
 }
 
 void applyContextVariable1f( const RTcontext context, const char* name, const float value )
@@ -132,6 +132,13 @@ void applyContextVariable3f( const RTcontext context, const char* name, const fl
 	RTvariable var;
 	RT_CHECK_ERROR( rtContextDeclareVariable( context, name, &var ) );
 	RT_CHECK_ERROR( rtVariableSet3f( var, x, y, z ) );
+}
+
+void applyProgramVariable1i( const RTcontext context, const RTprogram program, const char* name, const int value )
+{
+	RTvariable var;
+	RT_CHECK_ERROR( rtProgramDeclareVariable( program, name, &var ) );
+	RT_CHECK_ERROR( rtVariableSet1i( var, value ) );
 }
 
 void applyProgramVariable1ui( const RTcontext context, const RTprogram program, const char* name, const unsigned int value )
