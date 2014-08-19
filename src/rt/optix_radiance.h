@@ -49,12 +49,13 @@
 #endif
 
 /* Ray types */
-#define RADIANCE_RAY		0u	/* Radiance ray type */
-#define SHADOW_RAY			1u	/* Shadow ray type */
-#define AMBIENT_RAY			2u	/* Ray into ambient cache */
-#define AMBIENT_RECORD_RAY	3u	/* Ray to create ambient record */
+#define PRIMARY_RAY			0u	/* Radiance primary ray type for irradiance calculation */
+#define RADIANCE_RAY		1u	/* Radiance ray type */
+#define SHADOW_RAY			2u	/* Shadow ray type */
+#define AMBIENT_RAY			3u	/* Ray into ambient cache */
+#define AMBIENT_RECORD_RAY	4u	/* Ray to create ambient record */
 #ifdef KMEANS_IC
-#define POINT_CLOUD_RAY		4u	/* Ray to create point cloud */
+#define POINT_CLOUD_RAY		5u	/* Ray to create point cloud */
 #endif
 
 /* Ray type count for ambient calculation */

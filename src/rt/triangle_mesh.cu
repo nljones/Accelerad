@@ -32,7 +32,6 @@ using namespace optix;
 
 /* Program variables */
 rtDeclareVariable(unsigned int, backvis, , ); /* backface visibility (bv) */
-rtDeclareVariable(int,          num_materials, , ); /* number of materials */
 
 /* Contex variables */
 rtBuffer<float3> vertex_buffer;
@@ -41,7 +40,9 @@ rtBuffer<float2> texcoord_buffer;
 rtBuffer<int3>   vindex_buffer;    // position indices 
 //rtBuffer<int3>   nindex_buffer;    // normal indices
 //rtBuffer<int3>   tindex_buffer;    // texcoord indices
-rtBuffer<int>   material_buffer; // per-face material index
+rtBuffer<int>    material_buffer; // per-face material index
+rtBuffer<int2>   material_alt_buffer; // per-material alternate material indices
+rtDeclareVariable(unsigned int, radiance_primary_ray_type, , );
 rtDeclareVariable(unsigned int, shadow_ray_type, , );
 
 /* OptiX variables */
@@ -51,6 +52,7 @@ rtDeclareVariable(optix::Ray, ray, rtCurrentRay, );
 rtDeclareVariable(float3, texcoord, attribute texcoord, );
 rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );
 rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
+rtDeclareVariable(int, surface_id, attribute surface_id, );
 
 RT_PROGRAM void mesh_intersect( int primIdx )
 {
@@ -66,13 +68,14 @@ RT_PROGRAM void mesh_intersect( int primIdx )
 	if( intersect_triangle( ray, p0, p1, p2, n, t, beta, gamma ) && ( backvis || optix::dot( n, ray.direction ) < 0) ) {
 
 		int mat = material_buffer[primIdx];
-		if ( mat >= num_materials ) {
-			if ( ray.ray_type == shadow_ray_type ) // For materials whose type depends on ray type (such as illum)
-				mat = mat % num_materials;
-			else
-				mat = mat / num_materials - 2;
-		}
-		if ( mat < 0 ) return; /* Material void or missing */
+		if ( mat < 0 || mat >= material_alt_buffer.size() ) /* Material void or missing */
+			return;
+		if ( ray.ray_type == radiance_primary_ray_type ) /* Lambert material for irradiance calculations */
+			mat = material_alt_buffer[mat].x;
+		else if ( ray.ray_type != shadow_ray_type ) /* For materials whose type depends on ray type (such as illum and mirror) */
+			mat = material_alt_buffer[mat].y;
+		if ( mat < 0 || mat >= material_alt_buffer.size() ) /* Material void or missing */
+			return;
 
 		if ( rtPotentialIntersection( t ) ) {
 
@@ -97,7 +100,7 @@ RT_PROGRAM void mesh_intersect( int primIdx )
 				texcoord = make_float3( t1*beta + t2*gamma + t0*(1.0f-beta-gamma) );
 			}
 
-			//TODO check do_irrad.  If true, primary rays should intersect Lambert material.  See rayshade() in raytrace.c.
+			surface_id = v_idx.x; // Not necessarily unique per triangle, but different for each surface
 
 			rtReportIntersection( mat );
 		}

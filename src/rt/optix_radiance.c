@@ -300,7 +300,7 @@ static void createContext( RTcontext* context, const int width, const int height
 	use_ambient = ambacc > FTINY && ambounce > 0;
 	calc_ambient = use_ambient && nambvals == 0u;// && (ambfile == NULL || !ambfile[0]); // TODO Should really look at ambfp in ambinet.c to check that file is readable
 
-	ray_type_count = 2u; /* shadow and radiance */
+	ray_type_count = 3u; /* shadow, radiance, and primary radiance */
 	entry_point_count = 1u; /* Generate radiance data */
 
 	if ( use_ambient )
@@ -380,6 +380,7 @@ static void setupKernel( const RTcontext context, const VIEW* view, const int wi
 static void applyRadianceSettings( const RTcontext context )
 {
 	/* Define ray types */
+	applyContextVariable1ui( context, "radiance_primary_ray_type", PRIMARY_RAY );
 	applyContextVariable1ui( context, "radiance_ray_type", RADIANCE_RAY );
 	applyContextVariable1ui( context, "shadow_ray_type", SHADOW_RAY );
 
@@ -455,6 +456,7 @@ static void createCamera( const RTcontext context, const VIEW* view )
 		ptxFile( path_to_ptx, "sensor" );
 		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "ray_generator", &ray_gen_program ) );
 	}
+	applyProgramVariable1ui( context, ray_gen_program, "do_irrad", do_irrad ); // -i
 	RT_CHECK_ERROR( rtContextSetRayGenerationProgram( context, RADIANCE_ENTRY, ray_gen_program ) );
 
 	/* Exception program */
@@ -464,6 +466,8 @@ static void createCamera( const RTcontext context, const VIEW* view )
 	/* Miss program */
 	ptxFile( path_to_ptx, "background" );
 	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "miss", &miss_program ) );
+	if ( do_irrad )
+		RT_CHECK_ERROR( rtContextSetMissProgram( context, PRIMARY_RAY, miss_program ) );
 	RT_CHECK_ERROR( rtContextSetMissProgram( context, RADIANCE_RAY, miss_program ) );
 	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "miss_shadow", &miss_shadow_program ) );
 	RT_CHECK_ERROR( rtContextSetMissProgram( context, SHADOW_RAY, miss_shadow_program ) );
@@ -498,6 +502,9 @@ static void countObjectsInScene( ObjectCount* count )
 	unsigned int i, v_count, t_count, m_count, l_count, dl_count, cie_count, perez_count, source_count;
 	v_count = t_count = m_count = l_count = dl_count = cie_count = perez_count = source_count = 0u;
 #endif
+
+	if ( do_irrad )
+		m_count++;
 
 	for (i = 0; i < nobjects; i++) {
 		rec = objptr(i);
@@ -613,11 +620,13 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	RTbuffer   tex_coord_buffer;
 	RTbuffer   vertex_index_buffer;
 	RTbuffer   material_index_buffer;
+	RTbuffer   material_alt_buffer;
 	float*     vertex_buffer_data;
 	float*     normal_buffer_data;
 	float*     tex_coord_buffer_data;
 	int*       v_index_buffer_data;
 	int*       m_index_buffer_data;
+	int*       m_alt_buffer_data;
 
 #ifdef LIGHTS
 	RTbuffer   light_index_buffer;
@@ -626,9 +635,9 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 
 	int i, j, t;
 #ifdef CALLABLE
-	unsigned int vi, ni, ti, mi, vii, mii, li, dli, fi;
+	unsigned int vi, ni, ti, mi, vii, mii, mai, li, dli, fi;
 #else
-	unsigned int vi, ni, ti, mi, vii, mii, li, dli, sbi, pli, lsi;
+	unsigned int vi, ni, ti, mi, vii, mii, mai, li, dli, sbi, pli, lsi;
 	SkyBright cie;
 	PerezLum perez;
 	Light light_source;
@@ -663,7 +672,6 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "mesh_intersect", &mesh_intersection_program ) );
 	RT_CHECK_ERROR( rtGeometrySetIntersectionProgram( mesh, mesh_intersection_program ) );
 	applyProgramVariable1ui( context, mesh_intersection_program, "backvis", backvis ); // -bv
-	applyProgramVariable1i( context, mesh_intersection_program, "num_materials", count.material );
 
 	/* Create the geometry instance containing the geometry. */
 	RT_CHECK_ERROR( rtGeometryInstanceCreate( context, instance ) );
@@ -704,16 +712,26 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_INT, count.triangle, &material_index_buffer );
 	RT_CHECK_ERROR( rtBufferMap( material_index_buffer, (void**)&m_index_buffer_data ) );
 
+	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_INT2, count.material, &material_alt_buffer );
+	RT_CHECK_ERROR( rtBufferMap( material_alt_buffer, (void**)&m_alt_buffer_data ) );
+
 #ifdef LIGHTS
 	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_INT3, count.light, &light_index_buffer );
 	RT_CHECK_ERROR( rtBufferMap( light_index_buffer, (void**)&l_index_buffer_data ) );
 #endif
 
 #ifdef CALLABLE
-	vi = ni = ti = mi = vii = mii = li = dli = fi = 0u;
+	vi = ni = ti = mi = vii = mii = mai = li = dli = fi = 0u;
 #else
-	vi = ni = ti = mi = vii = mii = li = dli = sbi = pli = lsi = 0u;
+	vi = ni = ti = mi = vii = mii = mai = li = dli = sbi = pli = lsi = 0u;
 #endif
+
+	/* Material 0 is Lambertian. */
+	if ( do_irrad ) {
+		m_alt_buffer_data[mai++] = mi;
+		m_alt_buffer_data[mai++] = mi;
+		createNormalMaterial( context, *instance, mi++, &Lamb );
+	}
 
 	/* Get the scene geometry as a list of triangles. */
 	fprintf(stderr, "Num objects %i\n", nobjects);
@@ -733,27 +751,32 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 		case MAT_METAL: // Metal material
 		case MAT_TRANS: // Translucent material
 			buffer_entry_index[i] = mi;
+			m_alt_buffer_data[mai++] = 0;
+			m_alt_buffer_data[mai++] = mi;
 			createNormalMaterial( context, *instance, mi++, rec );
 			break;
 		case MAT_GLASS: // Glass material
 		case MAT_DIELECTRIC: // Dielectric material TODO handle separately, see dialectric.c
 			buffer_entry_index[i] = mi;
+			m_alt_buffer_data[mai++] = -1;
+			m_alt_buffer_data[mai++] = mi;
 			createGlassMaterial( context, *instance, mi++, rec );
 			break;
 		case MAT_LIGHT: // primary light source material, may modify a face or a source (solid angle)
+		case MAT_ILLUM: // secondary light source material
 		case MAT_GLOW: // Glow material
 		case MAT_SPOT: // Spotlight material
-			buffer_entry_index[i] = mi;
-			createLightMaterial( context, *instance, mi++, buffer_entry_index, rec );
-			break;
-		case MAT_ILLUM: // secondary light source material
-			if ( rec->oargs.nsargs && strcmp( rec->oargs.sarg[0], VOIDID ) ) { /* modifies another material */
+			if ( rec->otype != MAT_ILLUM )
+				t = mi;
+			else if ( rec->oargs.nsargs && strcmp( rec->oargs.sarg[0], VOIDID ) ) { /* modifies another material */
 				//material = objptr( lastmod( objndx(rec), rec->oargs.sarg[0] ) );
-				//t = 2 + buffer_entry_index[objndx(material)];
-				t = 2 + buffer_entry_index[lastmod( objndx(rec), rec->oargs.sarg[0] )];
+				//t = buffer_entry_index[objndx(material)];
+				t = buffer_entry_index[lastmod( objndx(rec), rec->oargs.sarg[0] )];
 			} else
-				t = 1;
-			buffer_entry_index[i] = mi + count.material * t;
+				t = -1;
+			buffer_entry_index[i] = mi;
+			m_alt_buffer_data[mai++] = mi;
+			m_alt_buffer_data[mai++] = t;
 			createLightMaterial( context, *instance, mi++, buffer_entry_index, rec );
 			break;
 		case OBJ_FACE:
@@ -966,6 +989,9 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	RT_CHECK_ERROR( rtBufferUnmap( material_index_buffer ) );
 	applyGeometryInstanceObject( context, *instance, "material_buffer", material_index_buffer );
 
+	RT_CHECK_ERROR( rtBufferUnmap( material_alt_buffer ) );
+	applyGeometryInstanceObject( context, *instance, "material_alt_buffer", material_alt_buffer );
+
 #ifdef LIGHTS
 	RT_CHECK_ERROR( rtBufferUnmap( light_index_buffer ) );
 	applyGeometryInstanceObject( context, *instance, "lindex_buffer", light_index_buffer );
@@ -1038,6 +1064,8 @@ static void createNormalMaterial( const RTcontext context, const RTgeometryinsta
 	}
 
 	RT_CHECK_ERROR( rtMaterialCreate( context, &material ) );
+	if ( do_irrad )
+		RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, PRIMARY_RAY, radiance_normal_closest_hit_program ) );
 	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, RADIANCE_RAY, radiance_normal_closest_hit_program ) );
 #ifndef LIGHTS
 	RT_CHECK_ERROR( rtMaterialSetAnyHitProgram( material, SHADOW_RAY, shadow_normal_any_hit_program ) ); // Cannot use any hit program because closest might be light source
@@ -1128,6 +1156,8 @@ static void createLightMaterial( const RTcontext context, const RTgeometryinstan
 	}
 
 	RT_CHECK_ERROR( rtMaterialCreate( context, &material ) );
+	if ( do_irrad )
+		RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, PRIMARY_RAY, radiance_light_closest_hit_program ) );
 	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, RADIANCE_RAY, radiance_light_closest_hit_program ) );
 	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, SHADOW_RAY, shadow_light_closest_hit_program ) );
 

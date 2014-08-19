@@ -303,6 +303,7 @@ RT_METHOD int plugaleak( const AmbientRecord* record, const float3& anorm, const
 	float3 rdir = vdif + anorm * t.y;	/* further dist. > plane */
 	Ray shadow_ray = make_Ray( ray.origin, normalize( rdir ), shadow_ray_type, RAY_START, length( rdir ) );
 	PerRayData_shadow shadow_prd;
+	shadow_prd.target = 0;
 	shadow_prd.result = make_float3( 1.0f );
 	rtTrace( top_shadower, shadow_ray, shadow_prd );
 	return( dot( shadow_prd.result, shadow_prd.result ) < 1.0f );	/* check for occluder */
@@ -703,7 +704,9 @@ RT_METHOD int ambsample( AMBHEMI *hp, const int& i, const int& j, const float3& 
 	//hlist[2] = i;
 	//multisamp(spt, 2, urand(ilhash(hlist,3)+n));
 	float2 spt = 0.1f + 0.8f * make_float2( curand_uniform( prd.state ), curand_uniform( prd.state ) );
-	//if (!n) {			/* avoid border samples for n==0 */
+					/* avoid coincident samples */
+	//if (!n && (0 < i) & (i < hp->ns-1) &&
+	//		(0 < j) & (j < hp->ns-1)) {
 	//	if ((spt.x < 0.1f) | (spt.x >= 0.9f))
 	//		spt.x = 0.1f + 0.8f * curand_uniform( prd.state );
 	//	if ((spt.y < 0.1f) | (spt.y >= 0.9f))

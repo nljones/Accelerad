@@ -18,12 +18,14 @@ rtDeclareVariable(float2,        fov, , );
 rtDeclareVariable(float2,        shift, , );
 rtDeclareVariable(float2,        clip, , );
 rtDeclareVariable(float,         dstrpix, , ); /* Pixel sample jitter (-pj) */
+rtDeclareVariable(unsigned int,  do_irrad, , ); /* Calculate irradiance (-i) */
 
 /* Contex variables */
 rtBuffer<float4, 2>              output_buffer;
 //rtBuffer<unsigned int, 2>        rnd_seeds;
 rtDeclareVariable(rtObject,      top_object, , );
 rtDeclareVariable(unsigned int,  radiance_ray_type, , );
+rtDeclareVariable(unsigned int,  radiance_primary_ray_type, , );
 
 /* OptiX variables */
 rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
@@ -96,7 +98,7 @@ RT_PROGRAM void image_camera()
 		aft = RAY_END;
 	}
 
-	Ray ray = make_Ray(ray_origin, ray_direction, radiance_ray_type, clip.x, aft);
+	Ray ray = make_Ray(ray_origin, ray_direction, do_irrad ? radiance_primary_ray_type : radiance_ray_type, clip.x, aft);
 
 	prd.weight = 1.0f;
 	prd.depth = 0;

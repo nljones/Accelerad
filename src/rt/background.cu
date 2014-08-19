@@ -145,9 +145,8 @@ RT_PROGRAM void miss_shadow()
 	const float3 H = optix::normalize(ray.direction);
 
 	// compute direct lighting
-	unsigned int num_lights = lights.size();
-	for (int i = 0; i < num_lights; ++i) {
-		DistantLight light = lights[i];
+	if ( prd_shadow.target >= 0 && prd_shadow.target < lights.size() ) {
+		DistantLight light = lights[prd_shadow.target];
 		if (light.casts_shadow) {
 
 			// get the angle bwetween the light direction and the view

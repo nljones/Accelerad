@@ -346,6 +346,7 @@ RT_PROGRAM void closest_hit_radiance()
 		for ( int i = 0; i < num_lights; i++ ) {
 			const DistantLight light = lights[i];
 			if ( light.casts_shadow ) {
+				shadow_prd.target = i;
 				shadow_ray.direction = normalize( light.pos );
 				result += dirnorm( &shadow_ray, &shadow_prd, specfl, scolor, mcolor, ffnormal, trans, rspec, tspec, rdiff, tdiff, alpha2, light.solid_angle );
 			}
@@ -388,6 +389,7 @@ RT_PROGRAM void closest_hit_radiance()
 							rdir += dstrsrc * ( vpos - rdir );
 						}
 
+						shadow_prd.target = -v_idx.x - 1; //TODO find a better way to identify surface
 						shadow_ray.direction = normalize( rdir );
 						shadow_ray.tmax = length( rdir ) + FTINY;
 						result += dirnorm( &shadow_ray, &shadow_prd, specfl, scolor, mcolor, ffnormal, trans, rspec, tspec, rdiff, tdiff, alpha2, omega );

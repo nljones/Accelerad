@@ -89,6 +89,7 @@ RT_PROGRAM void closest_hit_shadow()
 
 		/* transmitted ray */
 		//new_prd.depth = prd.depth + 1;
+		new_prd.target = prd_shadow.target;
 		new_prd.result = make_float3( 0.0f );
 		optix::Ray trans_ray = optix::make_Ray( hit_point, ray.direction, shadow_ray_type, RAY_START, RAY_END );
 		rtTrace(top_object, trans_ray, new_prd);

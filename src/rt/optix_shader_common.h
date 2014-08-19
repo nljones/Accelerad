@@ -67,6 +67,7 @@ struct PerRayData_radiance
 struct PerRayData_shadow
 {
 	float3 result;
+	int target;
 };
 
 struct PerRayData_ambient

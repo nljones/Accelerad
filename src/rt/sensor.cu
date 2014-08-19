@@ -8,11 +8,15 @@
 
 using namespace optix;
 
+/* Program variables */
+rtDeclareVariable(unsigned int,  do_irrad, , ); /* Calculate irradiance (-i) */
+
 /* Contex variables */
 rtBuffer<RayData, 2>             ray_buffer;
 //rtBuffer<unsigned int, 2>        rnd_seeds;
 rtDeclareVariable(rtObject,      top_object, , );
 rtDeclareVariable(unsigned int,  radiance_ray_type, , );
+rtDeclareVariable(unsigned int,  radiance_primary_ray_type, , );
 
 /* OptiX variables */
 rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
@@ -44,7 +48,7 @@ RT_PROGRAM void ray_generator()
 		aft = RAY_END;
 	}
 
-	Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, radiance_ray_type, FTINY, aft);
+	Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, do_irrad ? radiance_primary_ray_type : radiance_ray_type, FTINY, aft);
 
 	prd.weight = 1.0f;
 	prd.depth = 0;

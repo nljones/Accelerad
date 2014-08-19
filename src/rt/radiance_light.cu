@@ -39,6 +39,8 @@ rtDeclareVariable(PerRayData_shadow, prd_shadow, rtPayload, );
 /* Attributes */
 rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, ); 
 rtDeclareVariable(float3, shading_normal, attribute shading_normal, ); 
+rtDeclareVariable(int, surface_id, attribute surface_id, );
+
 
 
 RT_METHOD int spotout();
@@ -54,7 +56,7 @@ RT_PROGRAM void closest_hit_shadow()
 
 	//float3 ffnormal = faceforward( world_shading_normal, -ray.direction, world_geometric_normal );
 
-	if ( t_hit > maxrad || spotout() || dot( world_shading_normal, ray.direction ) > 0.0f )
+	if ( t_hit > maxrad || spotout() || dot( world_shading_normal, ray.direction ) > 0.0f || surface_id != -prd_shadow.target - 1 )
 		prd_shadow.result = make_float3( 0.0f );
 #ifdef CALLABLE
 	else if ( function > RT_PROGRAM_ID_NULL )
@@ -75,7 +77,7 @@ RT_PROGRAM void closest_hit_radiance()
 	//float3 ffnormal = faceforward( world_shading_normal, -ray.direction, world_geometric_normal );
 
 	// no contribution to ambient calculation
-	if ( !directvis || t_hit > maxrad || prd.ambient_depth > 0 || spotout() || dot( world_shading_normal, ray.direction ) > 0.0f ) //TODO need a better ambient test and handle maxrad < 0
+	if ( !directvis || 0.0f > maxrad && prd.depth > 0 || prd.ambient_depth > 0 || spotout() || dot( world_shading_normal, ray.direction ) > 0.0f ) //TODO need a better ambient test
 		prd.result = make_float3( 0.0f );
 #ifdef CALLABLE
 	else if ( function > RT_PROGRAM_ID_NULL )
