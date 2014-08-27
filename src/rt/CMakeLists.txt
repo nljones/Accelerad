@@ -89,7 +89,7 @@ if(OptiX_USE)
   # This is a macro found in FindCUDA.cmake that compiles the listed
   # CUDA files into OBJ files with the prefix "cuda_compile_generated_"
   # in a subdirectory of the directory specified by CUDA_GENERATED_OUTPUT_DIR.
-  CUDA_COMPILE(generated_CUDA_files cuda_kmeans.cu)
+  CUDA_COMPILE(generated_CUDA_files cuda_adaptive_seeding.cu cuda_kmeans.cu)
 
   # Compile the OptiX CUDA files to PTX format.
   # This is a macro found in FindCUDA.cmake that compiles the listed

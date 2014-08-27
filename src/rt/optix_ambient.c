@@ -392,6 +392,18 @@ float** cuda_kmeans(float **objects,	/* in: [numObjs][numCoords] */
 					float  *distance,	/* out: [numObjs] */
 					int    *loop_iterations);
 
+#ifdef ADAPTIVE_SEED_SAMPLING
+void cuda_score_hits(PointDirection *hits, float *score, unsigned int width, unsigned int height, float weight);
+void cuda_score_hits_big(PointDirection *hits, float *pool, unsigned int width, unsigned int height, float weight);
+static int compare_seeds( const void *a, const void *b );
+
+/* Structure for sorting seed points. */
+typedef struct {
+	PointDirection *hit;	/* hit point and normal */
+	float *weight;			/* relative importance of hit for irradiance cache */
+} HIT_REC;
+#endif /* ADAPTIVE_SEED_SAMPLING */
+
 void createAmbientRecords( const RTcontext context, const VIEW* view, const int width, const int height )
 {
 	RTvariable     level_var, avsum_var, navsum_var;
@@ -486,6 +498,49 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 		/* Retrieve potential seed points. */
 		RT_CHECK_ERROR( rtBufferMap( seed_buffer, (void**)&seed_buffer_data ) );
 		RT_CHECK_ERROR( rtBufferUnmap( seed_buffer ) );
+
+#ifdef ADAPTIVE_SEED_SAMPLING
+		if (!level) {
+			clock_t kernel_start_clock, kernel_end_clock;
+			int i;
+			float total = 0.0f;
+			int nans = 0;
+			float *score = (float*) malloc(seed_count * sizeof(float));
+			HIT_REC *sort_list = (HIT_REC*) malloc(seed_count * sizeof(HIT_REC));
+			PointDirection *temp_list = (PointDirection*) malloc(seed_count * sizeof(PointDirection));
+
+			kernel_start_clock = clock();
+			cuda_score_hits_big( seed_buffer_data, score, grid_width, grid_height, cuda_kmeans_error / thescene.cusize );
+			kernel_end_clock = clock();
+			fprintf(stderr, "Adaptive sampling: %u milliseconds.\n", (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC);
+
+			for ( i = 0; i < seed_count; i++ ) {
+				//fprintf( stderr, "Score %i: %g\n", i, score[i] );
+				sort_list[i].hit = seed_buffer_data + i;
+				sort_list[i].weight = score + i;
+				if (score[i] == score[i])
+					total += score[i];
+				else
+					nans++;
+			}
+			fprintf( stderr, "Score total: %f\n", total );
+			fprintf( stderr, "NaNs: %i\n", nans );
+
+			qsort( sort_list, seed_count, sizeof(HIT_REC), compare_seeds );
+
+			for ( i = 0; i < seed_count; i++ ) {
+				//fprintf( stderr, "Hit %i: %g\n", i, *sort_list[i].weight );
+				temp_list[i] = *sort_list[i].hit;
+			}
+			for ( i = 0; i < seed_count; i++ ) {
+				seed_buffer_data[i] = temp_list[i];
+			}
+			//fprintf( stderr, "Pool total: %g\n", total );
+
+			free(score);
+			free(sort_list);
+		}
+#endif /* ADAPTIVE_SEED_SAMPLING */
 
 		/* Group seed points into clusters and add clusters to buffer */
 		RT_CHECK_ERROR( rtBufferMap( cluster_buffer[level], (void**)&cluster_buffer_data ) );
@@ -589,6 +644,16 @@ static void createPointCloudCamera( const RTcontext context, const VIEW* view )
 	RT_CHECK_ERROR( rtContextSetMissProgram( context, POINT_CLOUD_RAY, miss_program ) );
 }
 
+#ifdef ADAPTIVE_SEED_SAMPLING
+static int compare_seeds( const void *a, const void *b )
+{
+	const float *x = ((HIT_REC*)a)->weight;
+	const float *y = ((HIT_REC*)b)->weight;
+	if ( *x > *y ) return -1;
+	return ( *x < *y );
+}
+#endif /* ADAPTIVE_SEED_SAMPLING */
+
 #ifdef ITERATIVE_KMEANS_IC
 static void createHemisphereSamplingCamera( RTcontext context )
 {
@@ -643,7 +708,7 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 	membership = (int*) malloc(good_seed_count * sizeof(int));
 	distance = (float*) malloc(good_seed_count * sizeof(float));
 	kernel_start_clock = clock();
-	clusters = (PointDirection**)cuda_kmeans((float**)seeds, sizeof(PointDirection) / sizeof(float), good_seed_count, cluster_count, cuda_kmeans_iterations, cuda_kmeans_threshold, cuda_kmeans_error, membership, distance, &loops);
+	clusters = (PointDirection**)cuda_kmeans((float**)seeds, sizeof(PointDirection) / sizeof(float), good_seed_count, cluster_count, cuda_kmeans_iterations, cuda_kmeans_threshold, cuda_kmeans_error / thescene.cusize, membership, distance, &loops);
 	kernel_end_clock = clock();
 	fprintf(stderr, "Kmeans performed %u loop iterations in %u milliseconds.\n", loops, (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC);
 

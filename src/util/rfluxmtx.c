@@ -36,7 +36,7 @@ static const char RCSid[] = "$Id$";
 
 char		*progname;		/* global argv[0] */
 
-int		verbose = 0;		/* verbose mode? */
+int		verbose = 0;		/* verbose mode (< 0 no warnings) */
 
 char		*rcarg[MAXRCARG+1] = {"rcontrib", "-fo+"};
 int		nrcargs = 2;
@@ -226,7 +226,7 @@ popen_arglist(char *av[], char *mode)
 		fputs(": command line too long in popen_arglist()\n", stderr);
 		return(NULL);
 	}
-	if (verbose)
+	if (verbose > 0)
 		fprintf(stderr, "%s: opening pipe %s: %s\n",
 				progname, (*mode=='w') ? "to" : "from", cmd);
 	return(popen(cmd, mode));
@@ -244,7 +244,7 @@ my_exec(char *av[])
 		fputs(": command line too long in my_exec()\n", stderr);
 		return(1);
 	}
-	if (verbose)
+	if (verbose > 0)
 		fprintf(stderr, "%s: running: %s\n", progname, cmd);
 	return(system(cmd));
 }
@@ -259,7 +259,7 @@ my_exec(char *av[])
 		fprintf(stderr, "%s: cannot locate %s\n", progname, av[0]);
 		return(1);
 	}
-	if (verbose) {
+	if (verbose > 0) {
 		char	cmd[4096];
 		if (!convert_commandline(cmd, sizeof(cmd), av))
 			strcpy(cmd, "COMMAND TOO LONG TO SHOW");
@@ -792,8 +792,8 @@ sample_reinhart(PARAMS *p, int b, FILE *fp)
 		alt = (row+samp3[1])*RAH;
 		azi = (2.*PI)*(col+samp3[2]-.5)/rnaz(row);
 		duvw[2] = cos(alt);	/* measured from horizon */
-		duvw[0] = tcos(azi)*duvw[2];
-		duvw[1] = tsin(azi)*duvw[2];
+		duvw[0] = tsin(azi)*duvw[2];
+		duvw[1] = tcos(azi)*duvw[2];
 		duvw[2] = sqrt(1. - duvw[2]*duvw[2]);
 		for (i = 3; i--; )
 			orig_dir[1][i] = -duvw[0]*p->udir[i] -
@@ -844,7 +844,7 @@ sample_klems(PARAMS *p, int b, FILE *fp)
 
 	while (n--) {			/* stratified sampling */
 		SDmultiSamp(samp2, 2, (n+frandom())/sampcnt);
-		if (!bo_getvec(duvw, b+samp2[1], kbasis[bi]))
+		if (!bi_getvec(duvw, b+samp2[1], kbasis[bi]))
 			return(0);
 		for (i = 3; i--; )
 			orig_dir[1][i] = duvw[0]*p->udir[i] +
@@ -867,7 +867,8 @@ prepare_sampler(void)
 		fputs(": no sender surface!\n", stderr);
 		return(-1);
 	}
-	if (curparams.outfn != NULL)	/* misplaced output file spec. */
+					/* misplaced output file spec. */
+	if ((curparams.outfn != NULL) & (verbose >= 0))
 		fprintf(stderr, "%s: warning - ignoring output file in sender ('%s')\n",
 				progname, curparams.outfn);
 					/* check/set basis hemisphere */
@@ -1018,7 +1019,7 @@ add_surface(int st, const char *oname, FILE *fp)
 		snew->area *= PI*snew->area;
 		break;
 	}
-	if (snew->area <= FTINY) {
+	if ((snew->area <= FTINY) & (verbose >= 0)) {
 		fprintf(stderr, "%s: warning - zero area for surface '%s'\n",
 				progname, oname);
 		free(snew);
@@ -1205,7 +1206,7 @@ main(int argc, char *argv[])
 		na = 1;	
 		switch (argv[a][1]) {	/* !! Keep consistent !! */
 		case 'v':		/* verbose mode */
-			verbose = !verbose;
+			verbose = 1;
 			na = 0;
 			continue;
 		case 'f':		/* special case for -fo, -ff, etc. */
@@ -1246,8 +1247,9 @@ main(int argc, char *argv[])
 			iropt = argv[a];
 			na = 0;
 			continue;
-		case 'V':		/* options without arguments */
-		case 'w':
+		case 'w':		/* options without arguments */
+			if (argv[a][2] != '+') verbose = -1;
+		case 'V':
 		case 'u':
 		case 'h':
 		case 'r':
