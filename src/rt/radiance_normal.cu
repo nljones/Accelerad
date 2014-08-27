@@ -770,7 +770,7 @@ RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit )
 	if (ambacc <= FTINY && wt > (d = 0.8f * fmaxf(*rcol) * wt / (ambdiv*minweight)))
 		wt = d;			/* avoid ray termination */
 	int n = sqrtf(ambdiv * wt) + 0.5f;
-	int i = 1 + 5 * (ambacc > FTINY);	/* minimum number of samples */
+	int i = 1 + 8 * (ambacc > FTINY);	/* minimum number of samples */
 	if (n < i)
 		n = i;
 	const int nn = n * n;

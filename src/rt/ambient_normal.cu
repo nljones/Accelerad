@@ -339,7 +339,7 @@ RT_METHOD int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *ra, float
 	//if (hp == NULL)			/* sampling falure? */
 	//	return(0);
 
-	if ((ra == NULL) & (pg == NULL) & (dg == NULL) || (hp.sampOK < 0) | (hp.ns < 4)) { /* Hessian not requested/possible */
+	if ((ra == NULL) & (pg == NULL) & (dg == NULL) || (hp.sampOK < 0) | (hp.ns < 9)) { /* Hessian not requested/possible */
 		return(-1);		/* value-only return value */
 	}
 #ifndef AMB_SAVE_MEM
@@ -416,7 +416,7 @@ RT_METHOD int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const float3& norm
 	if (ambacc <= FTINY && wt > (d = 0.8f * fmaxf(*rcol) * wt / (ambdiv*minweight))) //TODO second wt should be radiance ray weight
 		wt = d;			/* avoid ray termination */
 	int n = sqrtf(ambdiv * wt) + 0.5f;
-	int i = 1 + 5 * (ambacc > FTINY);	/* minimum number of samples */
+	int i = 1 + 8 * (ambacc > FTINY);	/* minimum number of samples */
 	if (n < i)
 		n = i;
 					/* allocate sampling array */
@@ -762,7 +762,7 @@ RT_METHOD int ambsample( AMBHEMI *hp, const int& i, const int& j, const float3& 
 /* Return brightness of farthest ambient sample */
 RT_METHOD float back_ambval( const AMBSAMP *n1, const AMBSAMP *n2, const AMBSAMP *n3 )
 {
-	if (n1->d <= n2->d) { //TODO how to get these three sample points
+	if (n1->d <= n2->d) {
 		if (n1->d <= n3->d)
 			return(n1->v.y);
 		return(n3->v.y);
@@ -793,7 +793,7 @@ RT_METHOD void comp_fftri( FFTRI *ftp, const AMBSAMP *n0, const AMBSAMP *n1, con
 /* Return brightness of farthest ambient sample */
 RT_METHOD float back_ambval( AMBHEMI *hp, const int& n1, const int& n2, const int& n3 )
 {
-	if (hp->sa[n1].d <= hp->sa[n2].d) { //TODO how to get these three sample points
+	if (hp->sa[n1].d <= hp->sa[n2].d) {
 		if (hp->sa[n1].d <= hp->sa[n3].d)
 			return(hp->sa[n1].v.y);
 		return(hp->sa[n3].v.y);
