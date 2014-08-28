@@ -11,6 +11,8 @@
 
 #include "kmeans.h"
 
+//#define PRINT_CUDA
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -58,7 +60,7 @@ void reduce(float *error, const int level, const int idX, const int idY, const i
 
 // Ambient sample distribution
 __global__ static
-void geometric_variation(PointDirection *deviceHits, float *score,
+void geometric_variation(PointDirection *deviceHits, int *seed,
 				   const unsigned int width, const unsigned int height, const unsigned int levels, const float alpha)
 {
 	extern __shared__ PointDirection blockSharedMemory[];
@@ -123,12 +125,29 @@ void geometric_variation(PointDirection *deviceHits, float *score,
 			float err2 = error[tid + stride2 * width];
 			float err3 = error[tid + stride2 * (width + 1)];
 			float errSum = err0 + err1 + err2 + err3;
-			float scoreSum = errSum > 0.0f ? score[tid] / errSum : 0.0f;
+			int seedSum = seed[tid];
+			float scoreSum = errSum > 0.0f ? seedSum / errSum : 0.0f;
 
-			score[tid]                         = scoreSum * err0;
-			score[tid + stride2]               = scoreSum * err1;
-			score[tid + stride2 * width]       = scoreSum * err2;
-			score[tid + stride2 * (width + 1)] = scoreSum * err3;
+			int s[4];
+			s[0] = scoreSum * err0 + 0.5f;
+			s[1] = scoreSum * err1 + 0.5f;
+			s[2] = scoreSum * err2 + 0.5f;
+			s[3] = scoreSum * err3 + 0.5f;
+			int diff = seedSum - s[0] - s[1] - s[2] - s[3];
+			if (diff && errSum > 0.0f) {
+				int maxIndex = err0 > err1 ?
+								err0 > err2 ?
+									err0 > err3 ? 0 : 3 :
+									err2 > err3 ? 2 : 3 :
+								err1 > err2 ?
+									err1 > err3 ? 1 : 3 :
+									err2 > err3 ? 2 : 3;
+				s[maxIndex] += diff;
+			}
+			seed[tid]                         = s[0];
+			seed[tid + stride2]               = s[1];
+			seed[tid + stride2 * width]       = s[2];
+			seed[tid + stride2 * (width + 1)] = s[3];
 		}
 
 		__syncthreads();
@@ -151,10 +170,10 @@ static unsigned int __cdecl calc_block_dim(const unsigned int maxThreadsPerBlock
 }
 
 /* Score the relative need for an irradiance cache entry at each hit point */
-void __cdecl cuda_score_hits(PointDirection *hits, float *score, unsigned int width, unsigned int height, float weight)
+void __cdecl cuda_score_hits(PointDirection *hits, int *seeds, const unsigned int width, const unsigned int height, const float weight, const unsigned int seed_count)
 {
 	PointDirection *deviceHits;
-	float *deviceScore;
+	int *deviceSeeds;
 	
 	/* Calculate number of levels */
 	unsigned int levels = 0;
@@ -185,26 +204,26 @@ void __cdecl cuda_score_hits(PointDirection *hits, float *score, unsigned int wi
 	/* Allocate memory on the GPU */
 	size = width * height;
 	checkCuda(cudaMalloc(&deviceHits, size * sizeof(PointDirection)));
-	checkCuda(cudaMalloc(&deviceScore, size * sizeof(float)));
+	checkCuda(cudaMalloc(&deviceSeeds, size * sizeof(int)));
 
 	/* Copy data to GPU */
-	score[0] = (float)size;
-	fprintf(stderr, "Target total score: %g\n", score[0]);
+	seeds[0] = seed_count;
+	fprintf(stderr, "Target total score: %i\n", seed_count);
 	checkCuda(cudaMemcpy(deviceHits, hits, size * sizeof(PointDirection), cudaMemcpyHostToDevice));
-	checkCuda(cudaMemcpy(deviceScore, score, sizeof(float), cudaMemcpyHostToDevice)); // transfer only first entry
+	checkCuda(cudaMemcpy(deviceSeeds, seeds, sizeof(int), cudaMemcpyHostToDevice)); // transfer only first entry
 
 	/* Run kernel */
 	geometric_variation <<< dimGrid, dimBlock, blockSharedMemorySize >>>
-			(deviceHits, deviceScore, width, height, levels, weight);
+			(deviceHits, deviceSeeds, width, height, levels, weight);
 	
 	cudaDeviceSynchronize(); checkLastCudaError();
 
 	/* Copy results from GPU */
-	checkCuda(cudaMemcpy(score, deviceScore, size * sizeof(float), cudaMemcpyDeviceToHost));
+	checkCuda(cudaMemcpy(seeds, deviceSeeds, size * sizeof(int), cudaMemcpyDeviceToHost));
 
 	/* Free memory on the GPU */
 	checkCuda(cudaFree(deviceHits));
-	checkCuda(cudaFree(deviceScore));
+	checkCuda(cudaFree(deviceSeeds));
 }
 
 
@@ -234,8 +253,10 @@ void mip_map_hits(PointDirection *deviceHits, PointDirection *deviceMipMap,
 
 	/* Calculate geometric error for each hit point to each quad-tree node. */
 	while (stride < blockDim.x) {
+#ifdef PRINT_CUDA
 		if (!tid)
 			printf("mip_map_hits stride=%i, offset=%i, accum=%g,%g,%g\n", stride, offset, accum.pos.x, accum.pos.y, accum.pos.z);
+#endif
 		unsigned int stride2 = stride << 1;
 
 		if (!(idX % stride2) && !(idY % stride2)) {
@@ -249,8 +270,10 @@ void mip_map_hits(PointDirection *deviceHits, PointDirection *deviceMipMap,
 			blockSharedMemory[sid] = accum;
 			deviceMipMap[offset + (idX + idY * width / stride2) / stride2] = accum;
 		}
+#ifdef PRINT_CUDA
 		if (!tid)
 			printf("mip_map_hits accum=%g,%g,%g\n", accum.pos.x, accum.pos.y, accum.pos.z);
+#endif
 
 		__syncthreads();
 
@@ -278,8 +301,10 @@ void calc_error(PointDirection *devicePointDirections, PointDirection *deviceMip
 
 	/* Calculate geometric error for each hit point to each quad-tree node. */
 	for (unsigned int i = 0u; i < levels; i++) {
+#ifdef PRINT_CUDA
 		if (!tid)
 			printf("calc_error stride=%i, i=%i, valid=%i\n", stride, i, valid);
+#endif
 		stride <<= 1;
 
 		error[tid + i * width * height] = valid ? geometric_error(hit, mipMapLevel[idX / stride + (idY / stride) * (width / stride)], alpha) : 0.0f;
@@ -301,8 +326,10 @@ void reduce_error(float *error, const unsigned int width, const unsigned int hei
 		unsigned int stride = 1u;
 
 		while (stride < (1 << j) && stride < blockDim.x) {
+#ifdef PRINT_CUDA
 			if (!(tid % (width * height)))
 				printf("reduce_error stride=%i, j=%i, scale=%i, err=%g\n", stride, j, scale, err);
+#endif
 			unsigned int stride2 = stride << 1;
 			if (!(idX % stride2) && !(idY % stride2)) {
 				err += error[tid + stride * scale];
@@ -318,7 +345,7 @@ void reduce_error(float *error, const unsigned int width, const unsigned int hei
 }
 
 __global__ static
-void calc_score(float *error, float *score, const unsigned int width, const unsigned int height, const unsigned int levels, const unsigned int scale)
+void calc_score(float *error, int *seed, const unsigned int width, const unsigned int height, const unsigned int levels, const unsigned int scale)
 {
 	unsigned int idX = blockDim.x * blockIdx.x + threadIdx.x;
 	unsigned int idY = blockDim.y * blockIdx.y + threadIdx.y;
@@ -337,14 +364,33 @@ void calc_score(float *error, float *score, const unsigned int width, const unsi
 			float err2 = error[lid + stride2 * scale * width];
 			float err3 = error[lid + stride2 * scale * (width + 1)];
 			float errSum = err0 + err1 + err2 + err3;
-			float scoreSum = errSum > 0.0f ? score[tid] / errSum : 0.0f;
-		if (!tid)
-			printf("calc_score stride=%i, i=%i, lid=%i, scale=%i, errSum=%g, scoreSum=%g\n", stride, i, lid, scale, errSum, scoreSum);
+			int seedSum = seed[tid];
+			float scoreSum = errSum > 0.0f ? seedSum / errSum : 0.0f;
 
-			score[tid]                                 = scoreSum * err0;
-			score[tid + stride2 * scale]               = scoreSum * err1;
-			score[tid + stride2 * scale * width]       = scoreSum * err2;
-			score[tid + stride2 * scale * (width + 1)] = scoreSum * err3;
+			int s[4];
+			s[0] = scoreSum * err0 + 0.5f;
+			s[1] = scoreSum * err1 + 0.5f;
+			s[2] = scoreSum * err2 + 0.5f;
+			s[3] = scoreSum * err3 + 0.5f;
+			int diff = seedSum - s[0] - s[1] - s[2] - s[3];
+#ifdef PRINT_CUDA
+			if (!tid)
+				printf("calc_score stride=%i, i=%i, lid=%i, scale=%i, errSum=%g, seedSum=%i, scoreSum=%g, diff=%i\n", stride, i, lid, scale, errSum, seedSum, scoreSum, diff);
+#endif
+			if (diff && errSum > 0.0f) {
+				int maxIndex = err0 > err1 ?
+								err0 > err2 ?
+									err0 > err3 ? 0 : 3 :
+									err2 > err3 ? 2 : 3 :
+								err1 > err2 ?
+									err1 > err3 ? 1 : 3 :
+									err2 > err3 ? 2 : 3;
+				s[maxIndex] += diff;
+			}
+			seed[tid]                                 = s[0];
+			seed[tid + stride2 * scale]               = s[1];
+			seed[tid + stride2 * scale * width]       = s[2];
+			seed[tid + stride2 * scale * (width + 1)] = s[3];
 		}
 
 		__syncthreads();
@@ -384,7 +430,7 @@ static void __cdecl cuda_mip_map_hits_recursive(PointDirection *deviceHits, Poin
 }
 
 /* Calculate average geometric variation for each quad tree node */
-static void __cdecl cuda_score_hits_recursive(float *deviceError, float *deviceScore,
+static void __cdecl cuda_score_hits_recursive(float *deviceError, int *deviceSeeds,
 	const unsigned int width, const unsigned int height, unsigned int levels, const unsigned int scale, const unsigned int maxThreadsPerBlock, dim3 dimGrid, dim3 dimBlock)
 {
 	/* Perform reduction on error */
@@ -405,22 +451,23 @@ static void __cdecl cuda_score_hits_recursive(float *deviceError, float *deviceS
 		const dim3 dimSuperGrid(blocksX, blocksY);
 		const dim3 dimSuperBlock(blockDim, blockDim);
 
-		cuda_score_hits_recursive(deviceError + width * height * complete, deviceScore, width, height, levels - complete, scale * dimBlock.x, maxThreadsPerBlock, dimSuperGrid, dimSuperBlock);
+		cuda_score_hits_recursive(deviceError + width * height * complete, deviceSeeds, width, height, levels - complete, scale * dimBlock.x, maxThreadsPerBlock, dimSuperGrid, dimSuperBlock);
 		levels = complete;
 	}
 
 	/* Calculate score for each leaf node based on error */
 	calc_score <<< dimGrid, dimBlock >>>
-			(deviceError, deviceScore, width, height, levels, scale);
+			(deviceError, deviceSeeds, width, height, levels, scale);
 
 	cudaDeviceSynchronize(); checkLastCudaError();
 }
 
 /* Score the relative need for an irradiance cache entry at each hit point */
-void __cdecl cuda_score_hits_big(PointDirection *hits, float *score, unsigned int width, unsigned int height, float weight)
+void __cdecl cuda_score_hits_big(PointDirection *hits, int *seeds, const unsigned int width, const unsigned int height, const float weight, const unsigned int seed_count)
 {
 	PointDirection *deviceHits, *deviceMipMap;
-	float *deviceError, *deviceScore;
+	float *deviceError;
+	int *deviceSeeds;
 	
 	/* Calculate number of levels */
 	unsigned int levels = 0;
@@ -471,22 +518,22 @@ void __cdecl cuda_score_hits_big(PointDirection *hits, float *score, unsigned in
 	checkCuda(cudaFree(deviceMipMap));
 
 	/* Allocate memory on the GPU */
-	checkCuda(cudaMalloc(&deviceScore, size * sizeof(float)));
+	checkCuda(cudaMalloc(&deviceSeeds, size * sizeof(int)));
 
 	/* Copy data to GPU */
-	score[0] = (float)size;
-	fprintf(stderr, "Target total score: %f\n", score[0]);
-	checkCuda(cudaMemcpy(deviceScore, score, sizeof(float), cudaMemcpyHostToDevice)); // transfer only first entry
+	seeds[0] = seed_count;
+	fprintf(stderr, "Target total score: %i\n", seed_count);
+	checkCuda(cudaMemcpy(deviceSeeds, seeds, sizeof(int), cudaMemcpyHostToDevice)); // transfer only first entry
 
 	/* Calculate average geometric variation for each quad tree node */
-	cuda_score_hits_recursive(deviceError, deviceScore, width, height, levels, 1u, deviceProp.maxThreadsPerBlock, dimGrid, dimBlock);
+	cuda_score_hits_recursive(deviceError, deviceSeeds, width, height, levels, 1u, deviceProp.maxThreadsPerBlock, dimGrid, dimBlock);
 
 	/* Copy results from GPU */
-	checkCuda(cudaMemcpy(score, deviceScore, size * sizeof(float), cudaMemcpyDeviceToHost));
+	checkCuda(cudaMemcpy(seeds, deviceSeeds, size * sizeof(int), cudaMemcpyDeviceToHost));
 
 	/* Free memory on the GPU */
 	checkCuda(cudaFree(deviceError));
-	checkCuda(cudaFree(deviceScore));
+	checkCuda(cudaFree(deviceSeeds));
 }
 
 

@@ -393,15 +393,8 @@ float** cuda_kmeans(float **objects,	/* in: [numObjs][numCoords] */
 					int    *loop_iterations);
 
 #ifdef ADAPTIVE_SEED_SAMPLING
-void cuda_score_hits(PointDirection *hits, float *score, unsigned int width, unsigned int height, float weight);
-void cuda_score_hits_big(PointDirection *hits, float *pool, unsigned int width, unsigned int height, float weight);
-static int compare_seeds( const void *a, const void *b );
-
-/* Structure for sorting seed points. */
-typedef struct {
-	PointDirection *hit;	/* hit point and normal */
-	float *weight;			/* relative importance of hit for irradiance cache */
-} HIT_REC;
+void cuda_score_hits(PointDirection *hits, int *seeds, const unsigned int width, const unsigned int height, const float weight, const unsigned int seed_count);
+void cuda_score_hits_big(PointDirection *hits, int *seeds, const unsigned int width, const unsigned int height, const float weight, const unsigned int seed_count);
 #endif /* ADAPTIVE_SEED_SAMPLING */
 
 void createAmbientRecords( const RTcontext context, const VIEW* view, const int width, const int height )
@@ -503,42 +496,32 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 		if (!level) {
 			clock_t kernel_start_clock, kernel_end_clock;
 			int i;
-			float total = 0.0f;
-			int nans = 0;
-			float *score = (float*) malloc(seed_count * sizeof(float));
-			HIT_REC *sort_list = (HIT_REC*) malloc(seed_count * sizeof(HIT_REC));
+			int total = 0;
+			int si = cuda_kmeans_clusters;
+			int ci = 0;
+			int *score = (int*) malloc(seed_count * sizeof(int));
 			PointDirection *temp_list = (PointDirection*) malloc(seed_count * sizeof(PointDirection));
 
 			kernel_start_clock = clock();
-			cuda_score_hits_big( seed_buffer_data, score, grid_width, grid_height, cuda_kmeans_error / thescene.cusize );
+			cuda_score_hits_big( seed_buffer_data, score, grid_width, grid_height, cuda_kmeans_error / thescene.cusize, cuda_kmeans_clusters );
 			kernel_end_clock = clock();
-			fprintf(stderr, "Adaptive sampling: %u milliseconds.\n", (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC);
+			fprintf( stderr, "Adaptive sampling: %u milliseconds.\n", (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC );
 
 			for ( i = 0; i < seed_count; i++ ) {
-				//fprintf( stderr, "Score %i: %g\n", i, score[i] );
-				sort_list[i].hit = seed_buffer_data + i;
-				sort_list[i].weight = score + i;
-				if (score[i] == score[i])
-					total += score[i];
+				if (score[i]) {
+					total++;
+					temp_list[ci++] = seed_buffer_data[i];
+				} else if (si < seed_count)
+					temp_list[si++] = seed_buffer_data[i];
 				else
-					nans++;
+					temp_list[ci++] = seed_buffer_data[i];
 			}
-			fprintf( stderr, "Score total: %f\n", total );
-			fprintf( stderr, "NaNs: %i\n", nans );
+			fprintf( stderr, "Score total: %i\n", total );
 
-			qsort( sort_list, seed_count, sizeof(HIT_REC), compare_seeds );
-
-			for ( i = 0; i < seed_count; i++ ) {
-				//fprintf( stderr, "Hit %i: %g\n", i, *sort_list[i].weight );
-				temp_list[i] = *sort_list[i].hit;
-			}
-			for ( i = 0; i < seed_count; i++ ) {
-				seed_buffer_data[i] = temp_list[i];
-			}
-			//fprintf( stderr, "Pool total: %g\n", total );
+			memcpy( seed_buffer_data, temp_list, seed_count * sizeof(PointDirection) );
 
 			free(score);
-			free(sort_list);
+			free(temp_list);
 		}
 #endif /* ADAPTIVE_SEED_SAMPLING */
 
@@ -643,16 +626,6 @@ static void createPointCloudCamera( const RTcontext context, const VIEW* view )
 	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "point_cloud_miss", &miss_program ) );
 	RT_CHECK_ERROR( rtContextSetMissProgram( context, POINT_CLOUD_RAY, miss_program ) );
 }
-
-#ifdef ADAPTIVE_SEED_SAMPLING
-static int compare_seeds( const void *a, const void *b )
-{
-	const float *x = ((HIT_REC*)a)->weight;
-	const float *y = ((HIT_REC*)b)->weight;
-	if ( *x > *y ) return -1;
-	return ( *x < *y );
-}
-#endif /* ADAPTIVE_SEED_SAMPLING */
 
 #ifdef ITERATIVE_KMEANS_IC
 static void createHemisphereSamplingCamera( RTcontext context )
