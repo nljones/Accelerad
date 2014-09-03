@@ -392,9 +392,9 @@ float** cuda_kmeans(float **objects,	/* in: [numObjs][numCoords] */
 					float  *distance,	/* out: [numObjs] */
 					int    *loop_iterations);
 
+#define ADAPTIVE_SEED_SAMPLING
 #ifdef ADAPTIVE_SEED_SAMPLING
 void cuda_score_hits(PointDirection *hits, int *seeds, const unsigned int width, const unsigned int height, const float weight, const unsigned int seed_count);
-void cuda_score_hits_big(PointDirection *hits, int *seeds, const unsigned int width, const unsigned int height, const float weight, const unsigned int seed_count);
 #endif /* ADAPTIVE_SEED_SAMPLING */
 
 void createAmbientRecords( const RTcontext context, const VIEW* view, const int width, const int height )
@@ -497,19 +497,24 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 			clock_t kernel_start_clock, kernel_end_clock;
 			int i;
 			int total = 0;
+			int missing = 0;
 			int si = cuda_kmeans_clusters;
 			int ci = 0;
 			int *score = (int*) malloc(seed_count * sizeof(int));
 			PointDirection *temp_list = (PointDirection*) malloc(seed_count * sizeof(PointDirection));
 
 			kernel_start_clock = clock();
-			cuda_score_hits_big( seed_buffer_data, score, grid_width, grid_height, cuda_kmeans_error / thescene.cusize, cuda_kmeans_clusters );
+			cuda_score_hits( seed_buffer_data, score, grid_width, grid_height, cuda_kmeans_error / thescene.cusize, cuda_kmeans_clusters );
 			kernel_end_clock = clock();
 			fprintf( stderr, "Adaptive sampling: %u milliseconds.\n", (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC );
 
 			for ( i = 0; i < seed_count; i++ ) {
 				if (score[i]) {
+					missing += score[i] - 1;
 					total++;
+					temp_list[ci++] = seed_buffer_data[i];
+				} else if (missing) { // TODO need better way to randomly add extra cluster seeds
+					missing--;
 					temp_list[ci++] = seed_buffer_data[i];
 				} else if (si < seed_count)
 					temp_list[si++] = seed_buffer_data[i];

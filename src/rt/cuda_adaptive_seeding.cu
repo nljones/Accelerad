@@ -12,6 +12,7 @@
 #include "kmeans.h"
 
 //#define PRINT_CUDA
+#define MULTI_BLOCK
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,6 +38,29 @@ float geometric_error(const PointDirection& a, const PointDirection& b, const fl
 	return alpha * optix::length(a.pos - b.pos) + sqrtf(2.0f * fmaxf(1.0f - optix::dot(a.dir, b.dir), 0.0f));
 }
 
+__device__ inline static
+unsigned int valid_hit(const PointDirection& hit)
+{
+	return optix::dot(hit.dir, hit.dir) > 0.0f && optix::dot(hit.pos, hit.pos) >= 0.0f;
+}
+
+static int __cdecl isPowerOfTwo(unsigned int x)
+{
+  return ((x != 0) && !(x & (x - 1)));
+}
+
+static unsigned int __cdecl calc_block_dim(const unsigned int maxThreadsPerBlock, const unsigned int levels)
+{
+	unsigned int blockDim = 1u;
+	unsigned int size = maxThreadsPerBlock << 1;
+	while ( size >>= 2 )
+		blockDim <<= 1;
+	if ( blockDim > (1u << levels) )
+		blockDim = 1u << levels;
+	return blockDim;
+}
+
+#ifndef MULTI_BLOCK
 __device__ inline static
 void reduce(float *error, const int level, const int idX, const int idY, const int width)
 {
@@ -73,17 +97,29 @@ void geometric_variation(PointDirection *deviceHits, int *seed,
 	float *err = (float*)malloc(levels * sizeof(float));
 	unsigned int stride = 1u;
 
-	PointDirection hit = deviceHits[tid];
-	unsigned int valid = optix::dot(hit.dir, hit.dir) > 0.0f && optix::dot(hit.pos, hit.pos) >= 0.0f;
+	PointDirection hit;
+	unsigned int valid = idX < width && idY < height;
+	if (valid) {
+		hit = deviceHits[tid];
+		valid = valid_hit(hit);
+	}
 	if (!valid)
 		hit.pos.x = hit.pos.y = hit.pos.z = hit.dir.x = hit.dir.y = hit.dir.z = 0.0f;
 	PointDirection accum = hit;
 	blockSharedMemory[sid] = hit;
+#ifdef PRINT_CUDA
+		if (!tid)
+			printf("mip_map_hits width=%i, height=%i, accum=%g,%g,%g, %g,%g,%g, valid=%i\n", width, height, accum.pos.x, accum.pos.y, accum.pos.z, accum.dir.x, accum.dir.y, accum.dir.z, valid);
+#endif
 
 	__syncthreads();
 
 	/* Calculate geometric error for each hit point to each quad-tree node. */
 	for (int i = 0; i < levels; i++) {
+#ifdef PRINT_CUDA
+		if (!tid)
+			printf("mip_map_hits stride=%i, accum=%g,%g,%g\n", stride, accum.pos.x, accum.pos.y, accum.pos.z);
+#endif
 		unsigned int stride2 = stride << 1;
 
 		if (!(idX % stride2) && !(idY % stride2)) {
@@ -119,7 +155,7 @@ void geometric_variation(PointDirection *deviceHits, int *seed,
 			reduce(error, i, idX, idY, width); // sum errors at this quad tree node
 
 		/* Divide the pool proportinally to error at each quad-tree node. */
-		if (!(idX % stride) && !(idY % stride)) {
+		if (idX < width && idY < height && !(idX % stride) && !(idY % stride)) {
 			float err0 = error[tid];
 			float err1 = error[tid + stride2];
 			float err2 = error[tid + stride2 * width];
@@ -134,6 +170,10 @@ void geometric_variation(PointDirection *deviceHits, int *seed,
 			s[2] = scoreSum * err2 + 0.5f;
 			s[3] = scoreSum * err3 + 0.5f;
 			int diff = seedSum - s[0] - s[1] - s[2] - s[3];
+#ifdef PRINT_CUDA
+			if (!tid)
+				printf("calc_score stride=%i, i=%i, errSum=%g, seedSum=%i, scoreSum=%g, diff=%i\n", stride, i, errSum, seedSum, scoreSum, diff);
+#endif
 			if (diff && errSum > 0.0f) {
 				int maxIndex = err0 > err1 ?
 								err0 > err2 ?
@@ -144,10 +184,15 @@ void geometric_variation(PointDirection *deviceHits, int *seed,
 									err2 > err3 ? 2 : 3;
 				s[maxIndex] += diff;
 			}
-			seed[tid]                         = s[0];
-			seed[tid + stride2]               = s[1];
-			seed[tid + stride2 * width]       = s[2];
-			seed[tid + stride2 * (width + 1)] = s[3];
+
+			seed[tid] = s[0];
+			if (idX + stride2 < width)
+				seed[tid + stride2] = s[1];
+			if (idY + stride2 < height) {
+				seed[tid + stride2 * width] = s[2];
+				if (idX + stride2 < width)
+					seed[tid + stride2 * (width + 1)] = s[3];
+			}
 		}
 
 		__syncthreads();
@@ -157,77 +202,8 @@ void geometric_variation(PointDirection *deviceHits, int *seed,
 
 	free(err);
 }
+#else /* MULTI_BLOCK */
 
-static unsigned int __cdecl calc_block_dim(const unsigned int maxThreadsPerBlock, const unsigned int levels)
-{
-	unsigned int blockDim = 1u;
-	unsigned int size = maxThreadsPerBlock << 1;
-	while ( size >>= 2 )
-		blockDim <<= 1;
-	if ( blockDim > (1u << levels) )
-		blockDim = 1 << levels;
-	return blockDim;
-}
-
-/* Score the relative need for an irradiance cache entry at each hit point */
-void __cdecl cuda_score_hits(PointDirection *hits, int *seeds, const unsigned int width, const unsigned int height, const float weight, const unsigned int seed_count)
-{
-	PointDirection *deviceHits;
-	int *deviceSeeds;
-	
-	/* Calculate number of levels */
-	unsigned int levels = 0;
-	unsigned int size = width > height ? width : height;
-	while ( size >>= 1 )
-		levels++;
-	fprintf(stderr, "Levels: %i\n", levels);
-
-	/* Determine block size */
-	cudaDeviceProp deviceProp;
-	int deviceNum;
-	cudaGetDevice(&deviceNum);
-	cudaGetDeviceProperties(&deviceProp, deviceNum);
-
-	/* To support reduction, blockDim *must* be a power of two. */
-	const unsigned int blockDim = calc_block_dim(deviceProp.maxThreadsPerBlock, levels);
-	const unsigned int blocksX = (width - 1) / blockDim + 1;
-	const unsigned int blocksY = (height - 1) / blockDim + 1;
-	const unsigned int blockSharedMemorySize = blockDim * blockDim * sizeof(PointDirection);
-
-	if (blockSharedMemorySize > deviceProp.sharedMemPerBlock)
-		err("WARNING: Your CUDA hardware has insufficient block shared memory %u (%u needed).\n", deviceProp.sharedMemPerBlock, blockSharedMemorySize);
-
-	const dim3 dimGrid(blocksX, blocksY);
-	const dim3 dimBlock(blockDim, blockDim);
-	fprintf(stderr, "Block %i x %i, Grid %i x %i, Shared %i\n", blockDim, blockDim, blocksX, blocksY, blockSharedMemorySize);
-
-	/* Allocate memory on the GPU */
-	size = width * height;
-	checkCuda(cudaMalloc(&deviceHits, size * sizeof(PointDirection)));
-	checkCuda(cudaMalloc(&deviceSeeds, size * sizeof(int)));
-
-	/* Copy data to GPU */
-	seeds[0] = seed_count;
-	fprintf(stderr, "Target total score: %i\n", seed_count);
-	checkCuda(cudaMemcpy(deviceHits, hits, size * sizeof(PointDirection), cudaMemcpyHostToDevice));
-	checkCuda(cudaMemcpy(deviceSeeds, seeds, sizeof(int), cudaMemcpyHostToDevice)); // transfer only first entry
-
-	/* Run kernel */
-	geometric_variation <<< dimGrid, dimBlock, blockSharedMemorySize >>>
-			(deviceHits, deviceSeeds, width, height, levels, weight);
-	
-	cudaDeviceSynchronize(); checkLastCudaError();
-
-	/* Copy results from GPU */
-	checkCuda(cudaMemcpy(seeds, deviceSeeds, size * sizeof(int), cudaMemcpyDeviceToHost));
-
-	/* Free memory on the GPU */
-	checkCuda(cudaFree(deviceHits));
-	checkCuda(cudaFree(deviceSeeds));
-}
-
-
-// Ambient sample distribution for large images
 __global__ static
 void mip_map_hits(PointDirection *deviceHits, PointDirection *deviceMipMap,
 				   const unsigned int width, const unsigned int height)
@@ -242,12 +218,20 @@ void mip_map_hits(PointDirection *deviceHits, PointDirection *deviceMipMap,
 
 	unsigned int stride = 1u;
 
-	PointDirection hit = deviceHits[tid];
-	unsigned int valid = optix::dot(hit.dir, hit.dir) > 0.0f && optix::dot(hit.pos, hit.pos) >= 0.0f;
+	PointDirection hit;
+	unsigned int valid = idX < width && idY < height;
+	if (valid) {
+		hit = deviceHits[tid];
+		valid = valid_hit(hit);
+	}
 	if (!valid)
 		hit.pos.x = hit.pos.y = hit.pos.z = hit.dir.x = hit.dir.y = hit.dir.z = 0.0f;
 	PointDirection accum = hit;
 	blockSharedMemory[sid] = hit;
+#ifdef PRINT_CUDA
+		if (!tid)
+			printf("mip_map_hits width=%i, height=%i, accum=%g,%g,%g, %g,%g,%g, valid=%i\n", width, height, accum.pos.x, accum.pos.y, accum.pos.z, accum.dir.x, accum.dir.y, accum.dir.z, valid);
+#endif
 
 	__syncthreads();
 
@@ -283,7 +267,7 @@ void mip_map_hits(PointDirection *deviceHits, PointDirection *deviceMipMap,
 }
 
 __global__ static
-void calc_error(PointDirection *devicePointDirections, PointDirection *deviceMipMap, float *error,
+void calc_error(PointDirection *deviceHits, PointDirection *deviceMipMap, float *error,
 				   const unsigned int width, const unsigned int height, const unsigned int levels, float alpha)
 {
 	unsigned int idX = blockDim.x * blockIdx.x + threadIdx.x;
@@ -292,49 +276,56 @@ void calc_error(PointDirection *devicePointDirections, PointDirection *deviceMip
 
 	unsigned int stride = 1u;
 
-	PointDirection hit = devicePointDirections[tid];
-	unsigned int valid = optix::dot(hit.dir, hit.dir) > 0.0f && optix::dot(hit.pos, hit.pos) >= 0.0f;
-	if (!valid)
-		hit.pos.x = hit.pos.y = hit.pos.z = hit.dir.x = hit.dir.y = hit.dir.z = 0.0f;
+	if (idX < width && idY < height) {
+		PointDirection hit = deviceHits[tid];
+		unsigned int valid = valid_hit(hit);
+		if (!valid)
+			hit.pos.x = hit.pos.y = hit.pos.z = hit.dir.x = hit.dir.y = hit.dir.z = 0.0f;
 
-	PointDirection *mipMapLevel = deviceMipMap;
+		PointDirection *mipMapLevel = deviceMipMap;
 
-	/* Calculate geometric error for each hit point to each quad-tree node. */
-	for (unsigned int i = 0u; i < levels; i++) {
+		/* Calculate geometric error for each hit point to each quad-tree node. */
+		for (unsigned int i = 0u; i < levels; i++) {
 #ifdef PRINT_CUDA
-		if (!tid)
-			printf("calc_error stride=%i, i=%i, valid=%i\n", stride, i, valid);
+			if (!tid)
+				printf("calc_error stride=%i, i=%i, valid=%i\n", stride, i, valid);
 #endif
-		stride <<= 1;
+			stride <<= 1;
 
-		error[tid + i * width * height] = valid ? geometric_error(hit, mipMapLevel[idX / stride + (idY / stride) * (width / stride)], alpha) : 0.0f;
-		mipMapLevel += (width * height) / (stride * stride);
+			error[tid + i * width * height] = valid ? geometric_error(hit, mipMapLevel[idX / stride + (idY / stride) * (width / stride)], alpha) : 0.0f;
+			mipMapLevel += (width * height) / (stride * stride);
+		}
 	}
 }
 
 __global__ static
 void reduce_error(float *error, const unsigned int width, const unsigned int height, const unsigned int levels, const unsigned int scale)
 {
-	unsigned int idX = blockDim.x * blockIdx.x + threadIdx.x;
-	unsigned int idY = blockDim.y * blockIdx.y + threadIdx.y;
-	unsigned int tid = (idX + idY * width) * scale;
+	unsigned int idX = scale * (blockDim.x * blockIdx.x + threadIdx.x);
+	unsigned int idY = scale * (blockDim.y * blockIdx.y + threadIdx.y);
+	unsigned int tid = idX + idY * width;
+	unsigned int valid = idX < width && idY < height; 
 
 	for (unsigned int j = 1u; j < levels; j++) {
 		tid += width * height;
-		float err = error[tid];
+		float err = valid ? error[tid] : 0.0f;
 
-		unsigned int stride = 1u;
+		unsigned int stride = scale;
 
-		while (stride < (1 << j) && stride < blockDim.x) {
+		while (stride < (scale << j) && stride < blockDim.x * scale) {
 #ifdef PRINT_CUDA
 			if (!(tid % (width * height)))
 				printf("reduce_error stride=%i, j=%i, scale=%i, err=%g\n", stride, j, scale, err);
 #endif
 			unsigned int stride2 = stride << 1;
-			if (!(idX % stride2) && !(idY % stride2)) {
-				err += error[tid + stride * scale];
-				err += error[tid + stride * scale * width];
-				err += error[tid + stride * scale * (width + 1)];
+			if (valid && !(idX % stride2) && !(idY % stride2)) {
+				if (idX + stride < width)
+					err += error[tid + stride];
+				if (idY + stride < height) {
+					err += error[tid + stride * width];
+					if (idX + stride < width)
+						err += error[tid + stride * (width + 1)];
+				}
 		
 				error[tid] = err;
 			}
@@ -347,22 +338,23 @@ void reduce_error(float *error, const unsigned int width, const unsigned int hei
 __global__ static
 void calc_score(float *error, int *seed, const unsigned int width, const unsigned int height, const unsigned int levels, const unsigned int scale)
 {
-	unsigned int idX = blockDim.x * blockIdx.x + threadIdx.x;
-	unsigned int idY = blockDim.y * blockIdx.y + threadIdx.y;
-	unsigned int tid = (idX + idY * width) * scale;
+	unsigned int idX = scale * (blockDim.x * blockIdx.x + threadIdx.x);
+	unsigned int idY = scale * (blockDim.y * blockIdx.y + threadIdx.y);
+	unsigned int tid = idX + idY * width;
+	unsigned int valid = idX < width && idY < height; 
 
-	unsigned int stride = 1 << levels;
+	unsigned int stride = scale << levels;
 
 	for (int i = levels; i--; ) {
 		unsigned int stride2 = stride >> 1;
 
 		/* Divide the pool proportinally to error at each quad-tree node. */
-		if (!(idX % stride) && !(idY % stride)) {
+		if (valid && !(idX % stride) && !(idY % stride)) {
 			unsigned int lid = tid + width * height * i;
 			float err0 = error[lid];
-			float err1 = error[lid + stride2 * scale];
-			float err2 = error[lid + stride2 * scale * width];
-			float err3 = error[lid + stride2 * scale * (width + 1)];
+			float err1 = error[lid + stride2];
+			float err2 = error[lid + stride2 * width];
+			float err3 = error[lid + stride2 * (width + 1)];
 			float errSum = err0 + err1 + err2 + err3;
 			int seedSum = seed[tid];
 			float scoreSum = errSum > 0.0f ? seedSum / errSum : 0.0f;
@@ -387,10 +379,15 @@ void calc_score(float *error, int *seed, const unsigned int width, const unsigne
 									err2 > err3 ? 2 : 3;
 				s[maxIndex] += diff;
 			}
-			seed[tid]                                 = s[0];
-			seed[tid + stride2 * scale]               = s[1];
-			seed[tid + stride2 * scale * width]       = s[2];
-			seed[tid + stride2 * scale * (width + 1)] = s[3];
+
+			seed[tid] = s[0];
+			if (idX + stride2 < width)
+				seed[tid + stride2] = s[1];
+			if (idY + stride2 < height) {
+				seed[tid + stride2 * width] = s[2];
+				if (idX + stride2 < width)
+					seed[tid + stride2 * (width + 1)] = s[3];
+			}
 		}
 
 		__syncthreads();
@@ -461,20 +458,25 @@ static void __cdecl cuda_score_hits_recursive(float *deviceError, int *deviceSee
 
 	cudaDeviceSynchronize(); checkLastCudaError();
 }
+#endif /* MULTI_BLOCK */
 
 /* Score the relative need for an irradiance cache entry at each hit point */
-void __cdecl cuda_score_hits_big(PointDirection *hits, int *seeds, const unsigned int width, const unsigned int height, const float weight, const unsigned int seed_count)
+void __cdecl cuda_score_hits(PointDirection *hits, int *seeds, const unsigned int width, const unsigned int height, const float weight, const unsigned int seed_count)
 {
-	PointDirection *deviceHits, *deviceMipMap;
+	PointDirection *deviceHits;
+#ifdef MULTI_BLOCK
+	PointDirection *deviceMipMap;
 	float *deviceError;
+#endif
 	int *deviceSeeds;
 	
 	/* Calculate number of levels */
 	unsigned int levels = 0;
 	unsigned int size = width > height ? width : height;
+	if ( !isPowerOfTwo(size) )
+		levels++;
 	while ( size >>= 1 )
 		levels++;
-	fprintf(stderr, "Levels: %i\n", levels);
 
 	/* Determine block size */
 	cudaDeviceProp deviceProp;
@@ -488,21 +490,26 @@ void __cdecl cuda_score_hits_big(PointDirection *hits, int *seeds, const unsigne
 	const unsigned int blocksY = (height - 1) / blockDim + 1;
 	const unsigned int blockSharedMemorySize = blockDim * blockDim * sizeof(PointDirection);
 
+#ifndef MULTI_BLOCK
+	if (blocksX != 1u || blocksY != 1u)
+		err("WARNING: Your CUDA hardware has insufficient block size %u threads (%u x %u blocks needed). Recompile with MULTI_BLOCK flag.\n", deviceProp.maxThreadsPerBlock, blocksX, blocksY);
+#endif
 	if (blockSharedMemorySize > deviceProp.sharedMemPerBlock)
 		err("WARNING: Your CUDA hardware has insufficient block shared memory %u (%u needed).\n", deviceProp.sharedMemPerBlock, blockSharedMemorySize);
 
 	const dim3 dimGrid(blocksX, blocksY);
 	const dim3 dimBlock(blockDim, blockDim);
-	fprintf(stderr, "Block %i x %i, Grid %i x %i, Shared %i, Weight %g\n", blockDim, blockDim, blocksX, blocksY, blockSharedMemorySize, weight);
+	fprintf(stderr, "Adaptive sampling: Block %i x %i, Grid %i x %i, Shared %i, Levels %i, Weight %g\n", blockDim, blockDim, blocksX, blocksY, blockSharedMemorySize, levels, weight);
 
-	/* Allocate memory on the GPU */
+	/* Allocate memory and copy hits to the GPU */
 	size = width * height;
 	checkCuda(cudaMalloc(&deviceHits, size * sizeof(PointDirection)));
+	checkCuda(cudaMemcpy(deviceHits, hits, size * sizeof(PointDirection), cudaMemcpyHostToDevice));
+
+#ifdef MULTI_BLOCK
+	/* Allocate memory on the GPU */
 	checkCuda(cudaMalloc(&deviceMipMap, size * sizeof(PointDirection) / 3u)); // Storage requirement for mip map is 1/3 or original data
 	checkCuda(cudaMalloc(&deviceError, size * levels * sizeof(float)));
-
-	/* Copy data to GPU */
-	checkCuda(cudaMemcpy(deviceHits, hits, size * sizeof(PointDirection), cudaMemcpyHostToDevice));
 
 	/* Calculate average of hits at each quad tree node */
 	cuda_mip_map_hits_recursive(deviceHits, deviceMipMap, width, height, levels, deviceProp.maxThreadsPerBlock, dimGrid, dimBlock, blockSharedMemorySize);
@@ -516,26 +523,35 @@ void __cdecl cuda_score_hits_big(PointDirection *hits, int *seeds, const unsigne
 	/* Free memory on the GPU */
 	checkCuda(cudaFree(deviceHits));
 	checkCuda(cudaFree(deviceMipMap));
+#endif /* MULTI_BLOCK */
 
-	/* Allocate memory on the GPU */
-	checkCuda(cudaMalloc(&deviceSeeds, size * sizeof(int)));
-
-	/* Copy data to GPU */
+	/* Allocate memory and copy first seed to the GPU */
 	seeds[0] = seed_count;
 	fprintf(stderr, "Target total score: %i\n", seed_count);
+	checkCuda(cudaMalloc(&deviceSeeds, size * sizeof(int)));
 	checkCuda(cudaMemcpy(deviceSeeds, seeds, sizeof(int), cudaMemcpyHostToDevice)); // transfer only first entry
 
+#ifdef MULTI_BLOCK
 	/* Calculate average geometric variation for each quad tree node */
 	cuda_score_hits_recursive(deviceError, deviceSeeds, width, height, levels, 1u, deviceProp.maxThreadsPerBlock, dimGrid, dimBlock);
 
-	/* Copy results from GPU */
-	checkCuda(cudaMemcpy(seeds, deviceSeeds, size * sizeof(int), cudaMemcpyDeviceToHost));
-
 	/* Free memory on the GPU */
 	checkCuda(cudaFree(deviceError));
+#else /* MULTI_BLOCK */
+	/* Run kernel */
+	geometric_variation <<< dimGrid, dimBlock, blockSharedMemorySize >>>
+			(deviceHits, deviceSeeds, width, height, levels, weight);
+	
+	cudaDeviceSynchronize(); checkLastCudaError();
+
+	/* Free memory on the GPU */
+	checkCuda(cudaFree(deviceHits));
+#endif /* MULTI_BLOCK */
+
+	/* Copy results from GPU and free memory */
+	checkCuda(cudaMemcpy(seeds, deviceSeeds, size * sizeof(int), cudaMemcpyDeviceToHost));
 	checkCuda(cudaFree(deviceSeeds));
 }
-
 
 #ifdef __cplusplus
 }

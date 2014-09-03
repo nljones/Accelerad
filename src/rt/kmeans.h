@@ -100,7 +100,6 @@ float** __cdecl cuda_kmeans(float**, int, int, int, int, float, float, int*,
 //extern int _debug;
 
 void __cdecl cuda_score_hits(PointDirection *hits, int *seeds, const unsigned int width, const unsigned int height, const float weight, const unsigned int seed_count);
-void __cdecl cuda_score_hits_big(PointDirection *hits, int *seeds, const unsigned int width, const unsigned int height, const float weight, const unsigned int seed_count);
 
 #ifdef __cplusplus
 }
