@@ -19,7 +19,7 @@ rtDeclareVariable(float,        siz, , ) = -1.0f;		/* output solid angle or area
 rtDeclareVariable(float,        flen, , );				/* focal length (negative if distant source) */
 rtDeclareVariable(float3,       aim, , );				/* aim direction or center */
 #ifdef CALLABLE
-rtDeclareVariable(rtCallableProgramId<float(float3)>, function, , );		/* function or texture modifier */
+rtDeclareVariable(rtCallableProgramId<float(float3,float3)>, function, , );		/* function or texture modifier */
 #else
 rtDeclareVariable(int,          lindex, , ) = -1;		/* function or texture modifier */
 
@@ -60,7 +60,7 @@ RT_PROGRAM void closest_hit_shadow()
 		prd_shadow.result = make_float3( 0.0f );
 #ifdef CALLABLE
 	else if ( function > RT_PROGRAM_ID_NULL )
-		prd_shadow.result = color * function( ray.direction );
+		prd_shadow.result = color * function( ray.direction, world_shading_normal );
 #else
 	else if ( lindex > -1 )
 		prd_shadow.result = color * texture_function( world_shading_normal );
@@ -81,7 +81,7 @@ RT_PROGRAM void closest_hit_radiance()
 		prd.result = make_float3( 0.0f );
 #ifdef CALLABLE
 	else if ( function > RT_PROGRAM_ID_NULL )
-		prd.result = color * function( ray.direction );
+		prd.result = color * function( ray.direction, world_shading_normal );
 #else
 	else if ( lindex > -1 )
 		prd.result = color * texture_function( world_shading_normal );

@@ -17,7 +17,7 @@ rtDeclareVariable(float3,       sun, , ); /* sun direction */
 // This function replicates the algorithm in skybright.cal.
 RT_CALLABLE_PROGRAM float sky_bright( const float3 direction )
 {
-	rtPrintf("SkyBright Recieved (%f, %f, %f)\n", direction.x, direction.y, direction.z);
+	//rtPrintf("SkyBright Recieved (%f, %f, %f)\n", direction.x, direction.y, direction.z);
 	float cosgamma = optix::dot( direction, sun ); // cosgamma = Dx*A8 + Dy*A9 + Dz*A10;
 	float gamma = acosf(cosgamma); // gamma = Acos(cosgamma);		{ angle from sun to this point in sky }
 	//float dz = direction.z;

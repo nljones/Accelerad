@@ -463,8 +463,8 @@ RT_METHOD int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const float3& norm
 #ifdef CORRAL
 	/* ambcorral from ambcomp.c */
 	const float max_d = 1.0f / ( minarad * ambacc + 0.001f );
-	const float ang_res = M_PI_2f / ( hp->ns - 1 );
-	const float ang_step = ang_res / ( (int)( 16.0f * M_1_PIf * ang_res ) + ( 1 + FTINY ) );
+	const float ang_res = M_PI_2f / hp->ns;
+	const float ang_step = ang_res / ( (int)( 16.0f * M_1_PIf * ang_res ) + 1.01f );
 	float avg_d = 0.0f;
 	unsigned int corral_count = 0u;
 	float2 corral_u[4*(ROW_SIZE-1)];
@@ -644,7 +644,7 @@ RT_METHOD int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const float3& norm
 					if ( ( r.x*r.x * u.x*u.x + r.y*r.y * u.y*u.y ) * corral_d[i] <= dot( u, u ) )
 						continue;	/* occluder outside ellipse */
 					float ang = atan2f( u.y, u.x );	/* else set direction flags */
-					for ( float a1 = ang - 0.5f * ang_res; a1 <= ang + 0.5f * ang_res; a1 += ang_step )
+					for ( float a1 = ang - ang_res; a1 <= ang + ang_res; a1 += ang_step )
 						flgs |= 1L<<(int)( 16.0f * M_1_PIf * ( a1 + 2.0f * M_PIf * ( a1 < 0.0f ) ) );
 				}
 						/* add low-angle incident (< 20deg) */
@@ -1026,8 +1026,8 @@ RT_METHOD void ambdirgrad( AMBHEMI *hp, const float3& u, const float3& v, float2
 RT_METHOD unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, const float2& r, const float3& normal, const float3& hit )
 {
 	const float max_d = 1.0f / ( minarad * ambacc + 0.001f );
-	const float ang_res = M_PI_2f / ( hp->ns - 1 );
-	const float ang_step = ang_res / ( (int)( 16.0f * M_1_PIf * ang_res ) + ( 1 + FTINY ) );
+	const float ang_res = M_PI_2f / hp->ns;
+	const float ang_step = ang_res / ( (int)( 16.0f * M_1_PIf * ang_res ) + ( 1.01f ) );
 	float avg_d = 0.0f;
 	unsigned int flgs = 0u;
 	int i, j;
@@ -1053,7 +1053,7 @@ RT_METHOD unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, const flo
 			if ( ( r.x*r.x * u.x*u.x + r.y*r.y * u.y*u.y ) * ap->d*ap->d <= u.x*u.x + u.y*u.y )
 				continue;	/* occluder outside ellipse */
 			const float ang = atan2f( u.y, u.x );	/* else set direction flags */
-			for ( float a1 = ang - 0.5f * ang_res; a1 <= ang + 0.5f * ang_res; a1 += ang_step )
+			for ( float a1 = ang - ang_res; a1 <= ang + ang_res; a1 += ang_step )
 				flgs |= 1L<<(int)( 16.0f * M_1_PIf * ( a1 + 2.0f * M_PIf * ( a1 < 0.0f ) ) );
 	    }
 					/* add low-angle incident (< 20deg) */

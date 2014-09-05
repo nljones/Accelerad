@@ -114,10 +114,8 @@ RT_PROGRAM void miss()
 			float3 color = light.color;
 			if (light.function > -1) {
 #ifdef CALLABLE
-				rtPrintf( "Sending (%f, %f, %f)\n", H.x, H.y, H.z);
-				float f = functions[light.function]( H );
-				if (f == f)
-					color *= f;
+				//rtPrintf( "Sending (%f, %f, %f)\n", H.x, H.y, H.z);
+				color *= functions[light.function]( H );
 #else
 				if (light.type == SKY_CIE) {
 					color *= sky_bright( sky_brights[light.function] );
@@ -158,9 +156,7 @@ RT_PROGRAM void miss_shadow()
 				float3 color = light.color;
 				if (light.function > -1) {
 #ifdef CALLABLE
-					float f = functions[light.function]( H );
-					if (f == f)
-						color *= f;
+					color *= functions[light.function]( H );
 #else
 					if (light.type == SKY_CIE) {
 						color *= sky_bright( sky_brights[light.function] );

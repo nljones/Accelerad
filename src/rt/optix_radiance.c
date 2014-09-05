@@ -341,6 +341,9 @@ static void createContext( RTcontext* context, const int width, const int height
 #ifdef DEBUG_OPTIX
 	/* Enable exception checking */
 	RT_CHECK_ERROR2( rtContextSetExceptionEnabled( *context, RT_EXCEPTION_ALL, 1 ) );
+#ifdef CALLABLE
+	RT_CHECK_ERROR2( rtContextSetExceptionEnabled( *context, RT_EXCEPTION_PROGRAM_ID_INVALID, 0 ) ); // Fixes bug in OptiX 3.6.2
+#endif
 #endif
 
 #ifdef PRINT_OPTIX
@@ -921,8 +924,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 			break;
 		case PAT_BDATA: // brightness texture, used for IES lighting data
 #ifdef CALLABLE
-			buffer_entry_index[i] = fi;
-			function_buffer_data[fi++] = createTexture( context, rec );
+			buffer_entry_index[i] = function_buffer_data[fi++] = createTexture( context, rec );
 #else /* CALLLABLE */
 			buffer_entry_index[i] = lsi;
 
@@ -1186,7 +1188,7 @@ static void createLightMaterial( const RTcontext context, const RTgeometryinstan
 	}
 
 	/* Check for a parent function. */
-	if (rec->omod > -1)
+	if (rec->omod > OVOID)
 #ifdef CALLABLE
 		applyMaterialVariable1i( context, material, "function", buffer_entry_index[rec->omod] );
 	else
@@ -1357,16 +1359,18 @@ static int createTexture( const RTcontext context, const OBJREC* rec, float* ran
 	RT_CHECK_ERROR( rtTextureSamplerSetMipLevelCount( tex_sampler, 1u ) ); // Currently only one mipmap level supported
 	RT_CHECK_ERROR( rtTextureSamplerSetArraySize( tex_sampler, 1u ) ); // Currently only one element supported
 	RT_CHECK_ERROR( rtTextureSamplerSetBuffer( tex_sampler, 0u, 0u, tex_buffer ) );
+	RT_CHECK_ERROR( rtTextureSamplerGetId( tex_sampler, &tex_id ) );
 
 #ifdef CALLABLE
 	/* Create program to access texture sampler */
-	if ( rec->oargs.nsargs == 5 ) {
-		if ( !strcmp(rec->oargs.sarg[0], "flatcorr") && !strcmp(rec->oargs.sarg[1], "source.cal") ) {
+	if ( rec->oargs.nsargs >= 5 ) {
+		if ( !strcmp(rec->oargs.sarg[0], "flatcorr") && !strcmp(rec->oargs.sarg[2], "source.cal") ) {
 			ptxFile( path_to_ptx, "source" );
 			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "flatcorr", &program ) );
-			applyProgramObject( context, program, "data", tex_sampler );
-			applyProgramVariable3f( context, program, "min", dp->dim[dp->nd-1].org, dp->nd > 1 ? dp->dim[dp->nd-2].org : 0.0f, dp->nd > 2 ? dp->dim[dp->nd-3].org : 0.0f );
-			applyProgramVariable3f( context, program, "max", dp->dim[dp->nd-1].siz, dp->nd > 1 ? dp->dim[dp->nd-2].siz : 1.0f, dp->nd > 2 ? dp->dim[dp->nd-3].siz : 1.0f );
+			//applyProgramObject( context, program, "data", tex_sampler );
+			applyProgramVariable1i( context, program, "data", tex_id );
+			applyProgramVariable3f( context, program, "minimum", dp->dim[dp->nd-1].org, dp->nd > 1 ? dp->dim[dp->nd-2].org : 0.0f, dp->nd > 2 ? dp->dim[dp->nd-3].org : 0.0f );
+			applyProgramVariable3f( context, program, "maximum", dp->dim[dp->nd-1].siz, dp->nd > 1 ? dp->dim[dp->nd-2].siz : 1.0f, dp->nd > 2 ? dp->dim[dp->nd-3].siz : 1.0f );
 			applyProgramVariable3f( context, program, "u", bxp.xfm[0][0], bxp.xfm[1][0], bxp.xfm[2][0]);
 			applyProgramVariable3f( context, program, "v", bxp.xfm[0][1], bxp.xfm[1][1], bxp.xfm[2][1]);
 			applyProgramVariable3f( context, program, "w", bxp.xfm[0][2], bxp.xfm[1][2], bxp.xfm[2][2]);
@@ -1382,8 +1386,6 @@ static int createTexture( const RTcontext context, const OBJREC* rec, float* ran
 	}
 	RT_CHECK_ERROR( rtProgramGetId( program, &tex_id ) );
 #else /* CALLLABLE */
-	RT_CHECK_ERROR( rtTextureSamplerGetId( tex_sampler, &tex_id ) );
-
 	for (i = 0u; i < dp->nd; i++) {
 		range[i]     = dp->dim[dp->nd - i - 1].org;
 		range[3 + i] = dp->dim[dp->nd - i - 1].siz;
@@ -1429,6 +1431,7 @@ static void printObect( const OBJREC* rec )
 {
 	unsigned int i;
 
+	fprintf(stderr, "Unsupported object\n", rec->oname);
 	fprintf(stderr, "Object name: %s\n", rec->oname);
 	fprintf(stderr, "Object type: %s (%i)\n", ofun[rec->otype].funame, rec->otype);
 	if (rec->omod > OVOID) // does not modify void
