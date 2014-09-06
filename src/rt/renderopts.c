@@ -13,19 +13,19 @@ static const char	RCSid[] = "$Id$";
 #include  "paths.h"
 
 #ifdef OPTIX
-int use_optix = 0;			/* Flag to use OptiX for ray tracing */
-int optix_stack_size = 0;	/* Stack size for OptiX program in bytes */
+int use_optix = 1;			/* Flag to use OptiX for ray tracing */
+int optix_stack_size = 8192;	/* Stack size for OptiX program in bytes */
 
 /* For OptiX iterative ambient sampling */
-unsigned int optix_amb_scale = 16u;		/* Scale to use for ambient sample spacing */
+unsigned int optix_amb_scale = 0u;		/* Scale to use for ambient sample spacing, zero to use all pixels */
 unsigned int optix_amb_semgents = 1u;	/* Number of segments for ambient sampling */
 
 /* For OptiX k-means ambient sampling */
-unsigned int optix_amb_grid_size = 32u;			/* Size of sphere grid to use for ambient seeding */
+unsigned int optix_amb_grid_size = 0u;			/* Size of sphere grid to use for ambient seeding, zero for view-dependent seeding */
 unsigned int optix_amb_seeds_per_thread = 16u;	/* Number of ambient seeds per OptiX thread */
-unsigned int cuda_kmeans_clusters = 1024u;		/* Number of clusters of ambient for k-means */
-unsigned int cuda_kmeans_iterations = 500u;		/* Maximum number of k-means iterations */
-float cuda_kmeans_threshold = 0.001f;			/* Fraction of seeds that must change cluster to continue k-means iteration */
+unsigned int cuda_kmeans_clusters = 4096u;		/* Number of clusters of ambient for k-means */
+unsigned int cuda_kmeans_iterations = 100u;		/* Maximum number of k-means iterations */
+float cuda_kmeans_threshold = 0.005f;			/* Fraction of seeds that must change cluster to continue k-means iteration */
 float cuda_kmeans_error = 0.1f;					/* Weighting of position in k-means error */
 #endif
 
@@ -63,10 +63,10 @@ getrenderopt(		/* get next render option */
 		break;
 #ifdef OPTIX
 	case 'g':				/* OptiX stack size */
-		bool(2,use_optix);
+		//bool(2,use_optix);
 		check(2,"i");
 		optix_stack_size = atoi(av[1]);
-		//use_optix = 1;
+		use_optix = optix_stack_size > 0;
 		return(1);
 #endif
 	case 'd':				/* direct */

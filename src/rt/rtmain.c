@@ -238,8 +238,8 @@ main(int  argc, char  *argv[])
 				}
 				break;
 #ifdef OPTIX
-			case 't':				/* timer */
-				check(3,"f");
+			case '\0':				/* timer */
+				check(2,"f");
 				ralrm = atof(argv[++i]);
 				break;
 #endif
@@ -372,10 +372,6 @@ runagain:
 #endif
 					/* trace rays */
 #ifdef OPTIX
-	/* Let's check to see if we're using optix */
-	fprintf(stderr, "use_optix is set to %i\n", use_optix);
-
-	fprintf(stderr, "Starting clock for rtrace.\n");
 	rtrace_start_time = time((time_t *)NULL);
 	rtrace_start_clock = clock();
 #endif

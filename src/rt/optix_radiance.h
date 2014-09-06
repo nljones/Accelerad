@@ -25,8 +25,7 @@
 //#define REPORT_GPU_STATE /* Report verbose GPU details */
 #define KMEANS_IC /* K-Means irradiance cache calculation */
 #ifdef KMEANS_IC
-//#define ITERATIVE_KMEANS_IC /* Iterative K-Means irradiance cache calculation */
-#define VIEWPORT_IC /* Limit first bounce points to within the current view */
+#define ITERATIVE_KMEANS_IC /* Iterative K-Means irradiance cache calculation */
 #endif
 
 /* Entry points */

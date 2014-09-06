@@ -9,8 +9,8 @@
 using namespace optix;
 
 /* Program variables */
-//rtTextureSampler<float, 2> data;
 rtDeclareVariable(int, data, , ); /* texture ID */
+rtDeclareVariable(int, type, , ); /* type of data (true for float) */
 rtDeclareVariable(float3, minimum, , ); /* texture minimum coordinates */
 rtDeclareVariable(float3, maximum, , ); /* texture maximum coordinates */
 rtDeclareVariable(float3, u, , ); /* transform matrix u-direction */
@@ -19,7 +19,7 @@ rtDeclareVariable(float3, w, , ); /* transform matrix w-direction */
 rtDeclareVariable(float, multiplier, , ) = 1.0f; /* multiplier for light source intensity */
 
 // Calculate source distribution with correction for flat sources.
-RT_CALLABLE_PROGRAM float flatcorr( const float3 direction, const float3 normal )
+RT_CALLABLE_PROGRAM float3 flatcorr( const float3 direction, const float3 normal )
 {
 	//rtPrintf("FlatCorr Recieved (%f, %f, %f) (%f, %f, %f)\n", direction.x, direction.y, direction.z, normal.x, normal.y, normal.z);
 	float phi = acosf( dot( direction, normalize( w ) ) );
@@ -31,6 +31,7 @@ RT_CALLABLE_PROGRAM float flatcorr( const float3 direction, const float3 normal 
 	theta = ( 180.0f * M_1_PIf * theta - minimum.y ) / ( maximum.y - minimum.y );
 
 	float rdot = dot( direction, normal );
-	//return multiplier * tex2D( data, phi, theta ) / fabsf( rdot ); // this is flatcorr from source.cal
-	return multiplier * rtTex2D<float>( data, phi, theta ) / fabsf( rdot ); // this is flatcorr from source.cal
+	if ( type )
+		return make_float3( multiplier * rtTex2D<float>( data, phi, theta ) / fabsf( rdot ) ); // this is flatcorr from source.cal
+	return multiplier * make_float3( rtTex2D<float4>( data, phi, theta ) ) / fabsf( rdot );
 }

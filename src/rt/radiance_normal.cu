@@ -10,8 +10,8 @@
 using namespace optix;
 
 #define  AMBIENT
-//#define  TRANSMISSION
-//#define  FILL_GAPS_LAST_ONLY
+#define  TRANSMISSION
+#define  FILL_GAPS_LAST_ONLY
 
 #ifndef  MAXITER
 #define  MAXITER	10		/* maximum # specular ray attempts */
@@ -104,7 +104,7 @@ rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );
 rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
 
 
-RT_METHOD float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const unsigned int& specfl, const float3& scolor, const float3& mcolor, const float3& normal, const float& trans, const float& rspec, const float& tspec, const float& rdiff, const float& tdiff, const float& alpha2, const float& omega );
+RT_METHOD float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const unsigned int& specfl, const float3& scolor, const float3& mcolor, const float3& normal, const float& pdot, const float& trans, const float& rspec, const float& tspec, const float& rdiff, const float& tdiff, const float& alpha2, const float& omega );
 RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mcolor, const float3& normal, const float3& hit, const float& alpha2, const float& tspec );
 #ifdef AMBIENT
 RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& hit );
@@ -348,7 +348,7 @@ RT_PROGRAM void closest_hit_radiance()
 			if ( light.casts_shadow ) {
 				shadow_prd.target = i;
 				shadow_ray.direction = normalize( light.pos );
-				result += dirnorm( &shadow_ray, &shadow_prd, specfl, scolor, mcolor, ffnormal, trans, rspec, tspec, rdiff, tdiff, alpha2, light.solid_angle );
+				result += dirnorm( &shadow_ray, &shadow_prd, specfl, scolor, mcolor, ffnormal, pdot, trans, rspec, tspec, rdiff, tdiff, alpha2, light.solid_angle );
 			}
 		}
 
@@ -392,7 +392,7 @@ RT_PROGRAM void closest_hit_radiance()
 						shadow_prd.target = -v_idx.x - 1; //TODO find a better way to identify surface
 						shadow_ray.direction = normalize( rdir );
 						shadow_ray.tmax = length( rdir ) + FTINY;
-						result += dirnorm( &shadow_ray, &shadow_prd, specfl, scolor, mcolor, ffnormal, trans, rspec, tspec, rdiff, tdiff, alpha2, omega );
+						result += dirnorm( &shadow_ray, &shadow_prd, specfl, scolor, mcolor, ffnormal, pdot, trans, rspec, tspec, rdiff, tdiff, alpha2, omega );
 					}
 				}
 		}
@@ -420,7 +420,7 @@ RT_PROGRAM void closest_hit_radiance()
 }
 
 /* compute source contribution */
-RT_METHOD float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const unsigned int& specfl, const float3& scolor, const float3& mcolor, const float3& normal, const float& trans, const float& rspec, const float& tspec, const float& rdiff, const float& tdiff, const float& alpha2, const float& omega )
+RT_METHOD float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const unsigned int& specfl, const float3& scolor, const float3& mcolor, const float3& normal, const float& pdot, const float& trans, const float& rspec, const float& tspec, const float& rdiff, const float& tdiff, const float& alpha2, const float& omega )
 {
 	float3 cval = make_float3( 0.0f );
 	float ldot = dot( normal, shadow_ray->direction );

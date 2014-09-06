@@ -111,7 +111,7 @@ static RTprogram point_cloud_closest_hit_program, point_cloud_any_hit_program;
 #endif
 
 #ifdef PREFER_TCC
-#define MAX_TCCS	2				/* Maximum number of Tesla devices to discover */
+#define MAX_TCCS	16				/* Maximum number of Tesla devices to discover */
 static unsigned int tcc_count = 0u;	/* number of discovered Tesla devices */
 static int tcc[MAX_TCCS];			/* indices of discovered Tesla devices */
 #endif
@@ -170,7 +170,7 @@ void renderOptix(const VIEW* view, const int width, const int height, const doub
 	}
 
 #ifdef PRINT_OPTIX
-	/* Exit if message pringing is on */
+	/* Exit if message printing is on */
 	exit(1);
 #endif
 
@@ -197,8 +197,10 @@ void computeOptix(const int width, const int height, const double alarm, RAY* ra
 	/* Setup state */
 	printDeviceInfo();
 	createContext( &context, width, height, alarm );
-	setupKernel( context, NULL, width, height );
 	
+	if ( use_ambient )
+		error(USER, "Irradiance cache not supported. Use either aa=0 or g=0.");
+
 	/* Input/output buffer */
 	createCustomBuffer2D( context, RT_BUFFER_INPUT_OUTPUT, sizeof(RayData), width, height, &ray_buffer );
 	//createCustomBuffer2D( context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, sizeof(RayData), width, height, &ray_buffer );
@@ -208,6 +210,8 @@ void computeOptix(const int width, const int height, const double alarm, RAY* ra
 	}
 	RT_CHECK_ERROR( rtBufferUnmap( ray_buffer ) );
 	applyContextObject( context, "ray_buffer", ray_buffer );
+
+	setupKernel( context, NULL, width, height );
 
 	/* Run the OptiX kernel */
 	runKernel2D( context, RADIANCE_ENTRY, width, height );
@@ -254,8 +258,8 @@ static void printDeviceInfo()
 	rtGetVersion( &version );
 	rtDeviceGetDeviceCount( &device_count );
 	if ( !device_count ) {
-		fprintf(stderr, "A supported NVIDIA GPU could not be found for OptiX %i.\n", version);
-		exit(1);
+		sprintf(errmsg, "A supported GPU could not be found for OptiX %i.", version);
+		error(SYSTEM, errmsg);
 	}
 	fprintf(stderr, "Starting OptiX %i on %i devices:\n", version, device_count);
 
@@ -303,8 +307,13 @@ static void createContext( RTcontext* context, const int width, const int height
 	ray_type_count = 3u; /* shadow, radiance, and primary radiance */
 	entry_point_count = 1u; /* Generate radiance data */
 
-	if ( use_ambient )
+	if ( use_ambient ) {
 		ray_type_count++; /* ambient ray */
+		if ( ambdiv > AMB_ROW_SIZE * AMB_ROW_SIZE ) {
+			sprintf(errmsg, "number of ambient divisions cannot be greater than %i (entered %i).", AMB_ROW_SIZE * AMB_ROW_SIZE, ambdiv);
+			error(USER, errmsg);
+		}
+	}
 	if ( calc_ambient ) {
 		ray_type_count += RAY_TYPE_COUNT;
 		entry_point_count += ENTRY_POINT_COUNT;
@@ -737,16 +746,12 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	}
 
 	/* Get the scene geometry as a list of triangles. */
-	fprintf(stderr, "Num objects %i\n", nobjects);
+	//fprintf(stderr, "Num objects %i\n", nobjects);
 	for (i = 0; i < nobjects; i++) {
 		/* By default, no buffer entry is refered to. */
 		buffer_entry_index[i] = -1;
 
 		rec = objptr(i);
-		//fprintf(stderr, "Object %i: %s\n", i, rec.oname);
-		//fprintf(stderr, "Object %i modifies: %i\n", i, rec.omod);
-		//fprintf(stderr, "Object %i type: %i\n", i, rec.otype);
-		//fprintf(stderr, "Object %i structure: %s\n", i, rec.os);
 
 		//if (issurface(rec.otype)) {
 		switch(rec->otype) {
@@ -792,9 +797,9 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 
 			/* Triangulate the face */
 			if (!createTriangles(face, triangles)) {
-				fprintf(stderr, "Unable to triangulate face %s\n", rec->oname);
 				printObect( rec );
-				exit(1);
+				sprintf(errmsg, "Unable to triangulate face %s", rec->oname);
+				error(USER, errmsg);
 			}
 			/* Write the indices to the buffers */
 			for (j = 0; j < triangles->ntris; j++) {
@@ -1303,8 +1308,9 @@ static int createTexture( const RTcontext context, const OBJREC* rec, float* ran
 		bxp = unitxf;
 	} else {			/* get transform */
 		if (invxf(&bxp, rec->oargs.nsargs - i, rec->oargs.sarg + i) != rec->oargs.nsargs - i) {
-			fprintf(stderr, "Texture %s has bad transform.\n", rec->oname);
 			printObect(rec);
+			sprintf(errmsg, "Texture %s has bad transform.\n", rec->oname);
+			error(USER, errmsg);
 			return RT_TEXTURE_ID_NULL;
 		}
 		if (bxp.sca < 0.0) 
@@ -1330,8 +1336,9 @@ static int createTexture( const RTcontext context, const OBJREC* rec, float* ran
 		entries = dp->dim[0].ne * dp->dim[1].ne * dp->dim[2].ne;
 		break;
 	default:
-		fprintf(stderr, "Texture %s has bad number of dimensions %u.\n", rec->oname, dp->nd);
 		printObect(rec);
+		sprintf(errmsg, "Texture %s has bad number of dimensions %u.", rec->oname, dp->nd);
+		error(USER, errmsg);
 		return RT_TEXTURE_ID_NULL;
 	}
 
@@ -1367,8 +1374,8 @@ static int createTexture( const RTcontext context, const OBJREC* rec, float* ran
 		if ( !strcmp(rec->oargs.sarg[0], "flatcorr") && !strcmp(rec->oargs.sarg[2], "source.cal") ) {
 			ptxFile( path_to_ptx, "source" );
 			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "flatcorr", &program ) );
-			//applyProgramObject( context, program, "data", tex_sampler );
 			applyProgramVariable1i( context, program, "data", tex_id );
+			applyProgramVariable1i( context, program, "type", dp->type == DATATY );
 			applyProgramVariable3f( context, program, "minimum", dp->dim[dp->nd-1].org, dp->nd > 1 ? dp->dim[dp->nd-2].org : 0.0f, dp->nd > 2 ? dp->dim[dp->nd-3].org : 0.0f );
 			applyProgramVariable3f( context, program, "maximum", dp->dim[dp->nd-1].siz, dp->nd > 1 ? dp->dim[dp->nd-2].siz : 1.0f, dp->nd > 2 ? dp->dim[dp->nd-3].siz : 1.0f );
 			applyProgramVariable3f( context, program, "u", bxp.xfm[0][0], bxp.xfm[1][0], bxp.xfm[2][0]);

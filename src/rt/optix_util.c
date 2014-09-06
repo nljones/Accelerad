@@ -330,8 +330,10 @@ void ptxFile( char* path, const char* name )
 	fp = getpath( path, getenv("RAYPATH"), R_OK );
 	if ( fp )
 		sprintf( path, fp );
-	else
-		fprintf( stderr, "File %s not found in RAYPATH.\n", path );
+	else {
+		sprintf(errmsg, "File %s not found in RAYPATH.", path );
+		error(SYSTEM, errmsg);
+	}
 	//sprintf( path, "%s/cuda_compile_ptx_generated_%s.cu.ptx", optix_ptx_dir, name );
 	//fprintf( stderr, "Referencing %s\n", path );
 }

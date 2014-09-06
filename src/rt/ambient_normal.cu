@@ -12,7 +12,6 @@ using namespace optix;
 
 #define FRESNE(ci)	(expf(-5.85f*(ci)) - 0.00287989916f)
 #define FRESTHRESH	0.017999f	/* minimum specularity for approx. */
-#define ROW_SIZE	32	/* Number of entries allowed per row of the ambient hemisphere. */
 #ifndef OLDAMB
 #define CORRAL
 #define AMB_SAVE_MEM
@@ -436,11 +435,11 @@ RT_METHOD int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const float3& norm
 
 #ifdef AMB_SAVE_MEM
 	AMBSAMP current, prev;
-	AMBSAMP prevrow[ROW_SIZE];
+	AMBSAMP prevrow[AMB_ROW_SIZE];
 
 	/* ambHessian from ambcomp.c */
-	optix::Matrix<3,3> hessrow[ROW_SIZE-1]; //array of Matrix<3,3>
-	float3 gradrow[ROW_SIZE-1];
+	optix::Matrix<3,3> hessrow[AMB_ROW_SIZE-1]; //array of Matrix<3,3>
+	float3 gradrow[AMB_ROW_SIZE-1];
 	optix::Matrix<3,3> hessian;
 	float3 gradient = make_float3( 0.0f );
 	hessian.setRow( 0, gradient ); // Set zero matrix
@@ -467,8 +466,8 @@ RT_METHOD int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const float3& norm
 	const float ang_step = ang_res / ( (int)( 16.0f * M_1_PIf * ang_res ) + 1.01f );
 	float avg_d = 0.0f;
 	unsigned int corral_count = 0u;
-	float2 corral_u[4*(ROW_SIZE-1)];
-	float corral_d[4*(ROW_SIZE-1)];
+	float2 corral_u[4*(AMB_ROW_SIZE-1)];
+	float corral_d[4*(AMB_ROW_SIZE-1)];
 #endif /* CORRAL */
 
 					/* sample divisions */
@@ -1111,8 +1110,8 @@ RT_METHOD float doambient( float3 *rcol, float3 *pg, float3 *dg, const float3& n
 	divcnt = 0;
 
 	/* Set-up from posgradient in ambcomp.c */
-	float rprevrow[ROW_SIZE]; //rprevrow[hemi.np]; //TODO allow larger -ad
-	float bprevrow[ROW_SIZE]; //bprevrow[hemi.np];
+	float rprevrow[AMB_ROW_SIZE]; //rprevrow[hemi.np]; //TODO allow larger -ad
+	float bprevrow[AMB_ROW_SIZE]; //bprevrow[hemi.np];
 	float xdp = 0.0f;
 	float ydp = 0.0f;
 

@@ -38,9 +38,13 @@
 //#define BLOCK_SHARED_MEM_OPTIMIZATION 1
 
 #define IC_WEIGHT
+#define RANDOM_SEEDS
 #define RETURN_DISTANCE
 
 #include <assert.h>
+
+#include "optix_world.h"
+#include "optix_common.h"
 
 typedef unsigned int COUNTER;
 
@@ -85,7 +89,14 @@ extern "C" {
 
 //float** omp_kmeans(int, float**, int, int, int, float, int*);
 //float** seq_kmeans(float**, int, int, int, float, int*, int*);
-float** __cdecl cuda_kmeans(float**, int, int, int, int, float, float, int*,
+float** __cdecl cuda_kmeans(float**, int, int, int, int, float,
+#ifdef IC_WEIGHT
+	float,
+#endif
+#ifdef RANDOM_SEEDS
+	int,
+#endif
+	int*,
 #ifdef RETURN_DISTANCE
 	float*,
 #endif

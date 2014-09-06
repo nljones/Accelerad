@@ -320,8 +320,13 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 
 	unsigned int scaled_width, scaled_height, generated_record_count, useful_record_count, level, i;
 
-	scaled_width = width / optix_amb_scale;
-	scaled_height = height / optix_amb_scale;
+	if ( optix_amb_scale ) {
+		scaled_width = width / optix_amb_scale;
+		scaled_height = height / optix_amb_scale;
+	} else {
+		scaled_width = width;
+		scaled_height = height;
+	}
 	generated_record_count = scaled_width * scaled_height * optix_amb_semgents;
 	level = ambounce;
 
@@ -388,6 +393,7 @@ float** cuda_kmeans(float **objects,	/* in: [numObjs][numCoords] */
 					int     max_iterations,	/* maximum k-means iterations */
 					float   threshold,	/* % objects change membership */
 					float   weight,	/* relative weighting of position */
+					int     randomSeeds,	/* use randomly selected cluster centers (boolean) */
 					int    *membership,	/* out: [numObjs] */
 					float  *distance,	/* out: [numObjs] */
 					int    *loop_iterations);
@@ -419,13 +425,16 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 #else
 	seeds_per_thread = optix_amb_seeds_per_thread;
 #endif
-#ifdef VIEWPORT_IC
-	grid_width = width / optix_amb_scale;
-	grid_height = height / optix_amb_scale;
-#else
-	grid_width = optix_amb_grid_size;
-	grid_height = 2u * grid_width;
-#endif
+	if ( optix_amb_grid_size ) {
+		grid_width = optix_amb_grid_size / 2;
+		grid_height = optix_amb_grid_size;
+	} else if ( optix_amb_scale ) {
+		grid_width = width / optix_amb_scale;
+		grid_height = height / optix_amb_scale;
+	} else {
+		grid_width = width;
+		grid_height = height;
+	}
 	seed_count = grid_width * grid_height * seeds_per_thread;
 
 	createPointCloudCamera( context, view );
@@ -496,7 +505,7 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 		if (!level) {
 			clock_t kernel_start_clock, kernel_end_clock;
 			int i;
-			int total = 0;
+			//int total = 0;
 			int missing = 0;
 			int si = cuda_kmeans_clusters;
 			int ci = 0;
@@ -511,7 +520,7 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 			for ( i = 0; i < seed_count; i++ ) {
 				if (score[i]) {
 					missing += score[i] - 1;
-					total++;
+					//total++;
 					temp_list[ci++] = seed_buffer_data[i];
 				} else if (missing) { // TODO need better way to randomly add extra cluster seeds
 					missing--;
@@ -521,7 +530,7 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 				else
 					temp_list[ci++] = seed_buffer_data[i];
 			}
-			fprintf( stderr, "Score total: %i\n", total );
+			//fprintf( stderr, "Score total: %i\n", total );
 
 			memcpy( seed_buffer_data, temp_list, seed_count * sizeof(PointDirection) );
 
@@ -606,16 +615,18 @@ static void createPointCloudCamera( const RTcontext context, const VIEW* view )
 	/* Ray generation program */
 	ptxFile( path_to_ptx, "point_cloud_generator" );
 	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "point_cloud_camera", &ray_gen_program ) );
-	applyProgramVariable3f( context, ray_gen_program, "eye", view->vp[0], view->vp[1], view->vp[2] ); // -vp
-#ifdef VIEWPORT_IC
-	applyProgramVariable1ui( context, ray_gen_program, "camera", view->type ); // -vt
-	applyProgramVariable3f( context, ray_gen_program, "U", view->hvec[0], view->hvec[1], view->hvec[2] );
-	applyProgramVariable3f( context, ray_gen_program, "V", view->vvec[0], view->vvec[1], view->vvec[2] );
-	applyProgramVariable3f( context, ray_gen_program, "W", view->vdir[0], view->vdir[1], view->vdir[2] ); // -vd
-	applyProgramVariable2f( context, ray_gen_program, "fov", view->horiz, view->vert ); // -vh, -vv
-	applyProgramVariable2f( context, ray_gen_program, "shift", view->hoff, view->voff ); // -vs, -vl
-	applyProgramVariable2f( context, ray_gen_program, "clip", view->vfore, view->vaft ); // -vo, -va
-#endif
+	if ( view ) {
+		applyProgramVariable3f( context, ray_gen_program, "eye", view->vp[0], view->vp[1], view->vp[2] ); // -vp
+		if ( !optix_amb_grid_size ) { // Use camera for bounds of sampling area
+			applyProgramVariable1ui( context, ray_gen_program, "camera", view->type ); // -vt
+			applyProgramVariable3f( context, ray_gen_program, "U", view->hvec[0], view->hvec[1], view->hvec[2] );
+			applyProgramVariable3f( context, ray_gen_program, "V", view->vvec[0], view->vvec[1], view->vvec[2] );
+			applyProgramVariable3f( context, ray_gen_program, "W", view->vdir[0], view->vdir[1], view->vdir[2] ); // -vd
+			applyProgramVariable2f( context, ray_gen_program, "fov", view->horiz, view->vert ); // -vh, -vv
+			applyProgramVariable2f( context, ray_gen_program, "shift", view->hoff, view->voff ); // -vs, -vl
+			applyProgramVariable2f( context, ray_gen_program, "clip", view->vfore, view->vaft ); // -vo, -va
+		}
+	} // TODO pick ray origin for rtrace
 	applyProgramVariable1f( context, ray_gen_program, "dstrpix", dstrpix ); // -pj
 	RT_CHECK_ERROR( rtContextSetRayGenerationProgram( context, POINT_CLOUD_ENTRY, ray_gen_program ) );
 
@@ -686,7 +697,7 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 	membership = (int*) malloc(good_seed_count * sizeof(int));
 	distance = (float*) malloc(good_seed_count * sizeof(float));
 	kernel_start_clock = clock();
-	clusters = (PointDirection**)cuda_kmeans((float**)seeds, sizeof(PointDirection) / sizeof(float), good_seed_count, cluster_count, cuda_kmeans_iterations, cuda_kmeans_threshold, cuda_kmeans_error / thescene.cusize, membership, distance, &loops);
+	clusters = (PointDirection**)cuda_kmeans((float**)seeds, sizeof(PointDirection) / sizeof(float), good_seed_count, cluster_count, cuda_kmeans_iterations, cuda_kmeans_threshold, cuda_kmeans_error / thescene.cusize, level, membership, distance, &loops);
 	kernel_end_clock = clock();
 	fprintf(stderr, "Kmeans performed %u loop iterations in %u milliseconds.\n", loops, (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC);
 
@@ -758,7 +769,7 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 //	membership = (int*) malloc(cluster_count * sizeof(int));
 //	distance = (float*) malloc(cluster_count * sizeof(float));
 //	kernel_start_clock = clock();
-//	groups = (PointDirection**)cuda_kmeans((float**)clusters, sizeof(PointDirection) / sizeof(float), cluster_count, group_count, cuda_kmeans_threshold, cuda_kmeans_error, membership, distance, &loops);
+//	groups = (PointDirection**)cuda_kmeans((float**)clusters, sizeof(PointDirection) / sizeof(float), cluster_count, group_count, cuda_kmeans_threshold, cuda_kmeans_error, random_seeds, membership, distance, &loops);
 //	kernel_end_clock = clock();
 //	fprintf(stderr, "Kmeans performed %u loop iterations in %u milliseconds.\n", loops, (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC);
 //

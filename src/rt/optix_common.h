@@ -10,9 +10,11 @@
 //#define RAY_COUNT
 //#define HIT_COUNT
 //#define HIT_TYPE
-//#define CALLABLE
+#define CALLABLE
 //#define OLDAMB
 #define LIGHTS
+
+#define AMB_ROW_SIZE	32	/* Number of entries allowed per row of the ambient hemisphere. */
 
 /* Types of sky that may be displayed with an OptiX miss program. */
 #ifndef CALLABLE

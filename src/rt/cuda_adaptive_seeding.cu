@@ -6,9 +6,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "optix_world.h"
-#include "optix_common.h"
-
 #include "kmeans.h"
 
 //#define PRINT_CUDA
@@ -499,7 +496,9 @@ void __cdecl cuda_score_hits(PointDirection *hits, int *seeds, const unsigned in
 
 	const dim3 dimGrid(blocksX, blocksY);
 	const dim3 dimBlock(blockDim, blockDim);
+#ifdef PRINT_CUDA
 	fprintf(stderr, "Adaptive sampling: Block %i x %i, Grid %i x %i, Shared %i, Levels %i, Weight %g\n", blockDim, blockDim, blocksX, blocksY, blockSharedMemorySize, levels, weight);
+#endif
 
 	/* Allocate memory and copy hits to the GPU */
 	size = width * height;
@@ -527,7 +526,9 @@ void __cdecl cuda_score_hits(PointDirection *hits, int *seeds, const unsigned in
 
 	/* Allocate memory and copy first seed to the GPU */
 	seeds[0] = seed_count;
+#ifdef PRINT_CUDA
 	fprintf(stderr, "Target total score: %i\n", seed_count);
+#endif
 	checkCuda(cudaMalloc(&deviceSeeds, size * sizeof(int)));
 	checkCuda(cudaMemcpy(deviceSeeds, seeds, sizeof(int), cudaMemcpyHostToDevice)); // transfer only first entry
 
@@ -551,6 +552,62 @@ void __cdecl cuda_score_hits(PointDirection *hits, int *seeds, const unsigned in
 	/* Copy results from GPU and free memory */
 	checkCuda(cudaMemcpy(seeds, deviceSeeds, size * sizeof(int), cudaMemcpyDeviceToHost));
 	checkCuda(cudaFree(deviceSeeds));
+}
+
+void printDevProp(cudaDeviceProp devProp)
+{
+	fprintf(stderr, "Revision number:               %d.%d\n",  devProp.major, devProp.minor);
+	fprintf(stderr, "Name:                          %s\n",  devProp.name);
+	fprintf(stderr, "Total global memory:           %u bytes\n",  devProp.totalGlobalMem);
+	fprintf(stderr, "Total constant memory:         %u bytes\n",  devProp.totalConstMem);
+	fprintf(stderr, "L2 cache size:                 %u bytes\n",  devProp.l2CacheSize);
+	fprintf(stderr, "Total shared memory per block: %u\n",  devProp.sharedMemPerBlock);
+	fprintf(stderr, "Total registers per block:     %d\n",  devProp.regsPerBlock);
+	fprintf(stderr, "Warp size:                     %d\n",  devProp.warpSize);
+	fprintf(stderr, "Maximum memory pitch:          %u\n",  devProp.memPitch);
+	fprintf(stderr, "Maximum threads per block:     %d\n",  devProp.maxThreadsPerBlock);
+	for (int i = 0; i < 3; ++i)
+	fprintf(stderr, "Maximum dimension %d of block:  %d\n", i, devProp.maxThreadsDim[i]);
+	for (int i = 0; i < 3; ++i)
+	fprintf(stderr, "Maximum dimension %d of grid:   %d\n", i, devProp.maxGridSize[i]);
+	fprintf(stderr, "Global memory bus width:       %d bits\n",  devProp.memoryBusWidth);
+	fprintf(stderr, "Peak memory clock frequency:   %d kHz\n",  devProp.memoryClockRate);
+	fprintf(stderr, "Clock rate:                    %d kHz\n",  devProp.clockRate);
+	fprintf(stderr, "Texture alignment:             %u\n",  devProp.textureAlignment);
+	fprintf(stderr, "Texture pitch alignment:       %u\n",  devProp.texturePitchAlignment);
+	fprintf(stderr, "Concurrent kernels:            %s\n",  devProp.concurrentKernels ? "Yes" : "No");
+	fprintf(stderr, "Concurrent copy and execution: %s\n",  devProp.deviceOverlap ? "Yes" : "No");
+	fprintf(stderr, "Number of async engines:       %d\n",  devProp.asyncEngineCount);
+	fprintf(stderr, "Number of multiprocessors:     %d\n",  devProp.multiProcessorCount);
+	fprintf(stderr, "Kernel execution timeout:      %s\n",  devProp.kernelExecTimeoutEnabled ? "Yes" : "No");
+	fprintf(stderr, "Unified addressing with host:  %s\n",  devProp.unifiedAddressing ? "Yes" : "No");
+	fprintf(stderr, "Device can map host memory:    %s\n",  devProp.canMapHostMemory ? "Yes" : "No");
+	return;
+}
+ 
+int printCUDAProp()
+{
+	// Number of CUDA devices
+	int devCount;
+	cudaGetDeviceCount(&devCount);
+	fprintf(stderr, "CUDA Device Query...\n");
+	fprintf(stderr, "There are %d CUDA devices.\n", devCount);
+ 
+	// Iterate through devices
+	for (int i = 0; i < devCount; ++i)
+	{
+		// Get device properties
+		fprintf(stderr, "\nCUDA Device #%d\n", i);
+		cudaDeviceProp devProp;
+		cudaGetDeviceProperties(&devProp, i);
+		printDevProp(devProp);
+	}
+ 
+	//printf("\nPress any key to exit...");
+	//char c;
+	//scanf("%c", &c);
+ 
+	return 0;
 }
 
 #ifdef __cplusplus

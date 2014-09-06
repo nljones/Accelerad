@@ -44,7 +44,9 @@
 #include <stdlib.h>
 
 #include "kmeans.h"
+#ifdef RANDOM_SEEDS
 #include "random.h"
+#endif /* RANDOM_SEEDS */
 
 #ifdef __cplusplus
 extern "C" {
@@ -265,6 +267,9 @@ float** __cdecl cuda_kmeans(float **objects,      /* in: [numObjs][numCoords] */
 #ifdef IC_WEIGHT
 							float   weight,       /* relative weighting of position */
 #endif
+#ifdef RANDOM_SEEDS
+							int     randomSeeds,  /* use randomly selected cluster centers (boolean) */
+#endif
 							int    *membership,   /* out: [numObjs] */
 #ifdef RETURN_DISTANCE
 							float  *distance,     /* out: [numObjs] */
@@ -305,10 +310,19 @@ float** __cdecl cuda_kmeans(float **objects,      /* in: [numObjs][numCoords] */
 	//		dimClusters[i][j] = dimObjects[i][j * step];
 	//	}
 	//}
-	for (j = 0; j < numClusters; j++) {
-		step = ( j + frandom() ) * numObjs / numClusters;
-		for (i = 0; i < numCoords; i++) {
-			dimClusters[i][j] = dimObjects[i][step];
+#ifdef RANDOM_SEEDS
+	if (randomSeeds)
+		for (j = 0; j < numClusters; j++) {
+			step = ( j + frandom() ) * numObjs / numClusters;
+			for (i = 0; i < numCoords; i++) {
+				dimClusters[i][j] = dimObjects[i][step];
+			}
+		}
+	else
+#endif /* RANDOM_SEEDS */
+	for (i = 0; i < numCoords; i++) {
+		for (j = 0; j < numClusters; j++) {
+			dimClusters[i][j] = dimObjects[i][j];
 		}
 	}
 
@@ -468,62 +482,6 @@ float** __cdecl cuda_kmeans(float **objects,      /* in: [numObjs][numCoords] */
 		free(reducedSums);
 
 	return clusters;
-}
-
-void printDevProp(cudaDeviceProp devProp)
-{
-	fprintf(stderr, "Revision number:               %d.%d\n",  devProp.major, devProp.minor);
-	fprintf(stderr, "Name:                          %s\n",  devProp.name);
-	fprintf(stderr, "Total global memory:           %u bytes\n",  devProp.totalGlobalMem);
-	fprintf(stderr, "Total constant memory:         %u bytes\n",  devProp.totalConstMem);
-	fprintf(stderr, "L2 cache size:                 %u bytes\n",  devProp.l2CacheSize);
-	fprintf(stderr, "Total shared memory per block: %u\n",  devProp.sharedMemPerBlock);
-	fprintf(stderr, "Total registers per block:     %d\n",  devProp.regsPerBlock);
-	fprintf(stderr, "Warp size:                     %d\n",  devProp.warpSize);
-	fprintf(stderr, "Maximum memory pitch:          %u\n",  devProp.memPitch);
-	fprintf(stderr, "Maximum threads per block:     %d\n",  devProp.maxThreadsPerBlock);
-	for (int i = 0; i < 3; ++i)
-	fprintf(stderr, "Maximum dimension %d of block:  %d\n", i, devProp.maxThreadsDim[i]);
-	for (int i = 0; i < 3; ++i)
-	fprintf(stderr, "Maximum dimension %d of grid:   %d\n", i, devProp.maxGridSize[i]);
-	fprintf(stderr, "Global memory bus width:       %d bits\n",  devProp.memoryBusWidth);
-	fprintf(stderr, "Peak memory clock frequency:   %d kHz\n",  devProp.memoryClockRate);
-	fprintf(stderr, "Clock rate:                    %d kHz\n",  devProp.clockRate);
-	fprintf(stderr, "Texture alignment:             %u\n",  devProp.textureAlignment);
-	fprintf(stderr, "Texture pitch alignment:       %u\n",  devProp.texturePitchAlignment);
-	fprintf(stderr, "Concurrent kernels:            %s\n",  devProp.concurrentKernels ? "Yes" : "No");
-	fprintf(stderr, "Concurrent copy and execution: %s\n",  devProp.deviceOverlap ? "Yes" : "No");
-	fprintf(stderr, "Number of async engines:       %d\n",  devProp.asyncEngineCount);
-	fprintf(stderr, "Number of multiprocessors:     %d\n",  devProp.multiProcessorCount);
-	fprintf(stderr, "Kernel execution timeout:      %s\n",  devProp.kernelExecTimeoutEnabled ? "Yes" : "No");
-	fprintf(stderr, "Unified addressing with host:  %s\n",  devProp.unifiedAddressing ? "Yes" : "No");
-	fprintf(stderr, "Device can map host memory:    %s\n",  devProp.canMapHostMemory ? "Yes" : "No");
-	return;
-}
- 
-int printCUDAProp()
-{
-	// Number of CUDA devices
-	int devCount;
-	cudaGetDeviceCount(&devCount);
-	fprintf(stderr, "CUDA Device Query...\n");
-	fprintf(stderr, "There are %d CUDA devices.\n", devCount);
- 
-	// Iterate through devices
-	for (int i = 0; i < devCount; ++i)
-	{
-		// Get device properties
-		fprintf(stderr, "\nCUDA Device #%d\n", i);
-		cudaDeviceProp devProp;
-		cudaGetDeviceProperties(&devProp, i);
-		printDevProp(devProp);
-	}
- 
-	//printf("\nPress any key to exit...");
-	//char c;
-	//scanf("%c", &c);
- 
-	return 0;
 }
 
 #ifdef __cplusplus

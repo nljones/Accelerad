@@ -350,10 +350,6 @@ runagain:
 #endif
 					/* batch render picture(s) */
 #ifdef OPTIX
-	/* Let's check to see if we're using optix */
-	fprintf(stderr, "use_optix is set to %i\n", use_optix);
-
-	fprintf(stderr, "Starting clock for rpict.\n");
 	rpict_start_time = time((time_t *)NULL);
 	rpict_start_clock = clock();
 #endif
