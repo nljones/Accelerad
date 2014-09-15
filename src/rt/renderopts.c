@@ -25,7 +25,7 @@ unsigned int optix_amb_grid_size = 0u;			/* Size of sphere grid to use for ambie
 unsigned int optix_amb_seeds_per_thread = 16u;	/* Number of ambient seeds per OptiX thread */
 unsigned int cuda_kmeans_clusters = 4096u;		/* Number of clusters of ambient for k-means */
 unsigned int cuda_kmeans_iterations = 100u;		/* Maximum number of k-means iterations */
-float cuda_kmeans_threshold = 0.005f;			/* Fraction of seeds that must change cluster to continue k-means iteration */
+float cuda_kmeans_threshold = 0.05f;			/* Fraction of seeds that must change cluster to continue k-means iteration */
 float cuda_kmeans_error = 0.1f;					/* Weighting of position in k-means error */
 #endif
 

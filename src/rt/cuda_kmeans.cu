@@ -91,6 +91,8 @@ float ic_error(int    numCoords,
 	for ( ; i < 6; i++) {
 		ans1 -= objects[numObjs * i + objectId] * clusters[numClusters * i + clusterId];
 	}
+	if (ans1 < 0.0f)
+		ans1 = 0.0f;
 	ans = alpha * sqrtf(ans) + sqrtf(2.0f*ans1);
 
 	return(ans);
