@@ -14,19 +14,19 @@ static const char	RCSid[] = "$Id$";
 
 #ifdef OPTIX
 int use_optix = 1;			/* Flag to use OptiX for ray tracing */
-int optix_stack_size = 8192;	/* Stack size for OptiX program in bytes */
+int optix_stack_size = 8192;	/* Stack size for OptiX program in bytes (-g) */
 
 /* For OptiX iterative ambient sampling */
-unsigned int optix_amb_scale = 0u;		/* Scale to use for ambient sample spacing, zero to use all pixels */
-unsigned int optix_amb_semgents = 1u;	/* Number of segments for ambient sampling */
+unsigned int optix_amb_scale = 0u;		/* Scale to use for ambient sample spacing, zero to use all pixels (-al) */
+unsigned int optix_amb_semgents = 1u;	/* Number of segments for ambient sampling (-ag) */
 
 /* For OptiX k-means ambient sampling */
-unsigned int optix_amb_grid_size = 0u;			/* Size of sphere grid to use for ambient seeding, zero for view-dependent seeding */
-unsigned int optix_amb_seeds_per_thread = 16u;	/* Number of ambient seeds per OptiX thread */
-unsigned int cuda_kmeans_clusters = 4096u;		/* Number of clusters of ambient for k-means */
-unsigned int cuda_kmeans_iterations = 100u;		/* Maximum number of k-means iterations */
-float cuda_kmeans_threshold = 0.05f;			/* Fraction of seeds that must change cluster to continue k-means iteration */
-float cuda_kmeans_error = 0.1f;					/* Weighting of position in k-means error */
+unsigned int optix_amb_grid_size = 0u;			/* Size of sphere grid to use for ambient seeding, zero for view-dependent seeding (-az) */
+unsigned int optix_amb_seeds_per_thread = 16u;	/* Number of ambient seeds per OptiX thread (-ay) */
+unsigned int cuda_kmeans_clusters = 4096u;		/* Number of clusters of ambient for k-means (-ac) */
+unsigned int cuda_kmeans_iterations = 100u;		/* Maximum number of k-means iterations (-am) */
+float cuda_kmeans_threshold = 0.05f;			/* Fraction of seeds that must change cluster to continue k-means iteration (-at) */
+float cuda_kmeans_error = 0.5f;					/* Weighting of position in k-means error (-ax) */
 #endif
 
 int
