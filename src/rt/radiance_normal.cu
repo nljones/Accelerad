@@ -613,6 +613,7 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 	/* compute transmission */
 	mcolor *= tspec;	/* modified by color */
 	gaus_prd.weight = prd.weight * fmaxf(mcolor);
+	gaus_prd.ambient_depth = prd.ambient_depth;
 	if ( ( specfl & (SP_TRAN|SP_TBLT)) == SP_TRAN && gaus_prd.weight >= minweight ) {
 		nstarget = 1;
 		if (specjitter > 1.5f) {	/* multiple samples? */ // By default it's 1.0
@@ -639,12 +640,10 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 				d = 1.0f;
 			else
 				d = sqrtf( alpha2 * -logf( rv.y ) );
-			float3 h = ray.direction + d * ( cosp * u + sinp * v ); // ray direction is perturbed
-			d = -2.0f * dot( h, ray.direction ) / ( 1.0f + d*d );
-			gaus_ray.direction = ray.direction + h * d;
+			gaus_ray.direction = ray.direction + d * ( cosp * u + sinp * v ); // ray direction is perturbed
 
 			/* sample rejection test */
-			if ( ( d = dot( gaus_ray.direction, normal ) ) >= -FTINY) // this is ron, is this perturbed?
+			if ( dot( gaus_ray.direction, normal ) >= -FTINY) // this is ron, is this perturbed?
 				continue;
 
 			gaus_ray.direction = normalize( gaus_ray.direction );

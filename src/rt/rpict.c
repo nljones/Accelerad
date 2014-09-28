@@ -784,6 +784,13 @@ pixvalue(		/* compute pixel value */
 	rayvalue(&thisray);			/* trace ray */
 
 	copycolor(col, thisray.rcol);		/* return color */
+#ifdef OPTIX
+	/* Check for NaN values in order to prevent them from being averaged into the image. */
+	if (col[0] != col[0] || col[1] != col[1] || col[2] != col[2]) {
+		setcolor(col, 0.0f, 0.0f, 0.0f);
+		return(0.0);
+	}
+#endif /* OPTIX */
 
 	return(thisray.rt);			/* return distance */
 }

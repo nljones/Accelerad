@@ -78,6 +78,8 @@ static void printObect( const OBJREC* rec );
 static void getRay( RayData* data, const RAY* ray );
 static void setRay( RAY* ray, const RayData* data );
 
+#define nancolor(c)	c[0]!=c[0]||c[1]!=c[1]||c[2]!=c[2]
+
 
 /* from rpict.c */
 extern double  dstrpix;			/* square pixel distribution */
@@ -164,8 +166,13 @@ void renderOptix(const VIEW* view, const int width, const int height, const doub
 
 	/* Copy the results to allocated memory. */
 	for (i = 0u; i < size; i++) {
-		copycolor( colors[i], data );
-		depths[i] = data[3];
+		if ( nancolor( data ) ) {
+			setcolor( colors[i], 0.0f, 0.0f, 0.0f );
+			depths[i] = 0.0f;
+		} else {
+			copycolor( colors[i], data );
+			depths[i] = data[3];
+		}
 		data += 4;
 	}
 
@@ -359,7 +366,7 @@ static void createContext( RTcontext* context, const int width, const int height
 	/* Enable message pringing */
 	RT_CHECK_ERROR2( rtContextSetPrintEnabled( *context, 1 ) );
 	RT_CHECK_ERROR2( rtContextSetPrintBufferSize( *context, 512 * width * height ) );
-	//RT_CHECK_ERROR2( rtContextSetPrintLaunchIndex( *context, 146, -1, -1 ) );
+	//RT_CHECK_ERROR2( rtContextSetPrintLaunchIndex( *context, width / 2, height / 2, -1 ) );
 #endif
 
 #ifdef REPORT_GPU_STATE

@@ -26,7 +26,7 @@ sum_images(const char *fspec, const CMATRIX *cv, FILE *fout)
 	int	i, y;
 
 	if (cv->ncols != 1)
-		error(INTERNAL, "expected matrix in sum_images()");
+		error(INTERNAL, "expected vector in sum_images()");
 	for (i = 0; i < cv->nrows; i++) {
 		const COLORV	*scv = cv_lval(cv,i);
 		char		fname[1024];
@@ -119,9 +119,10 @@ hasNumberFormat(const char *s)
 int
 main(int argc, char *argv[])
 {
-	int		skyfmt = DTascii;
+	int		skyfmt = DTfromHeader;
 	int		outfmt = DTascii;
-	int		nsteps = 1;
+	int		headout = 1;
+	int		nsteps = 0;
 	char		*ofspec = NULL;
 	FILE		*ofp = stdout;
 	CMATRIX		*cmtx;		/* component vector/matrix result */
@@ -136,6 +137,10 @@ main(int argc, char *argv[])
 			nsteps = atoi(argv[++a]);
 			if (nsteps < 0)
 				goto userr;
+			skyfmt = nsteps ? DTascii : DTfromHeader;
+			break;
+		case 'h':
+			headout = !headout;
 			break;
 		case 'i':
 			switch (argv[a][2]) {
@@ -147,9 +152,6 @@ main(int argc, char *argv[])
 				break;
 			case 'a':
 				skyfmt = DTascii;
-				break;
-			case 'h':
-				skyfmt = DTfromHeader;
 				break;
 			default:
 				goto userr;
@@ -183,6 +185,7 @@ main(int argc, char *argv[])
 		CMATRIX	*smtx, *Dmat, *Tmat, *imtx;
 						/* get sky vector/matrix */
 		smtx = cm_load(argv[a+3], 0, nsteps, skyfmt);
+		nsteps = smtx->ncols;
 						/* load BSDF */
 		Tmat = cm_loadBTDF(argv[a+1]);
 						/* load Daylight matrix */
@@ -196,6 +199,7 @@ main(int argc, char *argv[])
 		cm_free(imtx);
 	} else {				/* sky vector/matrix only */
 		cmtx = cm_load(argv[a+1], 0, nsteps, skyfmt);
+		nsteps = cmtx->ncols;
 	}
 						/* prepare output stream */
 	if ((ofspec != NULL) & (nsteps == 1) && hasNumberFormat(ofspec)) {
@@ -266,6 +270,16 @@ main(int argc, char *argv[])
 #ifdef getc_unlocked
 				flockfile(ofp);
 #endif
+				if (headout) {	/* header output */
+					newheader("RADIANCE", ofp);
+					printargs(argc, argv, ofp);
+					fputnow(ofp);
+					fprintf(ofp, "FRAME=%d\n", i+1);
+					fprintf(ofp, "NROWS=%d\n", rvec->nrows);
+					fputs("NCOLS=1\nNCOMP=3\n", ofp);
+					fputformat((char *)cm_fmt_id[outfmt], ofp);
+					fputc('\n', ofp);
+				}
 				cm_write(rvec, outfmt, ofp);
 				if (fclose(ofp) == EOF) {
 					fprintf(stderr,
@@ -282,7 +296,7 @@ main(int argc, char *argv[])
 #endif
 			if (outfmt != DTascii)
 				SET_FILE_BINARY(ofp);
-			if (rmtx->ncols > 1) {	/* header if actual matrix */
+			if (headout) {		/* header output */
 				newheader("RADIANCE", ofp);
 				printargs(argc, argv, ofp);
 				fputnow(ofp);
