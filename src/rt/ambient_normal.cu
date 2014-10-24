@@ -338,7 +338,7 @@ RT_METHOD int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *ra, float
 	//if (hp == NULL)			/* sampling falure? */
 	//	return(0);
 
-	if ((ra == NULL) & (pg == NULL) & (dg == NULL) || (hp.sampOK < 0) | (hp.ns < 9)) { /* Hessian not requested/possible */
+	if ((ra == NULL) & (pg == NULL) & (dg == NULL) || (hp.sampOK < 0) | (hp.ns < 6)) { /* Hessian not requested/possible */
 		return(-1);		/* value-only return value */
 	}
 #ifndef AMB_SAVE_MEM
@@ -415,7 +415,7 @@ RT_METHOD int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const float3& norm
 	if (ambacc <= FTINY && wt > (d = 0.8f * fmaxf(*rcol) * wt / (ambdiv*minweight))) //TODO second wt should be radiance ray weight
 		wt = d;			/* avoid ray termination */
 	int n = sqrtf(ambdiv * wt) + 0.5f;
-	int i = 1 + 8 * (ambacc > FTINY);	/* minimum number of samples */
+	int i = 1 + 5 * (ambacc > FTINY);	/* minimum number of samples */
 	if (n < i)
 		n = i;
 					/* allocate sampling array */

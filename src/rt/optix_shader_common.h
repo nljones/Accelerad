@@ -307,11 +307,11 @@ RT_METHOD void SDsquare2disk( float2& ds, const float& seedx, const float& seedy
 				phi = M_PI_4f * (6.0f - (a/b));
 			else
 				phi = 0.0f;
-       }
-   }
-
-   ds.x = r * cosf(phi);
-   ds.y = r * sinf(phi);
+		}
+	}
+	r *= 0.9999999999999;	/* prophylactic against MS sin()/cos() impl. (probably unnecessary on GPU) */
+	ds.x = r * cosf(phi);
+	ds.y = r * sinf(phi);
 }
 
 /* find real roots of quadratic equation (from zeros.c) */

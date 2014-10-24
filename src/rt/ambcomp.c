@@ -180,7 +180,6 @@ ambsupersamp(AMBHEMI *hp, int cnt)
 	float	*earr = getambdiffs(hp);
 	double	e2rem = 0;
 	AMBSAMP	*ap;
-	RAY	ar;
 	float	*ep;
 	int	i, j, n, nss;
 
@@ -219,7 +218,7 @@ samp_hemi(				/* sample indirect hemisphere */
 			wt > (d = 0.8*intens(rcol)*r->rweight/(ambdiv*minweight)))
 		wt = d;			/* avoid ray termination */
 	n = sqrt(ambdiv * wt) + 0.5;
-	i = 1 + 8*(ambacc > FTINY);	/* minimum number of samples */
+	i = 1 + 5*(ambacc > FTINY);	/* minimum number of samples */
 	if (n < i)
 		n = i;
 					/* allocate sampling array */
@@ -695,7 +694,7 @@ doambient(				/* compute ambient component */
 		return(0);
 
 	if ((ra == NULL) & (pg == NULL) & (dg == NULL) ||
-			(hp->sampOK < 0) | (hp->ns < 9)) {
+			(hp->sampOK < 0) | (hp->ns < 6)) {
 		free(hp);		/* Hessian not requested/possible */
 		return(-1);		/* value-only return value */
 	}
