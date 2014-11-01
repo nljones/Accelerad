@@ -8,22 +8,28 @@
 
 using namespace optix;
 
+struct Transform
+{
+	optix::Matrix<3,3> m;
+};
+
 /* Program variables */
 rtDeclareVariable(int, data, , ); /* texture ID */
 rtDeclareVariable(int, type, , ); /* type of data (true for float) */
 rtDeclareVariable(float3, minimum, , ); /* texture minimum coordinates */
 rtDeclareVariable(float3, maximum, , ); /* texture maximum coordinates */
-rtDeclareVariable(float3, u, , ); /* transform matrix u-direction */
-rtDeclareVariable(float3, v, , ); /* transform matrix v-direction */
-rtDeclareVariable(float3, w, , ); /* transform matrix w-direction */
+rtDeclareVariable(Transform, transform, , ); /* transformation matrix */
 rtDeclareVariable(float, multiplier, , ) = 1.0f; /* multiplier for light source intensity */
 
 // Calculate source distribution with correction for flat sources.
 RT_CALLABLE_PROGRAM float3 flatcorr( const float3 direction, const float3 normal )
 {
 	//rtPrintf("FlatCorr Recieved (%f, %f, %f) (%f, %f, %f)\n", direction.x, direction.y, direction.z, normal.x, normal.y, normal.z);
-	float phi = acosf( dot( direction, normalize( w ) ) );
-	float theta = atan2f( -dot( direction, normalize( v ) ), -dot( direction, normalize( u ) ) );
+
+	const float3 dir = transform.m * direction;
+
+	float phi = acosf( dir.z );
+	float theta = atan2f( -dir.y, -dir.x );
 	theta += 2.0f * M_PIf * ( theta < 0.0f );
 
 	/* Normalize to [0, 1] within range */

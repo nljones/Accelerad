@@ -169,6 +169,13 @@ void applyProgramVariable3f( const RTcontext context, const RTprogram program, c
 	RT_CHECK_ERROR( rtVariableSet3f( var, x, y, z ) );
 }
 
+void applyProgramVariable( const RTcontext context, const RTprogram program, const char* name, const unsigned int size, const void* data )
+{
+	RTvariable var;
+	RT_CHECK_ERROR( rtProgramDeclareVariable( program, name, &var ) );
+	RT_CHECK_ERROR( rtVariableSetUserData( var, size, data ) );
+}
+
 void applyMaterialVariable1i( const RTcontext context, const RTmaterial material, const char* name, const int value )
 {
 	RTvariable var;

@@ -129,6 +129,7 @@ void applyProgramVariable1ui( const RTcontext context, const RTprogram program, 
 void applyProgramVariable1f( const RTcontext context, const RTprogram program, const char* name, const float value );
 void applyProgramVariable2f( const RTcontext context, const RTprogram program, const char* name, const float x, const float y );
 void applyProgramVariable3f( const RTcontext context, const RTprogram program, const char* name, const float x, const float y, const float z );
+void applyProgramVariable( const RTcontext context, const RTprogram program, const char* name, const unsigned int size, const void* data );
 void applyMaterialVariable1i( const RTcontext context, const RTmaterial material, const char* name, const int value );
 void applyMaterialVariable1ui( const RTcontext context, const RTmaterial material, const char* name, const unsigned int value );
 void applyMaterialVariable1f( const RTcontext context, const RTmaterial material, const char* name, const float value );

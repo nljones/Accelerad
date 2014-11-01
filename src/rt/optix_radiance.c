@@ -73,6 +73,7 @@ static int createTexture( const RTcontext context, const OBJREC* rec );
 #else
 static int createTexture( const RTcontext context, const OBJREC* rec, float* range );
 #endif
+static int createTransform( XF* bxp, const OBJREC* rec );
 static void createAcceleration( const RTcontext context, const RTgeometryinstance instance );
 static void printObect( const OBJREC* rec );
 static void getRay( RayData* data, const RAY* ray );
@@ -200,6 +201,8 @@ void computeOptix(const int width, const int height, const double alarm, RAY* ra
 
 	/* Set the size */
 	size = width * height;
+	if ( !size )
+		error(USER, "Size is zero or not set. Both -x and -y must be positive.");
 
 	/* Setup state */
 	printDeviceInfo();
@@ -513,7 +516,7 @@ static void updateCamera( const RTcontext context, const VIEW* view )
 static void countObjectsInScene( ObjectCount* count )
 {
 	OBJREC* rec, *material;
-	FACE* face;
+	unsigned int vertex_count;
 #ifdef CALLABLE
 	unsigned int i, v_count, t_count, m_count, l_count, dl_count, f_count;
 	v_count = t_count = m_count = l_count = dl_count = f_count = 0u;
@@ -541,13 +544,13 @@ static void countObjectsInScene( ObjectCount* count )
 			m_count++;
 			break;
 		case OBJ_FACE: // Typical polygons
-			face = getface(rec);
-			v_count += face->nv;
-			t_count += face->nv - 2;
+			vertex_count = rec->oargs.nfargs / 3;
+			v_count += vertex_count;
+			t_count += vertex_count - 2;
 #ifdef LIGHTS
 			material = findmaterial(rec);
 			if (islight(material->otype) && (material->otype != MAT_GLOW || material->oargs.farg[3] > 0))
-				l_count += face->nv - 2;
+				l_count += vertex_count - 2;
 #endif
 			break;
 		case OBJ_SOURCE: // The sun, for example
@@ -675,6 +678,8 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	 * The OptiX buffer refered to depends on the type of object.
 	 * If the object does not have an index in an OptiX buffer, -1 is given. */
 	int* buffer_entry_index = (int *)malloc(sizeof(int) * nobjects);
+	if (buffer_entry_index == NULL)
+		error(SYSTEM, "out of memory in createGeometryInstance");
 
 	geometry_start_clock = clock();
 
@@ -801,6 +806,8 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 			t = vi / 3;
 #ifdef TRIANGULATE
 			triangles = (POLYTRIS *)malloc(sizeof(POLYTRIS) + sizeof(struct ptri)*(face->nv - 3));
+			if (triangles == NULL)
+				error(SYSTEM, "out of memory in createGeometryInstance");
 
 			/* Triangulate the face */
 			if (!createTriangles(face, triangles)) {
@@ -898,6 +905,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 					tex_coord_buffer_data[ti++] = 0.0f;
 				}
 			}
+			free(face);
 			break;
 		case OBJ_SOURCE:
 			light_buffer_data[dli++] = createDistantLight( context, buffer_entry_index, rec );
@@ -1251,9 +1259,23 @@ static int createFunction( const RTcontext context, const OBJREC* rec )
 {
 	RTprogram program;
 	int program_id = RT_PROGRAM_ID_NULL;
+	XF bxp;
 
-	if ( rec->oargs.nsargs == 2 ) {
+	/* Get transform */
+	if ( !createTransform( &bxp, rec ) ) {
+		printObect(rec);
+		sprintf(errmsg, "Function %s has bad transform.\n", rec->oname);
+		error(USER, errmsg);
+		return RT_PROGRAM_ID_NULL;
+	}
+
+	if ( rec->oargs.nsargs >= 2 ) {
 		if ( !strcmp(rec->oargs.sarg[0], "skybr") && !strcmp(rec->oargs.sarg[1], "skybright.cal") ) {
+			float transform[9] = {
+				bxp.xfm[0][0], bxp.xfm[0][1], bxp.xfm[0][2],
+				bxp.xfm[1][0], bxp.xfm[1][1], bxp.xfm[1][2],
+				bxp.xfm[2][0], bxp.xfm[2][1], bxp.xfm[2][2]
+			};
 			ptxFile( path_to_ptx, "skybright" );
 			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "sky_bright", &program ) );
 			applyProgramVariable1ui( context, program, "type", rec->oargs.farg[0] );
@@ -1261,14 +1283,21 @@ static int createFunction( const RTcontext context, const OBJREC* rec )
 			applyProgramVariable1f( context, program, "ground", rec->oargs.farg[2] );
 			applyProgramVariable1f( context, program, "factor", rec->oargs.farg[3] );
 			applyProgramVariable3f( context, program, "sun", rec->oargs.farg[4], rec->oargs.farg[5], rec->oargs.farg[6] );
+			applyProgramVariable( context, program, "transform", sizeof(transform), transform );
 		} else if ( !strcmp(rec->oargs.sarg[0], "skybright") && !strcmp(rec->oargs.sarg[1], "perezlum.cal") ) {
+			float coef[5] = { rec->oargs.farg[2], rec->oargs.farg[3], rec->oargs.farg[4], rec->oargs.farg[5], rec->oargs.farg[6] };
+			float transform[9] = {
+				bxp.xfm[0][0], bxp.xfm[0][1], bxp.xfm[0][2],
+				bxp.xfm[1][0], bxp.xfm[1][1], bxp.xfm[1][2],
+				bxp.xfm[2][0], bxp.xfm[2][1], bxp.xfm[2][2]
+			};
 			ptxFile( path_to_ptx, "perezlum" );
 			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "perez_lum", &program ) );
 			applyProgramVariable1f( context, program, "diffuse", rec->oargs.farg[0] );
 			applyProgramVariable1f( context, program, "ground", rec->oargs.farg[1] );
-			applyProgramVariable3f( context, program, "coef0", rec->oargs.farg[2], rec->oargs.farg[3], rec->oargs.farg[4] );
-			applyProgramVariable2f( context, program, "coef1", rec->oargs.farg[5], rec->oargs.farg[6] );
+			applyProgramVariable( context, program, "coef", sizeof(coef), coef );
 			applyProgramVariable3f( context, program, "sun", rec->oargs.farg[7], rec->oargs.farg[8], rec->oargs.farg[9] );
+			applyProgramVariable( context, program, "transform", sizeof(transform), transform );
 		} else {
 			printObect(rec);
 			return RT_PROGRAM_ID_NULL;
@@ -1307,21 +1336,12 @@ static int createTexture( const RTcontext context, const OBJREC* rec, float* ran
 	/* Load texture data */
 	dp = getdata(rec->oargs.sarg[1]); //TODO for Texdata and Colordata, use 3, 4, 5
 
-	/* Get transform - from getfunc in func.c */
-	i = 0u;
-	while (i < rec->oargs.nsargs && rec->oargs.sarg[i][0] != '-')
-		i++;
-	if (i == rec->oargs.nsargs) {			/* no transform */
-		bxp = unitxf;
-	} else {			/* get transform */
-		if (invxf(&bxp, rec->oargs.nsargs - i, rec->oargs.sarg + i) != rec->oargs.nsargs - i) {
-			printObect(rec);
-			sprintf(errmsg, "Texture %s has bad transform.\n", rec->oname);
-			error(USER, errmsg);
-			return RT_TEXTURE_ID_NULL;
-		}
-		if (bxp.sca < 0.0) 
-			bxp.sca = -bxp.sca;
+	/* Get transform */
+	if ( !createTransform( &bxp, rec ) ) {
+		printObect(rec);
+		sprintf(errmsg, "Texture %s has bad transform.\n", rec->oname);
+		error(USER, errmsg);
+		return RT_TEXTURE_ID_NULL;
 	}
 
 	/* Create buffer for texture data */
@@ -1379,15 +1399,18 @@ static int createTexture( const RTcontext context, const OBJREC* rec, float* ran
 	/* Create program to access texture sampler */
 	if ( rec->oargs.nsargs >= 5 ) {
 		if ( !strcmp(rec->oargs.sarg[0], "flatcorr") && !strcmp(rec->oargs.sarg[2], "source.cal") ) {
+			float transform[9] = {
+				bxp.xfm[0][0], bxp.xfm[1][0], bxp.xfm[2][0],
+				bxp.xfm[0][1], bxp.xfm[1][1], bxp.xfm[2][1],
+				bxp.xfm[0][2], bxp.xfm[1][2], bxp.xfm[2][2]
+			};
 			ptxFile( path_to_ptx, "source" );
 			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "flatcorr", &program ) );
 			applyProgramVariable1i( context, program, "data", tex_id );
 			applyProgramVariable1i( context, program, "type", dp->type == DATATY );
 			applyProgramVariable3f( context, program, "minimum", dp->dim[dp->nd-1].org, dp->nd > 1 ? dp->dim[dp->nd-2].org : 0.0f, dp->nd > 2 ? dp->dim[dp->nd-3].org : 0.0f );
 			applyProgramVariable3f( context, program, "maximum", dp->dim[dp->nd-1].siz, dp->nd > 1 ? dp->dim[dp->nd-2].siz : 1.0f, dp->nd > 2 ? dp->dim[dp->nd-3].siz : 1.0f );
-			applyProgramVariable3f( context, program, "u", bxp.xfm[0][0], bxp.xfm[1][0], bxp.xfm[2][0]);
-			applyProgramVariable3f( context, program, "v", bxp.xfm[0][1], bxp.xfm[1][1], bxp.xfm[2][1]);
-			applyProgramVariable3f( context, program, "w", bxp.xfm[0][2], bxp.xfm[1][2], bxp.xfm[2][2]);
+			applyProgramVariable( context, program, "transform", sizeof(transform), transform );
 			if (rec->oargs.nfargs > 0)
 				applyProgramVariable1f( context, program, "multiplier", rec->oargs.farg[0] ); //TODO handle per-color channel multipliers
 		} else {
@@ -1411,6 +1434,27 @@ static int createTexture( const RTcontext context, const OBJREC* rec, float* ran
 #endif /* CALLLABLE */
 
 	return tex_id;
+}
+
+static int createTransform( XF* bxp, const OBJREC* rec )
+{
+	/* Get transform - from getfunc in func.c */
+	unsigned int i = 0u;
+	while (i < rec->oargs.nsargs && rec->oargs.sarg[i][0] != '-')
+		i++;
+	if (i == rec->oargs.nsargs)	{		/* no transform */
+		*bxp = unitxf;
+		return 1;
+	}
+	
+	/* get transform */
+	if (invxf(bxp, rec->oargs.nsargs - i, rec->oargs.sarg + i) != rec->oargs.nsargs - i)
+		return 0;
+
+	if (bxp->sca < 0.0) 
+		bxp->sca = -bxp->sca;
+
+	return 1;
 }
 
 static void createAcceleration( const RTcontext context, const RTgeometryinstance instance )
