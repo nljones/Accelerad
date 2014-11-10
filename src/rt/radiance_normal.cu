@@ -229,7 +229,7 @@ RT_PROGRAM void closest_hit_radiance()
 			new_prd.hit_count = 0;
 #endif
 			float3 R = ray.direction; //TODO may need to perturb
-			Ray trans_ray = make_Ray( hit_point, R, radiance_ray_type, RAY_START, RAY_END );
+			Ray trans_ray = make_Ray( hit_point, R, radiance_ray_type, ray_start( hit_point, R, ffnormal, RAY_START ), RAY_END );
 			rtTrace(top_object, trans_ray, new_prd);
 			float3 rcol = new_prd.result * mcolor * tspec;
 			result += rcol;
@@ -287,7 +287,7 @@ RT_PROGRAM void closest_hit_radiance()
 			new_prd.hit_count = 0;
 #endif
 			float3 R = reflect( ray.direction, ffnormal );
-			Ray refl_ray = make_Ray( hit_point, R, radiance_ray_type, RAY_START, RAY_END );
+			Ray refl_ray = make_Ray( hit_point, R, radiance_ray_type, ray_start( hit_point, R, ffnormal, RAY_START ), RAY_END );
 			rtTrace(top_object, refl_ray, new_prd);
 			float3 rcol = new_prd.result * scolor;
 			result += rcol;
@@ -348,6 +348,7 @@ RT_PROGRAM void closest_hit_radiance()
 			if ( light.casts_shadow ) {
 				shadow_prd.target = i;
 				shadow_ray.direction = normalize( light.pos );
+				shadow_ray.tmin = ray_start( hit_point, shadow_ray.direction, ffnormal, RAY_START );
 				result += dirnorm( &shadow_ray, &shadow_prd, specfl, scolor, mcolor, ffnormal, pdot, trans, rspec, tspec, rdiff, tdiff, alpha2, light.solid_angle );
 			}
 		}
@@ -391,6 +392,7 @@ RT_PROGRAM void closest_hit_radiance()
 
 						shadow_prd.target = -v_idx.x - 1; //TODO find a better way to identify surface
 						shadow_ray.direction = normalize( rdir );
+						shadow_ray.tmin = ray_start( hit_point, shadow_ray.direction, ffnormal, RAY_START );
 						shadow_ray.tmax = length( rdir ) + FTINY;
 						result += dirnorm( &shadow_ray, &shadow_prd, specfl, scolor, mcolor, ffnormal, pdot, trans, rspec, tspec, rdiff, tdiff, alpha2, omega );
 					}
@@ -572,6 +574,7 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 				continue;
 
 			gaus_ray.direction = normalize( gaus_ray.direction );
+			gaus_ray.tmin = ray_start( hit, gaus_ray.direction, normal, RAY_START );
 #ifdef FILL_GAPS
 			gaus_prd.primary = 0;
 #endif
@@ -647,6 +650,7 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 				continue;
 
 			gaus_ray.direction = normalize( gaus_ray.direction );
+			gaus_ray.tmin = ray_start( hit, gaus_ray.direction, normal, RAY_START );
 #ifdef RAY_COUNT
 			gaus_prd.ray_count = 1;
 #endif
@@ -705,7 +709,8 @@ RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& h
 #ifdef HIT_COUNT
 		ambient_prd.hit_count = 0;
 #endif
-		Ray ambient_ray = make_Ray( hit, normal, ambient_ray_type, -AMBIENT_RAY_LENGTH, AMBIENT_RAY_LENGTH );
+		const float tmin = ray_start( hit, AMBIENT_RAY_LENGTH );
+		Ray ambient_ray = make_Ray( hit, normal, ambient_ray_type, -tmin, tmin );
 		rtTrace(top_ambient, ambient_ray, ambient_prd);
 #ifdef HIT_COUNT
 		prd.hit_count += ambient_prd.hit_count;
@@ -795,7 +800,7 @@ RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit )
 	//new_prd.seed = prd.seed;//lcg( prd.seed );
 	new_prd.state = prd.state;
 
-	Ray amb_ray = make_Ray( hit, hit, radiance_ray_type, RAY_START, RAY_END ); // Use hit point as temporary direction
+	Ray amb_ray = make_Ray( hit, normal, radiance_ray_type, RAY_START, RAY_END ); // Use normal point as temporary direction
 	/* End ambsample setup */
 
 					/* make tangent plane axes */
@@ -813,6 +818,7 @@ RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit )
 			SDsquare2disk( spt, (j+spt.y) / n, (i+spt.x) / n );
 			float zd = sqrtf( 1.0f - dot( spt, spt ) );
 			amb_ray.direction = normalize( spt.x*ux + spt.y*uy + zd*normal );
+			amb_ray.tmin = ray_start( hit, amb_ray.direction, normal, RAY_START );
 			//dimlist[ndims++] = AI(hp,i,j) + 90171;
 
 #ifdef FILL_GAPS

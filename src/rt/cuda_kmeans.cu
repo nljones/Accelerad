@@ -48,6 +48,13 @@
 #include "random.h"
 #endif /* RANDOM_SEEDS */
 
+#ifdef CAP_REGISTERS_PER_THREAD
+/* This is the maximum number of registers used by any cuda kernel in this in this file,
+found by using the flag "-Xptxas -v" to compile in nvcc. This should be updated when
+changes are made to the kernels. */
+#define REGISTERS_PER_THREAD	24
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -81,21 +88,20 @@ float ic_error(int    numCoords,
 			   float  alpha)
 {
 	int i;
-	float ans=0.0f, ans1=1.0f;
+	float ans=0.0f, ans1;
 
 	for (i = 0; i < 3; i++) {
-		ans += (objects[numObjs * i + objectId] - clusters[numClusters * i + clusterId]) *
-			   (objects[numObjs * i + objectId] - clusters[numClusters * i + clusterId]);
+		ans1 = objects[numObjs * i + objectId] - clusters[numClusters * i + clusterId];
+		ans += ans1 * ans1;
 	}
 
-	for ( ; i < 6; i++) {
+	ans1=1.0f;
+	for ( ; i < numCoords; i++) {
 		ans1 -= objects[numObjs * i + objectId] * clusters[numClusters * i + clusterId];
 	}
 	if (ans1 < 0.0f)
 		ans1 = 0.0f;
-	ans = alpha * sqrtf(ans) + sqrtf(2.0f*ans1);
-
-	return(ans);
+	return alpha * sqrtf(ans) + sqrtf(2.0f*ans1);
 }
 #else /* IC_WEIGHT */
 /*----< euclid_dist_2() >----------------------------------------------------*/
@@ -347,7 +353,14 @@ float** __cdecl cuda_kmeans(float **objects,      /* in: [numObjs][numCoords] */
 	//  two, and it *must* be no larger than the number of bits that will
 	//  fit into an unsigned char, the type used to keep track of membership
 	//  changes in the kernel.
+#ifdef CAP_REGISTERS_PER_THREAD
+	const unsigned int numRegistersPerClusterBlock = deviceProp.regsPerBlock;
+	unsigned int numThreadsPerClusterBlock = deviceProp.maxThreadsPerBlock;
+	while (numRegistersPerClusterBlock / numThreadsPerClusterBlock < REGISTERS_PER_THREAD)
+		numThreadsPerClusterBlock >>= 1;
+#else
 	const unsigned int numThreadsPerClusterBlock = deviceProp.maxThreadsPerBlock;//128;
+#endif
 	const unsigned int numClusterBlocks = (numObjs - 1) / numThreadsPerClusterBlock + 1;
 #if BLOCK_SHARED_MEM_OPTIMIZATION
 	const unsigned int clusterBlockSharedDataSize = numThreadsPerClusterBlock * sizeof(COUNTER) + numClusters * numCoords * sizeof(float);
@@ -361,7 +374,7 @@ float** __cdecl cuda_kmeans(float **objects,      /* in: [numObjs][numCoords] */
 	const unsigned int clusterBlockSharedDataSize = numThreadsPerClusterBlock * sizeof(COUNTER);
 #endif
 
-	const unsigned int numReductionBlocks = (numClusterBlocks - 1) / deviceProp.maxThreadsPerBlock + 1;
+	const unsigned int numReductionBlocks = (numClusterBlocks - 1) / numThreadsPerClusterBlock + 1;
 	const unsigned int numReductionThreads = nextPowerOfTwo(numClusterBlocks / numReductionBlocks); // per block
 	//const unsigned int numReductionThreads = nextPowerOfTwo(numClusterBlocks);
 	const unsigned int reductionBlockSharedDataSize = numReductionThreads * sizeof(unsigned int);

@@ -48,7 +48,7 @@ RT_PROGRAM void ray_generator()
 		aft = RAY_END;
 	}
 
-	Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, do_irrad ? radiance_primary_ray_type : radiance_ray_type, FTINY, aft);
+	Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, do_irrad ? radiance_primary_ray_type : radiance_ray_type, ray_start( ray_buffer[launch_index].origin, RAY_START ), aft);
 
 	prd.weight = 1.0f;
 	prd.depth = 0;

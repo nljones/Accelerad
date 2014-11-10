@@ -47,7 +47,7 @@ RT_PROGRAM void hemisphere_camera()
 		float3 rdir = normalize( xd * ux + yd * uy + zd * uz );
 
 		// Trace the current ray
-		Ray ray = make_Ray(eye.pos, rdir, point_cloud_ray_type, RAY_START, RAY_END);
+		Ray ray = make_Ray(eye.pos, rdir, point_cloud_ray_type, ray_start( eye.pos, rdir, eye.dir, RAY_START ), RAY_END);
 		rtTrace(top_object, ray, prd);
 
 		// Check for a valid result

@@ -726,7 +726,7 @@ RT_METHOD int ambsample( AMBHEMI *hp, const int& i, const int& j, const float3& 
 #ifdef RAY_COUNT
 	new_prd.ray_count = 1;
 #endif
-	Ray amb_ray = make_Ray( hit, rdir, radiance_ray_type, RAY_START, RAY_END );
+	Ray amb_ray = make_Ray( hit, rdir, radiance_ray_type, ray_start( hit, rdir, normal, RAY_START ), RAY_END );
 	rtTrace(top_object, amb_ray, new_prd);
 #ifdef RAY_COUNT
 	prd.ray_count += new_prd.ray_count;
@@ -1347,7 +1347,7 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point )
 #ifdef HIT_COUNT
 	new_prd.hit_count = 0;
 #endif
-	Ray amb_ray = make_Ray( hit_point, rdir, radiance_ray_type, RAY_START, RAY_END );
+	Ray amb_ray = make_Ray( hit_point, rdir, radiance_ray_type, ray_start( hit_point, rdir, normal, RAY_START ), RAY_END );
 	rtTrace(top_object, amb_ray, new_prd);
 #ifdef RAY_COUNT
 	prd.result.ray_count += new_prd.ray_count;

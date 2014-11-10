@@ -138,6 +138,8 @@ RT_METHOD int isfinite( const float3& v );
 RT_METHOD float2 sqrtf( const float2& v );
 RT_METHOD float3 sqrtf( const float3& v );
 RT_METHOD float3 cross_direction( const float3& v );
+RT_METHOD float ray_start( const float3& hit, const float& t );
+RT_METHOD float ray_start( const float3& hit, const float3& dir, const float3& normal, const float& t );
 RT_METHOD float3 exceptionToFloat3( const unsigned int& code );
 
 /* Test if any vector elements are NaN. */
@@ -178,6 +180,18 @@ RT_METHOD float3 cross_direction( const float3& v )
 	if ( v.y < 0.6f && v.y > -0.6f )
 		return make_float3( 0.0f, 1.0f, 0.0f );
 	return make_float3( 0.0f, 0.0f, 1.0f );
+}
+
+/* Determine a safe starting value for ray t normal to surface. */
+RT_METHOD float ray_start( const float3& hit, const float& t )
+{
+	return t * fmaxf( 1.0f, fabsf( optix::length( hit ) ) );
+}
+
+/* Determine a safe starting value for ray t at any angle to surface. */
+RT_METHOD float ray_start( const float3& hit, const float3& dir, const float3& normal, const float& t )
+{
+	return t * fmaxf( 1.0f, fabsf( optix::length( hit ) / optix::dot( dir, normal ) ) );
 }
 
 /* Convert exception to float3 code. */

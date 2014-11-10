@@ -11,6 +11,13 @@
 //#define PRINT_CUDA
 #define MULTI_BLOCK
 
+#ifdef CAP_REGISTERS_PER_THREAD
+/* This is the maximum number of registers used by any cuda kernel in this in this file,
+found by using the flag "-Xptxas -v" to compile in nvcc. This should be updated when
+changes are made to the kernels. */
+#define REGISTERS_PER_THREAD	24
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -428,7 +435,7 @@ static void __cdecl cuda_score_hits_recursive(float *deviceError, int *deviceSee
 	const unsigned int width, const unsigned int height, unsigned int levels, const unsigned int scale, const unsigned int maxThreadsPerBlock, dim3 dimGrid, dim3 dimBlock)
 {
 	/* Perform reduction on error */
-	reduce_error <<< dimGrid, dimBlock >>>
+	reduce_error <<< dimGrid, dimBlock, 0 >>>
 			(deviceError, width, height, levels, scale);
 
 	cudaDeviceSynchronize(); checkLastCudaError();
@@ -450,7 +457,7 @@ static void __cdecl cuda_score_hits_recursive(float *deviceError, int *deviceSee
 	}
 
 	/* Calculate score for each leaf node based on error */
-	calc_score <<< dimGrid, dimBlock >>>
+	calc_score <<< dimGrid, dimBlock, 0 >>>
 			(deviceError, deviceSeeds, width, height, levels, scale);
 
 	cudaDeviceSynchronize(); checkLastCudaError();
@@ -481,8 +488,17 @@ void __cdecl cuda_score_hits(PointDirection *hits, int *seeds, const unsigned in
 	cudaGetDevice(&deviceNum);
 	cudaGetDeviceProperties(&deviceProp, deviceNum);
 
+#ifdef CAP_REGISTERS_PER_THREAD
+	const unsigned int registersPerBlock = deviceProp.regsPerBlock;
+	unsigned int threadsPerBlock = deviceProp.maxThreadsPerBlock;
+	while (registersPerBlock / threadsPerBlock < REGISTERS_PER_THREAD)
+		threadsPerBlock >>= 1;
+#else
+	const unsigned int threadsPerBlock = deviceProp.maxThreadsPerBlock;
+#endif
+
 	/* To support reduction, blockDim *must* be a power of two. */
-	const unsigned int blockDim = calc_block_dim(deviceProp.maxThreadsPerBlock, levels);
+	const unsigned int blockDim = calc_block_dim(threadsPerBlock, levels);
 	const unsigned int blocksX = (width - 1) / blockDim + 1;
 	const unsigned int blocksY = (height - 1) / blockDim + 1;
 	const unsigned int blockSharedMemorySize = blockDim * blockDim * sizeof(PointDirection);
@@ -511,10 +527,10 @@ void __cdecl cuda_score_hits(PointDirection *hits, int *seeds, const unsigned in
 	checkCuda(cudaMalloc(&deviceError, size * levels * sizeof(float)));
 
 	/* Calculate average of hits at each quad tree node */
-	cuda_mip_map_hits_recursive(deviceHits, deviceMipMap, width, height, levels, deviceProp.maxThreadsPerBlock, dimGrid, dimBlock, blockSharedMemorySize);
+	cuda_mip_map_hits_recursive(deviceHits, deviceMipMap, width, height, levels, threadsPerBlock, dimGrid, dimBlock, blockSharedMemorySize);
 
 	/* Calculate geometric variation at each quad tree node */
-	calc_error <<< dimGrid, dimBlock >>>
+	calc_error <<< dimGrid, dimBlock, 0 >>>
 			(deviceHits, deviceMipMap, deviceError, width, height, levels, weight);
 
 	cudaDeviceSynchronize(); checkLastCudaError();
@@ -534,7 +550,7 @@ void __cdecl cuda_score_hits(PointDirection *hits, int *seeds, const unsigned in
 
 #ifdef MULTI_BLOCK
 	/* Calculate average geometric variation for each quad tree node */
-	cuda_score_hits_recursive(deviceError, deviceSeeds, width, height, levels, 1u, deviceProp.maxThreadsPerBlock, dimGrid, dimBlock);
+	cuda_score_hits_recursive(deviceError, deviceSeeds, width, height, levels, 1u, threadsPerBlock, dimGrid, dimBlock);
 
 	/* Free memory on the GPU */
 	checkCuda(cudaFree(deviceError));

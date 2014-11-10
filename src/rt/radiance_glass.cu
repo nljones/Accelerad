@@ -91,7 +91,7 @@ RT_PROGRAM void closest_hit_shadow()
 		//new_prd.depth = prd.depth + 1;
 		new_prd.target = prd_shadow.target;
 		new_prd.result = make_float3( 0.0f );
-		optix::Ray trans_ray = optix::make_Ray( hit_point, ray.direction, shadow_ray_type, RAY_START, RAY_END );
+		optix::Ray trans_ray = optix::make_Ray( hit_point, ray.direction, shadow_ray_type, ray_start( hit_point, ray.direction, ffnormal, RAY_START ), RAY_END );
 		rtTrace(top_object, trans_ray, new_prd);
 		result += new_prd.result * trans;
 	//}
@@ -165,7 +165,7 @@ RT_PROGRAM void closest_hit_radiance()
 #ifdef HIT_COUNT
 			new_prd.hit_count = 0;
 #endif
-			Ray trans_ray = make_Ray( hit_point, ray.direction, radiance_ray_type, RAY_START, RAY_END );
+			Ray trans_ray = make_Ray( hit_point, ray.direction, radiance_ray_type, ray_start( hit_point, ray.direction, ffnormal, RAY_START ), RAY_END );
 			rtTrace(top_object, trans_ray, new_prd);
 			float3 rcol = new_prd.result * trans;
 			result += rcol;
@@ -202,7 +202,7 @@ RT_PROGRAM void closest_hit_radiance()
 		new_prd.hit_count = 0;
 #endif
 		float3 R = reflect( ray.direction, ffnormal );
-		Ray refl_ray = make_Ray( hit_point, R, radiance_ray_type, RAY_START, RAY_END );
+		Ray refl_ray = make_Ray( hit_point, R, radiance_ray_type, ray_start( hit_point, R, ffnormal, RAY_START ), RAY_END );
 		rtTrace(top_object, refl_ray, new_prd);
 		float3 rcol = new_prd.result * refl;
 		result += rcol;

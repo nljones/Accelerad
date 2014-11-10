@@ -114,7 +114,7 @@ RT_PROGRAM void point_cloud_camera()
 		direction = uniform_solid_angle( d );
 	}
 
-	Ray ray = make_Ray(eye, direction, point_cloud_ray_type, RAY_START, RAY_END);
+	Ray ray = make_Ray(eye, direction, point_cloud_ray_type, ray_start( eye, RAY_START ), RAY_END);
 
 	unsigned int loop = 2u * seeds; // Prevent infinite looping
 	while ( index.z < seeds && loop-- ) {

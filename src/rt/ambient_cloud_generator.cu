@@ -65,7 +65,8 @@ RT_PROGRAM void ambient_cloud_camera()
 
 	if ( dot( cluster.dir, cluster.dir ) > FTINY ) { // Check that this is a valid ray
 		float3 ray_direction = -normalize( cluster.dir ); // Ray will face opposite the normal direction
-		Ray ray = make_Ray(cluster.pos, ray_direction, ambient_record_ray_type, -RAY_START, RAY_START);
+		const float tmin = ray_start( cluster.pos, RAY_START );
+		Ray ray = make_Ray(cluster.pos, ray_direction, ambient_record_ray_type, -tmin, tmin);
 		rtTrace(top_object, ray, prd);
 	}
 

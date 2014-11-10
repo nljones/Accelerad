@@ -62,14 +62,21 @@ if(OptiX_USE)
   # block of code will not be executed leaving you free to edit the values as much as you
   # wish from the GUI or from ccmake.
   if(NOT PASSED_FIRST_CONFIGURE)
-    set(flag "--use_fast_math")
+    #set(flag "--use_fast_math")
+    #list(FIND CUDA_NVCC_FLAGS ${flag} index)
+    #if(index EQUAL -1)
+    #  list(APPEND CUDA_NVCC_FLAGS ${flag})
+    #  set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} CACHE LIST "Semi-colon delimit multiple arguments." FORCE)
+    #endif()
+	
+    set(flag "--gpu-architecture sm_20")
     list(FIND CUDA_NVCC_FLAGS ${flag} index)
     if(index EQUAL -1)
       list(APPEND CUDA_NVCC_FLAGS ${flag})
       set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} CACHE LIST "Semi-colon delimit multiple arguments." FORCE)
     endif()
 	
-    set(flag "--gpu-architecture sm_20")
+    set(flag "-Xptxas -v")
     list(FIND CUDA_NVCC_FLAGS ${flag} index)
     if(index EQUAL -1)
       list(APPEND CUDA_NVCC_FLAGS ${flag})
