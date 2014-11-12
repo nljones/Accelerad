@@ -427,10 +427,10 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 #else
 	seeds_per_thread = optix_amb_seeds_per_thread;
 #endif
-	if ( optix_amb_grid_size ) {
+	if ( view && optix_amb_grid_size ) { // if -az argument greater than zero
 		grid_width = optix_amb_grid_size / 2;
 		grid_height = optix_amb_grid_size;
-	} else if ( optix_amb_scale ) {
+	} else if ( view && optix_amb_scale ) { // if -al argument greater than zero
 		grid_width = width / optix_amb_scale;
 		grid_height = height / optix_amb_scale;
 	} else {
@@ -619,9 +619,9 @@ static void createPointCloudCamera( const RTcontext context, const VIEW* view )
 	RTprogram  miss_program;
 
 	/* Ray generation program */
-	ptxFile( path_to_ptx, "point_cloud_generator" );
-	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "point_cloud_camera", &ray_gen_program ) );
 	if ( view ) {
+		ptxFile( path_to_ptx, "point_cloud_generator" );
+		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "point_cloud_camera", &ray_gen_program ) );
 		applyProgramVariable3f( context, ray_gen_program, "eye", view->vp[0], view->vp[1], view->vp[2] ); // -vp
 		if ( !optix_amb_grid_size ) { // Use camera for bounds of sampling area
 			applyProgramVariable1ui( context, ray_gen_program, "camera", view->type ); // -vt
@@ -632,8 +632,11 @@ static void createPointCloudCamera( const RTcontext context, const VIEW* view )
 			applyProgramVariable2f( context, ray_gen_program, "shift", view->hoff, view->voff ); // -vs, -vl
 			applyProgramVariable2f( context, ray_gen_program, "clip", view->vfore, view->vaft ); // -vo, -va
 		}
-	} // TODO pick ray origin for rtrace
-	applyProgramVariable1f( context, ray_gen_program, "dstrpix", dstrpix ); // -pj
+		applyProgramVariable1f( context, ray_gen_program, "dstrpix", dstrpix ); // -pj
+	} else {
+		ptxFile( path_to_ptx, "sensor_cloud_generator" );
+		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "cloud_generator", &ray_gen_program ) );
+	}
 	RT_CHECK_ERROR( rtContextSetRayGenerationProgram( context, POINT_CLOUD_ENTRY, ray_gen_program ) );
 
 	/* Exception program */

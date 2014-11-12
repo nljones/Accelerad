@@ -208,9 +208,6 @@ void computeOptix(const int width, const int height, const double alarm, RAY* ra
 	printDeviceInfo();
 	createContext( &context, width, height, alarm );
 	
-	if ( use_ambient )
-		error(USER, "Irradiance cache not supported. Use either aa=0 or g=0.");
-
 	/* Input/output buffer */
 	createCustomBuffer2D( context, RT_BUFFER_INPUT_OUTPUT, sizeof(RayData), width, height, &ray_buffer );
 	//createCustomBuffer2D( context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, sizeof(RayData), width, height, &ray_buffer );
@@ -1272,9 +1269,9 @@ static int createFunction( const RTcontext context, const OBJREC* rec )
 	if ( rec->oargs.nsargs >= 2 ) {
 		if ( !strcmp(rec->oargs.sarg[0], "skybr") && !strcmp(rec->oargs.sarg[1], "skybright.cal") ) {
 			float transform[9] = {
-				bxp.xfm[0][0], bxp.xfm[0][1], bxp.xfm[0][2],
-				bxp.xfm[1][0], bxp.xfm[1][1], bxp.xfm[1][2],
-				bxp.xfm[2][0], bxp.xfm[2][1], bxp.xfm[2][2]
+				bxp.xfm[0][0], bxp.xfm[1][0], bxp.xfm[2][0],
+				bxp.xfm[0][1], bxp.xfm[1][1], bxp.xfm[2][1],
+				bxp.xfm[0][2], bxp.xfm[1][2], bxp.xfm[2][2]
 			};
 			ptxFile( path_to_ptx, "skybright" );
 			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "sky_bright", &program ) );
@@ -1287,9 +1284,9 @@ static int createFunction( const RTcontext context, const OBJREC* rec )
 		} else if ( !strcmp(rec->oargs.sarg[0], "skybright") && !strcmp(rec->oargs.sarg[1], "perezlum.cal") ) {
 			float coef[5] = { rec->oargs.farg[2], rec->oargs.farg[3], rec->oargs.farg[4], rec->oargs.farg[5], rec->oargs.farg[6] };
 			float transform[9] = {
-				bxp.xfm[0][0], bxp.xfm[0][1], bxp.xfm[0][2],
-				bxp.xfm[1][0], bxp.xfm[1][1], bxp.xfm[1][2],
-				bxp.xfm[2][0], bxp.xfm[2][1], bxp.xfm[2][2]
+				bxp.xfm[0][0], bxp.xfm[1][0], bxp.xfm[2][0],
+				bxp.xfm[0][1], bxp.xfm[1][1], bxp.xfm[2][1],
+				bxp.xfm[0][2], bxp.xfm[1][2], bxp.xfm[2][2]
 			};
 			ptxFile( path_to_ptx, "perezlum" );
 			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "perez_lum", &program ) );

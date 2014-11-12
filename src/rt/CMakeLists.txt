@@ -102,13 +102,13 @@ if(OptiX_USE)
   # This is a macro found in FindCUDA.cmake that compiles the listed
   # CUDA files into PTX files with the prefix "cuda_compile_ptx_generated_"
   # in the directory specified by CUDA_GENERATED_OUTPUT_DIR.
-  CUDA_COMPILE_PTX(generated_PTX_files_rtrace sensor.cu)
-  CUDA_COMPILE_PTX(generated_PTX_files_rpict camera.cu)
+  CUDA_COMPILE_PTX(generated_PTX_files_rtrace sensor.cu sensor_cloud_generator.cu)
+  CUDA_COMPILE_PTX(generated_PTX_files_rpict camera.cu point_cloud_generator.cu ambient_generator.cu)
   CUDA_COMPILE_PTX(generated_PTX_files
     triangle_mesh.cu background.cu skybright.cu perezlum.cu
     radiance_normal.cu radiance_glass.cu radiance_light.cu source.cu
-    ambient_records.cu ambient_generator.cu ambient_normal.cu
-    ambient_cloud_generator.cu point_cloud_generator.cu point_cloud_normal.cu hemisphere_generator.cu)
+    ambient_records.cu ambient_normal.cu ambient_cloud_generator.cu
+    point_cloud_normal.cu hemisphere_generator.cu)
 endif()
 
 add_executable(rtrace rtmain.c rtrace.c duphead.c persist.c ${OptiX_SOURCES} ${generated_CUDA_files} ${generated_PTX_files_rtrace} ${generated_PTX_files})
