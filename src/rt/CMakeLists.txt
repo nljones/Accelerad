@@ -62,12 +62,12 @@ if(OptiX_USE)
   # block of code will not be executed leaving you free to edit the values as much as you
   # wish from the GUI or from ccmake.
   if(NOT PASSED_FIRST_CONFIGURE)
-    #set(flag "--use_fast_math")
-    #list(FIND CUDA_NVCC_FLAGS ${flag} index)
-    #if(index EQUAL -1)
-    #  list(APPEND CUDA_NVCC_FLAGS ${flag})
-    #  set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} CACHE LIST "Semi-colon delimit multiple arguments." FORCE)
-    #endif()
+    set(flag "--use_fast_math")
+    list(FIND CUDA_NVCC_FLAGS ${flag} index)
+    if(index EQUAL -1)
+      list(APPEND CUDA_NVCC_FLAGS ${flag})
+      set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} CACHE LIST "Semi-colon delimit multiple arguments." FORCE)
+    endif()
 	
     set(flag "--gpu-architecture sm_20")
     list(FIND CUDA_NVCC_FLAGS ${flag} index)
@@ -102,7 +102,7 @@ if(OptiX_USE)
   # This is a macro found in FindCUDA.cmake that compiles the listed
   # CUDA files into PTX files with the prefix "cuda_compile_ptx_generated_"
   # in the directory specified by CUDA_GENERATED_OUTPUT_DIR.
-  CUDA_COMPILE_PTX(generated_PTX_files_rtrace sensor.cu sensor_cloud_generator.cu)
+  CUDA_COMPILE_PTX(generated_PTX_files_rtrace sensor.cu sensor_cloud_generator.cu irradiance_intersect.cu)
   CUDA_COMPILE_PTX(generated_PTX_files_rpict camera.cu point_cloud_generator.cu ambient_generator.cu)
   CUDA_COMPILE_PTX(generated_PTX_files
     triangle_mesh.cu background.cu skybright.cu perezlum.cu

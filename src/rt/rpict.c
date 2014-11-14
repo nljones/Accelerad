@@ -114,6 +114,9 @@ char  *amblist[AMBLLEN];		/* ambient include/exclude list */
 int  ambincl = -1;			/* include == 1, exclude == 0 */
 
 #ifdef OPTIX
+/* from optix_radiance.c */
+int  imm_irrad = 0; //TODO This shouldn't be necessary, but the variable must exist in optix_radiance.c
+
 double  ralrm = 0.0;				/* seconds between reports */
 #else
 int  ralrm = 0;				/* seconds between reports */

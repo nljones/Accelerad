@@ -96,7 +96,9 @@ RT_METHOD float perez_lum( PerezLum perez )
 RT_PROGRAM void miss()
 {
 	prd_radiance.result = make_float3( 0.0f );
-	prd_radiance.distance = RAY_END;
+	prd_radiance.distance = ray.tmax;
+	if ( ray.tmax < RAY_END ) // ray length was truncated
+		return;
 
 	const float3 H = optix::normalize(ray.direction);
 
@@ -138,7 +140,6 @@ RT_PROGRAM void miss()
 RT_PROGRAM void miss_shadow()
 {
 	float3 result = make_float3( 0.0f );
-	//prd_shadow.distance = RAY_END;
 
 	const float3 H = optix::normalize(ray.direction);
 

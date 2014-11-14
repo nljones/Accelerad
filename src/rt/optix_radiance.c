@@ -75,6 +75,7 @@ static int createTexture( const RTcontext context, const OBJREC* rec, float* ran
 #endif
 static int createTransform( XF* bxp, const OBJREC* rec );
 static void createAcceleration( const RTcontext context, const RTgeometryinstance instance );
+static void createIrradianceGeometry( const RTcontext context );
 static void printObect( const OBJREC* rec );
 static void getRay( RayData* data, const RAY* ray );
 static void setRay( RAY* ray, const RayData* data );
@@ -84,6 +85,9 @@ static void setRay( RAY* ray, const RayData* data );
 
 /* from rpict.c */
 extern double  dstrpix;			/* square pixel distribution */
+
+/* from rtmain.c */
+extern int  imm_irrad;			/* compute immediate irradiance? */
 
 /* from ambient.c */
 extern double  avsum;		/* computed ambient value sum (log) */
@@ -386,6 +390,8 @@ static void setupKernel( const RTcontext context, const VIEW* view, const int wi
 	createCamera( context, view );
 	createGeometryInstance( context, &instance );
 	createAcceleration( context, instance );
+	if ( imm_irrad )
+		createIrradianceGeometry( context );
 
 	/* Set up irradiance cache of ambient values */
 	if ( use_ambient ) { // Don't bother with ambient records if -aa is set to zero
@@ -441,6 +447,7 @@ static void applyRadianceSettings( const RTcontext context )
 	/* Set ray limitting parameters */
 	applyContextVariable1f( context, "minweight", minweight ); // -lw, from ray.h
 	applyContextVariable1i( context, "maxdepth", maxdepth ); // -lr, from ray.h, negative values indicate Russian roulette
+	applyContextVariable1ui( context, "imm_irrad", imm_irrad ); // -I
 }
 
 static void createCamera( const RTcontext context, const VIEW* view )
@@ -994,7 +1001,8 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 
 	/* Unmap and apply the geometry buffers. */
 	RT_CHECK_ERROR( rtBufferUnmap( vertex_buffer ) );
-	applyGeometryInstanceObject( context, *instance, "vertex_buffer", vertex_buffer );
+	//applyGeometryInstanceObject( context, *instance, "vertex_buffer", vertex_buffer );
+	applyContextObject( context, "vertex_buffer", vertex_buffer );
 
 	RT_CHECK_ERROR( rtBufferUnmap( normal_buffer ) );
 	applyGeometryInstanceObject( context, *instance, "normal_buffer", normal_buffer );
@@ -1013,7 +1021,8 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 
 #ifdef LIGHTS
 	RT_CHECK_ERROR( rtBufferUnmap( light_index_buffer ) );
-	applyGeometryInstanceObject( context, *instance, "lindex_buffer", light_index_buffer );
+	//applyGeometryInstanceObject( context, *instance, "lindex_buffer", light_index_buffer );
+	applyContextObject( context, "lindex_buffer", light_index_buffer );
 #endif
 
 	geometry_end_clock = clock();
@@ -1469,6 +1478,8 @@ static void createAcceleration( const RTcontext context, const RTgeometryinstanc
 	applyContextObject( context, "top_shadower", geometrygroup );
 	if ( !use_ambient )
 		applyContextObject( context, "top_ambient", geometrygroup ); // Need to define this because it is referred to by radiance_normal.cu
+	if ( !imm_irrad )
+		applyContextObject( context, "top_irrad", geometrygroup ); // Need to define this because it is referred to by sensor.cu, sensor_cloud_generator, and ambient_cloud_generator.cu
 
 	/* create acceleration object for group and specify some build hints */
 	RT_CHECK_ERROR( rtAccelerationCreate( context, &acceleration ) );
@@ -1476,6 +1487,50 @@ static void createAcceleration( const RTcontext context, const RTgeometryinstanc
 	RT_CHECK_ERROR( rtAccelerationSetTraverser( acceleration, "Bvh" ) );
 	RT_CHECK_ERROR( rtAccelerationSetProperty( acceleration, "vertex_buffer_name", "vertex_buffer" ) ); // For Sbvh only
 	RT_CHECK_ERROR( rtAccelerationSetProperty( acceleration, "index_buffer_name", "vindex_buffer" ) ); // For Sbvh only
+	RT_CHECK_ERROR( rtGeometryGroupSetAcceleration( geometrygroup, acceleration ) );
+
+	/* mark acceleration as dirty */
+	RT_CHECK_ERROR( rtAccelerationMarkDirty( acceleration ) );
+}
+
+static void createIrradianceGeometry( const RTcontext context )
+{
+	RTgeometry         geometry;
+	RTprogram          irradiance_intersection_program, irradiance_bounding_box_program;
+	RTgeometryinstance instance;
+	RTgeometrygroup    geometrygroup;
+	RTacceleration     acceleration;
+
+	/* Create the geometry reference for OptiX. */
+	RT_CHECK_ERROR( rtGeometryCreate( context, &geometry ) );
+	RT_CHECK_ERROR( rtGeometrySetPrimitiveCount( geometry, 1 ) );
+
+	ptxFile( path_to_ptx, "irradiance_intersect" );
+	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "irradiance_bounds", &irradiance_bounding_box_program ) );
+	RT_CHECK_ERROR( rtGeometrySetBoundingBoxProgram( geometry, irradiance_bounding_box_program ) );
+	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "irradiance_intersect", &irradiance_intersection_program ) );
+	RT_CHECK_ERROR( rtGeometrySetIntersectionProgram( geometry, irradiance_intersection_program ) );
+
+	/* Create the geometry instance containing the geometry. */
+	RT_CHECK_ERROR( rtGeometryInstanceCreate( context, &instance ) );
+	RT_CHECK_ERROR( rtGeometryInstanceSetGeometry( instance, geometry ) );
+
+	/* Create a Lambertian material as the geometry instance's only material. */
+	RT_CHECK_ERROR( rtGeometryInstanceSetMaterialCount( instance, 1 ) );
+	createNormalMaterial( context, instance, 0, &Lamb );
+
+	/* Create a geometry group to hold the geometry instance.  This will be used as the top level group. */
+	RT_CHECK_ERROR( rtGeometryGroupCreate( context, &geometrygroup ) );
+	RT_CHECK_ERROR( rtGeometryGroupSetChildCount( geometrygroup, 1 ) );
+	RT_CHECK_ERROR( rtGeometryGroupSetChild( geometrygroup, 0, instance ) );
+
+	/* Set the geometry group as the top level object. */
+	applyContextObject( context, "top_irrad", geometrygroup );
+
+	/* create acceleration object for group and specify some build hints */
+	RT_CHECK_ERROR( rtAccelerationCreate( context, &acceleration ) );
+	RT_CHECK_ERROR( rtAccelerationSetBuilder( acceleration, "NoAccel" ) );
+	RT_CHECK_ERROR( rtAccelerationSetTraverser( acceleration, "NoAccel" ) );
 	RT_CHECK_ERROR( rtGeometryGroupSetAcceleration( geometrygroup, acceleration ) );
 
 	/* mark acceleration as dirty */
@@ -1536,5 +1591,5 @@ static void setRay( RAY* ray, const RayData* data )
 	ray->rmax = data->max;
 	ray->rweight = data->weight;
 	ray->rt = data->length;
-	//ray->rot = data->t;
+	//ray->rot = data->t; //TODO setting this requires that the ray has non-null ro.
 }

@@ -15,8 +15,10 @@ rtDeclareVariable(unsigned int,  do_irrad, , ); /* Calculate irradiance (-i) */
 rtBuffer<RayData, 2>             ray_buffer;
 //rtBuffer<unsigned int, 2>        rnd_seeds;
 rtDeclareVariable(rtObject,      top_object, , );
+rtDeclareVariable(rtObject,      top_irrad, , );
 rtDeclareVariable(unsigned int,  radiance_ray_type, , );
 rtDeclareVariable(unsigned int,  radiance_primary_ray_type, , );
+rtDeclareVariable(unsigned int,  imm_irrad, , ); /* Immediate irradiance (-I) */
 
 /* OptiX variables */
 rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
@@ -41,15 +43,6 @@ RT_PROGRAM void ray_generator()
 #endif
 	PerRayData_radiance prd;
 	init_state( &prd );
-
-	// Zero or negative aft clipping distance indicates infinity
-	float aft = ray_buffer[launch_index].max;
-	if (aft <= FTINY) {
-		aft = RAY_END;
-	}
-
-	Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, do_irrad ? radiance_primary_ray_type : radiance_ray_type, ray_start( ray_buffer[launch_index].origin, RAY_START ), aft);
-
 	prd.weight = 1.0f;
 	prd.depth = 0;
 	prd.ambient_depth = 0;
@@ -61,7 +54,20 @@ RT_PROGRAM void ray_generator()
 	prd.ray_count = 1;
 #endif
 
-	rtTrace(top_object, ray, prd);
+	const float tmin = ray_start( ray_buffer[launch_index].origin, RAY_START );
+	if ( imm_irrad ) {
+		Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, radiance_ray_type, -tmin, tmin);
+		rtTrace(top_irrad, ray, prd);
+	} else {
+		// Zero or negative aft clipping distance indicates infinity
+		float aft = ray_buffer[launch_index].max;
+		if (aft <= FTINY) {
+			aft = RAY_END;
+		}
+
+		Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, do_irrad ? radiance_primary_ray_type : radiance_ray_type, tmin, aft);
+		rtTrace(top_object, ray, prd);
+	}
 
 #ifdef TIME_VIEW
 	clock_t t1 = clock();
@@ -73,8 +79,10 @@ RT_PROGRAM void ray_generator()
 	ray_buffer[launch_index].val = make_float3( prd.ray_count );
 #else
 	ray_buffer[launch_index].val = prd.result;
-	ray_buffer[launch_index].length = prd.distance;
+	//ray_buffer[launch_index].hit = ray_buffer[launch_index].origin + prd.distance * ray_buffer[launch_index].dir;
 	ray_buffer[launch_index].weight = prd.weight;
+	ray_buffer[launch_index].length = prd.distance;
+	//ray_buffer[launch_index].t = prd.distance;
 #endif
 }
 

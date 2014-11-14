@@ -15,8 +15,10 @@ rtDeclareVariable(unsigned int,  stride, , ) = 1u; /* Spacing between used threa
 rtBuffer<PointDirection, 1>      cluster_buffer; /* input */
 rtBuffer<AmbientRecord, 1>       ambient_record_buffer; /* output */
 rtDeclareVariable(rtObject,      top_object, , );
+rtDeclareVariable(rtObject,      top_irrad, , );
 rtDeclareVariable(unsigned int,  ambient_record_ray_type, , );
 rtDeclareVariable(unsigned int,  level, , ) = 0u;
+rtDeclareVariable(unsigned int,  imm_irrad, , ); /* Immediate irradiance (-I) */
 
 /* OptiX variables */
 rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
@@ -67,7 +69,10 @@ RT_PROGRAM void ambient_cloud_camera()
 		float3 ray_direction = -normalize( cluster.dir ); // Ray will face opposite the normal direction
 		const float tmin = ray_start( cluster.pos, RAY_START );
 		Ray ray = make_Ray(cluster.pos, ray_direction, ambient_record_ray_type, -tmin, tmin);
-		rtTrace(top_object, ray, prd);
+		if ( imm_irrad && !level )
+			rtTrace(top_irrad, ray, prd);
+		else
+			rtTrace(top_object, ray, prd);
 	}
 
 	ambient_record_buffer[index] = prd.result;

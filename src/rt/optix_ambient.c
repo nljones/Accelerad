@@ -696,6 +696,7 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 
 	/* Check that enough seeds were found */
 	if ( good_seed_count <= cluster_count ) {
+		fprintf(stderr, "Using all %u seeds at level %u (%u needed for k-means).\n\n", good_seed_count, level, cluster_count);
 		for ( i = 0u; i < good_seed_count; i++ )
 			cluster_buffer_data[i] = *seeds[i];
 		for ( ; i < cluster_count; i++ )
@@ -712,7 +713,7 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 	kernel_start_clock = clock();
 	clusters = (PointDirection**)cuda_kmeans((float**)seeds, sizeof(PointDirection) / sizeof(float), good_seed_count, cluster_count, cuda_kmeans_iterations, cuda_kmeans_threshold, cuda_kmeans_error / thescene.cusize, level, membership, distance, &loops);
 	kernel_end_clock = clock();
-	fprintf(stderr, "Kmeans performed %u loop iterations in %u milliseconds.\n", loops, (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC);
+	fprintf(stderr, "K-means performed %u loop iterations in %u milliseconds.\n", loops, (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC);
 
 	/* Populate buffer of seed point clusters. */
 	min_distance = (float*) malloc(cluster_count * sizeof(float));
@@ -744,7 +745,7 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 			fprintf(stderr, "Zero direction in cluster %u (%g, %g, %g) (%g, %g, %g)\n", i, cluster_buffer_data[i].pos.x, cluster_buffer_data[i].pos.y, cluster_buffer_data[i].pos.z, cluster_buffer_data[i].dir.x, cluster_buffer_data[i].dir.y, cluster_buffer_data[i].dir.z);
 #endif
 	}
-	fprintf(stderr, "Kmeans produced %u of %u clusters at level %u.\n\n", cluster_count - j, cluster_count, level);
+	fprintf(stderr, "K-means produced %u of %u clusters at level %u.\n\n", cluster_count - j, cluster_count, level);
 
 	/* Free memory */
 	free(min_distance);

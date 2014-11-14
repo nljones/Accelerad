@@ -8,12 +8,17 @@
 
 using namespace optix;
 
+/* Program variables */
+rtDeclareVariable(unsigned int,  do_irrad, , ); /* Calculate irradiance (-i) */
+
 /* Contex variables */
 rtBuffer<RayData, 2>             ray_buffer;
 rtBuffer<PointDirection, 3>      seed_buffer;
 rtDeclareVariable(rtObject,      top_object, , );
+rtDeclareVariable(rtObject,      top_irrad, , );
 rtDeclareVariable(unsigned int,  point_cloud_ray_type, , );
 rtDeclareVariable(unsigned int,  seeds, , ) = 1u; /* number of seed points to discover per thread */
+rtDeclareVariable(unsigned int,  imm_irrad, , ); /* Immediate irradiance (-I) */
 
 /* OptiX variables */
 rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
@@ -31,18 +36,28 @@ RT_PROGRAM void cloud_generator()
 
 	uint3 index = make_uint3( launch_index, 0u );
 
-	// Zero or negative aft clipping distance indicates infinity
-	float aft = ray_buffer[launch_index].max;
-	if (aft <= FTINY) {
-		aft = RAY_END;
+	float tmin = ray_start( ray_buffer[launch_index].origin, RAY_START );
+	float tmax;
+	if ( imm_irrad ) {
+		tmax = tmin;
+		tmin = -tmin;
+	} else {
+		// Zero or negative aft clipping distance indicates infinity
+		tmax = ray_buffer[launch_index].max;
+		if (tmax <= FTINY) {
+			tmax = RAY_END;
+		}
 	}
 
-	Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, point_cloud_ray_type, ray_start( ray_buffer[launch_index].origin, RAY_START ), aft);
+	Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, point_cloud_ray_type, tmin, tmax);
 
 	unsigned int loop = 2u * seeds; // Prevent infinite looping
 	while ( index.z < seeds && loop-- ) {
 		// Trace the current ray
-		rtTrace(top_object, ray, prd);
+		if ( imm_irrad )
+			rtTrace(top_irrad, ray, prd);
+		else
+			rtTrace(top_object, ray, prd);
 
 		// Check for a valid result
 		if ( isfinite( prd.result.pos ) && dot( prd.result.dir, prd.result.dir ) > FTINY ) { // NaN values will be false
