@@ -14,6 +14,7 @@
 #include "source.h"
 #include "ambient.h"
 #include <face.h>
+#include <mesh.h>
 #include "data.h"
 
 #include "optix_radiance.h"
@@ -520,12 +521,13 @@ static void updateCamera( const RTcontext context, const VIEW* view )
 static void countObjectsInScene( ObjectCount* count )
 {
 	OBJREC* rec, *material;
-	unsigned int vertex_count;
+	MESHINST *meshinst;
+	unsigned int i, j, vertex_count;
 #ifdef CALLABLE
-	unsigned int i, v_count, t_count, m_count, l_count, dl_count, f_count;
+	unsigned int v_count, t_count, m_count, l_count, dl_count, f_count;
 	v_count = t_count = m_count = l_count = dl_count = f_count = 0u;
 #else
-	unsigned int i, v_count, t_count, m_count, l_count, dl_count, cie_count, perez_count, source_count;
+	unsigned int v_count, t_count, m_count, l_count, dl_count, cie_count, perez_count, source_count;
 	v_count = t_count = m_count = l_count = dl_count = cie_count = perez_count = source_count = 0u;
 #endif
 
@@ -556,6 +558,16 @@ static void countObjectsInScene( ObjectCount* count )
 			if (islight(material->otype) && (material->otype != MAT_GLOW || material->oargs.farg[3] > 0))
 				l_count += vertex_count - 2;
 #endif
+			break;
+		case OBJ_MESH: // Mesh from file
+			meshinst = getmeshinst(rec, IO_ALL);
+			//printmeshstats(meshinst->msh, stderr);
+			for (j = 0u; j < meshinst->msh->npatches; j++) {
+				MESHPATCH *pp = &(meshinst->msh)->patch[j];
+				v_count += pp->nverts;
+				t_count += pp->ntris + pp->nj1tris + pp->nj2tris;
+			}
+			//freemeshinst(rec);
 			break;
 		case OBJ_SOURCE: // The sun, for example
 			dl_count++;
@@ -659,7 +671,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	int*       l_index_buffer_data;
 #endif
 
-	int i, j, t;
+	int i, j, k, v_index_mesh, v_index_0 = 0;
 #ifdef CALLABLE
 	unsigned int vi, ni, ti, mi, vii, mii, mai, li, dli, fi;
 #else
@@ -674,6 +686,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 #ifdef TRIANGULATE
 	POLYTRIS *triangles;
 #endif
+	MESHINST *meshinst;
 
 	/* Timers */
 	clock_t geometry_start_clock, geometry_end_clock;
@@ -791,23 +804,22 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 		case MAT_GLOW: // Glow material
 		case MAT_SPOT: // Spotlight material
 			if ( rec->otype != MAT_ILLUM )
-				t = mi;
+				k = mi;
 			else if ( rec->oargs.nsargs && strcmp( rec->oargs.sarg[0], VOIDID ) ) { /* modifies another material */
 				//material = objptr( lastmod( objndx(rec), rec->oargs.sarg[0] ) );
-				//t = buffer_entry_index[objndx(material)];
-				t = buffer_entry_index[lastmod( objndx(rec), rec->oargs.sarg[0] )];
+				//k = buffer_entry_index[objndx(material)];
+				k = buffer_entry_index[lastmod( objndx(rec), rec->oargs.sarg[0] )];
 			} else
-				t = -1;
+				k = -1;
 			buffer_entry_index[i] = mi;
 			m_alt_buffer_data[mai++] = mi;
-			m_alt_buffer_data[mai++] = t;
+			m_alt_buffer_data[mai++] = k;
 			createLightMaterial( context, *instance, mi++, buffer_entry_index, rec );
 			break;
 		case OBJ_FACE:
 			face = getface(rec);
 			parent = objptr(rec->omod);
 			material = findmaterial(parent);
-			t = vi / 3;
 #ifdef TRIANGULATE
 			triangles = (POLYTRIS *)malloc(sizeof(POLYTRIS) + sizeof(struct ptri)*(face->nv - 3));
 			if (triangles == NULL)
@@ -823,18 +835,18 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 			for (j = 0; j < triangles->ntris; j++) {
 				//fprintf(stderr, "Face %s: %i, %i, %i\n", rec->oname, triangles->tri[j].vndx[0], triangles->tri[j].vndx[2], triangles->tri[j].vndx[3]);
 
-				v_index_buffer_data[vii++] = t + triangles->tri[j].vndx[0];
-				v_index_buffer_data[vii++] = t + triangles->tri[j].vndx[1];
-				v_index_buffer_data[vii++] = t + triangles->tri[j].vndx[2];
+				v_index_buffer_data[vii++] = v_index_0 + triangles->tri[j].vndx[0];
+				v_index_buffer_data[vii++] = v_index_0 + triangles->tri[j].vndx[1];
+				v_index_buffer_data[vii++] = v_index_0 + triangles->tri[j].vndx[2];
 
 				//m_index_buffer_data[mii++] = buffer_entry_index[rec.omod]; //This may be the case once texture functions are implemented
 				m_index_buffer_data[mii++] = buffer_entry_index[objndx(material)];
 
 #ifdef LIGHTS
 				if (islight(material->otype) && (material->otype != MAT_GLOW || material->oargs.farg[3] > 0)) {
-					l_index_buffer_data[li++] = t + triangles->tri[j].vndx[0];
-					l_index_buffer_data[li++] = t + triangles->tri[j].vndx[1];
-					l_index_buffer_data[li++] = t + triangles->tri[j].vndx[2];
+					l_index_buffer_data[li++] = v_index_0 + triangles->tri[j].vndx[0];
+					l_index_buffer_data[li++] = v_index_0 + triangles->tri[j].vndx[1];
+					l_index_buffer_data[li++] = v_index_0 + triangles->tri[j].vndx[2];
 				}
 #endif /* LIGHTS */
 			}
@@ -843,18 +855,18 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 #else /* TRIANGULATE */
 			/* Write the indices to the buffers */
 			for (j = 2; j < face->nv; j++) {
-				v_index_buffer_data[vii++] = t;
-				v_index_buffer_data[vii++] = t + j - 1;
-				v_index_buffer_data[vii++] = t + j;
+				v_index_buffer_data[vii++] = v_index_0;
+				v_index_buffer_data[vii++] = v_index_0 + j - 1;
+				v_index_buffer_data[vii++] = v_index_0 + j;
 
 				//m_index_buffer_data[mii++] = buffer_entry_index[rec.omod]; //This may be the case once texture functions are implemented
 				m_index_buffer_data[mii++] = buffer_entry_index[objndx(material)];
 
 #ifdef LIGHTS
 				if (islight(material->otype) && (material->otype != MAT_GLOW || material->oargs.farg[3] > 0)) {
-					l_index_buffer_data[li++] = t;
-					l_index_buffer_data[li++] = t + j - 1;
-					l_index_buffer_data[li++] = t + j;
+					l_index_buffer_data[li++] = v_index_0;
+					l_index_buffer_data[li++] = v_index_0 + j - 1;
+					l_index_buffer_data[li++] = v_index_0 + j;
 				}
 #endif /* LIGHTS */
 			}
@@ -871,9 +883,9 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 					double bu, bv;
 					FVECT v;
 
-					t = (int)parent->oargs.farg[0];
-					bu = face->va[3 * j + (t + 1) % 3];
-					bv = face->va[3 * j + (t + 2) % 3];
+					k = (int)parent->oargs.farg[0];
+					bu = face->va[3 * j + (k + 1) % 3];
+					bv = face->va[3 * j + (k + 2) % 3];
 
 					v[0] = bu * parent->oargs.farg[1] + bv * parent->oargs.farg[2] + parent->oargs.farg[3];
 					v[1] = bu * parent->oargs.farg[4] + bv * parent->oargs.farg[5] + parent->oargs.farg[6];
@@ -896,9 +908,9 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 					/* Texture coordinate calculation from tmesh.cal */
 					double bu, bv;
 
-					t = (int)parent->oargs.farg[0];
-					bu = face->va[3 * j + (t + 1) % 3];
-					bv = face->va[3 * j + (t + 2) % 3];
+					k = (int)parent->oargs.farg[0];
+					bu = face->va[3 * j + (k + 1) % 3];
+					bv = face->va[3 * j + (k + 2) % 3];
 
 					tex_coord_buffer_data[ti++] = bu * parent->oargs.farg[1] + bv * parent->oargs.farg[2] + parent->oargs.farg[3];
 					tex_coord_buffer_data[ti++] = bu * parent->oargs.farg[4] + bv * parent->oargs.farg[5] + parent->oargs.farg[6];
@@ -910,6 +922,123 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 				}
 			}
 			free(face);
+			v_index_0 += face->nv;
+			break;
+		case OBJ_MESH: // Mesh from file
+			meshinst = getmeshinst(rec, IO_ALL);
+			v_index_mesh = v_index_0; //TODO what if not all patches are full?
+			for (j = 0; j < meshinst->msh->npatches; j++) {
+				MESHPATCH *pp = &(meshinst->msh)->patch[j];
+				if (rec->omod != OVOID) {
+					parent = objptr(rec->omod);
+					material = findmaterial(parent);
+				} else if (!pp->trimat) {
+					OBJECT mo = pp->solemat;
+					if (mo != OVOID)
+						mo += meshinst->msh->mat0;
+					material = findmaterial(objptr(mo));
+				}
+
+				/* Write the indices to the buffers */
+				for (k = 0; k < pp->ntris; k++) {
+					v_index_buffer_data[vii++] = v_index_0 + pp->tri[k].v1;
+					v_index_buffer_data[vii++] = v_index_0 + pp->tri[k].v2;
+					v_index_buffer_data[vii++] = v_index_0 + pp->tri[k].v3;
+
+					if (rec->omod == OVOID && pp->trimat) {
+						OBJECT mo = pp->trimat[k];
+						if (mo != OVOID)
+							mo += meshinst->msh->mat0;
+						material = findmaterial(objptr(mo));
+					}
+					m_index_buffer_data[mii++] = buffer_entry_index[objndx(material)];
+
+#ifdef LIGHTS
+					if (islight(material->otype) && (material->otype != MAT_GLOW || material->oargs.farg[3] > 0)) {
+						l_index_buffer_data[li++] = v_index_0 + pp->tri[k].v1;
+						l_index_buffer_data[li++] = v_index_0 + pp->tri[k].v2;
+						l_index_buffer_data[li++] = v_index_0 + pp->tri[k].v3;
+					}
+#endif /* LIGHTS */
+				}
+
+				for (k = 0; k < pp->nj1tris; k++) {
+					v_index_buffer_data[vii++] = v_index_mesh + pp->j1tri[k].v1j;
+					v_index_buffer_data[vii++] = v_index_0 + pp->j1tri[k].v2;
+					v_index_buffer_data[vii++] = v_index_0 + pp->j1tri[k].v3;
+
+					if (rec->omod == OVOID && pp->trimat) {
+						OBJECT mo = pp->j1tri[k].mat;
+						if (mo != OVOID)
+							mo += meshinst->msh->mat0;
+						material = findmaterial(objptr(mo));
+					}
+					m_index_buffer_data[mii++] = buffer_entry_index[objndx(material)];
+
+#ifdef LIGHTS
+					if (islight(material->otype) && (material->otype != MAT_GLOW || material->oargs.farg[3] > 0)) {
+						l_index_buffer_data[li++] = v_index_mesh + pp->j1tri[k].v1j;
+						l_index_buffer_data[li++] = v_index_0 + pp->j1tri[k].v2;
+						l_index_buffer_data[li++] = v_index_0 + pp->j1tri[k].v3;
+					}
+#endif /* LIGHTS */
+				}
+
+				for (k = 0; k < pp->nj2tris; k++) {
+					v_index_buffer_data[vii++] = v_index_mesh + pp->j2tri[k].v1j;
+					v_index_buffer_data[vii++] = v_index_mesh + pp->j2tri[k].v2j;
+					v_index_buffer_data[vii++] = v_index_0 + pp->j2tri[k].v3;
+
+					if (rec->omod == OVOID && pp->trimat) {
+						OBJECT mo = pp->j2tri[k].mat;
+						if (mo != OVOID)
+							mo += meshinst->msh->mat0;
+						material = findmaterial(objptr(mo));
+					}
+					m_index_buffer_data[mii++] = buffer_entry_index[objndx(material)];
+
+#ifdef LIGHTS
+					if (islight(material->otype) && (material->otype != MAT_GLOW || material->oargs.farg[3] > 0)) {
+						l_index_buffer_data[li++] = v_index_mesh + pp->j2tri[k].v1j;
+						l_index_buffer_data[li++] = v_index_mesh + pp->j2tri[k].v2j;
+						l_index_buffer_data[li++] = v_index_0 + pp->j2tri[k].v3;
+					}
+#endif /* LIGHTS */
+				}
+
+				/* Write the vertices to the buffers */
+				// TODO do this once per mesh and use transform for different mesh instances
+				for (k = 0; k < pp->nverts; k++) {
+					MESHVERT mesh_vert;
+					FVECT transform;
+					getmeshvert(&mesh_vert, meshinst->msh, k + (j << 8), MT_ALL);
+					if (!(mesh_vert.fl & MT_V))
+						objerror(rec, INTERNAL, "missing mesh vertices in createGeometryInstance");
+					multp3(transform, mesh_vert.v, meshinst->x.f.xfm);
+					vertex_buffer_data[vi++] = transform[0];
+					vertex_buffer_data[vi++] = transform[1];
+					vertex_buffer_data[vi++] = transform[2];
+
+					if (mesh_vert.fl & MT_N) { // TODO what if normal is defined by texture function
+						multv3(transform, mesh_vert.n, meshinst->x.f.xfm);
+						normal_buffer_data[ni++] = transform[0];
+						normal_buffer_data[ni++] = transform[1];
+						normal_buffer_data[ni++] = transform[2];
+					} else {
+						normal_buffer_data[ni++] = normal_buffer_data[ni++] = normal_buffer_data[ni++] = 0.0f;
+					}
+
+					if (mesh_vert.fl & MT_UV) {
+						tex_coord_buffer_data[ti++] = mesh_vert.uv[0];
+						tex_coord_buffer_data[ti++] = mesh_vert.uv[1];
+					} else {
+						tex_coord_buffer_data[ti++] = tex_coord_buffer_data[ti++] = 0.0f;
+					}
+				}
+
+				v_index_0 += pp->nverts;
+			}
+			freemeshinst(rec);
 			break;
 		case OBJ_SOURCE:
 			light_buffer_data[dli++] = createDistantLight( context, buffer_entry_index, rec );

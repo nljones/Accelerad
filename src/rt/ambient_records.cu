@@ -105,23 +105,26 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 
 	float t = -dot( ck0, prd.surface_normal ) / dot( ray.direction, prd.surface_normal );
 
+	/* Extrapolate value and compute final weight (hat function) */
+	/* This is extambient from ambient.c */
+	/* gradient due to translation */
+	d = 1.0f + dot( ck0, record.gpos.x * u + record.gpos.y * v );
+
+	/* gradient due to rotation */
+	ck0 = cross( w, prd.surface_normal );
+	d += dot( ck0, record.gdir.x * u + record.gdir.y * v );
+
+	//if (d < min_d)			/* should not use if we can avoid it */
+	//	d = min_d;
+	if ( d <= 0.05f )
+		return;
+
 	if( rtPotentialIntersection( t ) ) {
 		float wt = ( 1.0f - sqrtf(delta_r2) / maxangle ) * ( 1.0f - sqrtf(delta_t2) / ambacc );
 		prd.wsum += wt;
 
-		/* Extrapolate value and compute final weight (hat function) */
-		/* This is extambient from ambient.c */
-		/* gradient due to translation */
-		d = 1.0f + dot( ck0, record.gpos.x * u + record.gpos.y * v );
-
-		/* gradient due to rotation */
-		ck0 = cross( w, prd.surface_normal );
-		d += dot( ck0, record.gdir.x * u + record.gdir.y * v );
-
-		if ( d > 0.0f ) {
-			// This assignment to the prd would take place in the any-hit program if there were one
-			prd.result += record.val * ( d * wt );
-		}
+		// This assignment to the prd would take place in the any-hit program if there were one
+		prd.result += record.val * ( d * wt );
 
 		rtReportIntersection( 0 ); // There is only one material for ambient geometry group
 	}

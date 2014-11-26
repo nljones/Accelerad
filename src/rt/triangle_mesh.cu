@@ -21,8 +21,8 @@
 
 #include <optix.h>
 #include <optixu/optixu_math_namespace.h>
-#include <optixu/optixu_matrix_namespace.h>
 #include <optixu/optixu_aabb_namespace.h>
+#include "optix_shader_common.h"
 
 using namespace optix;
 
@@ -80,15 +80,17 @@ RT_PROGRAM void mesh_intersect( int primIdx )
 		if ( rtPotentialIntersection( t ) ) {
 
 			//int3 n_idx = nindex_buffer[ primIdx ];
+			geometric_normal = normalize( n );
 			if ( normal_buffer.size() == 0 ) { //|| n_idx.x < 0 || n_idx.y < 0 || n_idx.z < 0 ) {
-				shading_normal = normalize( n );
+				shading_normal = geometric_normal;
 			} else {
 				float3 n0 = normal_buffer[ v_idx.x ];
 				float3 n1 = normal_buffer[ v_idx.y ];
 				float3 n2 = normal_buffer[ v_idx.z ];
 				shading_normal = normalize( n1*beta + n2*gamma + n0*(1.0f-beta-gamma) );
+				if ( !isfinite( shading_normal ) )
+					shading_normal = geometric_normal;
 			}
-			geometric_normal = normalize( n );
 
 			//int3 t_idx = tindex_buffer[ primIdx ];
 			if ( texcoord_buffer.size() == 0 ) { //|| t_idx.x < 0 || t_idx.y < 0 || t_idx.z < 0 ) {
