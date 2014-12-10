@@ -40,8 +40,8 @@ if(OptiX_USE)
 
   # Suggest a path to the OptiX SDK directory.
   # This line is taken from FindOptiX.cmake,
-  # located in C:\ProgramData\NVIDIA Corporation\OptiX SDK 3.6.3\SDK\CMake.
-  set(OptiX_INSTALL_DIR "C:/ProgramData/NVIDIA Corporation/OptiX SDK 3.6.3" CACHE PATH "Path to OptiX installed location.")
+  # located in C:\ProgramData\NVIDIA Corporation\OptiX SDK 3.7.0\SDK\CMake.
+  set(OptiX_INSTALL_DIR "C:/ProgramData/NVIDIA Corporation/OptiX SDK 3.7.0" CACHE PATH "Path to OptiX installed location.")
 
   # Add OptiX CMake files to the module path
   set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${OptiX_INSTALL_DIR}/SDK/CMake)
@@ -88,6 +88,11 @@ if(OptiX_USE)
     # continually set them over and over again.
     set(PASSED_FIRST_CONFIGURE ON CACHE INTERNAL "Already Configured once?")
   endif(NOT PASSED_FIRST_CONFIGURE)
+  
+  # This passes a preprocessor definition to cl.exe when processing CUDA code.
+  if(USING_WINDOWS_CL)
+    list(APPEND CUDA_NVCC_FLAGS --compiler-options /D_USE_MATH_DEFINES)
+  endif()
 
   # Include source wrappers for OptiX and CUDA.
   set(OptiX_SOURCES optix_radiance.c optix_ambient.c optix_util.c)

@@ -10,6 +10,7 @@ static const char	RCSid[] = "$Id$";
 #define _USE_MATH_DEFINES
 #include  <math.h>
 #include  "fvect.h"
+#include  "random.h"
 
 double
 Acos(double x)			/* insurance for touchy math library */
@@ -105,6 +106,12 @@ const FVECT v1,
 const FVECT v2
 )
 {
+	if ((vres == v1) | (vres == v2)) {
+		FVECT	vtmp;
+		VCROSS(vtmp, v1, v2);
+		VCOPY(vres, vtmp);
+		return;
+	}
 	VCROSS(vres, v1, v2);
 }
 
@@ -145,6 +152,29 @@ FVECT  v
 	v[2] *= d;
 
 	return(len);
+}
+
+
+int
+getperpendicular(		/* choose random perpedicular direction */
+FVECT vp,				/* returns normalized */
+const FVECT v				/* input vector must be normalized */
+)
+{
+	FVECT	v1;
+	int	i;
+					/* randomize other coordinates */
+	v1[0] = 0.5 - frandom();
+	v1[1] = 0.5 - frandom();
+	v1[2] = 0.5 - frandom();
+	for (i = 3; i--; )
+		if ((-0.6 < v[i]) & (v[i] < 0.6))
+			break;
+	if (i < 0)
+		return(0);
+	v1[i] = 1.0;
+	fcross(vp, v1, v);
+	return(normalize(vp) > 0.0);
 }
 
 
