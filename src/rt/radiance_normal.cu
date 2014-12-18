@@ -60,8 +60,10 @@ rtDeclareVariable(int,          ambounce, , );	/* Ambient bounces (ab) */
 rtDeclareVariable(float,        ambacc, , );	/* Ambient accuracy (aa). This value will approximately equal the error from indirect illuminance interpolation */
 rtDeclareVariable(int,          ambdiv, , );	/* Ambient divisions (ad) */
 rtDeclareVariable(int,          ambssamp, , );	/* Ambient super-samples (as) */
+#ifdef OLDAMB
 rtDeclareVariable(float,        maxarad, , );	/* maximum ambient radius */
 rtDeclareVariable(float,        minarad, , );	/* minimum ambient radius */
+#endif /* OLDAMB */
 rtDeclareVariable(float,        avsum, , );		/* computed ambient value sum (log) */
 rtDeclareVariable(unsigned int, navsum, , );	/* number of values in avsum */
 #endif /* AMBIENT */
@@ -595,7 +597,7 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 
 			/* W-G-M-D adjustment */
 			if (nstarget > 1) {	
-				d = 2.0f / ( 1.0f + dot( ray.direction, normal ) / d );
+				d = 2.0f / ( 1.0f - dot( ray.direction, normal ) / d );
 				scol += gaus_prd.result * d;
 			} else {
 				rcol += gaus_prd.result * scolor;

@@ -93,9 +93,6 @@ if(OptiX_USE)
   if(USING_WINDOWS_CL)
     list(APPEND CUDA_NVCC_FLAGS --compiler-options /D_USE_MATH_DEFINES)
   endif()
-
-  # Include source wrappers for OptiX and CUDA.
-  set(OptiX_SOURCES optix_radiance.c optix_ambient.c optix_util.c)
   
   # Compile the CUDA files to OBJ format.
   # This is a macro found in FindCUDA.cmake that compiles the listed
@@ -114,13 +111,17 @@ if(OptiX_USE)
     radiance_normal.cu radiance_glass.cu radiance_light.cu source.cu
     ambient_records.cu ambient_normal.cu ambient_cloud_generator.cu
     point_cloud_normal.cu hemisphere_generator.cu)
+
+  # Include source wrappers for OptiX and CUDA.
+  set(ACCELERAD_LIBRARY accelerad)
+  add_library(${ACCELERAD_LIBRARY} optix_radiance.c optix_ambient.c optix_util.c ${generated_CUDA_files} ${generated_PTX_files})
 endif()
 
-add_executable(rtrace rtmain.c rtrace.c duphead.c persist.c ${OptiX_SOURCES} ${generated_CUDA_files} ${generated_PTX_files_rtrace} ${generated_PTX_files})
-target_link_libraries(rtrace raycalls radiance rtrad ${optix_LIBRARY} ${optixu_LIBRARY} ${CUDA_CUDART_LIBRARY})
+add_executable(rtrace rtmain.c rtrace.c duphead.c persist.c ${generated_PTX_files_rtrace})
+target_link_libraries(rtrace raycalls radiance rtrad ${ACCELERAD_LIBRARY} ${optix_LIBRARY} ${CUDA_CUDART_LIBRARY})
 
-add_executable(rpict rpmain.c rpict.c srcdraw.c duphead.c persist.c ${OptiX_SOURCES} ${generated_CUDA_files} ${generated_PTX_files_rpict} ${generated_PTX_files})
-target_link_libraries(rpict radiance rtrad ${optix_LIBRARY} ${optixu_LIBRARY} ${CUDA_CUDART_LIBRARY})
+add_executable(rpict rpmain.c rpict.c srcdraw.c duphead.c persist.c ${generated_PTX_files_rpict})
+target_link_libraries(rpict radiance rtrad ${ACCELERAD_LIBRARY} ${optix_LIBRARY} ${CUDA_CUDART_LIBRARY})
 
 add_executable(lookamb lookamb.c ambio.c)
 target_link_libraries(lookamb rtrad)

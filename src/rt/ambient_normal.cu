@@ -33,12 +33,12 @@ rtDeclareVariable(rtObject,     top_shadower, , );
 
 rtDeclareVariable(float3,       CIE_rgbf, , ); /* This is the value [ CIE_rf, CIE_gf, CIE_bf ] from color.h */
 
-rtDeclareVariable(float,        specthresh, , ); /* This is the minimum fraction of reflection or transmission, under which no specular sampling is performed */
-rtDeclareVariable(float,        specjitter, , );
+//rtDeclareVariable(float,        specthresh, , ); /* This is the minimum fraction of reflection or transmission, under which no specular sampling is performed */
+//rtDeclareVariable(float,        specjitter, , );
 
-rtDeclareVariable(float3,       ambval, , ); /* This is the final value used in place of an indirect light calculation */
-rtDeclareVariable(int,          ambvwt, , ); /* As new indirect irradiances are computed, they will modify the default ambient value in a moving average, with the specified weight assigned to the initial value given on the command and all other weights set to 1 */
-rtDeclareVariable(int,          ambounce, , ); /* Ambient bounces (ab) */
+//rtDeclareVariable(float3,       ambval, , ); /* This is the final value used in place of an indirect light calculation */
+//rtDeclareVariable(int,          ambvwt, , ); /* As new indirect irradiances are computed, they will modify the default ambient value in a moving average, with the specified weight assigned to the initial value given on the command and all other weights set to 1 */
+//rtDeclareVariable(int,          ambounce, , ); /* Ambient bounces (ab) */
 //rtDeclareVariable(int,          ambres, , ); /* Ambient resolution (ar) */
 rtDeclareVariable(float,        ambacc, , ); /* Ambient accuracy (aa). This value will approximately equal the error from indirect illuminance interpolation */
 rtDeclareVariable(int,          ambdiv, , ); /* Ambient divisions (ad) */
