@@ -527,6 +527,9 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 	gaus_prd.ambient_depth = prd.ambient_depth + 1; //TODO the increment is a hack to prevent the sun from affecting specular values
 	//gaus_prd.seed = prd.seed;//lcg( prd.seed );
 	gaus_prd.state = prd.state;
+#ifdef FILL_GAPS
+	gaus_prd.primary = 0;
+#endif
 	Ray gaus_ray = make_Ray( hit, normal, radiance_ray_type, RAY_START, RAY_END );
 
 	float d;
@@ -577,9 +580,6 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 
 			gaus_ray.direction = normalize( gaus_ray.direction );
 			gaus_ray.tmin = ray_start( hit, gaus_ray.direction, normal, RAY_START );
-#ifdef FILL_GAPS
-			gaus_prd.primary = 0;
-#endif
 #ifdef RAY_COUNT
 			gaus_prd.ray_count = 1;
 #endif
@@ -627,7 +627,7 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 				nstarget = gaus_prd.weight / minweight;
 			if ( nstarget > 1 ) {
 				d = 1.0f / nstarget;
-				scolor *= d; //scolor, stored as ray rcoef
+				mcolor *= d; //mcolor, stored as ray rcoef
 				gaus_prd.weight *= d; // TODO make sure weight isn't changed by hit programs
 			} else
 				nstarget = 1;
@@ -656,10 +656,16 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 #ifdef RAY_COUNT
 			gaus_prd.ray_count = 1;
 #endif
+#ifdef HIT_COUNT
+			gaus_prd.hit_count = 0;
+#endif
 			//if (nstaken) // check for prd data that needs to be cleared
 			rtTrace(top_object, gaus_ray, gaus_prd);
 #ifdef RAY_COUNT
 			prd.ray_count += gaus_prd.ray_count;
+#endif
+#ifdef HIT_COUNT
+			prd.hit_count += gaus_prd.hit_count;
 #endif
 			rcol += gaus_prd.result * mcolor;
 			++nstaken;

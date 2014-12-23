@@ -26,7 +26,7 @@ unsigned int optix_amb_seeds_per_thread = 16u;	/* Number of ambient seeds per Op
 unsigned int cuda_kmeans_clusters = 4096u;		/* Number of clusters of ambient for k-means (-ac) */
 unsigned int cuda_kmeans_iterations = 100u;		/* Maximum number of k-means iterations (-am) */
 float cuda_kmeans_threshold = 0.05f;			/* Fraction of seeds that must change cluster to continue k-means iteration (-at) */
-float cuda_kmeans_error = 0.5f;					/* Weighting of position in k-means error (-ax) */
+float cuda_kmeans_error = 1.0f;					/* Weighting of position in k-means error (-ax) */
 #endif
 
 int

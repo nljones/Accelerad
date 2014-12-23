@@ -519,7 +519,7 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 				error(SYSTEM, "out of memory in createAmbientRecords");
 
 			kernel_start_clock = clock();
-			cuda_score_hits( seed_buffer_data, score, grid_width, grid_height, cuda_kmeans_error / thescene.cusize, cuda_kmeans_clusters );
+			cuda_score_hits( seed_buffer_data, score, grid_width, grid_height, cuda_kmeans_error / (ambacc * maxarad), cuda_kmeans_clusters );
 			kernel_end_clock = clock();
 			fprintf( stderr, "Adaptive sampling: %u milliseconds.\n", (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC );
 
@@ -705,13 +705,22 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 		return;
 	}
 
+	/* Check that k-means should be used */
+	if ( !cuda_kmeans_iterations ) {
+		fprintf(stderr, "Using first %u seeds at level %u.\n\n", cluster_count, level);
+		for ( i = 0u; i < cluster_count; i++ )
+			cluster_buffer_data[i] = *seeds[i]; //TODO should randomly choose from array
+		free(seeds);
+		return;
+	}
+
 	/* Group the seeds into clusters with k-means */
 	membership = (int*) malloc(good_seed_count * sizeof(int));
 	distance = (float*) malloc(good_seed_count * sizeof(float));
 	if (membership == NULL || distance == NULL)
 		error(SYSTEM, "out of memory in createKMeansClusters");
 	kernel_start_clock = clock();
-	clusters = (PointDirection**)cuda_kmeans((float**)seeds, sizeof(PointDirection) / sizeof(float), good_seed_count, cluster_count, cuda_kmeans_iterations, cuda_kmeans_threshold, cuda_kmeans_error / thescene.cusize, level, membership, distance, &loops);
+	clusters = (PointDirection**)cuda_kmeans((float**)seeds, sizeof(PointDirection) / sizeof(float), good_seed_count, cluster_count, cuda_kmeans_iterations, cuda_kmeans_threshold, cuda_kmeans_error / (ambacc * maxarad), level, membership, distance, &loops);
 	kernel_end_clock = clock();
 	fprintf(stderr, "K-means performed %u loop iterations in %u milliseconds.\n", loops, (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC);
 
@@ -785,7 +794,7 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 //	membership = (int*) malloc(cluster_count * sizeof(int));
 //	distance = (float*) malloc(cluster_count * sizeof(float));
 //	kernel_start_clock = clock();
-//	groups = (PointDirection**)cuda_kmeans((float**)clusters, sizeof(PointDirection) / sizeof(float), cluster_count, group_count, cuda_kmeans_threshold, cuda_kmeans_error, random_seeds, membership, distance, &loops);
+//	groups = (PointDirection**)cuda_kmeans((float**)clusters, sizeof(PointDirection) / sizeof(float), cluster_count, group_count, cuda_kmeans_threshold, cuda_kmeans_error / (ambacc * maxarad), random_seeds, membership, distance, &loops);
 //	kernel_end_clock = clock();
 //	fprintf(stderr, "Kmeans performed %u loop iterations in %u milliseconds.\n", loops, (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC);
 //

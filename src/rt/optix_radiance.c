@@ -362,9 +362,6 @@ static void createContext( RTcontext* context, const int width, const int height
 #ifdef DEBUG_OPTIX
 	/* Enable exception checking */
 	RT_CHECK_ERROR2( rtContextSetExceptionEnabled( *context, RT_EXCEPTION_ALL, 1 ) );
-#ifdef CALLABLE
-	RT_CHECK_ERROR2( rtContextSetExceptionEnabled( *context, RT_EXCEPTION_PROGRAM_ID_INVALID, 0 ) ); // Fixes bug in OptiX 3.6.2
-#endif
 #endif
 
 #ifdef PRINT_OPTIX
