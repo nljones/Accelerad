@@ -70,31 +70,31 @@
 #define RT_CHECK_ERROR( func ) do {	\
 	RTresult code = func;			\
 	if( code != RT_SUCCESS )		\
-		handleError( context, code, __FILE__, __LINE__, 1 ); } while(0)
+		handleError( context, code, __FILE__, __LINE__, INTERNAL ); } while(0)
 #define RT_CHECK_WARN( func ) do {	\
 	RTresult code = func;			\
 	if( code != RT_SUCCESS )		\
-		handleError( context, code, __FILE__, __LINE__, 0 ); } while(0)
+		handleError( context, code, __FILE__, __LINE__, WARNING ); } while(0)
 
 /* assumes current scope has Context pointer variable named 'context' */
 #define RT_CHECK_ERROR2( func ) do {	\
 	RTresult code = func;				\
 	if( code != RT_SUCCESS )			\
-		handleError( *context, code, __FILE__, __LINE__, 1 ); } while(0)
+		handleError( *context, code, __FILE__, __LINE__, INTERNAL ); } while(0)
 #define RT_CHECK_WARN2( func ) do {	\
 	RTresult code = func;			\
 	if( code != RT_SUCCESS )		\
-		handleError( *context, code, __FILE__, __LINE__, 0 ); } while(0)
+		handleError( *context, code, __FILE__, __LINE__, WARNING ); } while(0)
 
 /* assumes that there is no context, just print to stderr */
 #define RT_CHECK_ERROR_NO_CONTEXT( func ) do {	\
 	RTresult code = func;						\
 	if( code != RT_SUCCESS )					\
-		handleError( NULL, code, __FILE__, __LINE__, 1 ); } while(0)
+		handleError( NULL, code, __FILE__, __LINE__, INTERNAL ); } while(0)
 #define RT_CHECK_WARN_NO_CONTEXT( func ) do {	\
 	RTresult code = func;						\
 	if( code != RT_SUCCESS )					\
-		handleError( NULL, code, __FILE__, __LINE__, 0 ); } while(0)
+		handleError( NULL, code, __FILE__, __LINE__, WARNING ); } while(0)
 #else
 /* When debugging is off, do nothing extra. */
 #define RT_CHECK_ERROR( func )				func
@@ -144,7 +144,7 @@ void applyContextObject( const RTcontext context, const char* name, const RTobje
 void applyProgramObject( const RTcontext context, const RTprogram program, const char* name, const RTobject object );
 void applyGeometryObject( const RTcontext context, const RTgeometry geometry, const char* name, const RTobject object );
 void applyGeometryInstanceObject( const RTcontext context, const RTgeometryinstance instance, const char* name, const RTobject object );
-void handleError( const RTcontext context, const RTresult code, const char* file, const int line, const int fatal );
+void handleError( const RTcontext context, const RTresult code, const char* file, const int line, const int etype );
 void printException( const float3 code, const char* location, const int index );
 void ptxFile( char* path, const char* name );
 #ifdef TIMEOUT_CALLBACK

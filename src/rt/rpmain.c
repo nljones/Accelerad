@@ -357,8 +357,7 @@ runagain:
 #ifdef OPTIX
 	rpict_end_clock = clock();
 	rpict_end_time = time((time_t *)NULL);
-	fprintf(stderr, "rpict time: %u milliseconds.\n", (rpict_end_clock - rpict_start_clock) * 1000 / CLOCKS_PER_SEC);
-	fprintf(stderr, "rpict time: %u seconds.\n", rpict_end_time - rpict_start_time);
+	fprintf(stderr, "%s time: %u milliseconds (%u seconds).\n", progname, (rpict_end_clock - rpict_start_clock) * 1000 / CLOCKS_PER_SEC, rpict_end_time - rpict_start_time);
 #endif
 					/* flush ambient file */
 	ambsync();

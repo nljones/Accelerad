@@ -322,7 +322,11 @@ static void createContext( RTcontext* context, const int width, const int height
 	if ( use_ambient ) {
 		ray_type_count++; /* ambient ray */
 		if ( ambdiv > AMB_ROW_SIZE * AMB_ROW_SIZE ) {
-			sprintf(errmsg, "number of ambient divisions cannot be greater than %i (entered %i).", AMB_ROW_SIZE * AMB_ROW_SIZE, ambdiv);
+			sprintf(errmsg, "number of ambient divisions cannot be greater than %i (currently %i).", AMB_ROW_SIZE * AMB_ROW_SIZE, ambdiv);
+			error(USER, errmsg);
+		}
+		if ( optix_stack_size < 124 * AMB_ROW_SIZE + 144 ) { // Based on memory requirements for samp_hemi() in ambient_normal.cu
+			sprintf(errmsg, "GPU stack size must be greater than %i (currently %i).", 124 * AMB_ROW_SIZE + 144, optix_stack_size);
 			error(USER, errmsg);
 		}
 	}

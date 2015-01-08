@@ -379,8 +379,7 @@ runagain:
 #ifdef OPTIX
 	rtrace_end_clock = clock();
 	rtrace_end_time = time((time_t *)NULL);
-	fprintf(stderr, "rtrace time: %u milliseconds.\n", (rtrace_end_clock - rtrace_start_clock) * 1000 / CLOCKS_PER_SEC);
-	fprintf(stderr, "rtrace time: %u seconds.\n", rtrace_end_time - rtrace_start_time);
+	fprintf(stderr, "%s time: %u milliseconds (%u seconds).\n", progname, (rtrace_end_clock - rtrace_start_clock) * 1000 / CLOCKS_PER_SEC, rtrace_end_time - rtrace_start_time);
 #endif
 					/* flush ambient file */
 	ambsync();

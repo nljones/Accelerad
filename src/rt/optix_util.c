@@ -91,12 +91,11 @@ void runKernel3D( const RTcontext context, const unsigned int entry, const int w
 	/* Stop timers */
 	kernel_end_clock = clock();
 	kernel_end_time = time((time_t *)NULL);
+	fprintf(stderr, "OptiX kernel time: %u milliseconds (%u seconds).\n", (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC, kernel_end_time - kernel_start_time);
 #ifdef CUMULTATIVE_TIME
 	cumulative_millis += (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC;
 	fprintf(stderr, "OptiX kernel cumulative time: %u milliseconds.\n", cumulative_millis);
 #endif
-	fprintf(stderr, "OptiX kernel time: %u milliseconds.\n", (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC);
-	fprintf(stderr, "OptiX kernel time: %u seconds.\n", kernel_end_time - kernel_start_time);
 
 #ifdef REPORT_GPU_STATE
 	/* Print context attributes after */
@@ -277,16 +276,12 @@ void applyGeometryInstanceObject( const RTcontext context, const RTgeometryinsta
 	RT_CHECK_ERROR( rtVariableSetObject( var, object ) );
 }
 
-void handleError( const RTcontext context, const RTresult code, const char* file, const int line, const int fatal )
+void handleError( const RTcontext context, const RTresult code, const char* file, const int line, const int etype )
 {
-	if ( context ) {
-		const char* message;
-		rtContextGetErrorString( context, code, &message );
-		fprintf( stderr, "OptiX Error: %s\n(%s:%d)\n", message, file, line );
-	} else // context is NULL
-		fprintf( stderr, "OptiX Error Code: %d\n(%s:%d)\n", code, file, line );
-	if ( fatal )
-		exit( code );
+	const char* message;
+	rtContextGetErrorString( context, code, &message ); // This function allows context to be null.
+	sprintf( errmsg, "%s\n(%s:%d)", message, file, line );
+	error( etype, errmsg );
 }
 
 void printException( const float3 code, const char* location, const int index )
