@@ -49,7 +49,7 @@ void renderOptix( const VIEW* view, const int width, const int height, const dou
 void computeOptix( const int width, const int height, const double alarm, RAY* rays );
 void endOptix();
 
-static void printDeviceInfo();
+static void checkDevices();
 static void createContext( RTcontext* context, const int width, const int height, const double alarm );
 static void setupKernel( const RTcontext context, const VIEW* view, const int width, const int height );
 static void applyRadianceSettings( const RTcontext context );
@@ -145,7 +145,7 @@ void renderOptix(const VIEW* view, const int width, const int height, const doub
 
 	if ( context_handle == NULL ) {
 		/* Setup state */
-		printDeviceInfo();
+		checkDevices();
 		createContext( &context, width, height, alarm );
 
 		/* Render result buffer */
@@ -210,7 +210,7 @@ void computeOptix(const int width, const int height, const double alarm, RAY* ra
 		error(USER, "Size is zero or not set. Both -x and -y must be positive.");
 
 	/* Setup state */
-	printDeviceInfo();
+	checkDevices();
 	createContext( &context, width, height, alarm );
 	
 	/* Input/output buffer */
@@ -258,9 +258,13 @@ void endOptix()
 	camera_type = camera_eye = camera_u = camera_v = camera_w = camera_fov = camera_shift = camera_clip = NULL;
 }
 
-static void printDeviceInfo()
+/**
+ * Check for supported GPU devices.
+ * This should be called prior to any work with OptiX.
+ */
+static void checkDevices()
 {
-	unsigned int version, device_count;
+	unsigned int version, device_count, useable_device_count;
 	unsigned int i;
 	unsigned int multiprocessor_count, threads_per_block, clock_rate, texture_count, timeout_enabled, tcc_driver, cuda_device;
 	unsigned int compute_capability[2];
@@ -269,11 +273,10 @@ static void printDeviceInfo()
 
 	rtGetVersion( &version );
 	rtDeviceGetDeviceCount( &device_count );
-	if ( !device_count ) {
-		sprintf(errmsg, "A supported GPU could not be found for OptiX %i.", version);
-		error(SYSTEM, errmsg);
+	if (device_count) {
+		fprintf(stderr, "OptiX %i found %i GPU device%s:\n", version, device_count, device_count > 1 ? "s" : "");
 	}
-	fprintf(stderr, "Starting OptiX %i on %i devices:\n", version, device_count);
+	useable_device_count = device_count;
 
 #ifdef PREFER_TCC
 	tcc_count = 0u;
@@ -292,15 +295,25 @@ static void printDeviceInfo()
 		rtDeviceGetAttribute( i, RT_DEVICE_ATTRIBUTE_CUDA_DEVICE_ORDINAL, sizeof(cuda_device), &cuda_device );
 		fprintf(stderr, "Device %u: %s with %u multiprocessors, %u threads per block, %u kHz, %u bytes global memory, %u hardware textures, compute capability %u.%u, timeout %sabled, Tesla compute cluster driver %sabled, cuda device %u.\n",
 			i, device_name, multiprocessor_count, threads_per_block, clock_rate, memory_size, texture_count, compute_capability[0], compute_capability[1], timeout_enabled ? "en" : "dis", tcc_driver ? "en" : "dis", cuda_device);
+#ifdef CALLABLE
+		if (compute_capability[0] < 2u) {
+			useable_device_count--;
+			sprintf(errmsg, "Device %u has insufficient compute capability for OptiX callable programs.", i);
+			error(WARNING, errmsg);
+			continue;
+		}
+#endif
 #ifdef PREFER_TCC
-		if ( tcc_driver && ( tcc_count < MAX_TCCS ) )
+		if (tcc_driver && (tcc_count < MAX_TCCS))
 			tcc[tcc_count++] = i;
 #endif
-#ifdef CALLABLE
-		if ( compute_capability[0] < 2u )
-			fprintf(stderr, "Device %u has insufficient compute capability for OptiX callable programs.\n", i);
-#endif
 	}
+
+	if (!useable_device_count) {
+		sprintf(errmsg, "A supported GPU could not be found for OptiX %i.", version);
+		error(SYSTEM, errmsg);
+	}
+
 	fprintf(stderr, "\n");
 }
 

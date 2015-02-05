@@ -9,7 +9,6 @@ static const char	RCSid[] = "$Id$";
 
 #define _USE_MATH_DEFINES
 #include  <math.h>
-#include  <stdlib.h> // Added by NLJ to fix getperpendicular()
 #include  "fvect.h"
 #include  "random.h"
 
