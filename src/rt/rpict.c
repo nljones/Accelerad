@@ -44,7 +44,7 @@ static const char RCSid[] = "$Id$";
 #endif
 #endif
 
-#ifdef OPTIX
+#ifdef ACCELERAD
 /* in optix_radiance.c */
 extern void renderOptix(const VIEW* view, const int width, const int height, const double alarm, COLOR* colors, float* depths);
 extern void endOptix();
@@ -113,7 +113,7 @@ int  ambounce = 0;			/* ambient bounces */
 char  *amblist[AMBLLEN];		/* ambient include/exclude list */
 int  ambincl = -1;			/* include == 1, exclude == 0 */
 
-#ifdef OPTIX
+#ifdef ACCELERAD
 /* from optix_radiance.c */
 int  imm_irrad = 0; //TODO This shouldn't be necessary, but the variable must exist in optix_radiance.c
 
@@ -222,6 +222,12 @@ static void
 report(int dummy)		/* report progress */
 {
 	tlastrept = time((time_t *)NULL);
+#ifdef ACCELERAD
+	if (use_optix) {
+		/* Don't report when using OptiX because we don't track number of rays or percent done. */
+		return;
+	}
+#endif
 	sprintf(errmsg, "%lu rays, %4.2f%% after %5.4f hours\n",
 			nrays, pctdone, (tlastrept-tstart)/3600.0);
 	eputs(errmsg);
@@ -310,7 +316,7 @@ rpict(			/* generate image(s) */
 		pctdone = 0.0;
 		if (pout != NULL) {
 			sprintf(fbuf, pout, seq);
-#ifndef OPTIX /* For testing purposes, we don't care about overwriting existing files. */
+#ifndef ACCELERAD /* For testing purposes, we don't care about overwriting existing files. */
 			if (file_exists(fbuf)) {
 				if (prvr != NULL || !strcmp(fbuf, pout)) {
 					sprintf(errmsg,
@@ -321,7 +327,7 @@ rpict(			/* generate image(s) */
 				setview(&ourview);
 				continue;		/* don't clobber */
 			}
-#endif /* OPTIX */
+#endif /* ACCELERAD */
 			if (freopen(fbuf, "w", stdout) == NULL) {
 				sprintf(errmsg,
 					"cannot open output file \"%s\"", fbuf);
@@ -370,7 +376,7 @@ rpict(			/* generate image(s) */
 		prvr = NULL;
 		npicts++;
 	} while (seq++);
-#ifdef OPTIX
+#ifdef ACCELERAD
 	if (use_optix) {
 		/* Destroy the OptiX context. */
 		endOptix();
@@ -419,7 +425,7 @@ render(				/* render the scene */
 		fprtresolu(0, 0, stdout);
 		return;
 	}
-#ifdef OPTIX
+#ifdef ACCELERAD
 	if (use_optix) {
 		/* Allocate memory to save the color and depth information once it is retrieved from the output buffer. */
 		color_output = (COLOR *)malloc(sizeof(COLOR) * hres * vres);
@@ -500,7 +506,7 @@ render(				/* render the scene */
 				hres, ypos, hstep);
 							/* fill bar */
 		fillscanbar(scanbar, zbar, hres, ypos, ystep);
-#ifdef OPTIX
+#ifdef ACCELERAD
 		if (!use_optix) /* Don't shoot rays here, since the OptiX program should handle this. */
 #endif
 		if (directvis)				/* add bitty sources */
@@ -555,7 +561,7 @@ alldone:
 #ifdef SIGCONT
 	signal(SIGCONT, SIG_DFL);
 #endif
-#ifdef OPTIX
+#ifdef ACCELERAD
 	if (use_optix) {
 		/* Unallocate the memory that was used to save the output transfered back from OptiX rendering. */
 		free(color_output);
@@ -710,7 +716,7 @@ pixvalue(		/* compute pixel value */
 	FVECT	lorg, ldir;
 	double	hpos, vpos, vdist, lmax;
 	int	i;
-#ifdef OPTIX
+#ifdef ACCELERAD
 	if (use_optix) {
 		//fprintf(stderr, "Getting color for (%i, %i).\n", x, y);
 		i = y * hres + x;
@@ -718,7 +724,7 @@ pixvalue(		/* compute pixel value */
 		//fprintf(stderr, "Got color (%f, %f, %f).\n", col[0], col[1], col[2]);
 		return depth_output[i];
 	}
-#endif /* OPTIX */
+#endif /* ACCELERAD */
 						/* compute view ray */
 	setcolor(col, 0.0, 0.0, 0.0);
 	hpos = (x+pixjitter())/hres;
@@ -787,13 +793,13 @@ pixvalue(		/* compute pixel value */
 	rayvalue(&thisray);			/* trace ray */
 
 	copycolor(col, thisray.rcol);		/* return color */
-#ifdef OPTIX
+#ifdef ACCELERAD
 	/* Check for NaN values in order to prevent them from being averaged into the image. */
 	if (col[0] != col[0] || col[1] != col[1] || col[2] != col[2]) {
 		setcolor(col, 0.0f, 0.0f, 0.0f);
 		return(0.0);
 	}
-#endif /* OPTIX */
+#endif /* ACCELERAD */
 
 	return(thisray.rt);			/* return distance */
 }

@@ -35,7 +35,7 @@ char  *errfile = NULL;			/* error output file */
 extern time_t  time();
 extern time_t  tstart;			/* start time */
 
-#ifdef OPTIX
+#ifdef ACCELERAD
 extern double  ralrm;				/* seconds between reports */
 #else
 extern int  ralrm;			/* seconds between reports */
@@ -83,7 +83,7 @@ main(int  argc, char  *argv[])
 	int  duped1 = -1;
 	int  rval;
 	int  i;
-#ifdef OPTIX
+#ifdef ACCELERAD
 	time_t rpict_start_time, rpict_end_time; // Timer in seconds for long jobs
 	clock_t rpict_start_clock, rpict_end_clock; // Timer in clock cycles for short jobs
 #endif
@@ -199,7 +199,7 @@ main(int  argc, char  *argv[])
 			recover = argv[++i];
 			break;
 		case 't':				/* timer */
-#ifdef OPTIX
+#ifdef ACCELERAD
 			check(2,"f");
 			ralrm = atof(argv[++i]);
 #else
@@ -311,7 +311,7 @@ main(int  argc, char  *argv[])
 		printf("SOFTWARE= %s\n", VersionID);
 	}
 
-#ifdef OPTIX
+#ifdef ACCELERAD
 	if (!use_optix) /* Don't shoot rays here, since the OptiX program should handle this. */
 #endif
 	marksources();			/* find and mark sources */
@@ -349,12 +349,12 @@ runagain:
 	}
 #endif
 					/* batch render picture(s) */
-#ifdef OPTIX
+#ifdef ACCELERAD
 	rpict_start_time = time((time_t *)NULL);
 	rpict_start_clock = clock();
 #endif
 	rpict(seqstart, outfile, zfile, recover);
-#ifdef OPTIX
+#ifdef ACCELERAD
 	rpict_end_clock = clock();
 	rpict_end_time = time((time_t *)NULL);
 	fprintf(stderr, "%s time: %u milliseconds (%u seconds).\n", progname, (rpict_end_clock - rpict_start_clock) * 1000 / CLOCKS_PER_SEC, rpict_end_time - rpict_start_time);

@@ -32,7 +32,7 @@ OBJECT	ambset[MAXASET+1]={0};	/* ambient include/exclude set */
 double	maxarad;		/* maximum ambient radius */
 double	minarad;		/* minimum ambient radius */
 
-#ifdef OPTIX
+#ifdef ACCELERAD
 AMBTREE	atrunk;		/* our ambient trunk node */
 #else
 static AMBTREE	atrunk;		/* our ambient trunk node */
@@ -56,7 +56,7 @@ static int  nunflshed = 0;	/* number of unflushed ambient values */
 #endif
 
 
-#ifdef OPTIX
+#ifdef ACCELERAD
 double  avsum = 0.;		/* computed ambient value sum (log) */
 unsigned int  navsum = 0;	/* number of values in avsum */
 unsigned int  nambvals = 0;	/* total number of indirect values */
@@ -90,7 +90,7 @@ static long  lastpos = -1;		/* last flush position */
 #define  freeav(av)	free((void *)av);
 
 static void initambfile(int creat);
-#ifdef OPTIX
+#ifdef ACCELERAD
 void avsave(AMBVAL *av);
 #else
 static void avsave(AMBVAL *av);
@@ -970,7 +970,7 @@ initambfile(		/* initialize ambient file */
 }
 
 
-#ifdef OPTIX
+#ifdef ACCELERAD
 void
 #else
 static void

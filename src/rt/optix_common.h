@@ -10,18 +10,10 @@
 //#define RAY_COUNT
 //#define HIT_COUNT
 //#define HIT_TYPE
-#define CALLABLE
 //#define OLDAMB
 #define LIGHTS
 
 #define AMB_ROW_SIZE	32	/* Number of entries allowed per row of the ambient hemisphere. */
-
-/* Types of sky that may be displayed with an OptiX miss program. */
-#ifndef CALLABLE
-#define  SKY_NONE	0u		/* sun or other distant uniform source */
-#define  SKY_CIE	1u		/* cie sky model implemented in skybright.cal */
-#define  SKY_PEREZ	2u		/* perez sky model implemented in perezlum.cal */
-#endif
 
 typedef struct struct_DistantLight
 {
@@ -31,51 +23,9 @@ typedef struct struct_DistantLight
 	float3 pos;
 	float3 color;
 	float  solid_angle;
-#ifndef CALLABLE
-	unsigned int type;   /* Reference to the sky type defined above. */
-#endif
 	int    function;     /* Reference to the OptiX buffer index of the brightness function for this light. */
 	int    casts_shadow;
 } DistantLight;
-
-#ifndef CALLABLE
-/* Structure for the parameters necessary to run skybright.cal. */
-typedef struct struct_SkyBright
-{
-#if defined(__cplusplus)
-	typedef optix::float3 float3;
-#endif
-	int type;      /* 1 for CIE clear, 2 for CIE overcast, 3 for uniform, 4 for CIE intermediate */
-	float zenith;  /* zenith brightness */
-	float ground;  /* ground plane brightness */
-	float factor;  /* normalization factor based on sun direction */
-	float3 sun;    /* sun direction */
-} SkyBright;
-
-/* Structure for the parameters necessary to run perezlum.cal. */
-typedef struct struct_PerezLum
-{
-#if defined(__cplusplus)
-	typedef optix::float3 float3;
-#endif
-	float diffuse; /* diffuse normalization */
-	float ground;  /* ground brightness */
-	float coef[5]; /* coefficients for the Perez model */
-	float3 sun;    /* sun direction */
-} PerezLum;
-
-/* Structure for the parameters necessary to run source.cal. */
-typedef struct struct_Light
-{
-#if defined(__cplusplus)
-	typedef optix::float3 float3;
-#endif
-	float3 min, max;	/* range of texture in degrees */
-	float3 u, v, w;		/* transformation matrix associated with function */
-	int texture;		/* texture ID */
-	float multiplier;	/* intensity multiplier */
-} Light;
-#endif
 
 /* Structure to hold an ambient record */
 typedef struct struct_ambient_record

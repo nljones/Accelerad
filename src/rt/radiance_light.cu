@@ -18,14 +18,7 @@ rtDeclareVariable(float,        maxrad, , ) = RAY_END;
 rtDeclareVariable(float,        siz, , ) = -1.0f;		/* output solid angle or area */
 rtDeclareVariable(float,        flen, , );				/* focal length (negative if distant source) */
 rtDeclareVariable(float3,       aim, , );				/* aim direction or center */
-#ifdef CALLABLE
 rtDeclareVariable(rtCallableProgramId<float3(float3,float3)>, function, , );		/* function or texture modifier */
-#else
-rtDeclareVariable(int,          lindex, , ) = -1;		/* function or texture modifier */
-
-/* Geometry instance variables */
-rtBuffer<Light> light_sources;
-#endif
 
 /* Context variables */
 rtDeclareVariable(int,          directvis, , );		/* Boolean switch for light source visibility (dv) */
@@ -44,9 +37,6 @@ rtDeclareVariable(int, surface_id, attribute surface_id, );
 
 
 RT_METHOD int spotout();
-#ifndef CALLABLE
-RT_METHOD float texture_function( const float3& normal );
-#endif
 
 
 RT_PROGRAM void closest_hit_shadow()
@@ -58,13 +48,8 @@ RT_PROGRAM void closest_hit_shadow()
 
 	if ( t_hit > maxrad || spotout() || dot( world_shading_normal, ray.direction ) > 0.0f || surface_id != -prd_shadow.target - 1 )
 		prd_shadow.result = make_float3( 0.0f );
-#ifdef CALLABLE
 	else if ( function > RT_PROGRAM_ID_NULL )
 		prd_shadow.result = color * function( ray.direction, world_shading_normal );
-#else
-	else if ( lindex > -1 )
-		prd_shadow.result = color * texture_function( world_shading_normal );
-#endif
 	else
 		prd_shadow.result = color;
 }
@@ -79,13 +64,8 @@ RT_PROGRAM void closest_hit_radiance()
 	// no contribution to ambient calculation
 	if ( !directvis || 0.0f > maxrad && prd.depth > 0 || prd.ambient_depth > 0 || spotout() || dot( world_shading_normal, ray.direction ) > 0.0f ) //TODO need a better ambient test
 		prd.result = make_float3( 0.0f );
-#ifdef CALLABLE
 	else if ( function > RT_PROGRAM_ID_NULL )
 		prd.result = color * function( ray.direction, world_shading_normal );
-#else
-	else if ( lindex > -1 )
-		prd.result = color * texture_function( world_shading_normal );
-#endif
 	else
 		prd.result = color;
 	prd.distance = t_hit;
@@ -115,21 +95,3 @@ RT_METHOD int spotout()
 		return(1);	/* out */
 	return(0);	/* OK */
 }
-
-#ifndef CALLABLE
-RT_METHOD float texture_function( const float3& normal )
-{
-	const Light light_source = light_sources[lindex];
-
-	float phi = acosf( dot( ray.direction, normalize( light_source.w ) ) );
-	float theta = atan2f( -dot( ray.direction, normalize( light_source.v ) ), -dot( ray.direction, normalize( light_source.u ) ) );
-	theta += 2.0f * M_PIf * ( theta < 0.0f );
-
-	/* Normalize to [0, 1] within range */
-	phi = ( 180.0f * M_1_PIf * phi - light_source.min.x ) / ( light_source.max.x - light_source.min.x );
-	theta = ( 180.0f * M_1_PIf * theta - light_source.min.y ) / ( light_source.max.y - light_source.min.y );
-
-	float rdot = dot( ray.direction, normal );
-	return light_source.multiplier * rtTex2D<float>( light_source.texture, phi, theta ) / fabsf( rdot ); // this is flatcorr from source.cal
-}
-#endif /* CALLLABLE */

@@ -74,7 +74,7 @@ static void ourtrace(RAY *r);
 static oputf_t *ray_out[16], *every_out[16];
 static putf_t *putreal;
 
-#ifdef OPTIX
+#ifdef ACCELERAD
 /* from optix_radiance.c */
 extern void computeOptix(const int width, const int height, const double alarm, RAY* rays);
 
@@ -127,7 +127,7 @@ rtrace(				/* trace rays from file */
 	FILE  *fp;
 	double	d;
 	FVECT  orig, direc;
-#ifdef OPTIX
+#ifdef ACCELERAD
 	unsigned int current_ray, total_rays;
 	RAY* ray_cache;
 #endif
@@ -157,7 +157,7 @@ rtrace(				/* trace rays from file */
 	default:
 		error(CONSISTENCY, "botched output format");
 	}
-#ifdef OPTIX
+#ifdef ACCELERAD
 	if (use_optix) {
 		/* Populate the set of rays to trace */
 		ray_cache = (RAY *)malloc(sizeof(RAY) * vcount); //TODO what if vcount is zero?
@@ -179,7 +179,7 @@ rtrace(				/* trace rays from file */
 
 		d = normalize(direc);
 		if (d == 0.0) {				/* zero ==> flush */
-#ifdef OPTIX
+#ifdef ACCELERAD
 			if (use_optix)
 				bogusray();
 			else
@@ -196,7 +196,7 @@ rtrace(				/* trace rays from file */
 		} else {				/* compute and print */
 			rtcompute(orig, direc, lim_dist ? d : 0.0);
 							/* flush if time */
-#ifdef OPTIX
+#ifdef ACCELERAD
 			if (!use_optix)
 #endif
 			if (!--nextflush) {
@@ -206,7 +206,7 @@ rtrace(				/* trace rays from file */
 				nextflush = hresolu;
 			}
 		}
-#ifdef OPTIX
+#ifdef ACCELERAD
 		if (use_optix) {
 			ray_cache[current_ray++] = thisray;
 		} else /* Nothing ready to write yet. */
@@ -216,7 +216,7 @@ rtrace(				/* trace rays from file */
 		if (vcount && !--vcount)		/* check for end */
 			break;
 	}
-#ifdef OPTIX
+#ifdef ACCELERAD
 	if (use_optix) {
 		/* Run OptiX kernel. */
 		computeOptix( hresolu, vresolu, ralrm, ray_cache );
@@ -343,7 +343,7 @@ bogusray(void)			/* print out empty record */
 	thisray.rorg[0] = thisray.rorg[1] = thisray.rorg[2] =
 	thisray.rdir[0] = thisray.rdir[1] = thisray.rdir[2] = 0.0;
 	thisray.rmax = 0.0;
-#ifdef OPTIX
+#ifdef ACCELERAD
 	if (use_optix)
 		return; /* The rest will occur after the OptiX kernel runs. */
 #endif
@@ -410,7 +410,7 @@ rtcompute(			/* compute and print ray value(s) */
 		if (castonly)
 			thisray.revf = raycast;
 	}
-#ifdef OPTIX
+#ifdef ACCELERAD
 	if (use_optix)
 		return; /* The rest will occur after the OptiX kernel runs. */
 #endif

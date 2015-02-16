@@ -35,7 +35,6 @@ rtDeclareVariable(unsigned int, radiance_ray_type, , );
 rtDeclareVariable(unsigned int, shadow_ray_type, , );
 rtDeclareVariable(unsigned int, ambient_ray_type, , );
 rtDeclareVariable(rtObject,     top_object, , );
-rtDeclareVariable(rtObject,     top_shadower, , );
 rtDeclareVariable(rtObject,     top_ambient, , );
 
 rtDeclareVariable(float3,       CIE_rgbf, , );	/* This is the value [ CIE_rf, CIE_gf, CIE_bf ] from color.h */
@@ -438,7 +437,7 @@ RT_METHOD float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const 
 
 	// cast shadow ray
 	shadow_prd->result = make_float3( 0.0f );
-	rtTrace( top_shadower, *shadow_ray, *shadow_prd );
+	rtTrace( top_object, *shadow_ray, *shadow_prd );
 	if( fmaxf( shadow_prd->result ) <= 0.0f )
 		return cval;
 	

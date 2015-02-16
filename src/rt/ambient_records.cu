@@ -263,7 +263,7 @@ RT_METHOD int plugaleak( const AmbientRecord* record, const float3& anorm, float
 	//Ray shadow_ray = make_Ray( ray.origin, normalize( rdir ), shadow_ray_type, RAY_START, length( rdir ) );
 	//PerRayData_shadow shadow_prd;
 	//shadow_prd.result = make_float3( 1.0f );
-	//rtTrace( top_shadower, shadow_ray, shadow_prd );
+	//rtTrace( top_object, shadow_ray, shadow_prd );
 	//return( dot( shadow_prd.result, shadow_prd.result ) < 1.0f );	/* check for occluder */
 }
 #endif /* OLDAMB */

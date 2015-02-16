@@ -12,7 +12,7 @@ static const char	RCSid[] = "$Id$";
 #include  "ray.h"
 #include  "paths.h"
 
-#ifdef OPTIX
+#ifdef ACCELERAD
 int use_optix = 1;			/* Flag to use OptiX for ray tracing */
 int optix_stack_size = 8192;	/* Stack size for OptiX program in bytes (-g) */
 
@@ -61,7 +61,7 @@ getrenderopt(		/* get next render option */
 			return(0);
 		}
 		break;
-#ifdef OPTIX
+#ifdef ACCELERAD
 	case 'g':				/* OptiX stack size */
 		//bool(2,use_optix);
 		check(2,"i");
@@ -159,7 +159,7 @@ getrenderopt(		/* get next render option */
 			check(3,"i");
 			ambounce = atoi(av[1]);
 			return(1);
-#ifdef OPTIX
+#ifdef ACCELERAD
 		case 'l':				/* Scale to use for ambient sample spacing */
 			check(3,"i");
 			optix_amb_scale = atoi(av[1]);

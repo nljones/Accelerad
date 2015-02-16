@@ -13,7 +13,6 @@ using namespace optix;
 rtDeclareVariable(unsigned int, radiance_ray_type, , );
 rtDeclareVariable(unsigned int, shadow_ray_type, , );
 rtDeclareVariable(rtObject,     top_object, , );
-//rtDeclareVariable(rtObject,     top_shadower, , );
 
 rtDeclareVariable(float3,       CIE_rgbf, , ); /* This is the value [ CIE_rf, CIE_gf, CIE_bf ] from color.h */
 

@@ -28,7 +28,6 @@ rtDeclareVariable(unsigned int, radiance_ray_type, , );
 rtDeclareVariable(rtObject,     top_object, , );
 #ifndef OLDAMB
 rtDeclareVariable(unsigned int, shadow_ray_type, , );
-rtDeclareVariable(rtObject,     top_shadower, , );
 #endif /* OLDAMB */
 
 rtDeclareVariable(float3,       CIE_rgbf, , ); /* This is the value [ CIE_rf, CIE_gf, CIE_bf ] from color.h */
@@ -304,7 +303,7 @@ RT_METHOD int plugaleak( const AmbientRecord* record, const float3& anorm, const
 	PerRayData_shadow shadow_prd;
 	shadow_prd.target = 0;
 	shadow_prd.result = make_float3( 1.0f );
-	rtTrace( top_shadower, shadow_ray, shadow_prd );
+	rtTrace( top_object, shadow_ray, shadow_prd );
 	return( dot( shadow_prd.result, shadow_prd.result ) < 1.0f );	/* check for occluder */
 }
 

@@ -18,9 +18,9 @@ extern "C" {
 #define RNUMBER		unsigned long	/* ray counter (>= sizeof pointer) */
 #endif
 
-#ifndef OPTIX
+#ifndef ACCELERAD
 /* Compiler setting to use OptiX ray tracing */
-#define OPTIX   
+#define ACCELERAD   
 #endif
 
 #define  MAXDIM		32	/* maximum number of dimensions */
@@ -99,7 +99,7 @@ extern int	do_irrad;	/* compute irradiance? */
 
 extern int	rand_samp;	/* pure Monte Carlo sampling? */
 
-#ifdef OPTIX
+#ifdef ACCELERAD
 extern int use_optix;			/* Flag to use OptiX for ray tracing */
 extern int optix_stack_size;	/* Stack size for OptiX program in bytes */
 
