@@ -56,6 +56,7 @@ static RTmaterial createNormalMaterial( const RTcontext context, const OBJREC* r
 static RTmaterial createGlassMaterial( const RTcontext context, const OBJREC* rec );
 static RTmaterial createLightMaterial( const RTcontext context, OBJREC* rec );
 static DistantLight createDistantLight( const RTcontext context, OBJREC* rec );
+static OBJREC* findFunction(OBJREC *o);
 static int createFunction( const RTcontext context, const OBJREC* rec, const OBJREC* parent );
 static int createTexture( const RTcontext context, const OBJREC* rec );
 static int createTransform( XF* bxp, const OBJREC* rec );
@@ -549,43 +550,52 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	 * The OptiX buffer refered to depends on the type of object.
 	 * If the object does not have an index in an OptiX buffer, -1 is given. */
 	buffer_entry_index = (int *)malloc(sizeof(int) * nobjects);
-	if (buffer_entry_index == NULL)
-		error(SYSTEM, "out of memory in createGeometryInstance");
+	if (buffer_entry_index == NULL) goto memerr;
 
 	geometry_start_clock = clock();
 
 	/* Create buffers for storing geometry information. */
 	vertices = (FloatArray *)malloc(sizeof(FloatArray));
+	if (vertices == NULL) goto memerr;
 	initArrayf(vertices, EXPECTED_VERTICES * 3);
 
 	normals = (FloatArray *)malloc(sizeof(FloatArray));
+	if (normals == NULL) goto memerr;
 	initArrayf(normals, EXPECTED_VERTICES * 3);
 
 	tex_coords = (FloatArray *)malloc(sizeof(FloatArray));
+	if (tex_coords == NULL) goto memerr;
 	initArrayf(tex_coords, EXPECTED_VERTICES * 2);
 
 	vertex_indices = (IntArray *)malloc(sizeof(IntArray));
+	if (vertex_indices == NULL) goto memerr;
 	initArrayi(vertex_indices, EXPECTED_TRIANGLES * 3);
 
 	traingles = (IntArray *)malloc(sizeof(IntArray));
+	if (traingles == NULL) goto memerr;
 	initArrayi(traingles, EXPECTED_TRIANGLES);
 
 	materials = (MaterialArray *)malloc(sizeof(MaterialArray));
+	if (materials == NULL) goto memerr;
 	initArraym(materials, EXPECTED_MATERIALS);
 
 	alt_materials = (IntArray *)malloc(sizeof(IntArray));
+	if (alt_materials == NULL) goto memerr;
 	initArrayi(alt_materials, EXPECTED_MATERIALS * 2);
 
 	/* Create buffers for storing lighting information. */
 #ifdef LIGHTS
 	lights = (IntArray *)malloc(sizeof(IntArray));
+	if (lights == NULL) goto memerr;
 	initArrayi(lights, EXPECTED_LIGHTS * 3);
 #endif
 
 	sources = (DistantLightArray *)malloc(sizeof(DistantLightArray));
+	if (sources == NULL) goto memerr;
 	initArraydl(sources, EXPECTED_SOURCES);
 
 	functions = (IntArray *)malloc(sizeof(IntArray));
+	if (functions == NULL) goto memerr;
 	initArrayi(functions, EXPECTED_FUNCTIONS);
 
 	vertex_index_0 = 0u;
@@ -696,6 +706,9 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 
 	geometry_end_clock = clock();
 	fprintf(stderr, "Geometry build time: %u milliseconds.\n", (geometry_end_clock - geometry_start_clock) * 1000 / CLOCKS_PER_SEC);
+	return;
+memerr:
+	error(SYSTEM, "out of memory in createGeometryInstance");
 }
 
 static void addRadianceObject(const RTcontext context, const OBJREC* rec, const OBJREC* parent, const int index)
@@ -754,6 +767,14 @@ static void addRadianceObject(const RTcontext context, const OBJREC* rec, const 
 		}
 		printObect(rec);
 		break;
+	case MOD_ALIAS:
+		if (rec->oargs.nsargs) {
+			if (rec->oargs.nsargs > 1)
+				objerror(rec, INTERNAL, "too many string arguments");
+			addRadianceObject(context, objptr(lastmod(objndx(rec), rec->oargs.sarg[0])), objptr(rec->omod), index); // TODO necessary?
+		}
+		// Otherwise it's a pass-through (do nothing)
+		break;
 	default:
 #ifdef DEBUG_OPTIX
 		printObect(rec);
@@ -767,13 +788,12 @@ static void createFace(const OBJREC* rec, const OBJREC* parent)
 	int j, k;
 	FACE* face = getface(rec);
 	OBJREC* material = findmaterial(parent);
+	if (material == NULL)
+		objerror(rec, USER, "missing material");
 #ifdef TRIANGULATE
 	/* Triangulate the face */
-	if (!createTriangles(face, material)) {
-		printObect(rec);
-		sprintf(errmsg, "Unable to triangulate face %s", rec->oname);
-		error(USER, errmsg);
-	}
+	if (!createTriangles(face, material))
+		objerror(rec, INTERNAL, "triangulation failed");
 #else /* TRIANGULATE */
 	/* Triangulate the polygon as a fan */
 	for (j = 2; j < face->nv; j++)
@@ -781,21 +801,22 @@ static void createFace(const OBJREC* rec, const OBJREC* parent)
 #endif /* TRIANGULATE */
 
 	/* Write the vertices to the buffers */
+	material = findFunction(parent); // TODO can there be multiple parent functions?
 	for (j = 0; j < face->nv; j++) {
 		insertArray3f(vertices, face->va[3 * j], face->va[3 * j + 1], face->va[3 * j + 2]);
 
-		if (parent->otype == TEX_FUNC && parent->oargs.nsargs == 4 && !strcmp(parent->oargs.sarg[3], "tmesh.cal")) {
+		if (material && material->otype == TEX_FUNC && material->oargs.nsargs == 4 && !strcmp(material->oargs.sarg[3], "tmesh.cal")) {
 			/* Normal calculation from tmesh.cal */
 			double bu, bv;
 			FVECT v;
 
-			k = (int)parent->oargs.farg[0];
+			k = (int)material->oargs.farg[0];
 			bu = face->va[3 * j + (k + 1) % 3];
 			bv = face->va[3 * j + (k + 2) % 3];
 
-			v[0] = bu * parent->oargs.farg[1] + bv * parent->oargs.farg[2] + parent->oargs.farg[3];
-			v[1] = bu * parent->oargs.farg[4] + bv * parent->oargs.farg[5] + parent->oargs.farg[6];
-			v[2] = bu * parent->oargs.farg[7] + bv * parent->oargs.farg[8] + parent->oargs.farg[9];
+			v[0] = bu * material->oargs.farg[1] + bv * material->oargs.farg[2] + material->oargs.farg[3];
+			v[1] = bu * material->oargs.farg[4] + bv * material->oargs.farg[5] + material->oargs.farg[6];
+			v[2] = bu * material->oargs.farg[7] + bv * material->oargs.farg[8] + material->oargs.farg[9];
 
 			normalize(v);
 
@@ -807,17 +828,17 @@ static void createFace(const OBJREC* rec, const OBJREC* parent)
 			insertArray3f(normals, face->norm[0], face->norm[1], face->norm[2]);
 		}
 
-		if (parent->otype == TEX_FUNC && parent->oargs.nsargs == 3 && !strcmp(parent->oargs.sarg[2], "tmesh.cal")) {
+		if (material && material->otype == TEX_FUNC && material->oargs.nsargs == 3 && !strcmp(material->oargs.sarg[2], "tmesh.cal")) {
 			/* Texture coordinate calculation from tmesh.cal */
 			double bu, bv;
 
-			k = (int)parent->oargs.farg[0];
+			k = (int)material->oargs.farg[0];
 			bu = face->va[3 * j + (k + 1) % 3];
 			bv = face->va[3 * j + (k + 2) % 3];
 
 			insertArray2f(tex_coords,
-				bu * parent->oargs.farg[1] + bv * parent->oargs.farg[2] + parent->oargs.farg[3],
-				bu * parent->oargs.farg[4] + bv * parent->oargs.farg[5] + parent->oargs.farg[6]);
+				bu * material->oargs.farg[1] + bv * material->oargs.farg[2] + material->oargs.farg[3],
+				bu * material->oargs.farg[4] + bv * material->oargs.farg[5] + material->oargs.farg[6]);
 		}
 		else {
 			//TODO Implement texture maps from colorfunc, brightfunc, colordata, brightdata, and colorpict
@@ -1054,6 +1075,7 @@ static RTmaterial createGlassMaterial( const RTcontext context, const OBJREC* re
 static RTmaterial createLightMaterial( const RTcontext context, OBJREC* rec )
 {
 	RTmaterial material;
+	OBJREC* mat;
 
 	/* Create our hit programs to be shared among all materials */
 	if ( !radiance_light_closest_hit_program || !shadow_light_closest_hit_program ) {
@@ -1093,8 +1115,8 @@ static RTmaterial createLightMaterial( const RTcontext context, OBJREC* rec )
 	}
 
 	/* Check for a parent function. */
-	if (rec->omod > OVOID)
-		applyMaterialVariable1i( context, material, "function", buffer_entry_index[rec->omod] );
+	if (mat = findFunction(rec)) // TODO can there be multiple parent functions?
+		applyMaterialVariable1i( context, material, "function", buffer_entry_index[objndx(mat)] );
 	else
 		applyMaterialVariable1i( context, material, "function", RT_PROGRAM_ID_NULL );
 
@@ -1119,13 +1141,36 @@ static DistantLight createDistantLight( const RTcontext context, OBJREC* rec, OB
 	light.casts_shadow = material->otype != MAT_GLOW; // Glow cannot cast shadow infinitely far away
 
 	/* Check for a parent function. */
-	if (material->omod > OVOID) {
-		light.function = buffer_entry_index[material->omod];
-	} else {
+	if (material = findFunction(parent)) // TODO can there be multiple parent functions?
+		light.function = buffer_entry_index[objndx(material)];
+	else
 		light.function = -1;
-	}
 
 	return light;
+}
+
+static OBJREC* findFunction(OBJREC *o)
+{
+	while (!hasfunc(o->otype)) {
+		if (o->otype == MOD_ALIAS && o->oargs.nsargs) {
+			OBJECT  aobj;
+			OBJREC  *ao;
+			aobj = lastmod(objndx(o), o->oargs.sarg[0]);
+			if (aobj < 0)
+				objerror(o, USER, "bad reference");
+			ao = objptr(aobj);
+			if (hasfunc(ao->otype))
+				return(ao);
+			if (ao->otype == MOD_ALIAS) {
+				o = ao;
+				continue;
+			}
+		}
+		if (o->omod == OVOID)
+			return(NULL);
+		o = objptr(o->omod);
+	}
+	return(o);		/* mixtures will return NULL */
 }
 
 static int createFunction( const RTcontext context, const OBJREC* rec )
@@ -1135,12 +1180,8 @@ static int createFunction( const RTcontext context, const OBJREC* rec )
 	XF bxp;
 
 	/* Get transform */
-	if ( !createTransform( &bxp, rec ) ) {
-		printObect(rec);
-		sprintf(errmsg, "Function %s has bad transform.\n", rec->oname);
-		error(USER, errmsg);
-		return RT_PROGRAM_ID_NULL;
-	}
+	if ( !createTransform( &bxp, rec ) )
+		objerror(rec, USER, "bad transform");
 
 	if ( rec->oargs.nsargs >= 2 ) {
 		if ( !strcmp(rec->oargs.sarg[0], "skybr") && !strcmp(rec->oargs.sarg[1], "skybright.cal") ) {
@@ -1205,12 +1246,8 @@ static int createTexture( const RTcontext context, const OBJREC* rec )
 	dp = getdata(rec->oargs.sarg[1]); //TODO for Texdata and Colordata, use 3, 4, 5
 
 	/* Get transform */
-	if ( !createTransform( &bxp, rec ) ) {
-		printObect(rec);
-		sprintf(errmsg, "Texture %s has bad transform.\n", rec->oname);
-		error(USER, errmsg);
-		return RT_TEXTURE_ID_NULL;
-	}
+	if ( !createTransform( &bxp, rec ) )
+		objerror(rec, USER, "bad transform");
 
 	/* Create buffer for texture data */
 	if (dp->type == DATATY) // floats
@@ -1231,10 +1268,8 @@ static int createTexture( const RTcontext context, const OBJREC* rec )
 		entries = dp->dim[0].ne * dp->dim[1].ne * dp->dim[2].ne;
 		break;
 	default:
-		printObect(rec);
-		sprintf(errmsg, "Texture %s has bad number of dimensions %u.", rec->oname, dp->nd);
-		error(USER, errmsg);
-		return RT_TEXTURE_ID_NULL;
+		sprintf(errmsg, "bad number of dimensions %u", dp->nd);
+		objerror(rec, USER, errmsg);
 	}
 
 	/* Populate buffer with texture data */
