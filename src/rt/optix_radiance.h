@@ -9,6 +9,7 @@
 #include <color.h>
 
 #include <optix_world.h>
+#include "optix_common.h"
 
 
 #define  array2cuda2(c,a)	(c.x=a[0],c.y=a[1])
@@ -105,6 +106,31 @@
 #define RT_CHECK_WARN_NO_CONTEXT( func )	func
 #endif
 
+/* Resizeable array structures */
+typedef struct {
+	int *array;
+	size_t count;
+	size_t size;
+} IntArray;
+
+typedef struct {
+	float *array;
+	size_t count;
+	size_t size;
+} FloatArray;
+
+typedef struct {
+	RTmaterial *array;
+	size_t count;
+	size_t size;
+} MaterialArray;
+
+typedef struct {
+	DistantLight *array;
+	size_t count;
+	size_t size;
+} DistantLightArray;
+
 
 char path_to_ptx[512];     /* The path to the PTX file. */
 
@@ -144,6 +170,25 @@ void applyContextObject( const RTcontext context, const char* name, const RTobje
 void applyProgramObject( const RTcontext context, const RTprogram program, const char* name, const RTobject object );
 void applyGeometryObject( const RTcontext context, const RTgeometry geometry, const char* name, const RTobject object );
 void applyGeometryInstanceObject( const RTcontext context, const RTgeometryinstance instance, const char* name, const RTobject object );
+void copyToBufferi(const RTcontext context, const RTbuffer buffer, const IntArray *a);
+void copyToBufferf(const RTcontext context, const RTbuffer buffer, const FloatArray *a);
+void copyToBufferdl(const RTcontext context, const RTbuffer buffer, const DistantLightArray *a);
+void initArrayi(IntArray *a, const size_t initialSize);
+int insertArrayi(IntArray *a, const int element);
+int insertArray2i(IntArray *a, const int x, const int y);
+int insertArray3i(IntArray *a, const int x, const int y, const int z);
+void freeArrayi(IntArray *a);
+void initArrayf(FloatArray *a, const size_t initialSize);
+float insertArrayf(FloatArray *a, const float element);
+float insertArray2f(FloatArray *a, const float x, const float y);
+float insertArray3f(FloatArray *a, const float x, const float y, const float z);
+void freeArrayf(FloatArray *a);
+void initArraym(MaterialArray *a, const size_t initialSize);
+RTmaterial insertArraym(MaterialArray *a, const RTmaterial element);
+void freeArraym(MaterialArray *a);
+void initArraydl(DistantLightArray *a, const size_t initialSize);
+DistantLight insertArraydl(DistantLightArray *a, const DistantLight element);
+void freeArraydl(DistantLightArray *a);
 void handleError( const RTcontext context, const RTresult code, const char* file, const int line, const int etype );
 void printException( const float3 code, const char* location, const int index );
 void ptxFile( char* path, const char* name );

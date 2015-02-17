@@ -18,17 +18,20 @@
 #include "data.h"
 
 #include "optix_radiance.h"
-#include "optix_common.h"
 
 #define TRIANGULATE
 #ifdef TRIANGULATE
 #include "triangulate.h"
 #endif /* TRIANGULATE */
 
-/* Structure to track the number of each data type in the model. */
-typedef struct struct_object_count {
-	unsigned int vertex, triangle, material, light, source, function;
-} ObjectCount;
+#define EXPECTED_VERTICES	64
+#define EXPECTED_TRIANGLES	64
+#define EXPECTED_MATERIALS	8
+#ifdef LIGHTS
+#define EXPECTED_LIGHTS		8
+#endif
+#define EXPECTED_SOURCES	3
+#define EXPECTED_FUNCTIONS	8
 
 void renderOptix( const VIEW* view, const int width, const int height, const double alarm, COLOR* colors, float* depths );
 void computeOptix( const int width, const int height, const double alarm, RAY* rays );
@@ -40,9 +43,8 @@ static void setupKernel( const RTcontext context, const VIEW* view, const int wi
 static void applyRadianceSettings( const RTcontext context );
 static void createCamera( const RTcontext context, const VIEW* view );
 static void updateCamera( const RTcontext context, const VIEW* view );
-static void countObjectsInScene( ObjectCount* count );
 static void createGeometryInstance( const RTcontext context, RTgeometryinstance* instance );
-static void addRadianceObject(const RTcontext context, const RTgeometryinstance instance, const OBJREC* rec, const OBJREC* parent, const int i);
+static void addRadianceObject(const RTcontext context, const OBJREC* rec, const OBJREC* parent, const int index);
 static void createFace(const OBJREC* rec, const OBJREC* parent);
 static __inline void createTriangle(const OBJREC *material, const int a, const int b, const int c);
 #ifdef TRIANGULATE
@@ -50,9 +52,9 @@ static int createTriangles(const FACE *face, const OBJREC* material);
 static int addTriangle(const Vert2_list *tp, int a, int b, int c);
 #endif /* TRIANGULATE */
 static void createMesh(const OBJREC* rec, const OBJREC* parent);
-static void createNormalMaterial( const RTcontext context, const RTgeometryinstance instance, const int index, const OBJREC* rec );
-static void createGlassMaterial( const RTcontext context, const RTgeometryinstance instance, const int index, const OBJREC* rec );
-static void createLightMaterial( const RTcontext context, const RTgeometryinstance instance, const int index, OBJREC* rec );
+static RTmaterial createNormalMaterial( const RTcontext context, const OBJREC* rec );
+static RTmaterial createGlassMaterial( const RTcontext context, const OBJREC* rec );
+static RTmaterial createLightMaterial( const RTcontext context, OBJREC* rec );
 static DistantLight createDistantLight( const RTcontext context, OBJREC* rec );
 static int createFunction( const RTcontext context, const OBJREC* rec, const OBJREC* parent );
 static int createTexture( const RTcontext context, const OBJREC* rec );
@@ -90,21 +92,22 @@ static RTbuffer buffer_handle = NULL;
 static RTvariable camera_type, camera_eye, camera_u, camera_v, camera_w, camera_fov, camera_shift, camera_clip;
 
 /* Handles to buffer data */
-int*       buffer_entry_index;
-float*     vertex_buffer_data;
-float*     normal_buffer_data;
-float*     tex_coord_buffer_data;
-int*       vertex_index_buffer_data;
-int*       material_index_buffer_data;
-int*       material_alt_buffer_data;
+static int*       buffer_entry_index;
+static FloatArray* vertices;		/* Three entries per vertex */
+static FloatArray* normals;			/* Three entries per vertex */
+static FloatArray* tex_coords;		/* Two entries per vertex */
+static IntArray*   vertex_indices;	/* Three entries per triangle */
+static IntArray*   traingles;		/* One entry per triangle gives material of that triangle */
+static MaterialArray* materials;	/* One entry per material */
+static IntArray*   alt_materials;	/* Two entries per material gives alternate materials to use in place of that material */
 #ifdef LIGHTS
-int*       light_index_buffer_data;
+static IntArray*   lights;			/* Three entries per triangle that is a light */
 #endif
-DistantLight* source_buffer_data;
-int*       function_buffer_data;
+static DistantLightArray* sources;	/* One entry per source object */
+static IntArray*   functions;		/* One entry per callable program */
 
-/* Current indices in buffer data */
-unsigned int vi, ni, ti, mi, mai, vertex_index, triangle_index, light_index, source_index, function_index, vertex_index_0;
+/* Index of first vertex of current object */
+static unsigned int vertex_index_0;
 
 /* Handles to intersection program objects used by multiple materials */
 static RTprogram radiance_normal_closest_hit_program, ambient_normal_closest_hit_program;
@@ -529,95 +532,14 @@ static void updateCamera( const RTcontext context, const VIEW* view )
 	RT_CHECK_ERROR( rtVariableSet2f( camera_clip, view->vfore, view->vaft ) ); // -vo, -va
 }
 
-/* Count the number of vertices and triangles belonging to all faces in the scene. */
-static void countObjectsInScene( ObjectCount* count )
-{
-	OBJREC* rec, *material;
-	MESHINST *meshinst;
-	unsigned int i, j, face_vertex_count;
-	unsigned int vertex_count, triangle_count, material_count, light_count, source_count, function_count;
-	vertex_count = triangle_count = material_count = light_count = source_count = function_count = 0u;
-
-	if ( do_irrad )
-		material_count++;
-
-	for (i = 0; i < nobjects; i++) {
-		rec = objptr(i);
-		//if (issurface(rec.otype)) {
-		switch (rec->otype) {
-		case MAT_PLASTIC: // Plastic material
-		case MAT_METAL: // Metal material
-		case MAT_TRANS: // Translucent material
-		case MAT_GLASS: // Glass material
-		case MAT_DIELECTRIC: // Dielectric material
-		case MAT_LIGHT: // primary light source material, may modify a face or a source (solid angle)
-		case MAT_ILLUM: // secondary light source material
-		case MAT_GLOW: // Glow material
-		case MAT_SPOT: // Spotlight material
-			material_count++;
-			break;
-		case OBJ_FACE: // Typical polygons
-			face_vertex_count = rec->oargs.nfargs / 3;
-			vertex_count += face_vertex_count;
-			triangle_count += face_vertex_count - 2;
-#ifdef LIGHTS
-			material = findmaterial(rec);
-			if (islight(material->otype) && (material->otype != MAT_GLOW || material->oargs.farg[3] > 0))
-				light_count += face_vertex_count - 2;
-#endif
-			break;
-		case OBJ_MESH: // Mesh from file
-			meshinst = getmeshinst(rec, IO_ALL);
-			//printmeshstats(meshinst->msh, stderr);
-			for (j = 0u; j < meshinst->msh->npatches; j++) {
-				MESHPATCH *pp = &(meshinst->msh)->patch[j];
-				vertex_count += pp->nverts;
-				triangle_count += pp->ntris + pp->nj1tris + pp->nj2tris;
-			}
-			//freemeshinst(rec);
-			break;
-		case OBJ_SOURCE: // The sun, for example
-			source_count++;
-			break;
-		case PAT_BFUNC: // brightness function, used for sky brightness
-		case PAT_BDATA: // brightness texture, used for IES lighting data
-			function_count++;
-			break;
-		default:
-			break;
-		}
-	}
-
-	count->vertex = vertex_count;
-	count->triangle = triangle_count;
-	count->material = material_count;
-#ifdef LIGHTS
-	count->light = light_count;
-#endif
-	count->source = source_count;
-	count->function = function_count;
-}
-
 static void createGeometryInstance( const RTcontext context, RTgeometryinstance* instance )
 {
 	RTgeometry mesh;
 	RTprogram  mesh_intersection_program;
 	RTprogram  mesh_bounding_box_program;
-
-	RTbuffer   vertex_buffer;
-	RTbuffer   normal_buffer;
-	RTbuffer   tex_coord_buffer;
-	RTbuffer   vertex_index_buffer;
-	RTbuffer   material_index_buffer;
-	RTbuffer   material_alt_buffer;
-#ifdef LIGHTS
-	RTbuffer   light_index_buffer;
-#endif
-	RTbuffer   source_buffer;
-	RTbuffer   function_buffer;
+	RTbuffer   buffer;
 
 	int i;
-	ObjectCount count;
 	OBJREC* rec, *parent;
 
 	/* Timers */
@@ -632,63 +554,46 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 
 	geometry_start_clock = clock();
 
-	/* Count the number of each type of object in the scene. */
-	countObjectsInScene(&count);
-
-	/* Create the geometry reference for OptiX. */
-	RT_CHECK_ERROR( rtGeometryCreate( context, &mesh ) );
-	RT_CHECK_ERROR( rtGeometrySetPrimitiveCount( mesh, count.triangle ) );
-
-	ptxFile( path_to_ptx, "triangle_mesh" );
-	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "mesh_bounds", &mesh_bounding_box_program ) );
-	RT_CHECK_ERROR( rtGeometrySetBoundingBoxProgram( mesh, mesh_bounding_box_program ) );
-	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "mesh_intersect", &mesh_intersection_program ) );
-	RT_CHECK_ERROR( rtGeometrySetIntersectionProgram( mesh, mesh_intersection_program ) );
-	applyProgramVariable1ui( context, mesh_intersection_program, "backvis", backvis ); // -bv
-
-	/* Create the geometry instance containing the geometry. */
-	RT_CHECK_ERROR( rtGeometryInstanceCreate( context, instance ) );
-	RT_CHECK_ERROR( rtGeometryInstanceSetGeometry( *instance, mesh ) );
-	RT_CHECK_ERROR( rtGeometryInstanceSetMaterialCount( *instance, count.material ) );
-
 	/* Create buffers for storing geometry information. */
-	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, count.vertex, &vertex_buffer );
-	RT_CHECK_ERROR( rtBufferMap( vertex_buffer, (void**)&vertex_buffer_data ) );
+	vertices = (FloatArray *)malloc(sizeof(FloatArray));
+	initArrayf(vertices, EXPECTED_VERTICES * 3);
 
-	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, count.vertex, &normal_buffer );
-	RT_CHECK_ERROR( rtBufferMap( normal_buffer, (void**)&normal_buffer_data ) );
+	normals = (FloatArray *)malloc(sizeof(FloatArray));
+	initArrayf(normals, EXPECTED_VERTICES * 3);
 
-	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT2, count.vertex, &tex_coord_buffer );
-	RT_CHECK_ERROR( rtBufferMap( tex_coord_buffer, (void**)&tex_coord_buffer_data ) );
+	tex_coords = (FloatArray *)malloc(sizeof(FloatArray));
+	initArrayf(tex_coords, EXPECTED_VERTICES * 2);
 
-	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_INT3, count.triangle, &vertex_index_buffer );
-	RT_CHECK_ERROR( rtBufferMap( vertex_index_buffer, (void**)&vertex_index_buffer_data ) );
+	vertex_indices = (IntArray *)malloc(sizeof(IntArray));
+	initArrayi(vertex_indices, EXPECTED_TRIANGLES * 3);
 
-	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_INT, count.triangle, &material_index_buffer );
-	RT_CHECK_ERROR( rtBufferMap( material_index_buffer, (void**)&material_index_buffer_data ) );
+	traingles = (IntArray *)malloc(sizeof(IntArray));
+	initArrayi(traingles, EXPECTED_TRIANGLES);
 
-	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_INT2, count.material, &material_alt_buffer );
-	RT_CHECK_ERROR( rtBufferMap( material_alt_buffer, (void**)&material_alt_buffer_data ) );
+	materials = (MaterialArray *)malloc(sizeof(MaterialArray));
+	initArraym(materials, EXPECTED_MATERIALS);
+
+	alt_materials = (IntArray *)malloc(sizeof(IntArray));
+	initArrayi(alt_materials, EXPECTED_MATERIALS * 2);
 
 	/* Create buffers for storing lighting information. */
 #ifdef LIGHTS
-	createBuffer1D( context, RT_BUFFER_INPUT, RT_FORMAT_INT3, count.light, &light_index_buffer );
-	RT_CHECK_ERROR( rtBufferMap( light_index_buffer, (void**)&light_index_buffer_data ) );
+	lights = (IntArray *)malloc(sizeof(IntArray));
+	initArrayi(lights, EXPECTED_LIGHTS * 3);
 #endif
 
-	createCustomBuffer1D(context, RT_BUFFER_INPUT, sizeof(DistantLight), count.source, &source_buffer);
-	RT_CHECK_ERROR(rtBufferMap(source_buffer, (void**)&source_buffer_data));
+	sources = (DistantLightArray *)malloc(sizeof(DistantLightArray));
+	initArraydl(sources, EXPECTED_SOURCES);
 
-	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_PROGRAM_ID, count.function, &function_buffer);
-	RT_CHECK_ERROR(rtBufferMap(function_buffer, (void**)&function_buffer_data));
+	functions = (IntArray *)malloc(sizeof(IntArray));
+	initArrayi(functions, EXPECTED_FUNCTIONS);
 
-	vi = ni = ti = mi = mai = vertex_index = triangle_index = light_index = source_index = function_index = vertex_index_0 = 0u;
+	vertex_index_0 = 0u;
 
 	/* Material 0 is Lambertian. */
 	if ( do_irrad ) {
-		material_alt_buffer_data[mai++] = mi;
-		material_alt_buffer_data[mai++] = mi;
-		createNormalMaterial( context, *instance, mi++, &Lamb );
+		insertArray2i(alt_materials, materials->count, materials->count);
+		insertArraym(materials, createNormalMaterial(context, &Lamb));
 	}
 
 	/* Get the scene geometry as a list of triangles. */
@@ -703,84 +608,126 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 		else
 			parent = NULL;
 
-		addRadianceObject(context, *instance, rec, parent, i);
+		addRadianceObject(context, rec, parent, i);
 	}
 
 	free( buffer_entry_index );
 
+	/* Create the geometry reference for OptiX. */
+	RT_CHECK_ERROR(rtGeometryCreate(context, &mesh));
+	RT_CHECK_ERROR(rtGeometrySetPrimitiveCount(mesh, traingles->count));
+
+	ptxFile(path_to_ptx, "triangle_mesh");
+	RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "mesh_bounds", &mesh_bounding_box_program));
+	RT_CHECK_ERROR(rtGeometrySetBoundingBoxProgram(mesh, mesh_bounding_box_program));
+	RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "mesh_intersect", &mesh_intersection_program));
+	RT_CHECK_ERROR(rtGeometrySetIntersectionProgram(mesh, mesh_intersection_program));
+	applyProgramVariable1ui(context, mesh_intersection_program, "backvis", backvis); // -bv
+
+	/* Create the geometry instance containing the geometry. */
+	RT_CHECK_ERROR(rtGeometryInstanceCreate(context, instance));
+	RT_CHECK_ERROR(rtGeometryInstanceSetGeometry(*instance, mesh));
+	RT_CHECK_ERROR(rtGeometryInstanceSetMaterialCount(*instance, materials->count));
+
+	/* Apply materials to the geometry instance. */
+	for (i = 0; i < materials->count; i++)
+		RT_CHECK_ERROR(rtGeometryInstanceSetMaterial(*instance, i, materials->array[i]));
+	freeArraym(materials);
+	free(materials);
+
 	/* Unmap and apply the geometry buffers. */
-	RT_CHECK_ERROR( rtBufferUnmap( vertex_buffer ) );
-	//applyGeometryInstanceObject( context, *instance, "vertex_buffer", vertex_buffer );
-	applyContextObject( context, "vertex_buffer", vertex_buffer );
+	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, vertices->count / 3, &buffer);
+	copyToBufferi(context, buffer, vertices);
+	//applyGeometryInstanceObject( context, *instance, "vertex_buffer", buffer );
+	applyContextObject(context, "vertex_buffer", buffer);
+	freeArrayf(vertices);
+	free(vertices);
 
-	RT_CHECK_ERROR( rtBufferUnmap( normal_buffer ) );
-	applyGeometryInstanceObject( context, *instance, "normal_buffer", normal_buffer );
+	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, normals->count / 3, &buffer);
+	copyToBufferi(context, buffer, normals);
+	applyGeometryInstanceObject(context, *instance, "normal_buffer", buffer);
+	freeArrayf(normals);
+	free(normals);
 
-	RT_CHECK_ERROR( rtBufferUnmap( tex_coord_buffer ) );
-	applyGeometryInstanceObject( context, *instance, "texcoord_buffer", tex_coord_buffer );
+	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT2, tex_coords->count / 2, &buffer);
+	copyToBufferi(context, buffer, tex_coords);
+	applyGeometryInstanceObject(context, *instance, "texcoord_buffer", buffer);
+	freeArrayf(tex_coords);
+	free(tex_coords);
 
-	RT_CHECK_ERROR( rtBufferUnmap( vertex_index_buffer ) );
-	applyGeometryInstanceObject( context, *instance, "vindex_buffer", vertex_index_buffer );
+	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_INT3, vertex_indices->count / 3, &buffer);
+	copyToBufferi(context, buffer, vertex_indices);
+	applyGeometryInstanceObject(context, *instance, "vindex_buffer", buffer);
+	freeArrayi(vertex_indices);
+	free(vertex_indices);
 
-	RT_CHECK_ERROR( rtBufferUnmap( material_index_buffer ) );
-	applyGeometryInstanceObject( context, *instance, "material_buffer", material_index_buffer );
+	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_INT, traingles->count, &buffer);
+	copyToBufferi(context, buffer, traingles);
+	applyGeometryInstanceObject(context, *instance, "material_buffer", buffer);
+	freeArrayi(traingles);
+	free(traingles);
 
-	RT_CHECK_ERROR( rtBufferUnmap( material_alt_buffer ) );
-	applyGeometryInstanceObject( context, *instance, "material_alt_buffer", material_alt_buffer );
+	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_INT2, alt_materials->count / 2, &buffer);
+	copyToBufferi(context, buffer, alt_materials);
+	applyGeometryInstanceObject(context, *instance, "material_alt_buffer", buffer);
+	freeArrayi(alt_materials);
+	free(alt_materials);
 
 	/* Unmap and apply the lighting buffers. */
 #ifdef LIGHTS
-	RT_CHECK_ERROR( rtBufferUnmap( light_index_buffer ) );
-	applyContextObject( context, "lindex_buffer", light_index_buffer );
+	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_INT3, lights->count / 3, &buffer);
+	copyToBufferi(context, buffer, lights);
+	applyContextObject(context, "lindex_buffer", buffer);
+	freeArrayi(lights);
+	free(lights);
 #endif
 
-	RT_CHECK_ERROR(rtBufferUnmap(source_buffer));
-	applyContextObject(context, "lights", source_buffer);
+	createCustomBuffer1D(context, RT_BUFFER_INPUT, sizeof(DistantLight), sources->count, &buffer);
+	copyToBufferdl(context, buffer, sources);
+	applyContextObject(context, "lights", buffer);
+	freeArraydl(sources);
+	free(sources);
 
-	RT_CHECK_ERROR(rtBufferUnmap(function_buffer));
-	applyContextObject(context, "functions", function_buffer);
+	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_PROGRAM_ID, functions->count, &buffer);
+	copyToBufferi(context, buffer, functions);
+	applyContextObject(context, "functions", buffer);
+	freeArrayi(functions);
+	free(functions);
 
 	geometry_end_clock = clock();
 	fprintf(stderr, "Geometry build time: %u milliseconds.\n", (geometry_end_clock - geometry_start_clock) * 1000 / CLOCKS_PER_SEC);
 }
 
-static void addRadianceObject(const RTcontext context, const RTgeometryinstance instance, const OBJREC* rec, const OBJREC* parent, const int i)
+static void addRadianceObject(const RTcontext context, const OBJREC* rec, const OBJREC* parent, const int index)
 {
-	int alt;
-
 	switch (rec->otype) {
 	case MAT_PLASTIC: // Plastic material
 	case MAT_METAL: // Metal material
 	case MAT_TRANS: // Translucent material
-		buffer_entry_index[i] = mi;
-		material_alt_buffer_data[mai++] = 0;
-		material_alt_buffer_data[mai++] = mi;
-		createNormalMaterial(context, instance, mi++, rec);
+		buffer_entry_index[index] = insertArray2i(alt_materials, 0, materials->count);
+		insertArraym(materials, createNormalMaterial(context, rec));
 		break;
 	case MAT_GLASS: // Glass material
 	case MAT_DIELECTRIC: // Dielectric material TODO handle separately, see dialectric.c
-		buffer_entry_index[i] = mi;
-		material_alt_buffer_data[mai++] = -1;
-		material_alt_buffer_data[mai++] = mi;
-		createGlassMaterial(context, instance, mi++, rec);
+		buffer_entry_index[index] = insertArray2i(alt_materials, -1, materials->count);
+		insertArraym(materials, createGlassMaterial(context, rec));
 		break;
 	case MAT_LIGHT: // primary light source material, may modify a face or a source (solid angle)
 	case MAT_ILLUM: // secondary light source material
 	case MAT_GLOW: // Glow material
 	case MAT_SPOT: // Spotlight material
+		buffer_entry_index[index] = materials->count;
 		if (rec->otype != MAT_ILLUM)
-			alt = mi;
+			insertArray2i(alt_materials, materials->count, materials->count);
 		else if (rec->oargs.nsargs && strcmp(rec->oargs.sarg[0], VOIDID)) { /* modifies another material */
 			//material = objptr( lastmod( objndx(rec), rec->oargs.sarg[0] ) );
 			//alt = buffer_entry_index[objndx(material)];
-			alt = buffer_entry_index[lastmod(objndx(rec), rec->oargs.sarg[0])];
+			int alt = buffer_entry_index[lastmod(objndx(rec), rec->oargs.sarg[0])];
+			insertArray2i(alt_materials, materials->count, alt);
 		}
 		else
-			alt = -1;
-		buffer_entry_index[i] = mi;
-		material_alt_buffer_data[mai++] = mi;
-		material_alt_buffer_data[mai++] = alt;
-		createLightMaterial(context, instance, mi++, rec);
+			insertArray2i(alt_materials, materials->count, -1);
+		insertArraym(materials, createLightMaterial(context, rec));
 		break;
 	case OBJ_FACE: // Typical polygons
 		createFace(rec, parent);
@@ -789,14 +736,14 @@ static void addRadianceObject(const RTcontext context, const RTgeometryinstance 
 		createMesh(rec, parent);
 		break;
 	case OBJ_SOURCE:
-		source_buffer_data[source_index++] = createDistantLight(context, rec, parent);
+		insertArraydl(sources, createDistantLight(context, rec, parent));
 		break;
 	case PAT_BFUNC: // brightness function, used for sky brightness
-		buffer_entry_index[i] = function_index;
-		function_buffer_data[function_index++] = createFunction(context, rec, parent);
+		buffer_entry_index[index] = functions->count;
+		insertArrayi(functions, createFunction(context, rec, parent));
 		break;
 	case PAT_BDATA: // brightness texture, used for IES lighting data
-		buffer_entry_index[i] = function_buffer_data[function_index++] = createTexture(context, rec);
+		buffer_entry_index[index] = insertArrayi(functions, createTexture(context, rec));
 		break;
 	case TEX_FUNC:
 		if (rec->oargs.nsargs == 3) {
@@ -835,9 +782,7 @@ static void createFace(const OBJREC* rec, const OBJREC* parent)
 
 	/* Write the vertices to the buffers */
 	for (j = 0; j < face->nv; j++) {
-		vertex_buffer_data[vi++] = face->va[3 * j];
-		vertex_buffer_data[vi++] = face->va[3 * j + 1];
-		vertex_buffer_data[vi++] = face->va[3 * j + 2];
+		insertArray3f(vertices, face->va[3 * j], face->va[3 * j + 1], face->va[3 * j + 2]);
 
 		if (parent->otype == TEX_FUNC && parent->oargs.nsargs == 4 && !strcmp(parent->oargs.sarg[3], "tmesh.cal")) {
 			/* Normal calculation from tmesh.cal */
@@ -854,16 +799,12 @@ static void createFace(const OBJREC* rec, const OBJREC* parent)
 
 			normalize(v);
 
-			normal_buffer_data[ni++] = v[0];
-			normal_buffer_data[ni++] = v[1];
-			normal_buffer_data[ni++] = v[2];
+			insertArray3f(normals, v[0], v[1], v[2]);
 		}
 		else {
 			//TODO Implement bump maps from texfunc and texdata
 			// This might be done in the Intersecion program in triangle_mesh.cu rather than here
-			normal_buffer_data[ni++] = face->norm[0];
-			normal_buffer_data[ni++] = face->norm[1];
-			normal_buffer_data[ni++] = face->norm[2];
+			insertArray3f(normals, face->norm[0], face->norm[1], face->norm[2]);
 		}
 
 		if (parent->otype == TEX_FUNC && parent->oargs.nsargs == 3 && !strcmp(parent->oargs.sarg[2], "tmesh.cal")) {
@@ -874,14 +815,14 @@ static void createFace(const OBJREC* rec, const OBJREC* parent)
 			bu = face->va[3 * j + (k + 1) % 3];
 			bv = face->va[3 * j + (k + 2) % 3];
 
-			tex_coord_buffer_data[ti++] = bu * parent->oargs.farg[1] + bv * parent->oargs.farg[2] + parent->oargs.farg[3];
-			tex_coord_buffer_data[ti++] = bu * parent->oargs.farg[4] + bv * parent->oargs.farg[5] + parent->oargs.farg[6];
+			insertArray2f(tex_coords,
+				bu * parent->oargs.farg[1] + bv * parent->oargs.farg[2] + parent->oargs.farg[3],
+				bu * parent->oargs.farg[4] + bv * parent->oargs.farg[5] + parent->oargs.farg[6]);
 		}
 		else {
 			//TODO Implement texture maps from colorfunc, brightfunc, colordata, brightdata, and colorpict
 			// This might be done in the Intersecion program in triangle_mesh.cu rather than here
-			tex_coord_buffer_data[ti++] = 0.0f;
-			tex_coord_buffer_data[ti++] = 0.0f;
+			insertArray2f(tex_coords, 0.0f, 0.0f);
 		}
 	}
 	vertex_index_0 += face->nv;
@@ -891,18 +832,12 @@ static void createFace(const OBJREC* rec, const OBJREC* parent)
 static __inline void createTriangle(const OBJREC *material, const int a, const int b, const int c)
 {
 	/* Write the indices to the buffers */
-	vertex_index_buffer_data[vertex_index++] = a;
-	vertex_index_buffer_data[vertex_index++] = b;
-	vertex_index_buffer_data[vertex_index++] = c;
-
-	material_index_buffer_data[triangle_index++] = buffer_entry_index[objndx(material)];
+	insertArray3i(vertex_indices, a, b, c);
+	insertArrayi(traingles, buffer_entry_index[objndx(material)]);
 
 #ifdef LIGHTS
-	if (islight(material->otype) && (material->otype != MAT_GLOW || material->oargs.farg[3] > 0)) {
-		light_index_buffer_data[light_index++] = a;
-		light_index_buffer_data[light_index++] = b;
-		light_index_buffer_data[light_index++] = c;
-	}
+	if (islight(material->otype) && (material->otype != MAT_GLOW || material->oargs.farg[3] > 0))
+		insertArray3i(lights, a, b, c);
 #endif /* LIGHTS */
 }
 
@@ -1004,27 +939,18 @@ static void createMesh(const OBJREC* rec, const OBJREC* parent)
 			if (!(mesh_vert.fl & MT_V))
 				objerror(rec, INTERNAL, "missing mesh vertices in createGeometryInstance");
 			multp3(transform, mesh_vert.v, meshinst->x.f.xfm);
-			vertex_buffer_data[vi++] = transform[0];
-			vertex_buffer_data[vi++] = transform[1];
-			vertex_buffer_data[vi++] = transform[2];
+			insertArray3f(vertices, transform[0], transform[1], transform[2]);
 
 			if (mesh_vert.fl & MT_N) { // TODO what if normal is defined by texture function
 				multv3(transform, mesh_vert.n, meshinst->x.f.xfm);
-				normal_buffer_data[ni++] = transform[0];
-				normal_buffer_data[ni++] = transform[1];
-				normal_buffer_data[ni++] = transform[2];
-			}
-			else {
-				normal_buffer_data[ni++] = normal_buffer_data[ni++] = normal_buffer_data[ni++] = 0.0f;
-			}
+				insertArray3f(normals, transform[0], transform[1], transform[2]);
+			} else
+				insertArray3f(normals, 0.0f, 0.0f, 0.0f); //TODO Can this happen?
 
-			if (mesh_vert.fl & MT_UV) {
-				tex_coord_buffer_data[ti++] = mesh_vert.uv[0];
-				tex_coord_buffer_data[ti++] = mesh_vert.uv[1];
-			}
-			else {
-				tex_coord_buffer_data[ti++] = tex_coord_buffer_data[ti++] = 0.0f;
-			}
+			if (mesh_vert.fl & MT_UV)
+				insertArray2f(tex_coords, mesh_vert.uv[0], mesh_vert.uv[1]);
+			else
+				insertArray2f(tex_coords, 0.0f, 0.0f);
 		}
 
 		vertex_index_0 += pp->nverts;
@@ -1032,7 +958,7 @@ static void createMesh(const OBJREC* rec, const OBJREC* parent)
 	freemeshinst(rec);
 }
 
-static void createNormalMaterial( const RTcontext context, const RTgeometryinstance instance, const int index, const OBJREC* rec )
+static RTmaterial createNormalMaterial( const RTcontext context, const OBJREC* rec )
 {
 	RTmaterial material;
 
@@ -1080,11 +1006,10 @@ static void createNormalMaterial( const RTcontext context, const RTgeometryinsta
 		applyMaterialVariable1f( context, material, "tspecu", rec->oargs.farg[6] );
 	}
 
-	/* Apply this material to the geometry instance. */
-	RT_CHECK_ERROR( rtGeometryInstanceSetMaterial( instance, index, material ) );
+	return material;
 }
 
-static void createGlassMaterial( const RTcontext context, const RTgeometryinstance instance, const int index, const OBJREC* rec )
+static RTmaterial createGlassMaterial( const RTcontext context, const OBJREC* rec )
 {
 	RTmaterial material;
 
@@ -1123,11 +1048,10 @@ static void createGlassMaterial( const RTcontext context, const RTgeometryinstan
 	if (rec->oargs.nfargs > 3)
 		applyMaterialVariable1f( context, material, "rindex", rec->oargs.farg[3] );
 
-	/* Apply this material to the geometry instance. */
-	RT_CHECK_ERROR( rtGeometryInstanceSetMaterial( instance, index, material ) );
+	return material;
 }
 
-static void createLightMaterial( const RTcontext context, const RTgeometryinstance instance, const int index, OBJREC* rec )
+static RTmaterial createLightMaterial( const RTcontext context, OBJREC* rec )
 {
 	RTmaterial material;
 
@@ -1174,8 +1098,7 @@ static void createLightMaterial( const RTcontext context, const RTgeometryinstan
 	else
 		applyMaterialVariable1i( context, material, "function", RT_PROGRAM_ID_NULL );
 
-	/* Apply this material to the geometry instance. */
-	RT_CHECK_ERROR( rtGeometryInstanceSetMaterial( instance, index, material ) );
+	return material;
 }
 
 static DistantLight createDistantLight( const RTcontext context, OBJREC* rec, OBJREC* parent )

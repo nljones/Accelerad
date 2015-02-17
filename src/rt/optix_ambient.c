@@ -9,7 +9,6 @@
 #include "ambient.h"
 
 #include "optix_radiance.h"
-#include "optix_common.h"
 
 
 static void updateAmbientCache( const RTcontext context, const unsigned int level );

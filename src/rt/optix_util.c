@@ -276,6 +276,191 @@ void applyGeometryInstanceObject( const RTcontext context, const RTgeometryinsta
 	RT_CHECK_ERROR( rtVariableSetObject( var, object ) );
 }
 
+void copyToBufferi(const RTcontext context, const RTbuffer buffer, const IntArray *a)
+{
+	int *data;
+
+	RT_CHECK_ERROR(rtBufferMap(buffer, (void**)&data));
+	memcpy(data, a->array, a->count*sizeof(int));
+	RT_CHECK_ERROR(rtBufferUnmap(buffer));
+}
+
+void copyToBufferf(const RTcontext context, const RTbuffer buffer, const FloatArray *a)
+{
+	float *data;
+
+	RT_CHECK_ERROR(rtBufferMap(buffer, (void**)&data));
+	memcpy(data, a->array, a->count*sizeof(float));
+	RT_CHECK_ERROR(rtBufferUnmap(buffer));
+}
+
+void copyToBufferdl(const RTcontext context, const RTbuffer buffer, const DistantLightArray *a)
+{
+	DistantLight *data;
+
+	RT_CHECK_ERROR(rtBufferMap(buffer, (void**)&data));
+	memcpy(data, a->array, a->count*sizeof(DistantLight));
+	RT_CHECK_ERROR(rtBufferUnmap(buffer));
+}
+
+void initArrayi(IntArray *a, const size_t initialSize)
+{
+	a->array = (int *)malloc(initialSize * sizeof(int));
+	if (a->array == NULL)
+		error(SYSTEM, "out of memory in initArrayi");
+	a->count = 0;
+	a->size = initialSize;
+}
+
+int insertArrayi(IntArray *a, const int element)
+{
+	if (a->count == a->size) {
+		a->size *= 2;
+		a->array = (int *)realloc(a->array, a->size * sizeof(int));
+		if (a->array == NULL)
+			error(SYSTEM, "out of memory in insertArrayi");
+	}
+	return a->array[a->count++] = element;
+}
+
+int insertArray2i(IntArray *a, const int x, const int y)
+{
+	if (a->count + 1 >= a->size) {
+		a->size *= 2;
+		a->array = (int *)realloc(a->array, a->size * sizeof(int));
+		if (a->array == NULL)
+			error(SYSTEM, "out of memory in insertArray2i");
+	}
+	a->array[a->count++] = x;
+	return a->array[a->count++] = y;
+}
+
+int insertArray3i(IntArray *a, const int x, const int y, const int z)
+{
+	if (a->count + 2 >= a->size) {
+		a->size *= 2;
+		a->array = (int *)realloc(a->array, a->size * sizeof(int));
+		if (a->array == NULL)
+			error(SYSTEM, "out of memory in insertArray3i");
+	}
+	a->array[a->count++] = x;
+	a->array[a->count++] = y;
+	return a->array[a->count++] = z;
+}
+
+void freeArrayi(IntArray *a)
+{
+	free(a->array);
+	a->array = NULL;
+	a->count = a->size = 0;
+}
+
+void initArrayf(FloatArray *a, const size_t initialSize)
+{
+	a->array = (float *)malloc(initialSize * sizeof(float));
+	if (a->array == NULL)
+		error(SYSTEM, "out of memory in initArrayi");
+	a->count = 0;
+	a->size = initialSize;
+}
+
+float insertArrayf(FloatArray *a, const float element)
+{
+	if (a->count == a->size) {
+		a->size *= 2;
+		a->array = (float *)realloc(a->array, a->size * sizeof(float));
+		if (a->array == NULL)
+			error(SYSTEM, "out of memory in insertArrayf");
+	}
+	return a->array[a->count++] = element;
+}
+
+float insertArray2f(FloatArray *a, const float x, const float y)
+{
+	if (a->count + 1 >= a->size) {
+		a->size *= 2;
+		a->array = (float *)realloc(a->array, a->size * sizeof(float));
+		if (a->array == NULL)
+			error(SYSTEM, "out of memory in insertArray2f");
+	}
+	a->array[a->count++] = x;
+	return a->array[a->count++] = y;
+}
+
+float insertArray3f(FloatArray *a, const float x, const float y, const float z)
+{
+	if (a->count + 2 >= a->size) {
+		a->size *= 2;
+		a->array = (float *)realloc(a->array, a->size * sizeof(float));
+		if (a->array == NULL)
+			error(SYSTEM, "out of memory in insertArray3f");
+	}
+	a->array[a->count++] = x;
+	a->array[a->count++] = y;
+	return a->array[a->count++] = z;
+}
+
+void freeArrayf(FloatArray *a)
+{
+	free(a->array);
+	a->array = NULL;
+	a->count = a->size = 0;
+}
+
+void initArraym(MaterialArray *a, const size_t initialSize)
+{
+	a->array = (MaterialArray *)malloc(initialSize * sizeof(MaterialArray));
+	if (a->array == NULL)
+		error(SYSTEM, "out of memory in initArraym");
+	a->count = 0;
+	a->size = initialSize;
+}
+
+RTmaterial insertArraym(MaterialArray *a, const RTmaterial element)
+{
+	if (a->count == a->size) {
+		a->size *= 2;
+		a->array = (MaterialArray *)realloc(a->array, a->size * sizeof(MaterialArray));
+		if (a->array == NULL)
+			error(SYSTEM, "out of memory in insertArraydl");
+	}
+	return a->array[a->count++] = element;
+}
+
+void freeArraym(MaterialArray *a)
+{
+	free(a->array);
+	a->array = NULL;
+	a->count = a->size = 0;
+}
+
+void initArraydl(DistantLightArray *a, const size_t initialSize)
+{
+	a->array = (DistantLight *)malloc(initialSize * sizeof(DistantLight));
+	if (a->array == NULL)
+		error(SYSTEM, "out of memory in initArraydl");
+	a->count = 0;
+	a->size = initialSize;
+}
+
+DistantLight insertArraydl(DistantLightArray *a, const DistantLight element)
+{
+	if (a->count == a->size) {
+		a->size *= 2;
+		a->array = (DistantLight *)realloc(a->array, a->size * sizeof(DistantLight));
+		if (a->array == NULL)
+			error(SYSTEM, "out of memory in insertArraydl");
+	}
+	return a->array[a->count++] = element;
+}
+
+void freeArraydl(DistantLightArray *a)
+{
+	free(a->array);
+	a->array = NULL;
+	a->count = a->size = 0;
+}
+
 void handleError( const RTcontext context, const RTresult code, const char* file, const int line, const int etype )
 {
 	const char* message;
