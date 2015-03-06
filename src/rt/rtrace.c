@@ -51,6 +51,11 @@ static int  castonly = 0;
 #endif
 OBJECT	traset[MAXTSET+1]={0};		/* trace include/exclude set */
 
+#ifdef DAYSIM
+#include  "daysim.h"
+static int daysimOutput(RAY* r);
+#endif
+
 static RAY  thisray;			/* for our convenience */
 
 typedef void putf_t(RREAL *v, int n);
@@ -126,6 +131,9 @@ rtrace(				/* trace rays from file */
 	long  nextflush = (vresolu > 0) & (hresolu > 1) ? 0 : hresolu;
 	FILE  *fp;
 	double	d;
+#ifdef DAYSIM
+	int j;
+#endif
 	FVECT  orig, direc;
 #ifdef ACCELERAD
 	unsigned int current_ray, total_rays;
@@ -194,7 +202,27 @@ rtrace(				/* trace rays from file */
 			} else
 				bogusray();
 		} else {				/* compute and print */
+#ifdef DAYSIM
+			j = 0;
+			if (NumberOfSensorsInDaysimFile > 0) {  /* sensor units are specified using option '-U' */
+				if (j < NumberOfSensorsInDaysimFile) {
+					if (DaysimSensorUnits[j] == 1)
+						imm_irrad = 1;
+					else
+						imm_irrad = 0;
+
+					rtcompute(orig, direc, lim_dist ? d : 0.0);
+					j++;
+				} else { /* not enough sensors specified under '-U' */
+					sprintf(errmsg, "Not enough sensor units given under \'-U\'\n");
+					error(WARNING, errmsg);
+				}
+			} else {
+				rtcompute(orig, direc, lim_dist ? d : 0.0);
+			}
+#else
 			rtcompute(orig, direc, lim_dist ? d : 0.0);
+#endif
 							/* flush if time */
 #ifdef ACCELERAD
 			if (!use_optix)
@@ -295,9 +323,16 @@ setoutput(				/* set up output tables */
 			*table++ = oputl;
 			castonly = 0;
 			break;
+#ifdef DAYSIM
+		case 'c':               /* daylight coefficients */
+			*table++ = daysimOutput;
+			castonly = 0;
+			break;
+#else
 		case 'c':				/* local coordinates */
 			*table++ = oputc;
 			break;
+#endif
 		case 'L':				/* single ray length */
 			*table++ = oputL;
 			break;
@@ -797,3 +832,56 @@ putf(RREAL *v, int n)		/* print binary float(s) */
 	fwrite(v, sizeof(RREAL), n, stdout);
 #endif
 }
+
+#ifdef DAYSIM
+static int daysimOutput(RAY *r)				/* new function to print daylight_coef static int daysimOutput( RAY *r )*/
+{
+	int    k;
+	double ratio, sum;
+
+	if (outform == 'c') {
+		float daylightCoef[DAYSIM_MAX_COEFS + 1];
+
+		daylightCoef[0] = 0.0;
+		for (k = 0; k < daysimGetCoefficients(); k++) {
+			daylightCoef[0] += r->daylightCoef[k];
+			daylightCoef[k + 1] = r->daylightCoef[k];
+		}
+
+		fwrite((char*)daylightCoef, sizeof(daylightCoef), 1, stdout);
+		return;
+	}
+
+	if (daysimGetCoefficients() >= 2) {
+		sum = 0.0;
+
+		for (k = 0; k < daysimGetCoefficients(); k++) {
+			RREAL dc = r->daylightCoef[k] / daysimLuminousSkySegments;
+			sum += r->daylightCoef[k];
+
+			(*putreal)(&dc, 1); // TODO one at a time may not be the most efficient way to do this
+		}
+
+		if (sum >= colval(r->rcol, RED)) { /* test whether the sum of daylight
+										   coefficients corresponds to value for red */
+			if (sum == 0)
+				ratio = 1.0;
+			else
+				ratio = colval(r->rcol, RED) / sum;
+		} else {
+			if (colval(r->rcol, RED) == 0)
+				ratio = 1.0;
+			else
+				ratio = sum / colval(r->rcol, RED);
+		}
+		if (ratio < 0.9999) {
+			sprintf(errmsg,
+				"The sum of the daylight cofficients is %e and does not equal the total red illuminance %e\n",
+				sum, colval(r->rcol, RED));
+			error(WARNING, errmsg);
+		} else {
+			//printf( "\n# ratio %12.9g\t[min( sum(DC)/ray-value, ray-value/sum(DC) )]", ratio );
+		}
+	}
+}
+#endif

@@ -362,8 +362,8 @@ parse_params(PARAMS *p, char *pargs)
 		case ' ':
 		case '\t':
 		case '\r':
-			continue;
 		case '\n':
+			continue;
 		case '\0':
 			return(nparams);
 		default:
@@ -1350,7 +1350,7 @@ main(int argc, char *argv[])
 #ifdef getc_unlocked
 	flockfile(rcfp);
 #endif
-	if (verbose) {
+	if (verbose > 0) {
 		fprintf(stderr, "%s: sampling %d directions", progname, nsbins);
 		if (curparams.nsurfs > 1)
 			fprintf(stderr, " (%d elements)\n", curparams.nsurfs);
@@ -1360,7 +1360,7 @@ main(int argc, char *argv[])
 	for (i = 0; i < nsbins; i++)	/* send rcontrib ray samples */
 		if (!(*curparams.sample_basis)(&curparams, i, rcfp))
 			return(1);
-	return(pclose(rcfp) == 0);	/* all finished! */
+	return(pclose(rcfp) < 0);	/* all finished! */
 userr:
 	if (a < argc-2)
 		fprintf(stderr, "%s: unsupported option '%s'", progname, argv[a]);

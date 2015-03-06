@@ -180,6 +180,10 @@ m_normal(			/* color a ray that hit something normal */
 	double	d;
 	COLOR  ctmp;
 	int  i;
+#ifdef DAYSIM
+	DaysimCoef daylightCoef;
+	daysimSet(daylightCoef, 0.0);
+#endif
 						/* easy shadow test */
 	if (r->crtype & SHADOW && m->otype != MAT_TRANS)
 		return(1);
@@ -263,6 +267,9 @@ m_normal(			/* color a ray that hit something normal */
 			rayvalue(&lr);
 			multcolor(lr.rcol, lr.rcoef);
 			addcolor(r->rcol, lr.rcol);
+#ifdef DAYSIM
+			daysimAddScaled(r->daylightCoef, lr.daylightCoef, colval(lr.rcoef, RED));
+#endif
 			transtest *= bright(lr.rcol);
 			transdist = r->rot + lr.rt;
 		}
@@ -306,6 +313,9 @@ m_normal(			/* color a ray that hit something normal */
 			rayvalue(&lr);
 			multcolor(lr.rcol, lr.rcoef);
 			addcolor(r->rcol, lr.rcol);
+#ifdef DAYSIM
+			daysimAddScaled(r->daylightCoef, lr.daylightCoef, colval(lr.rcoef, RED));
+#endif
 			if (nd.specfl & SP_FLAT &&
 					!hastexture | (r->crtype & AMBIENT)) {
 				mirtest = 2.*bright(lr.rcol);
@@ -327,7 +337,13 @@ m_normal(			/* color a ray that hit something normal */
 		scalecolor(ctmp, nd.rdiff);
 		if (nd.specfl & SP_RBLT)	/* add in specular as well? */
 			addcolor(ctmp, nd.scolor);
+#ifdef DAYSIM
+		daysimSet(daylightCoef, colval(ctmp, RED)); // combine copy+scale+add
+		multambient(ctmp, r, hastexture ? nd.pnorm : r->ron, daylightCoef);
+		daysimAdd(r->daylightCoef, daylightCoef);
+#else
 		multambient(ctmp, r, hastexture ? nd.pnorm : r->ron);
+#endif
 		addcolor(r->rcol, ctmp);	/* add to returned color */
 	}
 	if (nd.tdiff > FTINY) {		/* ambient from other side */
@@ -336,16 +352,30 @@ m_normal(			/* color a ray that hit something normal */
 			scalecolor(ctmp, nd.trans);
 		else
 			scalecolor(ctmp, nd.tdiff);
+#ifdef DAYSIM
+		daysimSet(daylightCoef, colval(ctmp, RED));
+#endif
 		flipsurface(r);
 		if (hastexture) {
 			FVECT  bnorm;
 			bnorm[0] = -nd.pnorm[0];
 			bnorm[1] = -nd.pnorm[1];
 			bnorm[2] = -nd.pnorm[2];
+#ifdef DAYSIM
+			multambient(ctmp, r, bnorm, daylightCoef);
+#else
 			multambient(ctmp, r, bnorm);
+#endif
 		} else
+#ifdef DAYSIM
+			multambient(ctmp, r, r->ron, daylightCoef);
+#else
 			multambient(ctmp, r, r->ron);
+#endif
 		addcolor(r->rcol, ctmp);
+#ifdef DAYSIM
+		daysimAdd(r->daylightCoef, daylightCoef);
+#endif
 		flipsurface(r);
 	}
 					/* add direct component */
@@ -432,6 +462,9 @@ gaussamp(			/* sample Gaussian specular */
 				rayvalue(&sr);
 				multcolor(sr.rcol, sr.rcoef);
 				addcolor(np->rp->rcol, sr.rcol);
+#ifdef DAYSIM
+				daysimAddScaled(np->rp->daylightCoef, sr.daylightCoef, colval(sr.rcoef, RED));
+#endif
 			}
 			++nstaken;
 		}
@@ -490,6 +523,9 @@ gaussamp(			/* sample Gaussian specular */
 			multcolor(sr.rcol, sr.rcoef);
 			addcolor(np->rp->rcol, sr.rcol);
 			++nstaken;
+#ifdef DAYSIM
+			daysimAddScaled(np->rp->daylightCoef, sr.daylightCoef, colval(sr.rcoef, RED));
+#endif
 		}
 		ndims--;
 	}

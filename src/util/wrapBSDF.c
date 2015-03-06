@@ -66,7 +66,8 @@ int		nfield_assign = 0;
 					/* data file(s) & spectra */
 enum { DTtransForward, DTtransBackward, DTreflForward, DTreflBackward };
 
-enum { DSsolar=-1, DSnir=-2, DSxbar31=-3, DSvisible=-4, DSzbar31=-5 };
+enum { DSsolar=-1, DSnir=-2, DSxbar31=-3, DSvisible=-4, DSzbar31=-5,
+	DSuprime=-6, DSvprime=-7 };
 
 #define MAXFILES	20
 
@@ -294,14 +295,12 @@ mat_assignments(const char *caller, const char *fn, ezxml_t wtl)
 	if (xml_input == win6_template)
 	    for (i = 0; XMLfieldID[i].nickName[0]; i++)
 		if (XMLfieldID[i].win_need &&
-			!ezxml_txt(ezxml_child(wtl,XMLfieldID[i].fullName))[0]) {
+			!ezxml_txt(ezxml_child(wtl,XMLfieldID[i].fullName))[0])
 			fprintf(stderr,
-			"%s: missing required '%s' assignment for WINDOW <%s>\n",
+			"%s: warning - missing '%s' assignment for WINDOW <%s>\n",
 					caller, XMLfieldID[i].nickName,
 					XMLfieldID[i].fullName);
-			return 0;
-		}
-	return 1;		/* no errors */
+	return 1;
 }
 
 /* Complete angle basis specification */
@@ -451,6 +450,16 @@ writeBSDFblock(const char *caller, struct s_dfile *df)
 		puts("\t\t<Wavelength unit=\"Integral\">CIE-Z</Wavelength>");
 		puts("\t\tSourceSpectrum>CIE Illuminant D65 1nm.ssp</SourceSpectrum>");
 		puts("\t\t<DetectorSpectrum>ASTM E308 1931 Z.dsp</DetectorSpectrum>");
+		break;
+	case DSuprime:
+		puts("\t\t<Wavelength unit=\"Integral\">CIE-Z</Wavelength>");
+		puts("\t\tSourceSpectrum>CIE Illuminant D65 1nm.ssp</SourceSpectrum>");
+		puts("\t\t<DetectorSpectrum>ASTM E308 1931 u.dsp</DetectorSpectrum>");
+		break;
+	case DSvprime:
+		puts("\t\t<Wavelength unit=\"Integral\">CIE-Z</Wavelength>");
+		puts("\t\tSourceSpectrum>CIE Illuminant D65 1nm.ssp</SourceSpectrum>");
+		puts("\t\t<DetectorSpectrum>ASTM E308 1931 v.dsp</DetectorSpectrum>");
 		break;
 	case DSsolar:
 		puts("\t\t<Wavelength unit=\"Integral\">Solar</Wavelength>");
@@ -707,7 +716,7 @@ UsageExit(const char *pname)
 {
 	fputs("Usage: ", stderr);
 	fputs(pname, stderr);
-	fputs(" [-W][-a {kf|kh|kq|t3|t4}][-u unit][-g geom][-f 'x=string;y=string']", stderr);
+	fputs(" [-W][-c][-a {kf|kh|kq|t3|t4}][-u unit][-g geom][-f 'x=string;y=string']", stderr);
 	fputs(" [-s spectr][-tb inp][-tf inp][-rb inp][-rf inp]", stderr);
 	fputs(" [input.xml]\n", stderr);
 	exit(1);
@@ -775,7 +784,7 @@ main(int argc, char *argv[])
 				UsageExit(argv[0]);
 			continue;
 		case 'c':		/* correct solid angle */
-			correct_solid_angle ^= 1;
+			correct_solid_angle = 1;
 			continue;
 		case 't':		/* transmission */
 			if (i >= argc-1)
@@ -833,6 +842,10 @@ main(int argc, char *argv[])
 				cur_spectrum = DSxbar31;
 			else if (!strcasecmp(argv[i], "CIE-Z"))
 				cur_spectrum = DSzbar31;
+			else if (!strcasecmp(argv[i], "CIE-u"))
+				cur_spectrum = DSuprime;
+			else if (!strcasecmp(argv[i], "CIE-v"))
+				cur_spectrum = DSvprime;
 			else if (!strcasecmp(argv[i], "NIR"))
 				cur_spectrum = DSnir;
 			else {

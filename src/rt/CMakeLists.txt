@@ -5,7 +5,7 @@ create_version_file("${VERSION_FILE}")
 option(OptiX_USE "Include the option to use optix when compiling." ON)
 
 add_library(radiance
-  ambcomp.c ambient.c ambio.c aniso.c ashikhmin.c data.c dielectric.c fprism.c freeobjmem.c 
+  ambcomp.c ambient.c ambio.c aniso.c ashikhmin.c data.c daysim.c dielectric.c fprism.c freeobjmem.c 
   func.c glass.c initotypes.c m_alias.c m_brdf.c m_bsdf.c m_clip.c m_direct.c
   m_mirror.c m_mist.c mx_func.c mx_data.c noise3.c normal.c o_face.c o_cone.c
   o_instance.c o_mesh.c p_data.c p_func.c preload.c raytrace.c renderopts.c

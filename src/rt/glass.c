@@ -131,6 +131,9 @@ m_glass(		/* color a ray which hit a thin glass surface */
 			addcolor(r->rcol, p.rcol);
 			transtest *= bright(p.rcol);
 			transdist = r->rot + p.rt;
+#ifdef DAYSIM
+			daysimAddScaled(r->daylightCoef, p.daylightCoef, colval(p.rcoef, RED));
+#endif
 		}
 	}
 	if (r->crtype & SHADOW) {		/* skip reflected ray */
@@ -151,6 +154,9 @@ m_glass(		/* color a ray which hit a thin glass surface */
 		rayvalue(&p);
 		multcolor(p.rcol, p.rcoef);
 		addcolor(r->rcol, p.rcol);
+#ifdef DAYSIM
+		daysimAddScaled(r->daylightCoef, p.daylightCoef, colval(p.rcoef, RED));
+#endif
 		if (r->ro != NULL && isflat(r->ro->otype) &&
 				!hastexture | (r->crtype & AMBIENT)) {
 			mirtest = 2.0*bright(p.rcol);

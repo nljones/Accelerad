@@ -185,6 +185,10 @@ m_aniso(			/* shade ray that hit something anisotropic */
 	ANISODAT  nd;
 	COLOR  ctmp;
 	int  i;
+#ifdef DAYSIM
+	DaysimCoef daylightCoef;
+	daysimSet(daylightCoef, 0.0);
+#endif
 						/* easy shadow test */
 	if (r->crtype & SHADOW)
 		return(1);
@@ -275,7 +279,13 @@ m_aniso(			/* shade ray that hit something anisotropic */
 		scalecolor(ctmp, nd.rdiff);
 		if (nd.specfl & SP_RBLT)	/* add in specular as well? */
 			addcolor(ctmp, nd.scolor);
+#ifdef DAYSIM
+		daysimSet(daylightCoef, colval(ctmp, RED)); // combine copy+scale
+		multambient(ctmp, r, nd.pnorm, daylightCoef);
+		daysimAdd(r->daylightCoef, daylightCoef);
+#else
 		multambient(ctmp, r, nd.pnorm);
+#endif
 		addcolor(r->rcol, ctmp);	/* add to returned color */
 	}
 	if (nd.tdiff > FTINY) {		/* ambient from other side */
@@ -290,7 +300,13 @@ m_aniso(			/* shade ray that hit something anisotropic */
 			scalecolor(ctmp, nd.trans);
 		else
 			scalecolor(ctmp, nd.tdiff);
+#ifdef DAYSIM
+		daysimSet(daylightCoef, colval(ctmp, RED)); // combine set+scale
+		multambient(ctmp, r, bnorm, daylightCoef);
+		daysimAdd(r->daylightCoef, daylightCoef);
+#else
 		multambient(ctmp, r, bnorm);
+#endif
 		addcolor(r->rcol, ctmp);
 		flipsurface(r);
 	}
@@ -401,6 +417,9 @@ agaussamp(		/* sample anisotropic Gaussian specular */
 				rayvalue(&sr);
 				multcolor(sr.rcol, sr.rcoef);
 				addcolor(np->rp->rcol, sr.rcol);
+#ifdef DAYSIM
+				daysimAddScaled(np->rp->daylightCoef, sr.daylightCoef, colval(sr.rcoef, RED));
+#endif
 			}
 			++nstaken;
 		}
@@ -464,6 +483,9 @@ agaussamp(		/* sample anisotropic Gaussian specular */
 			multcolor(sr.rcol, sr.rcoef);
 			addcolor(np->rp->rcol, sr.rcol);
 			++nstaken;
+#ifdef DAYSIM
+			daysimAddScaled(np->rp->daylightCoef, sr.daylightCoef, colval(sr.rcoef, RED));
+#endif
 		}
 		ndims--;
 	}
