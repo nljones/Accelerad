@@ -52,7 +52,6 @@ static int  castonly = 0;
 OBJECT	traset[MAXTSET+1]={0};		/* trace include/exclude set */
 
 #ifdef DAYSIM
-#include  "daysim.h"
 static int daysimOutput(RAY* r);
 #endif
 
@@ -80,6 +79,8 @@ static oputf_t *ray_out[16], *every_out[16];
 static putf_t *putreal;
 
 #ifdef ACCELERAD
+#define EXPECTED_RAY_COUNT	32
+
 /* from optix_radiance.c */
 extern void computeOptix(const int width, const int height, const double alarm, RAY* rays);
 
@@ -132,7 +133,7 @@ rtrace(				/* trace rays from file */
 	FILE  *fp;
 	double	d;
 #ifdef DAYSIM
-	int j;
+	int j = 0;
 #endif
 	FVECT  orig, direc;
 #ifdef ACCELERAD
@@ -168,7 +169,10 @@ rtrace(				/* trace rays from file */
 #ifdef ACCELERAD
 	if (use_optix) {
 		/* Populate the set of rays to trace */
-		ray_cache = (RAY *)malloc(sizeof(RAY) * vcount); //TODO what if vcount is zero?
+		total_rays = vcount ? vcount : EXPECTED_RAY_COUNT;
+		ray_cache = (RAY *)malloc(sizeof(RAY) * total_rays);
+		if (ray_cache == NULL)
+			error(SYSTEM, "out of memory in rtrace");
 		current_ray = 0u;
 	} else /* OptiX kernel can only be launched from a single thread. */
 #endif
@@ -203,7 +207,6 @@ rtrace(				/* trace rays from file */
 				bogusray();
 		} else {				/* compute and print */
 #ifdef DAYSIM
-			j = 0;
 			if (NumberOfSensorsInDaysimFile > 0) {  /* sensor units are specified using option '-U' */
 				if (j < NumberOfSensorsInDaysimFile) {
 					if (DaysimSensorUnits[j] == 1)
@@ -214,8 +217,7 @@ rtrace(				/* trace rays from file */
 					rtcompute(orig, direc, lim_dist ? d : 0.0);
 					j++;
 				} else { /* not enough sensors specified under '-U' */
-					sprintf(errmsg, "Not enough sensor units given under \'-U\'\n");
-					error(WARNING, errmsg);
+					error(WARNING, "Not enough sensor units given under \'-U\'");
 				}
 			} else {
 				rtcompute(orig, direc, lim_dist ? d : 0.0);
@@ -236,6 +238,13 @@ rtrace(				/* trace rays from file */
 		}
 #ifdef ACCELERAD
 		if (use_optix) {
+			/* resize array if necessary (should only happen when vcount == 0) */
+			if (current_ray == total_rays) {
+				total_rays *= 2;
+				ray_cache = (RAY *)realloc(ray_cache, sizeof(RAY) * total_rays);
+				if (ray_cache == NULL)
+					error(SYSTEM, "out of memory in rtrace");
+			}
 			ray_cache[current_ray++] = thisray;
 		} else /* Nothing ready to write yet. */
 #endif
@@ -247,11 +256,11 @@ rtrace(				/* trace rays from file */
 #ifdef ACCELERAD
 	if (use_optix) {
 		/* Run OptiX kernel. */
-		computeOptix( hresolu, vresolu, ralrm, ray_cache );
+		total_rays = current_ray;
+		computeOptix( hresolu ? hresolu : 1, vresolu ? vresolu : total_rays, ralrm, ray_cache );
 
 		/* Write output */
-		total_rays = current_ray;
-		for ( current_ray = 0; current_ray < total_rays; ) {
+		for ( current_ray = 0u; current_ray < total_rays; ) {
 			printvals(&ray_cache[current_ray++]);
 		}
 

@@ -273,10 +273,8 @@ main(int  argc, char  *argv[])
 		case 'L':				/* choose luminance of sky segments */
 			daysimLuminousSkySegments = atof(argv[++i]);
 
-			if (daysimLuminousSkySegments == 0) {
-				sprintf(errmsg, "The parameter L must not be set to zero!\n");
-				error(USER, errmsg);
-			}
+			if (daysimLuminousSkySegments == 0)
+				error(USER, "The parameter L must not be set to zero!");
 			break;
 		case 'D':		// switch to set how the daylight coefficients are sorted
 			// -Dm sort by sky segment modifier number (direct calculation)
@@ -298,24 +296,17 @@ main(int  argc, char  *argv[])
 			// for the diffuse calculation the number depends on the number
 			// of direct daylight coefficients chosen which in turn depends on
 			// the geographic latitude of the scene site
-			if (daysimInit(atoi(argv[++i])) == 0) {
-				sprintf(errmsg, "The parameter N must lie between 0 and 148!\n");
-				error(USER, errmsg);
-			}
+			if (daysimInit(atoi(argv[++i])) == 0)
+				error(USER, "The parameter N must lie between 0 and 148!");
 			break;
 		case 'U':	/* allow rtrace to calculate irradiances and radiances */
 			//   within the same run. The information which sensor
 			//   points have which units is taken from a Daysim header file.
 			NumberOfSensorsInDaysimFile = atoi(argv[++i]);
 			if ((DaysimSensorUnits = (int*)malloc(sizeof(int)* NumberOfSensorsInDaysimFile)) == NULL)
-			{
-				fprintf(stderr, "rtrace_dc ERROR: when reading in sensor units from Daysim header file'\n");
-				exit(1);
-			}
+				error(SYSTEM, "out of memory reading in sensor units");
 			for (j = 0; j < NumberOfSensorsInDaysimFile; j++)
-			{
 				DaysimSensorUnits[j] = atoi(argv[++i]);
-			}
 			break;
 #endif
 		default:

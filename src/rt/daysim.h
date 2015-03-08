@@ -7,6 +7,7 @@
 #ifndef DAYSIM_H
 #define DAYSIM_H
 
+#ifdef DAYSIM
 
 #include "fvect.h"
 
@@ -24,9 +25,6 @@ typedef DaysimNumber DaysimCoef[DAYSIM_MAX_COEFS];
 
 /* necessary for pmap which is built no matter if PHOTON_MAP is set or not */
 typedef unsigned char DaysimSourcePatch;
-
-
-#ifdef DAYSIM
 
 
 /** */

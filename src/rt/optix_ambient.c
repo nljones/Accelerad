@@ -11,6 +11,8 @@
 #include "optix_radiance.h"
 
 
+#ifdef ACCELERAD
+
 static void updateAmbientCache( const RTcontext context, const unsigned int level );
 static void createAmbientSamplingCamera( const RTcontext context, const VIEW* view );
 static void createGeometryInstanceAmbient( const RTcontext context, RTgeometryinstance* instance, const unsigned int ambinet_record_count );
@@ -828,3 +830,4 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 //	return( ( (CLUSTER*) a )->membership - ( (CLUSTER*) b )->membership );
 //}
 #endif /* KMEANS_IC */
+#endif /* ACCELERAD */

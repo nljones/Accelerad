@@ -11,6 +11,7 @@
 #include  "color.h"
 
 #ifndef DAYSIM
+/* Compiler setting to calculate Daysim daylight coefficients. Should only be used with rtrace. */
 //#define DAYSIM
 #endif
 

@@ -33,6 +33,8 @@
 #define EXPECTED_SOURCES	3
 #define EXPECTED_FUNCTIONS	8
 
+#ifdef ACCELERAD
+
 void renderOptix( const VIEW* view, const int width, const int height, const double alarm, COLOR* colors, float* depths );
 void computeOptix( const int width, const int height, const double alarm, RAY* rays );
 void endOptix();
@@ -210,7 +212,7 @@ void computeOptix(const int width, const int height, const double alarm, RAY* ra
 	/* Set the size */
 	size = width * height;
 	if ( !size )
-		error(USER, "Size is zero or not set. Both -x and -y must be positive.");
+		error(USER, "Number of points is zero or not set.");
 
 	/* Setup state */
 	checkDevices();
@@ -1402,7 +1404,7 @@ static void createIrradianceGeometry( const RTcontext context )
 
 	/* Create a Lambertian material as the geometry instance's only material. */
 	RT_CHECK_ERROR( rtGeometryInstanceSetMaterialCount( instance, 1 ) );
-	createNormalMaterial( context, instance, 0, &Lamb );
+	RT_CHECK_ERROR( rtGeometryInstanceSetMaterial( instance, 0, createNormalMaterial( context, &Lamb ) ) );
 
 	/* Create a geometry group to hold the geometry instance.  This will be used as the top level group. */
 	RT_CHECK_ERROR( rtGeometryGroupCreate( context, &geometrygroup ) );
@@ -1479,3 +1481,5 @@ static void setRay( RAY* ray, const RayData* data )
 	ray->rt = data->length;
 	//ray->rot = data->t; //TODO setting this requires that the ray has non-null ro.
 }
+
+#endif /* ACCELERAD */
