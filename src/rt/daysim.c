@@ -38,7 +38,7 @@ int daysimInit( const int coefficients )
 /*
  * returns the number of coefficients
  */
-const int daysimGetCoefficients( DaysimCoef coef )
+const int daysimGetCoefficients()
 {
 	return (const int)daylightCoefficients;
 }
@@ -46,7 +46,7 @@ const int daysimGetCoefficients( DaysimCoef coef )
 /*
  * Copies a daylight coefficient set
  */
-void daysimCopy( DaysimCoef destin, DaysimCoef source )
+void daysimCopy( DaysimCoef destin, const DaysimCoef source )
 {
 	memcpy(destin, source, daylightCoefficients * sizeof(DaysimNumber));
 }
@@ -77,7 +77,7 @@ void daysimScale( DaysimCoef coef, const double scaling )
  * Adds two daylight coefficient sets:
  *	result[i] = result[i] + add[i]
  */
-void daysimAdd( DaysimCoef result, DaysimCoef add )
+void daysimAdd( DaysimCoef result, const DaysimCoef add )
 {
 	int i;
 
@@ -89,7 +89,7 @@ void daysimAdd( DaysimCoef result, DaysimCoef add )
  * Multiply two daylight coefficient sets:
  *	result[i] = result[i] * add[i]
  */
-void daysimMult( DaysimCoef result, DaysimCoef mult )
+void daysimMult( DaysimCoef result, const DaysimCoef mult )
 {
 	int i;
 
@@ -102,7 +102,8 @@ void daysimMult( DaysimCoef result, DaysimCoef mult )
  */
 void daysimSetCoef( DaysimCoef result, const int index, const double value )
 {
-	result[index] = value;
+	if (index < daylightCoefficients)
+		result[index] = value;
 }
 
 /*
@@ -110,13 +111,14 @@ void daysimSetCoef( DaysimCoef result, const int index, const double value )
  */
 void daysimAddCoef( DaysimCoef result, const int index, const double add )
 {
-	result[index] += add;
+	if (index < daylightCoefficients)
+		result[index] += add;
 }
 
 /*
  * Adds the elements of 'source' scaled by 'scaling'  to 'result'
  */
-void daysimAddScaled( DaysimCoef result, DaysimCoef add, const double scaling )
+void daysimAddScaled( DaysimCoef result, const DaysimCoef add, const double scaling )
 {
 	int i;
 
@@ -127,7 +129,7 @@ void daysimAddScaled( DaysimCoef result, DaysimCoef add, const double scaling )
 /*
  * Assign the coefficients of 'source' scaled by 'scaling' to result
  */
-void daysimAssignScaled( DaysimCoef result, DaysimCoef source, const double scaling )
+void daysimAssignScaled( DaysimCoef result, const DaysimCoef source, const double scaling )
 {
 	int i;
 
@@ -171,7 +173,7 @@ void daysimCheck(DaysimCoef daylightCoef, const double value, const char* where)
  * Computes the sky/ground patch hit by a ray in direction (dx,dy,dz)
  * according to the Tregenza sky division.
  */
-const DaysimSourcePatch daysimComputePatch( FVECT dir )
+const DaysimSourcePatch daysimComputePatch( const FVECT dir )
 {
 	static DaysimSourcePatch number[8]= { 0, 30, 60, 84, 108, 126, 138, 144 };
 	static double     ring_division[8]= { 30.0, 30.0, 24.0, 24.0, 18.0, 12.0, 6.0, 0.0 };
@@ -216,7 +218,7 @@ const DaysimSourcePatch daysimComputePatch( FVECT dir )
 }
 
 //new version with a single ground DC
-const DaysimSourcePatch daysimComputePatchDDS( FVECT dir )
+const DaysimSourcePatch daysimComputePatchDDS( const FVECT dir )
 {
 	static DaysimSourcePatch number[8]= { 0, 30, 60, 84, 108, 126, 138, 144 };
 	static double     ring_division[8]= { 30.0, 30.0, 24.0, 24.0, 18.0, 12.0, 6.0, 0.0 };

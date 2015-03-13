@@ -52,7 +52,7 @@ static int  castonly = 0;
 OBJECT	traset[MAXTSET+1]={0};		/* trace include/exclude set */
 
 #ifdef DAYSIM
-static int daysimOutput(RAY* r);
+static void daysimOutput(RAY* r);
 #endif
 
 static RAY  thisray;			/* for our convenience */
@@ -843,7 +843,7 @@ putf(RREAL *v, int n)		/* print binary float(s) */
 }
 
 #ifdef DAYSIM
-static int daysimOutput(RAY *r)				/* new function to print daylight_coef static int daysimOutput( RAY *r )*/
+static void daysimOutput(RAY *r)				/* new function to print daylight_coef static int daysimOutput( RAY *r )*/
 {
 	int    k;
 	double ratio, sum;

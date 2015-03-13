@@ -225,6 +225,9 @@ static unsigned int gatherAmbientRecords( AMBTREE* at, AmbientRecord** records, 
 #endif
 			(*records)->lvl = record->lvl;
 			(*records)->weight = record->weight;
+#ifdef DAYSIM
+			daysimCopy((*records)->dc, record->daylightCoef);
+#endif
 
 			(*records)++;
 			count++;
@@ -278,6 +281,9 @@ static int saveAmbientRecords( AmbientRecord* record )
 #endif
 	amb.lvl = record->lvl;
 	amb.weight = record->weight;
+#ifdef DAYSIM
+	daysimCopy(amb.daylightCoef, record->dc);
+#endif
 #ifdef RAY_COUNT
 	ray_total += record->ray_count;
 #endif
@@ -511,9 +517,9 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 			clock_t kernel_start_clock, kernel_end_clock;
 			int i;
 			//int total = 0;
-			int missing = 0;
-			int si = cuda_kmeans_clusters;
-			int ci = 0;
+			unsigned int missing = 0u;
+			unsigned int si = cuda_kmeans_clusters;
+			unsigned int ci = 0u;
 			int *score = (int*) malloc(seed_count * sizeof(int));
 			PointDirection *temp_list = (PointDirection*) malloc(seed_count * sizeof(PointDirection));
 			if (score == NULL || temp_list == NULL)
@@ -654,7 +660,7 @@ static void createPointCloudCamera( const RTcontext context, const VIEW* view )
 }
 
 #ifdef ITERATIVE_KMEANS_IC
-static void createHemisphereSamplingCamera( RTcontext context )
+static void createHemisphereSamplingCamera( const RTcontext context )
 {
 	RTprogram  ray_gen_program;
 	RTprogram  exception_program;

@@ -751,8 +751,8 @@ m_light(				/* ray hit a light source */
 			patch = daysimComputePatch(r->rdir);
 		}
 		if (patch > daysimGetCoefficients()) { /* daysim remove */
-			fprintf(stderr, "\nWARNING: Parameter N has been set lower than detected segment number,%d \n\n", patch);
-			fprintf(stderr, "coefficients: %d\n", daysimGetCoefficients());
+			sprintf(errmsg, "Parameter N has been set lower than detected segment number %i (N = %i)", patch, daysimGetCoefficients());
+			error(WARNING, errmsg);
 		}
 		daysimAddCoef(r->daylightCoef, patch, colval(r->rcol, RED));
 	}

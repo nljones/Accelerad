@@ -409,7 +409,7 @@ void freeArrayf(FloatArray *a)
 
 void initArraym(MaterialArray *a, const size_t initialSize)
 {
-	a->array = (MaterialArray *)malloc(initialSize * sizeof(MaterialArray));
+	a->array = (RTmaterial *)malloc(initialSize * sizeof(RTmaterial));
 	if (a->array == NULL)
 		error(SYSTEM, "out of memory in initArraym");
 	a->count = 0;
@@ -420,7 +420,7 @@ RTmaterial insertArraym(MaterialArray *a, const RTmaterial element)
 {
 	if (a->count == a->size) {
 		a->size *= 2;
-		a->array = (MaterialArray *)realloc(a->array, a->size * sizeof(MaterialArray));
+		a->array = (RTmaterial *)realloc(a->array, a->size * sizeof(RTmaterial));
 		if (a->array == NULL)
 			error(SYSTEM, "out of memory in insertArraydl");
 	}

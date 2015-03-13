@@ -40,43 +40,46 @@ extern int NumberOfSensorsInDaysimFile;
 extern int *DaysimSensorUnits;
 
 /** */
-int daysimInit( const int coefficients );
+extern int daysimInit(const int coefficients);
 
 /** returns the number of coefficients */
-const int daysimGetCoefficients();
+extern const int daysimGetCoefficients();
 
 /** Copies a daylight coefficient set */
-void daysimCopy( DaysimCoef destin, DaysimCoef source );
+extern void daysimCopy(DaysimCoef destin, const DaysimCoef source);
 
 /** Initialises all daylight coefficients with 'value' */
-void daysimSet( DaysimCoef coef, const double value );
+extern void daysimSet(DaysimCoef coef, const double value);
 
 /** Scales the daylight coefficient set by the value 'scaling' */
-void daysimScale( DaysimCoef coef, const double scaling );
+extern void daysimScale(DaysimCoef coef, const double scaling);
 
 /** Adds two daylight coefficient sets:
 	result[i]= result[i] + add[i] */
-void daysimAdd( DaysimCoef result, DaysimCoef add );
+extern void daysimAdd(DaysimCoef result, const DaysimCoef add);
 
 /** Multiply two daylight coefficient sets:
 	result[i]= result[i] * add[i] */
-void daysimMult( DaysimCoef result, DaysimCoef mult );
+extern void daysimMult(DaysimCoef result, const DaysimCoef mult);
 
 /** Sets the daylight coefficient at position 'index' to 'value' */
-void daysimSetCoef( DaysimCoef result, const int index, const double value );
+extern void daysimSetCoef(DaysimCoef result, const int index, const double value);
 
 /** Adds 'value' to the daylight coefficient at position 'index' */
-void daysimAddCoef( DaysimCoef result, const int index, const double add );
+extern void daysimAddCoef(DaysimCoef result, const int index, const double add);
 
 /** Adds the elements of 'source' scaled by 'scaling'  to 'result' */
-void daysimAddScaled( DaysimCoef result, DaysimCoef add, const double scaling );
+extern void daysimAddScaled(DaysimCoef result, const DaysimCoef add, const double scaling);
 
 /** Assign the coefficients of 'source' scaled by 'scaling' to result */
-void daysimAssignScaled( DaysimCoef result, DaysimCoef source, const double scaling );
+extern void daysimAssignScaled(DaysimCoef result, const DaysimCoef source, const double scaling);
 
 /** Check that the sum of daylight coefficients equals the red color channel */
-void daysimCheck(DaysimCoef daylightCoef, const double value, const char* where);
+extern void daysimCheck(DaysimCoef daylightCoef, const double value, const char* where);
 
+/* Computes the sky/ground patch hit by a ray in direction (dx,dy,dz)
+ * according to the Tregenza sky division. */
+extern const DaysimSourcePatch daysimComputePatch(const FVECT dir);
 #endif /* DAYSIM */
 
 

@@ -56,10 +56,10 @@ static int addTriangle(const Vert2_list *tp, int a, int b, int c);
 static void createMesh(const OBJREC* rec, const OBJREC* parent);
 static RTmaterial createNormalMaterial( const RTcontext context, const OBJREC* rec );
 static RTmaterial createGlassMaterial( const RTcontext context, const OBJREC* rec );
-static RTmaterial createLightMaterial( const RTcontext context, OBJREC* rec );
-static DistantLight createDistantLight( const RTcontext context, OBJREC* rec );
+static RTmaterial createLightMaterial( const RTcontext context, const OBJREC* rec );
+static DistantLight createDistantLight( const RTcontext context, const OBJREC* rec, const OBJREC* parent );
 static OBJREC* findFunction(OBJREC *o);
-static int createFunction( const RTcontext context, const OBJREC* rec, const OBJREC* parent );
+static int createFunction( const RTcontext context, const OBJREC* rec );
 static int createTexture( const RTcontext context, const OBJREC* rec );
 static int createTransform( XF* bxp, const OBJREC* rec );
 static void createAcceleration( const RTcontext context, const RTgeometryinstance instance );
@@ -238,6 +238,8 @@ void computeOptix(const int width, const int height, const double alarm, RAY* ra
 
 	/* Copy the results to allocated memory. */
 	for (i = 0u; i < size; i++) {
+		if (data->weight == -1.0f)
+			printException(data->val, "sensor", i);
 		setRay( &rays[i], data++ );
 	}
 
@@ -467,6 +469,12 @@ static void applyRadianceSettings( const RTcontext context )
 	applyContextVariable1f( context, "minweight", minweight ); // -lw, from ray.h
 	applyContextVariable1i( context, "maxdepth", maxdepth ); // -lr, from ray.h, negative values indicate Russian roulette
 	applyContextVariable1ui( context, "imm_irrad", imm_irrad ); // -I
+
+#ifdef DAYSIM
+	/* Set daylight coefficient parameters */
+	applyContextVariable1i(context, "daysimSortMode", daysimSortMode); // -D
+	applyContextVariable1i(context, "daylightCoefficients", daysimGetCoefficients()); // -N
+#endif
 }
 
 static void createCamera( const RTcontext context, const VIEW* view )
@@ -649,20 +657,20 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 
 	/* Unmap and apply the geometry buffers. */
 	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, vertices->count / 3, &buffer);
-	copyToBufferi(context, buffer, vertices);
+	copyToBufferf(context, buffer, vertices);
 	//applyGeometryInstanceObject( context, *instance, "vertex_buffer", buffer );
 	applyContextObject(context, "vertex_buffer", buffer);
 	freeArrayf(vertices);
 	free(vertices);
 
 	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, normals->count / 3, &buffer);
-	copyToBufferi(context, buffer, normals);
+	copyToBufferf(context, buffer, normals);
 	applyGeometryInstanceObject(context, *instance, "normal_buffer", buffer);
 	freeArrayf(normals);
 	free(normals);
 
 	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT2, tex_coords->count / 2, &buffer);
-	copyToBufferi(context, buffer, tex_coords);
+	copyToBufferf(context, buffer, tex_coords);
 	applyGeometryInstanceObject(context, *instance, "texcoord_buffer", buffer);
 	freeArrayf(tex_coords);
 	free(tex_coords);
@@ -755,7 +763,7 @@ static void addRadianceObject(const RTcontext context, const OBJREC* rec, const 
 		break;
 	case PAT_BFUNC: // brightness function, used for sky brightness
 		buffer_entry_index[index] = functions->count;
-		insertArrayi(functions, createFunction(context, rec, parent));
+		insertArrayi(functions, createFunction(context, rec));
 		break;
 	case PAT_BDATA: // brightness texture, used for IES lighting data
 		buffer_entry_index[index] = insertArrayi(functions, createTexture(context, rec));
@@ -1074,7 +1082,7 @@ static RTmaterial createGlassMaterial( const RTcontext context, const OBJREC* re
 	return material;
 }
 
-static RTmaterial createLightMaterial( const RTcontext context, OBJREC* rec )
+static RTmaterial createLightMaterial( const RTcontext context, const OBJREC* rec )
 {
 	RTmaterial material;
 	OBJREC* mat;
@@ -1125,7 +1133,7 @@ static RTmaterial createLightMaterial( const RTcontext context, OBJREC* rec )
 	return material;
 }
 
-static DistantLight createDistantLight( const RTcontext context, OBJREC* rec, OBJREC* parent )
+static DistantLight createDistantLight( const RTcontext context, const OBJREC* rec, const OBJREC* parent )
 {
 	SRCREC source;
 	OBJREC* material;
@@ -1184,14 +1192,14 @@ static int createFunction( const RTcontext context, const OBJREC* rec )
 	/* Get transform */
 	if ( !createTransform( &bxp, rec ) )
 		objerror(rec, USER, "bad transform");
+	float transform[9] = {
+		bxp.xfm[0][0], bxp.xfm[1][0], bxp.xfm[2][0],
+		bxp.xfm[0][1], bxp.xfm[1][1], bxp.xfm[2][1],
+		bxp.xfm[0][2], bxp.xfm[1][2], bxp.xfm[2][2]
+	};
 
 	if ( rec->oargs.nsargs >= 2 ) {
 		if ( !strcmp(rec->oargs.sarg[0], "skybr") && !strcmp(rec->oargs.sarg[1], "skybright.cal") ) {
-			float transform[9] = {
-				bxp.xfm[0][0], bxp.xfm[1][0], bxp.xfm[2][0],
-				bxp.xfm[0][1], bxp.xfm[1][1], bxp.xfm[2][1],
-				bxp.xfm[0][2], bxp.xfm[1][2], bxp.xfm[2][2]
-			};
 			ptxFile( path_to_ptx, "skybright" );
 			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "sky_bright", &program ) );
 			applyProgramVariable1ui( context, program, "type", rec->oargs.farg[0] );
@@ -1202,11 +1210,6 @@ static int createFunction( const RTcontext context, const OBJREC* rec )
 			applyProgramVariable( context, program, "transform", sizeof(transform), transform );
 		} else if ( !strcmp(rec->oargs.sarg[0], "skybright") && !strcmp(rec->oargs.sarg[1], "perezlum.cal") ) {
 			float coef[5] = { rec->oargs.farg[2], rec->oargs.farg[3], rec->oargs.farg[4], rec->oargs.farg[5], rec->oargs.farg[6] };
-			float transform[9] = {
-				bxp.xfm[0][0], bxp.xfm[1][0], bxp.xfm[2][0],
-				bxp.xfm[0][1], bxp.xfm[1][1], bxp.xfm[2][1],
-				bxp.xfm[0][2], bxp.xfm[1][2], bxp.xfm[2][2]
-			};
 			ptxFile( path_to_ptx, "perezlum" );
 			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "perez_lum", &program ) );
 			applyProgramVariable1f( context, program, "diffuse", rec->oargs.farg[0] );
@@ -1214,6 +1217,13 @@ static int createFunction( const RTcontext context, const OBJREC* rec )
 			applyProgramVariable( context, program, "coef", sizeof(coef), coef );
 			applyProgramVariable3f( context, program, "sun", rec->oargs.farg[7], rec->oargs.farg[8], rec->oargs.farg[9] );
 			applyProgramVariable( context, program, "transform", sizeof(transform), transform );
+		} else if (!strcmp(rec->oargs.sarg[0], "skybright") && !strcmp(rec->oargs.sarg[1], "isotrop_sky.cal")) {
+			/* Isotropic sky from daysim installation */
+			ptxFile(path_to_ptx, "isotropsky");
+			printObect(rec);
+			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "isotrop_sky", &program));
+			applyProgramVariable1f(context, program, "skybright", rec->oargs.farg[0]);
+			applyProgramVariable(context, program, "transform", sizeof(transform), transform);
 		} else {
 			printObect(rec);
 			return RT_PROGRAM_ID_NULL;
@@ -1461,6 +1471,10 @@ static void getRay( RayData* data, const RAY* ray )
 	data->weight = ray->rweight;
 	data->length = ray->rt;
 	//data->t = ray->rot;
+
+#ifdef DAYSIM
+	daysimCopy(data->dc, ray->daylightCoef); // Don't bother, it's empty
+#endif
 }
 
 static void setRay( RAY* ray, const RayData* data )
@@ -1480,6 +1494,10 @@ static void setRay( RAY* ray, const RayData* data )
 	ray->rweight = data->weight;
 	ray->rt = data->length;
 	//ray->rot = data->t; //TODO setting this requires that the ray has non-null ro.
+
+#ifdef DAYSIM
+	daysimCopy(ray->daylightCoef, data->dc);
+#endif
 }
 
 #endif /* ACCELERAD */
