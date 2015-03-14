@@ -55,6 +55,9 @@ RT_PROGRAM void ambient_cloud_camera()
 	prd.result.rad = 0.0f;
 	prd.result.dir = make_float3( 0.0f ); // Initialize in case something goes wrong
 #endif
+#ifdef DAYSIM
+	daysimSet(prd.result.dc, 0.0f);
+#endif
 #ifdef RAY_COUNT
 	prd.result.ray_count = 0;
 #endif

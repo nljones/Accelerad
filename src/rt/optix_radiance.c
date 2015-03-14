@@ -1220,7 +1220,6 @@ static int createFunction( const RTcontext context, const OBJREC* rec )
 		} else if (!strcmp(rec->oargs.sarg[0], "skybright") && !strcmp(rec->oargs.sarg[1], "isotrop_sky.cal")) {
 			/* Isotropic sky from daysim installation */
 			ptxFile(path_to_ptx, "isotropsky");
-			printObect(rec);
 			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "isotrop_sky", &program));
 			applyProgramVariable1f(context, program, "skybright", rec->oargs.farg[0]);
 			applyProgramVariable(context, program, "transform", sizeof(transform), transform);

@@ -47,12 +47,7 @@ RT_PROGRAM void ray_generator()
 	prd.depth = 0;
 	prd.ambient_depth = 0;
 	//prd.seed = rnd_seeds[launch_index];
-#ifdef FILL_GAPS
-	prd.primary = 1;
-#endif
-#ifdef RAY_COUNT
-	prd.ray_count = 1;
-#endif
+	setupPayload(prd, 1);
 
 	const float tmin = ray_start( ray_buffer[launch_index].origin, RAY_START );
 	if ( imm_irrad ) {
@@ -83,6 +78,9 @@ RT_PROGRAM void ray_generator()
 	ray_buffer[launch_index].weight = prd.weight;
 	ray_buffer[launch_index].length = prd.distance;
 	//ray_buffer[launch_index].t = prd.distance;
+#endif
+#ifdef DAYSIM
+	daysimCopy(ray_buffer[launch_index].dc, prd.dc);
 #endif
 }
 

@@ -50,6 +50,9 @@ struct PerRayData_radiance
 	int depth;
 	int ambient_depth;
 	rand_state* state;
+#ifdef DAYSIM
+	DaysimCoef dc;	/* daylight coefficients */
+#endif
 #ifdef FILL_GAPS
 	int primary;
 #endif
@@ -68,6 +71,9 @@ struct PerRayData_shadow
 {
 	float3 result;
 	int target;
+#ifdef DAYSIM
+	DaysimCoef dc;	/* daylight coefficients */
+#endif
 };
 
 struct PerRayData_ambient
@@ -78,6 +84,9 @@ struct PerRayData_ambient
 	float wsum;
 	int ambient_depth;
 	rand_state* state;
+#ifdef DAYSIM
+	DaysimCoef dc;	/* daylight coefficients */
+#endif
 #ifdef HIT_COUNT
 	int hit_count;
 #endif
@@ -114,23 +123,6 @@ typedef struct {
 	int    nt, np;		/* number of theta and phi directions */
 } AMBHEMI;		/* ambient sample hemisphere */
 #endif /* OLDAMB */
-
-/* The following is from the random.h associated with OptiX. */
-
-//// Generate random unsigned int in [0, 2^24)
-//RT_METHOD unsigned int lcg(unsigned int &prev)
-//{
-//	const unsigned int LCG_A = 1664525u;
-//	const unsigned int LCG_C = 1013904223u;
-//	prev = (LCG_A * prev + LCG_C);
-//	return prev & 0x00FFFFFF;
-//}
-//
-//// Generate random float in [0, 1)
-//RT_METHOD float rnd(unsigned int &prev)
-//{
-//	return ((float) lcg(prev) / (float) 0x01000000);
-//}
 
 RT_METHOD int isnan( const float3& v );
 RT_METHOD int isinf( const float3& v );
@@ -368,4 +360,131 @@ RT_METHOD unsigned int quadratic( float2* r, const float& a, const float& b, con
 	return(2);
 }
 #endif /* OLDAMB */
+
+#ifdef DAYSIM
+RT_METHOD void daysimCopy(DaysimCoef destin, const DaysimCoef source);
+RT_METHOD void daysimSet(DaysimCoef coef, const float value);
+RT_METHOD void daysimScale(DaysimCoef coef, const float scaling);
+RT_METHOD void daysimAdd(DaysimCoef result, const DaysimCoef add);
+RT_METHOD void daysimMult(DaysimCoef result, const DaysimCoef mult);
+RT_METHOD void daysimSetCoef(DaysimCoef result, const int index, const float value);
+RT_METHOD void daysimAddCoef(DaysimCoef result, const int index, const float add);
+RT_METHOD void daysimAddScaled(DaysimCoef result, const DaysimCoef add, const float scaling);
+RT_METHOD void daysimAssignScaled(DaysimCoef result, const DaysimCoef source, const float scaling);
+RT_METHOD void daysimCheck(DaysimCoef daylightCoef, const float value, const int error);
+
+rtDeclareVariable(int, daylightCoefficients, , ); /* number of daylight coefficients */
+
+/* Copies a daylight coefficient set */
+RT_METHOD void daysimCopy(DaysimCoef destin, const DaysimCoef source)
+{
+	memcpy(destin, source, daylightCoefficients * sizeof(float));
+	//for (int i = 0; i < daylightCoefficients; i++)
+	//	destin[i] = source[i];
+}
+
+/* Initialises all daylight coefficients with 'value' */
+RT_METHOD void daysimSet(DaysimCoef coef, const float value)
+{
+	for (int i = 0; i < daylightCoefficients; i++)
+		coef[i] = value;
+}
+
+/* Scales the daylight coefficient set by the value 'scaling' */
+RT_METHOD void daysimScale(DaysimCoef coef, const float scaling)
+{
+	for (int i = 0; i < daylightCoefficients; i++)
+		coef[i] *= scaling;
+}
+
+/* Adds two daylight coefficient sets: result[i] = result[i] + add[i] */
+RT_METHOD void daysimAdd(DaysimCoef result, const DaysimCoef add)
+{
+	for (int i = 0; i < daylightCoefficients; i++)
+		result[i] += add[i];
+}
+
+/* Multiply two daylight coefficient sets: result[i] = result[i] * add[i] */
+RT_METHOD void daysimMult(DaysimCoef result, const DaysimCoef mult)
+{
+	for (int i = 0; i < daylightCoefficients; i++)
+		result[i] *= mult[i];
+}
+
+/* Sets the daylight coefficient at position 'index' to 'value' */
+RT_METHOD void daysimSetCoef(DaysimCoef result, const int index, const float value)
+{
+	if (index < daylightCoefficients)
+		result[index] = value;
+}
+
+/* Adds 'value' to the daylight coefficient at position 'index' */
+RT_METHOD void daysimAddCoef(DaysimCoef result, const int index, const float add)
+{
+	if (index < daylightCoefficients)
+		result[index] += add;
+}
+
+/* Adds the elements of 'source' scaled by 'scaling'  to 'result' */
+RT_METHOD void daysimAddScaled(DaysimCoef result, const DaysimCoef add, const float scaling)
+{
+	for (int i = 0; i < daylightCoefficients; i++)
+		result[i] += add[i] * scaling;
+}
+
+/* Assign the coefficients of 'source' scaled by 'scaling' to result */
+RT_METHOD void daysimAssignScaled(DaysimCoef result, const DaysimCoef source, const float scaling)
+{
+	for (int i = 0; i < daylightCoefficients; i++)
+		result[i] = source[i] * scaling;
+}
+
+/* Check that the sum of daylight coefficients equals the red color channel */
+RT_METHOD void daysimCheck(DaysimCoef daylightCoef, const float value, const int error)
+{
+	float ratio, sum = 0.0f;
+
+	for (int k = 0; k < daylightCoefficients; k++)
+		sum += daylightCoef[k];
+
+	if (sum >= value) { /* test whether the sum of daylight coefficients corresponds to value for red */
+		if (sum == 0.0f) return;
+		ratio = value / sum;
+	} else {
+		if (value == 0.0f) return;
+		ratio = sum / value;
+	}
+	if (ratio < 0.9999f)
+		rtThrow( RT_EXCEPTION_USER + error );
+}
+#endif /* DAYSIM */
+
+RT_METHOD void setupPayload(PerRayData_radiance& prd, const int& primary);
+RT_METHOD void resolvePayload(PerRayData_radiance& parent, PerRayData_radiance& prd);
+
+RT_METHOD void setupPayload(PerRayData_radiance& prd, const int& primary)
+{
+#ifdef DAYSIM
+	daysimSet(prd.dc, 0.0f);
+#endif
+#ifdef FILL_GAPS
+	new_prd.primary = primary;
+#endif
+#ifdef RAY_COUNT
+	new_prd.ray_count = 1;
+#endif
+#ifdef HIT_COUNT
+	new_prd.hit_count = 0;
+#endif
+}
+
+RT_METHOD void resolvePayload(PerRayData_radiance& parent, PerRayData_radiance& prd)
+{
+#ifdef RAY_COUNT
+	parent.ray_count += prd.ray_count;
+#endif
+#ifdef HIT_COUNT
+	parent.hit_count += prd.hit_count;
+#endif
+}
 #endif /* __CUDACC__ */

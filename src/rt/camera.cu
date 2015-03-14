@@ -104,12 +104,7 @@ RT_PROGRAM void image_camera()
 	prd.depth = 0;
 	prd.ambient_depth = 0;
 	//prd.seed = rnd_seeds[launch_index];
-#ifdef FILL_GAPS
-	prd.primary = 1;
-#endif
-#ifdef RAY_COUNT
-	prd.ray_count = 1;
-#endif
+	setupPayload(prd, 1);
 
 	rtTrace(top_object, ray, prd);
 

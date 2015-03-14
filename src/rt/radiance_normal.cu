@@ -110,12 +110,21 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 #ifdef AMBIENT
 RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& hit );
 #ifndef OLDAMB
+#ifdef DAYSIM
+RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit, DaysimCoef dc );
+#else
 RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit );
+#endif
 //RT_METHOD int ambsample( AMBHEMI *hp, const int& i, const int& j, const float3 normal, const float3 hit );
 #else /* OLDAMB */
+#ifdef DAYSIM
+RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& hit, DaysimCoef dc );
+RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit, DaysimCoef dc );
+#else
 RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& hit );
-RT_METHOD void inithemi( AMBHEMI  *hp, float3 ac, const float3& normal );
 RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit );
+#endif
+RT_METHOD void inithemi( AMBHEMI  *hp, float3 ac, const float3& normal );
 //RT_METHOD void comperrs( AMBSAMP *da, AMBHEMI *hp );
 //RT_METHOD int ambcmp( const void *p1, const void *p2 );
 #endif /* OLDAMB */
@@ -220,28 +229,18 @@ RT_PROGRAM void closest_hit_radiance()
 			new_prd.depth = prd.depth;
 			new_prd.ambient_depth = prd.ambient_depth;
 			new_prd.state = prd.state;
-#ifdef FILL_GAPS
-			new_prd.primary = 0;
-#endif
-#ifdef RAY_COUNT
-			new_prd.ray_count = 1;
-#endif
-#ifdef HIT_COUNT
-			new_prd.hit_count = 0;
-#endif
+			setupPayload(new_prd, 0);
 			float3 R = ray.direction; //TODO may need to perturb
 			Ray trans_ray = make_Ray( hit_point, R, radiance_ray_type, ray_start( hit_point, R, ffnormal, RAY_START ), RAY_END );
 			rtTrace(top_object, trans_ray, new_prd);
 			float3 rcol = new_prd.result * mcolor * tspec;
 			result += rcol;
-			transtest = 2.0f * bright( rcol );
+#ifdef DAYSIM
+			daysimAddScaled(prd.dc, new_prd.dc, mcolor.x * tspec);
+#endif
+			transtest = 2.0f * bright(rcol);
 			transdist = t_hit + new_prd.distance;
-#ifdef RAY_COUNT
-			prd.ray_count += new_prd.ray_count;
-#endif
-#ifdef HIT_COUNT
-			prd.hit_count += new_prd.hit_count;
-#endif
+			resolvePayload(prd, new_prd);
 		}
 	}
 #endif
@@ -278,28 +277,18 @@ RT_PROGRAM void closest_hit_radiance()
 		if (new_prd.weight >= minweight && new_prd.depth <= abs(maxdepth)) {
 			new_prd.ambient_depth = prd.ambient_depth;
 			new_prd.state = prd.state;
-#ifdef FILL_GAPS
-			new_prd.primary = 0;
-#endif
-#ifdef RAY_COUNT
-			new_prd.ray_count = 1;
-#endif
-#ifdef HIT_COUNT
-			new_prd.hit_count = 0;
-#endif
+			setupPayload(new_prd, 0);
 			float3 R = reflect( ray.direction, ffnormal );
 			Ray refl_ray = make_Ray( hit_point, R, radiance_ray_type, ray_start( hit_point, R, ffnormal, RAY_START ), RAY_END );
 			rtTrace(top_object, refl_ray, new_prd);
 			float3 rcol = new_prd.result * scolor;
 			result += rcol;
-			mirtest = 2.0f * bright( rcol );
+#ifdef DAYSIM
+			daysimAddScaled(prd.dc, new_prd.dc, scolor.x);
+#endif
+			mirtest = 2.0f * bright(rcol);
 			mirdist = t_hit + new_prd.distance;
-#ifdef RAY_COUNT
-			prd.ray_count += new_prd.ray_count;
-#endif
-#ifdef HIT_COUNT
-			prd.hit_count += new_prd.hit_count;
-#endif
+			resolvePayload(prd, new_prd);
 		}
 	}
 
@@ -437,6 +426,9 @@ RT_METHOD float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const 
 
 	// cast shadow ray
 	shadow_prd->result = make_float3( 0.0f );
+#ifdef DAYSIM
+	daysimSet(shadow_prd->dc, 0.0f);
+#endif
 	rtTrace( top_object, *shadow_ray, *shadow_prd );
 	if( fmaxf( shadow_prd->result ) <= 0.0f )
 		return cval;
@@ -506,6 +498,9 @@ RT_METHOD float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const 
 			cval += mcolor * dtmp;
 		}
 	}
+#endif
+#ifdef DAYSIM
+	daysimAddScaled(prd.dc, shadow_prd->dc, cval.x);
 #endif
 	return cval * shadow_prd->result;
 }
@@ -579,20 +574,10 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 
 			gaus_ray.direction = normalize( gaus_ray.direction );
 			gaus_ray.tmin = ray_start( hit, gaus_ray.direction, normal, RAY_START );
-#ifdef RAY_COUNT
-			gaus_prd.ray_count = 1;
-#endif
-#ifdef HIT_COUNT
-			gaus_prd.hit_count = 0;
-#endif
+			setupPayload(gaus_prd, 0);
 			//if (nstaken) // check for prd data that needs to be cleared
 			rtTrace(top_object, gaus_ray, gaus_prd);
-#ifdef RAY_COUNT
-			prd.ray_count += gaus_prd.ray_count;
-#endif
-#ifdef HIT_COUNT
-			prd.hit_count += gaus_prd.hit_count;
-#endif
+			resolvePayload(prd, gaus_prd);
 
 			/* W-G-M-D adjustment */
 			if (nstarget > 1) {	
@@ -600,6 +585,9 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 				scol += gaus_prd.result * d;
 			} else {
 				rcol += gaus_prd.result * scolor;
+#ifdef DAYSIM
+				daysimAddScaled(prd.dc, gaus_prd.dc, scolor.x);
+#endif
 			}
 
 			++nstaken;
@@ -652,22 +640,15 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 
 			gaus_ray.direction = normalize( gaus_ray.direction );
 			gaus_ray.tmin = ray_start( hit, gaus_ray.direction, normal, RAY_START );
-#ifdef RAY_COUNT
-			gaus_prd.ray_count = 1;
-#endif
-#ifdef HIT_COUNT
-			gaus_prd.hit_count = 0;
-#endif
+			setupPayload(gaus_prd, 0);
 			//if (nstaken) // check for prd data that needs to be cleared
 			rtTrace(top_object, gaus_ray, gaus_prd);
-#ifdef RAY_COUNT
-			prd.ray_count += gaus_prd.ray_count;
-#endif
-#ifdef HIT_COUNT
-			prd.hit_count += gaus_prd.hit_count;
-#endif
+			resolvePayload(prd, gaus_prd);
 			rcol += gaus_prd.result * mcolor;
 			++nstaken;
+#ifdef DAYSIM
+			daysimAddScaled(prd.dc, gaus_prd.dc, mcolor.x);
+#endif
 		}
 		//ndims--;
 	}
@@ -680,7 +661,7 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 // Compute the ambient component and multiply by the coefficient.
 RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& hit )
 {
-	//static int  rdepth = 0;			/* ambient recursion */ //This is part of the ray for parallelism
+	int do_ambient = 1;
 	float 	d;
 
 	if (ambdiv <= 0)			/* no ambient calculation */
@@ -692,14 +673,7 @@ RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& h
 	//if (ambincl != -1 && r->ro != NULL && ambincl != inset(ambset, r->ro->omod))
 	//	goto dumbamb;
 
-	if ( ambacc <= FTINY || navsum == 0 ) {			/* no ambient storage */
-		float3 acol = aval;
-		//rdepth++;
-		d = doambient( &acol, normal, hit );
-		//rdepth--;
-		if (d > FTINY)
-			return acol;
-	} else {
+	if (ambacc > FTINY && navsum != 0) {			/* ambient storage */
 		//if (tracktime)				/* sort to minimize thrashing */
 		//	sortambvals(0);
 
@@ -713,6 +687,9 @@ RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& h
 		ambient_prd.wsum = 0.0f;
 		ambient_prd.ambient_depth = prd.ambient_depth;
 		ambient_prd.state = prd.state;
+#ifdef DAYSIM
+		daysimSet(ambient_prd.dc, 0.0f);
+#endif
 #ifdef HIT_COUNT
 		ambient_prd.hit_count = 0;
 #endif
@@ -724,6 +701,9 @@ RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& h
 #endif
 		if (ambient_prd.wsum > FTINY) { // TODO if miss program is called, set wsum = 1.0f or place this before ambacc == 0.0f
 			ambient_prd.result *= 1.0f / ambient_prd.wsum;
+#ifdef DAYSIM
+			daysimAddScaled(prd.dc, ambient_prd.dc, aval.x / ambient_prd.wsum);
+#endif
 			return aval * ambient_prd.result;
 		}
 		//rdepth++;				/* need to cache new value */
@@ -734,28 +714,36 @@ RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& h
 		//}
 
 #ifdef FILL_GAPS
-		if ( prd.primary ) {
-			float3 acol = aval;
-			//rdepth++;
-			d = doambient( &acol, normal, hit );
-			//rdepth--;
-			if (d > FTINY)
-				return acol;
-		}
+		do_ambient = prd.primary;
 #elif defined FILL_GAPS_LAST_ONLY
-		//if ( prd.ambient_depth == level ) {
-		if ( prd.ambient_depth == 0 ) {
-			float3 acol = aval;
-			//rdepth++;
-			d = doambient( &acol, normal, hit );
-			//rdepth--;
-			if (d > FTINY)
-				return acol;
-		}
+		do_ambient = prd.ambient_depth == 0;
+#else
+		do_ambient = 0;
 #endif
 	}
+	if (do_ambient) {			/* no ambient storage */
+		float3 acol = aval;
+#ifdef DAYSIM
+		DaysimCoef dc;
+		daysimSet(dc, 0.0f);
+		d = doambient(&acol, normal, hit, dc);
+		if (d > FTINY)
+			daysimAdd(prd.dc, dc);
+#else
+		d = doambient(&acol, normal, hit);
+#endif
+		if (d > FTINY)
+			return acol;
+	}
 dumbamb:					/* return global value */
+#ifdef DAYSIM
+	DaysimCoef dc;
+	daysimSet(dc, aval.x);
+#endif
 	if ((ambvwt <= 0) || (navsum == 0)) {
+#ifdef DAYSIM
+		daysimAddScaled(prd.dc, dc, ambval.x);
+#endif
 		return aval * ambval;
 	}
 	float l = bright(ambval);			/* average in computations */
@@ -763,15 +751,25 @@ dumbamb:					/* return global value */
 		d = (logf(l)*(float)ambvwt + avsum) / (float)(ambvwt + navsum);
 		d = expf(d) / l;
 		aval *= ambval;	/* apply color of ambval */
+#ifdef DAYSIM
+		daysimAddScaled(prd.dc, dc, ambval.x * d);
+#endif
 	} else {
 		d = expf( avsum / (float)navsum );
+#ifdef DAYSIM
+		daysimAddScaled(prd.dc, dc, d);
+#endif
 	}
 	return aval * d;
 }
 
 #ifndef OLDAMB
 /* sample indirect hemisphere, based on samp_hemi in ambcomp.c */
+#ifdef DAYSIM
+RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit, DaysimCoef dc )
+#else
 RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit )
+#endif
 {
 	float	d;
 	int	j;
@@ -828,17 +826,10 @@ RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit )
 			amb_ray.tmin = ray_start( hit, amb_ray.direction, normal, RAY_START );
 			//dimlist[ndims++] = AI(hp,i,j) + 90171;
 
-#ifdef FILL_GAPS
-			new_prd.primary = 0;
-#endif
-#ifdef RAY_COUNT
-			new_prd.ray_count = 1;
-#endif
+			setupPayload(new_prd, 0);
 			//Ray amb_ray = make_Ray( hit, rdir, radiance_ray_type, RAY_START, RAY_END );
 			rtTrace(top_object, amb_ray, new_prd);
-#ifdef RAY_COUNT
-			prd.ray_count += new_prd.ray_count;
-#endif
+			resolvePayload(prd, new_prd);
 
 			//ndims--;
 			if ( isnan( new_prd.result ) ) // TODO How does this happen?
@@ -846,6 +837,9 @@ RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit )
 			if ( new_prd.distance <= FTINY )
 				continue;		/* should never happen */
 			acol += new_prd.result * acoef;	/* add to our sum */
+#ifdef DAYSIM
+			daysimAddScaled(dc, new_prd.dc, acoef.x);
+#endif
 			sampOK++;
 		}
 	*rcol = acol;
@@ -864,7 +858,11 @@ RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit )
 	return( 1 );			/* all is well */
 }
 #else /* OLDAMB */
+#ifdef DAYSIM
+RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& hit, DaysimCoef dc )
+#else
 RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& hit )
+#endif
 {
 	float  b;//, d;
 	AMBHEMI  hemi;
@@ -905,7 +903,11 @@ RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& hit
 			dp->v = make_float3( 0.0f );
 			dp->r = 0.0f;
 			dp->n = 0;
+#ifdef DAYSIM
+			if (divsample( dp, &hemi, hit, dc ) < 0) {
+#else
 			if (divsample( dp, &hemi, hit ) < 0) {
+#endif
 				if (div != NULL)
 					dp++;
 				continue;
@@ -933,7 +935,11 @@ RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& hit
 						/* super-sample */
 		for (i = hemi.ns; i > 0; i--) {
 			dnew = *div;
+#ifdef DAYSIM
+			if (divsample( &dnew, &hemi, hit, dc ) < 0) {
+#else
 			if (divsample( &dnew, &hemi, hit ) < 0) {
+#endif
 				dp++;
 				continue;
 			}
@@ -1028,7 +1034,11 @@ RT_METHOD void inithemi( AMBHEMI  *hp, float3 ac, const float3& normal )
 }
 
 /* sample a division */
+#ifdef DAYSIM
+RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit, DaysimCoef dc )
+#else
 RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit )
+#endif
 {
 	PerRayData_radiance new_prd;
 	//RAY  ar;
@@ -1069,22 +1079,18 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit )
 	new_prd.ambient_depth = prd.ambient_depth + 1;
 	//new_prd.seed = prd.seed;//lcg( prd.seed );
 	new_prd.state = prd.state;
-#ifdef FILL_GAPS
-	new_prd.primary = 0;
-#endif
-#ifdef RAY_COUNT
-	new_prd.ray_count = 1;
-#endif
+	setupPayload(new_prd, 0);
 	Ray amb_ray = make_Ray( hit, rdir, radiance_ray_type, RAY_START, RAY_END );
 	rtTrace(top_object, amb_ray, new_prd);
-#ifdef RAY_COUNT
-	prd.ray_count += new_prd.ray_count;
-#endif
+	resolvePayload(prd, new_prd);
 
 	//ndims--;
 	if ( isnan( new_prd.result ) ) // TODO How does this happen?
 		return(-1);
 	new_prd.result *= h->acoef;	/* apply coefficient */
+#ifdef DAYSIM
+	daysimAddScaled(dc, new_prd.dc, h->acoef.x);
+#endif
 	dp->v += new_prd.result;
 					/* use rt to improve gradient calc */
 	if (new_prd.distance > FTINY && new_prd.distance < RAY_END)

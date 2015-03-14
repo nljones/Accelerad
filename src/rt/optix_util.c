@@ -490,11 +490,14 @@ void printException( const float3 code, const char* location, const int index )
 			msg = "Invalid ray";				break;
 		case RT_EXCEPTION_INTERNAL_ERROR:
 			msg = "Internal error";				break;
+		default:
+			msg = "Unknown error";				break;
 		}
-		fprintf(stderr, "Exception on %s %i: %s\n", location, index, msg );
+		sprintf(errmsg, "Exception on %s %i: %s", location, index, msg);
 	} else {
-		fprintf(stderr, "Exception on %s %i: User exception %g\n", location, index, code.y );
+		sprintf(errmsg, "Exception on %s %i: User exception %g", location, index, code.y);
 	}
+	error(WARNING, errmsg);
 }
 
 //void programCreateFromPTX( RTcontext context, const char* ptx, const char* program_name, RTprogram* program )

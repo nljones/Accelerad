@@ -90,9 +90,15 @@ RT_PROGRAM void closest_hit_shadow()
 		//new_prd.depth = prd.depth + 1;
 		new_prd.target = prd_shadow.target;
 		new_prd.result = make_float3( 0.0f );
-		optix::Ray trans_ray = optix::make_Ray( hit_point, ray.direction, shadow_ray_type, ray_start( hit_point, ray.direction, ffnormal, RAY_START ), RAY_END );
+#ifdef DAYSIM
+		daysimSet(new_prd.dc, 0.0f);
+#endif
+		optix::Ray trans_ray = optix::make_Ray(hit_point, ray.direction, shadow_ray_type, ray_start(hit_point, ray.direction, ffnormal, RAY_START), RAY_END);
 		rtTrace(top_object, trans_ray, new_prd);
 		result += new_prd.result * trans;
+#ifdef DAYSIM
+		daysimAddScaled(prd_shadow.dc, new_prd.dc, trans.x);
+#endif
 	//}
 
 	// pass the color back up the tree
@@ -155,27 +161,17 @@ RT_PROGRAM void closest_hit_radiance()
 			new_prd.ambient_depth = prd.ambient_depth;
 			//new_prd.seed = prd.seed;//lcg( prd.seed );
 			new_prd.state = prd.state;
-#ifdef FILL_GAPS
-			new_prd.primary = 0;
-#endif
-#ifdef RAY_COUNT
-			new_prd.ray_count = 1;
-#endif
-#ifdef HIT_COUNT
-			new_prd.hit_count = 0;
-#endif
+			setupPayload(new_prd, 0);
 			Ray trans_ray = make_Ray( hit_point, ray.direction, radiance_ray_type, ray_start( hit_point, ray.direction, ffnormal, RAY_START ), RAY_END );
 			rtTrace(top_object, trans_ray, new_prd);
 			float3 rcol = new_prd.result * trans;
 			result += rcol;
 			transtest = 2.0f * bright( rcol );
 			transdist = t_hit + new_prd.distance;
-#ifdef RAY_COUNT
-			prd.ray_count += new_prd.ray_count;
+#ifdef DAYSIM
+			daysimAddScaled(prd.dc, new_prd.dc, trans.x);
 #endif
-#ifdef HIT_COUNT
-			prd.hit_count += new_prd.hit_count;
-#endif
+			resolvePayload(prd, new_prd);
 		}
 	}
 	// stop if it's a shadow ray, which it isn't
@@ -191,15 +187,7 @@ RT_PROGRAM void closest_hit_radiance()
 		new_prd.ambient_depth = prd.ambient_depth;
 		//new_prd.seed = prd.seed;//lcg( prd.seed );
 		new_prd.state = prd.state;
-#ifdef FILL_GAPS
-		new_prd.primary = 0;
-#endif
-#ifdef RAY_COUNT
-		new_prd.ray_count = 1;
-#endif
-#ifdef HIT_COUNT
-		new_prd.hit_count = 0;
-#endif
+		setupPayload(new_prd, 0);
 		float3 R = reflect( ray.direction, ffnormal );
 		Ray refl_ray = make_Ray( hit_point, R, radiance_ray_type, ray_start( hit_point, R, ffnormal, RAY_START ), RAY_END );
 		rtTrace(top_object, refl_ray, new_prd);
@@ -207,12 +195,10 @@ RT_PROGRAM void closest_hit_radiance()
 		result += rcol;
 		mirtest = 2.0f * bright( rcol );
 		mirdist = t_hit + new_prd.distance;
-#ifdef RAY_COUNT
-		prd.ray_count += new_prd.ray_count;
+#ifdef DAYSIM
+		daysimAddScaled(prd.dc, new_prd.dc, refl.x);
 #endif
-#ifdef HIT_COUNT
-		prd.hit_count += new_prd.hit_count;
-#endif
+		resolvePayload(prd, new_prd);
 	}
   
 	/* check distance */

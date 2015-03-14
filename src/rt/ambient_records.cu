@@ -125,6 +125,9 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 
 		// This assignment to the prd would take place in the any-hit program if there were one
 		prd.result += record.val * ( d * wt );
+#ifdef DAYSIM
+		daysimAddScaled(prd.dc, record.dc, d * wt);
+#endif
 
 		rtReportIntersection( 0 ); // There is only one material for ambient geometry group
 	}

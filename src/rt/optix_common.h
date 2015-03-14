@@ -13,6 +13,15 @@
 //#define OLDAMB
 #define LIGHTS
 
+#ifndef DAYSIM
+//#define DAYSIM
+#ifdef DAYSIM
+#define DAYSIM_MAX_COEFS		148
+//#define DAYSIM_MAX_COEFS		2306
+typedef float DaysimCoef[DAYSIM_MAX_COEFS];
+#endif
+#endif
+
 #define AMB_ROW_SIZE	32	/* Number of entries allowed per row of the ambient hemisphere. */
 
 typedef struct struct_DistantLight
@@ -51,6 +60,9 @@ typedef struct struct_ambient_record
 #endif
 	float  weight;	/* weight of parent ray */
 	unsigned int lvl;	/* recursion level of parent ray */
+#ifdef DAYSIM
+	DaysimCoef dc;	/* daylight coefficients */
+#endif
 #ifdef RAY_COUNT
 	int ray_count;
 #endif
@@ -81,6 +93,9 @@ typedef struct struct_ray_data
 	//char*  surface;
 	//char*  modifier;
 	//char*  material;
+#ifdef DAYSIM
+	DaysimCoef dc;	/* daylight coefficients */
+#endif
 } RayData;
 
 /* Structure to hold a point and direction */
