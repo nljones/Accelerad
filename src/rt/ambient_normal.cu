@@ -10,17 +10,39 @@
 
 using namespace optix;
 
-#define FRESNE(ci)	(expf(-5.85f*(ci)) - 0.00287989916f)
-#define FRESTHRESH	0.017999f	/* minimum specularity for approx. */
 #ifndef OLDAMB
 #define CORRAL
-#define AMB_SAVE_MEM
-#ifndef AMB_SAVE_MEM
-#define AMB_GRID_EDGE	7
-#define AMB_GRID_SIZE	64	/* (AMB_GRID_EDGE+1)^2 */
-#define AI(h,i,j)	((i)*(h)->ns + (j))
-#define ambsam(h,i,j)	(h)->sa[AI(h,i,j)]
+#define hessrow(i)	hess_row_buffer[make_uint2(i, launch_index.y / stride)]
+#define gradrow(i)	grad_row_buffer[make_uint2(i, launch_index.y / stride)]
+#ifdef AMB_SAVE_MEM
+#define prevrow(i)	amb_samp_buffer[make_uint2(i, launch_index.y / stride)]
+#define corral_u(i)	corral_u_buffer[make_uint2(i, launch_index.y / stride)]
+#define corral_d(i)	corral_d_buffer[make_uint2(i, launch_index.y / stride)]
+#else /* AMB_SAVE_MEM */
+#define ambsam(i,j)	amb_samp_buffer[make_uint3(i, j, launch_index.y / stride)]
 #endif /* AMB_SAVE_MEM */
+
+typedef struct {
+	float3	v;		/* hemisphere sample value */
+	float	d;		/* reciprocal distance (1/rt) */
+	float3	p;		/* intersection point */
+} AMBSAMP;		/* sample value */
+
+typedef struct {
+	int	ns;		/* number of samples per axis */
+	int	sampOK;		/* acquired full sample set? */
+	float3	acoef;		/* division contribution coefficient */
+	float3	acol;		/* accumulated color */
+	float3	ux, uy;		/* tangent axis unit vectors */
+} AMBHEMI;		/* ambient sample hemisphere */
+
+typedef struct {
+	float3 r_i, r_i1, e_i, rcp, rI2_eJ2;
+	float I1, I2;
+} FFTRI;		/* vectors and coefficients for Hessian calculation */
+#else /* OLDAMB */
+#define rprevrow(i)	rprevrow_buffer[make_uint2(i, launch_index.y / stride)]
+#define bprevrow(i)	bprevrow_buffer[make_uint2(i, launch_index.y / stride)]
 #endif /* OLDAMB */
 
 /* Context variables */
@@ -29,6 +51,7 @@ rtDeclareVariable(rtObject,     top_object, , );
 #ifndef OLDAMB
 rtDeclareVariable(unsigned int, shadow_ray_type, , );
 #endif /* OLDAMB */
+rtDeclareVariable(unsigned int, stride, , ) = 1u; /* Spacing between used threads in warp. */
 
 rtDeclareVariable(float3,       CIE_rgbf, , ); /* This is the value [ CIE_rf, CIE_gf, CIE_bf ] from color.h */
 
@@ -58,39 +81,31 @@ rtDeclareVariable(float,        rough, , ); /* The material roughness given by t
 rtDeclareVariable(float,        trans, , ) = 0.0f; /* The material transmissivity given by the rad file "trans" object */
 rtDeclareVariable(float,        tspec, , ) = 0.0f; /* The material transmitted specular component given by the rad file "trans" object */
 
+/* Program variables */
+#ifndef OLDAMB
+rtBuffer<optix::Matrix<3, 3>, 2> hess_row_buffer;
+rtBuffer<float3, 2>              grad_row_buffer;
+#ifdef AMB_SAVE_MEM
+rtBuffer<AMBSAMP, 2>             amb_samp_buffer;
+rtBuffer<float2, 2>              corral_u_buffer;
+rtBuffer<float, 2>               corral_d_buffer;
+#else /* AMB_SAVE_MEM */
+rtBuffer<AMBSAMP, 3>             amb_samp_buffer;
+#endif /* AMB_SAVE_MEM */
+#else /* OLDAMB */
+rtBuffer<float, 2>               rprevrow_buffer;
+rtBuffer<float, 2>               bprevrow_buffer;
+#endif /* OLDAMB */
+
 /* OptiX variables */
 rtDeclareVariable(Ray, ray, rtCurrentRay, );
 rtDeclareVariable(float, t_hit, rtIntersectionDistance, );
 rtDeclareVariable(PerRayData_ambient_record, prd, rtPayload, );
+rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
 
 /* Attributes */
 rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );
 rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
-
-
-#ifndef OLDAMB
-typedef struct {
-	float3	v;		/* hemisphere sample value */
-	float	d;		/* reciprocal distance (1/rt) */
-	float3	p;		/* intersection point */
-} AMBSAMP;		/* sample value */
-
-typedef struct {
-	int	ns;		/* number of samples per axis */
-	int	sampOK;		/* acquired full sample set? */
-	float3	acoef;		/* division contribution coefficient */
-	float3	acol;		/* accumulated color */
-	float3	ux, uy;		/* tangent axis unit vectors */
-#ifndef AMB_SAVE_MEM
-	AMBSAMP	sa[AMB_GRID_SIZE];		/* sample array (extends struct) */
-#endif
-} AMBHEMI;		/* ambient sample hemisphere */
-
-typedef struct {
-	float3 r_i, r_i1, e_i, rcp, rI2_eJ2;
-	float I1, I2;
-} FFTRI;		/* vectors and coefficients for Hessian calculation */
-#endif /* OLDAMB */
 
 
 RT_METHOD int check_overlap( const float3& normal, const float3& hit );
@@ -109,31 +124,29 @@ RT_METHOD int samp_hemi(AMBHEMI *hp, float3 *rcol, float wt, optix::Matrix<2, 3>
 #else
 RT_METHOD int samp_hemi(AMBHEMI *hp, float3 *rcol, float wt, optix::Matrix<2, 3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit);
 #endif
-RT_METHOD float back_ambval( const AMBSAMP *n1, const AMBSAMP *n2, const AMBSAMP *n3 );
-RT_METHOD void comp_fftri( FFTRI *ftp, const AMBSAMP *n0, const AMBSAMP *n1, const float3& hit );
 #else /* AMB_SAVE_MEM */
 #ifdef DAYSIM
 RT_METHOD int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const float3& normal, const float3& hit, DaysimCoef dc );
 #else
 RT_METHOD int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const float3& normal, const float3& hit );
 #endif
-RT_METHOD float back_ambval( AMBHEMI *hp, const int& n1, const int& n2, const int& n3 );
-RT_METHOD void comp_fftri( FFTRI *ftp, AMBHEMI *hp, const int& n0, const int& n1, const float3& hit );
 RT_METHOD void ambHessian( AMBHEMI *hp, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, const float3& normal, const float3& hit );
 RT_METHOD void ambdirgrad( AMBHEMI *hp, const float3& u, const float3& v, float2 *dg, const float3& normal, const float3& hit );
 RT_METHOD unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, const float2& r, const float3& normal, const float3& hit );
 #endif /* AMB_SAVE_MEM */
-RT_METHOD optix::Matrix<2,2> eigenvectors( optix::Matrix<2,3> *uv, float2 *ra, optix::Matrix<3,3> *hessian );
+RT_METHOD float back_ambval( const AMBSAMP *n1, const AMBSAMP *n2, const AMBSAMP *n3 );
+RT_METHOD void comp_fftri( FFTRI *ftp, const AMBSAMP *n0, const AMBSAMP *n1, const float3& hit );
 RT_METHOD optix::Matrix<3,3> compose_matrix( const float3& va, const float3& vb );
 RT_METHOD optix::Matrix<3,3> comp_hessian( FFTRI *ftp, const float3& normal );
 RT_METHOD float3 comp_gradient( FFTRI *ftp, const float3& normal );
+RT_METHOD optix::Matrix<2,2> eigenvectors( optix::Matrix<2,3> *uv, float2 *ra, optix::Matrix<3,3> *hessian );
 #else /* OLDAMB */
 #ifdef DAYSIM
 RT_METHOD float doambient( float3 *rcol, float3 *pg, float3 *dg, const float3& normal, const float3& hit, DaysimCoef dc );
-RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit, DaysimCoef dc );
+RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit, const float3& normal, DaysimCoef dc );
 #else
 RT_METHOD float doambient( float3 *rcol, float3 *pg, float3 *dg, const float3& normal, const float3& hit );
-RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit );
+RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit, const float3& normal );
 #endif
 RT_METHOD void inithemi( AMBHEMI  *hp, const float3& ac, const float3& normal );
 //RT_METHOD void comperrs( AMBSAMP *da, AMBHEMI *hp );
@@ -389,9 +402,12 @@ RT_METHOD int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *ra, float
 		dg = NULL;
 		crlp = NULL;
 	}
-	AMBSAMP	*ap = hp.sa;			/* relative Y channel from here on... */
-	for (int i = hp.ns*hp.ns; i--; ap++)
-		ap->v.y = bright( ap->v ) * d + K;
+				/* relative Y channel from here on... */
+	for (int i = 0; i < hp.ns; i++)
+		for (int j = 0; j < hp.ns; j++) {
+			AMBSAMP	*ap = &ambsam(i, j);
+			ap->v.y = bright(ap->v) * d + K;
+		}
 
 	//if (uv == NULL)			/* make sure we have axis pointers */
 	//	uv = my_uv;
@@ -485,11 +501,8 @@ RT_METHOD int samp_hemi(
 
 #ifdef AMB_SAVE_MEM
 	AMBSAMP current, prev;
-	AMBSAMP prevrow[AMB_ROW_SIZE];
 
 	/* ambHessian from ambcomp.c */
-	optix::Matrix<3,3> hessrow[AMB_ROW_SIZE-1]; //array of Matrix<3,3>
-	float3 gradrow[AMB_ROW_SIZE-1];
 	optix::Matrix<3,3> hessian;
 	float3 gradient = make_float3( 0.0f );
 	hessian.setRow( 0, gradient ); // Set zero matrix
@@ -516,8 +529,6 @@ RT_METHOD int samp_hemi(
 	const float ang_step = ang_res / ( (int)( 16.0f * M_1_PIf * ang_res ) + 1.01f );
 	float avg_d = 0.0f;
 	unsigned int corral_count = 0u;
-	float2 corral_u[4*(AMB_ROW_SIZE-1)];
-	float corral_d[4*(AMB_ROW_SIZE-1)];
 #endif /* CORRAL */
 
 					/* sample divisions */
@@ -541,31 +552,31 @@ RT_METHOD int samp_hemi(
 					optix::Matrix<3,3> hesstmp;
 					float3 gradtmp;
 
-					float backg = back_ambval( &prevrow[j-1], &prevrow[j], &prev );
+					float backg = back_ambval( &prevrow(j - 1), &prevrow(j), &prev );
 								/* diagonal (inner) edge */
-					comp_fftri( &fftr, &prevrow[j], &prev, hit );
+					comp_fftri(&fftr, &prevrow(j), &prev, hit);
 					hessdia = comp_hessian( &fftr, normal );
-					hessian += ( hesstmp = hessrow[j-1] + hessdia - hesscol );
+					hessian += ( hesstmp = hessrow(j - 1) + hessdia - hesscol );
 					hessianY += backg * hesstmp;
 					graddia = comp_gradient( &fftr, normal );
-					gradient += ( gradtmp = gradrow[j-1] + graddia - gradcol );
+					gradient += ( gradtmp = gradrow(j - 1) + graddia - gradcol );
 					gradientY += backg * gradtmp;
 								/* initialize edge in next row */
 					comp_fftri( &fftr, &current, &prev, hit );
-					hessrow[j-1] = comp_hessian( &fftr, normal );
-					gradrow[j-1] = comp_gradient( &fftr, normal );
+					hessrow(j - 1) = comp_hessian( &fftr, normal );
+					gradrow(j - 1) = comp_gradient( &fftr, normal );
 								/* new column edge & paired triangle */
-					backg = back_ambval( &current, &prev, &prevrow[j] );
-					comp_fftri( &fftr, &prevrow[j], &current, hit );
+					backg = back_ambval( &current, &prev, &prevrow(j) );
+					comp_fftri( &fftr, &prevrow(j), &current, hit );
 					hesscol = comp_hessian( &fftr, normal );
-					hessian += ( hesstmp = hessrow[j-1] - hessdia + hesscol );
+					hessian += ( hesstmp = hessrow(j - 1) - hessdia + hesscol );
 					hessianY += backg * hesstmp;
 					gradcol = comp_gradient( &fftr, normal );
-					gradient += ( gradtmp = gradrow[j-1] - graddia + gradcol );
+					gradient += ( gradtmp = gradrow(j - 1) - graddia + gradcol );
 					gradientY += backg * gradtmp;
 					if ( i < hp->ns-1 ) {
-						hessrow[j-1] *= -1.0f;
-						gradrow[j-1] = -gradrow[j-1];
+						hessrow(j - 1) *= -1.0f;
+						gradrow(j - 1) = -gradrow(j - 1);
 					}
 
 #ifdef CORRAL
@@ -575,15 +586,15 @@ RT_METHOD int samp_hemi(
 							avg_d += current.d;
 #endif /* CORRAL */
 				} else {
-					comp_fftri( &fftr, prevrow, &current, hit );
+					comp_fftri(&fftr, &prevrow(0), &current, hit);
 					hesscol = comp_hessian( &fftr, normal );
 					gradcol = comp_gradient( &fftr, normal );
 				}
 			} else if ( j ) {
 					/* compute first row of edges */
 				comp_fftri( &fftr, &prev, &current, hit );
-				hessrow[j-1] = comp_hessian( &fftr, normal );
-				gradrow[j-1] = comp_gradient( &fftr, normal );
+				hessrow(j - 1) = comp_hessian(&fftr, normal);
+				gradrow(j - 1) = comp_gradient(&fftr, normal);
 			}
 
 			/* ambdirgrad from ambcomp.c */
@@ -594,10 +605,10 @@ RT_METHOD int samp_hemi(
 					/* sine = proj_radius/vd_length */
 			dgsum += vd * gfact;
 
-			if ( j )
-				prevrow[j-1] = prev;
+			if (j)
+				prevrow(j - 1) = prev;
 			else
-				prevrow[hp->ns-1] = prev;
+				prevrow(hp->ns - 1) = prev;
 			prev = current;
 
 #ifdef CORRAL
@@ -605,8 +616,8 @@ RT_METHOD int samp_hemi(
 			if ( !i || !j || i == hp->ns - 1 || j == hp->ns - 1 ) {
 				if ( ( current.d <= FTINY ) | ( current.d >= max_d ) )
 					continue;	/* too far or too near */
-				corral_u[corral_count] = *uv * vd;
-				corral_d[corral_count++] = current.d * current.d;
+				corral_u(corral_count) = *uv * vd;
+				corral_d(corral_count++) = current.d * current.d;
 			}
 #endif /* CORRAL */
 		}
@@ -616,9 +627,9 @@ RT_METHOD int samp_hemi(
 	for (i = hp->ns; i--; )
 	    for (j = hp->ns; j--; )
 #ifdef DAYSIM
-			hp->sampOK += ambsample(hp, &ambsam(hp, i, j), i, j, normal, hit, dc);
+			hp->sampOK += ambsample(hp, &ambsam(i, j), i, j, normal, hit, dc);
 #else
-			hp->sampOK += ambsample(hp, &ambsam(hp, i, j), i, j, normal, hit);
+			hp->sampOK += ambsample(hp, &ambsam(i, j), i, j, normal, hit);
 #endif
 #endif /* AMB_SAVE_MEM */
 	*rcol = hp->acol;
@@ -697,8 +708,8 @@ RT_METHOD int samp_hemi(
 			if ( ( hp->ns >= 12 ) && ( avg_d * r.x < 1.0f )	&& ( avg_d < max_d ) ) {
 						/* else circle around perimeter */
 				for ( i = 0; i < corral_count; i++ ) {
-					float2 u = ab * corral_u[i];
-					if ( ( r.x*r.x * u.x*u.x + r.y*r.y * u.y*u.y ) * corral_d[i] <= dot( u, u ) )
+					float2 u = ab * corral_u(i);
+					if ( ( r.x*r.x * u.x*u.x + r.y*r.y * u.y*u.y ) * corral_d(i) <= dot( u, u ) )
 						continue;	/* occluder outside ellipse */
 					float ang = atan2f( u.y, u.x );	/* else set direction flags */
 					for ( float a1 = ang - ang_res; a1 <= ang + ang_res; a1 += ang_step )
@@ -814,7 +825,6 @@ RT_METHOD int ambsample( AMBHEMI *hp, AMBSAMP *ap, const int& i, const int& j, c
 	return(1);
 }
 
-#ifdef AMB_SAVE_MEM
 /* Return brightness of farthest ambient sample */
 RT_METHOD float back_ambval( const AMBSAMP *n1, const AMBSAMP *n2, const AMBSAMP *n3 )
 {
@@ -845,38 +855,6 @@ RT_METHOD void comp_fftri( FFTRI *ftp, const AMBSAMP *n0, const AMBSAMP *n1, con
 	const float J2 =  ( 0.5f * ( rdot_r - rdot_r1 ) - dot_er * ftp->I2 ) / dot_e;
 	ftp->rI2_eJ2 = ftp->I2 * ftp->r_i + J2 * ftp->e_i;
 }
-#else /* AMB_SAVE_MEM */
-/* Return brightness of farthest ambient sample */
-RT_METHOD float back_ambval( AMBHEMI *hp, const int& n1, const int& n2, const int& n3 )
-{
-	if (hp->sa[n1].d <= hp->sa[n2].d) {
-		if (hp->sa[n1].d <= hp->sa[n3].d)
-			return(hp->sa[n1].v.y);
-		return(hp->sa[n3].v.y);
-	}
-	if (hp->sa[n2].d <= hp->sa[n3].d)
-		return(hp->sa[n2].v.y);
-	return(hp->sa[n3].v.y);
-}
-
-/* Compute vectors and coefficients for Hessian/gradient calcs */
-RT_METHOD void comp_fftri( FFTRI *ftp, AMBHEMI *hp, const int& n0, const int& n1, const float3& hit )
-{
-	ftp->r_i = hp->sa[n0].p - hit;
-	ftp->r_i1 = hp->sa[n1].p - hit;
-	ftp->e_i = hp->sa[n1].p - hp->sa[n0].p;
-	ftp->rcp = cross( ftp->r_i, ftp->r_i1 );
-	const float rdot_cp = 1.0f / dot( ftp->rcp, ftp->rcp );
-	const float dot_e = dot( ftp->e_i, ftp->e_i );
-	const float dot_er = dot( ftp->e_i, ftp->r_i );
-	const float rdot_r = 1.0f / dot( ftp->r_i, ftp->r_i );
-	const float rdot_r1 = 1.0f / dot( ftp->r_i1, ftp->r_i1 );
-	ftp->I1 = acosf( dot( ftp->r_i, ftp->r_i1 ) * sqrtf( rdot_r * rdot_r1 ) ) * sqrtf( rdot_cp );
-	ftp->I2 = ( dot( ftp->e_i, ftp->r_i1 ) * rdot_r1 - dot_er * rdot_r + dot_e * ftp->I1 ) * 0.5f * rdot_cp;
-	const float J2 =  ( 0.5f * ( rdot_r - rdot_r1 ) - dot_er * ftp->I2 ) / dot_e;
-	ftp->rI2_eJ2 = ftp->I2 * ftp->r_i + J2 * ftp->e_i;
-}
-#endif /* AMB_SAVE_MEM */
 
 /* Compose 3x3 matrix from two vectors */
 RT_METHOD optix::Matrix<3,3> compose_matrix( const float3& va, const float3& vb )
@@ -964,8 +942,6 @@ RT_METHOD optix::Matrix<2,2> eigenvectors( optix::Matrix<2,3> *uv, float2 *ra, o
 #ifndef AMB_SAVE_MEM
 RT_METHOD void ambHessian( AMBHEMI *hp, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, const float3& normal, const float3& hit )
 {
-	optix::Matrix<3,3> hessrow[AMB_GRID_EDGE]; //array of Matrix<3,3>
-	float3 gradrow[AMB_GRID_EDGE];
 	optix::Matrix<3,3> hessian;
 	float3 gradient = make_float3( 0.0f );
 	hessian.setRow( 0, gradient ); // Set zero matrix
@@ -992,59 +968,59 @@ RT_METHOD void ambHessian( AMBHEMI *hp, optix::Matrix<2,3> *uv, float2 *ra, floa
 	//}
 					/* compute first row of edges */
 	for (j = 0; j < hp->ns-1; j++) {
-		comp_fftri( &fftr, hp, AI(hp,0,j), AI(hp,0,j+1), hit );
-		if (hessrow != NULL)
-			hessrow[j] = comp_hessian( &fftr, normal );
-		if (gradrow != NULL)
-			gradrow[j] = comp_gradient( &fftr, normal );
+		comp_fftri(&fftr, &ambsam(0, j), &ambsam(0, j + 1), hit);
+		if (ra != NULL)
+			hessrow(j) = comp_hessian( &fftr, normal );
+		if (pg != NULL)
+			gradrow(j) = comp_gradient( &fftr, normal );
 	}
 					/* sum each row of triangles */
 	for (i = 0; i < hp->ns-1; i++) {
 	    optix::Matrix<3,3> hesscol;	/* compute first vertical edge */
 	    float3 gradcol;
-	    comp_fftri( &fftr, hp, AI(hp,i,0), AI(hp,i+1,0), hit );
-	    if (hessrow != NULL)
+		comp_fftri(&fftr, &ambsam(i, 0), &ambsam(i + 1, 0), hit);
+		if (ra != NULL)
 			hesscol = comp_hessian( &fftr, normal );
-	    if (gradrow != NULL)
+		if (pg != NULL)
 			gradcol = comp_gradient( &fftr, normal );
 	    for (j = 0; j < hp->ns-1; j++) {
 			optix::Matrix<3,3> hessdia;	/* compute triangle contributions */
 			float3 graddia;
-			float backg = back_ambval( hp, AI(hp,i,j), AI(hp,i,j+1), AI(hp,i+1,j) );
+			float backg = back_ambval(&ambsam(i, j), &ambsam(i, j + 1), &ambsam(i + 1, j));
 						/* diagonal (inner) edge */
-			comp_fftri( &fftr, hp, AI(hp,i,j+1), AI(hp,i+1,j), hit );
-			if (hessrow != NULL) {
+			comp_fftri(&fftr, &ambsam(i, j + 1), &ambsam(i + 1, j), hit);
+			if (ra != NULL) {
 				hessdia = comp_hessian( &fftr, normal );
 				//hesscol = -hesscol;
-				hessian += backg * ( hessrow[j] + hessdia - hesscol );
+				hessian += backg * ( hessrow(j) + hessdia - hesscol );
 			}
-			if (gradrow != NULL) {
+			if (pg != NULL) {
 				graddia = comp_gradient( &fftr, normal );
 				//gradcol = -gradcol;
-				gradient += backg * ( gradrow[j] + graddia - gradcol );
+				gradient += backg * ( gradrow(j) + graddia - gradcol );
 			}
 						/* initialize edge in next row */
-			comp_fftri( &fftr, hp, AI(hp,i+1,j+1), AI(hp,i+1,j), hit );
-			if (hessrow != NULL)
-				hessrow[j] = comp_hessian( &fftr, normal );
-			if (gradrow != NULL)
-				gradrow[j] = comp_gradient( &fftr, normal );
+			comp_fftri(&fftr, &ambsam(i + 1, j + 1), &ambsam(i + 1, j), hit);
+			if (ra != NULL)
+				hessrow(j) = comp_hessian( &fftr, normal );
+			if (pg != NULL)
+				gradrow(j) = comp_gradient( &fftr, normal );
 						/* new column edge & paired triangle */
-			backg = back_ambval( hp, AI(hp,i+1,j+1), AI(hp,i+1,j), AI(hp,i,j+1) );
-			comp_fftri( &fftr, hp, AI(hp,i,j+1), AI(hp,i+1,j+1), hit );
-			if (hessrow != NULL) {
+			backg = back_ambval(&ambsam(i + 1, j + 1), &ambsam(i + 1, j), &ambsam(i, j + 1));
+			comp_fftri(&fftr, &ambsam(i, j + 1), &ambsam(i + 1, j + 1), hit);
+			if (ra != NULL) {
 				hesscol = comp_hessian( &fftr, normal );
 				//hessdia = -hessdia;
-				hessian += backg * ( hessrow[j] - hessdia + hesscol );
+				hessian += backg * ( hessrow(j) - hessdia + hesscol );
 				if ( i < hp->ns-2 )
-					hessrow[j] *= -1.0f;
+					hessrow(j) *= -1.0f;
 			}
-			if (gradrow != NULL) {
+			if (pg != NULL) {
 				gradcol = comp_gradient( &fftr, normal );
 				//graddia = -graddia;
-				gradient += backg * ( gradrow[j] - graddia + gradcol );
+				gradient += backg * ( gradrow(j) - graddia + gradcol );
 				if ( i < hp->ns-2 )
-					gradrow[j] = -gradrow[j];
+					gradrow(j) = -gradrow(j);
 			}
 	    }
 	}
@@ -1062,19 +1038,18 @@ RT_METHOD void ambHessian( AMBHEMI *hp, optix::Matrix<2,3> *uv, float2 *ra, floa
 /* Compute direction gradient from a hemispherical sampling */
 RT_METHOD void ambdirgrad( AMBHEMI *hp, const float3& u, const float3& v, float2 *dg, const float3& normal, const float3& hit )
 {
-	AMBSAMP	*ap;
-	int	n;
-
 	float2 dgsum = make_float2( 0.0f );	/* sum values times -tan(theta) */
-	for (ap = hp->sa, n = hp->ns*hp->ns; n--; ap++) {
+	for (int i = 0; i < hp->ns; i++)
+		for (int j = 0; j < hp->ns; j++) {
+			AMBSAMP	*ap = &ambsam(i, j);
 					/* use vector for azimuth + 90deg */
-		float3 vd = ap->p - hit;
+			float3 vd = ap->p - hit;
 					/* brightness over cosine factor */
-		float gfact = ap->v.y / dot( normal, vd );
+			float gfact = ap->v.y / dot( normal, vd );
 					/* sine = proj_radius/vd_length */
-		dgsum.x -= dot( v, vd ) * gfact;
-		dgsum.y += dot( u, vd ) * gfact;
-	}
+			dgsum.x -= dot( v, vd ) * gfact;
+			dgsum.y += dot( u, vd ) * gfact;
+		}
 	*dg = dgsum / (hp->ns*hp->ns);
 }
 
@@ -1093,7 +1068,7 @@ RT_METHOD unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, const flo
 					/* check distances overhead */
 	for ( i = hp->ns * 3 / 4; i-- > hp->ns>>2; )
 	    for ( j = hp->ns * 3 / 4; j-- > hp->ns>>2; )
-			avg_d += ambsam(hp,i,j).d;
+			avg_d += ambsam(i, j).d;
 	avg_d *= 4.0f / ( hp->ns * hp->ns );
 	if ( avg_d * r.x >= 1.0f )		/* ceiling too low for corral? */
 		return(0u);
@@ -1102,7 +1077,7 @@ RT_METHOD unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, const flo
 					/* else circle around perimeter */
 	for ( i = 0; i < hp->ns; i++ )
 	    for ( j = 0; j < hp->ns; j += !i|(i==hp->ns-1) ? 1 : hp->ns-1 ) {
-			AMBSAMP	*ap = &ambsam(hp,i,j);
+			AMBSAMP	*ap = &ambsam(i, j);
 			if ( ( ap->d <= FTINY ) | ( ap->d >= max_d ) )
 				continue;	/* too far or too near */
 			const float2 u = *uv * ( ap->p - hit );
@@ -1171,8 +1146,6 @@ RT_METHOD float doambient( float3 *rcol, float3 *pg, float3 *dg, const float3& n
 	divcnt = 0;
 
 	/* Set-up from posgradient in ambcomp.c */
-	float rprevrow[AMB_ROW_SIZE]; //rprevrow[hemi.np]; //TODO allow larger -ad
-	float bprevrow[AMB_ROW_SIZE]; //bprevrow[hemi.np];
 	float xdp = 0.0f;
 	float ydp = 0.0f;
 
@@ -1196,12 +1169,12 @@ RT_METHOD float doambient( float3 *rcol, float3 *pg, float3 *dg, const float3& n
 			dp->r = 0.0f;
 			dp->n = 0;
 #ifdef DAYSIM
-			if (divsample(dp, &hemi, hit_point, dc) < 0) {
+			if (divsample(dp, &hemi, hit_point, nrm, dc) < 0) {
 #else
-			if (divsample(dp, &hemi, hit_point) < 0) {
+			if (divsample(dp, &hemi, hit_point, nrm) < 0) {
 #endif
-				rprevrow[i] = rprev = dp->r; // Set values for posgradient to avoid NaN
-				bprevrow[i] = bprev = bright(dp->v);
+				rprevrow(i) = rprev = dp->r; // Set values for posgradient to avoid NaN
+				bprevrow(i) = bprev = bright(dp->v);
 				if (div != NULL)
 					dp++;
 				continue;
@@ -1223,17 +1196,17 @@ RT_METHOD float doambient( float3 *rcol, float3 *pg, float3 *dg, const float3& n
 			}
 			float nextsine = sqrtf( (float)(i+1) / hemi.nt );
 			if (j > 0u) {
-				d = rprevrow[i];//dp[-1].r;
+				d = rprevrow(i);//dp[-1].r;
 				if ( dp->r > d ) d = dp->r;
-				mag1 += d * ( nextsine - lastsine ) * ( b - bprevrow[i] ); // bright(dp[-1].v)
+				mag1 += d * ( nextsine - lastsine ) * ( b - bprevrow(i) ); // bright(dp[-1].v)
 			//} else {
 			//	d = dp[hp->np-1].r;
 			//	if ( dp->r > d ) d = dp->r;
 			//	mag1 += d * (nextsine - lastsine) * (b - bright(dp[hp->np-1].v));
 			}
 			lastsine = nextsine;
-			rprevrow[i] = rprev = dp->r;
-			bprevrow[i] = bprev = b;
+			rprevrow(i) = rprev = dp->r;
+			bprevrow(i) = bprev = b;
 
 			/* Processing from dirgradient in ambcomp.c */
 			mag += b / sqrtf( hemi.nt / ( i + 0.5f ) - 1.0f );
@@ -1268,7 +1241,7 @@ RT_METHOD float doambient( float3 *rcol, float3 *pg, float3 *dg, const float3& n
 	//					/* super-sample */
 	//	for (i = hemi.ns; i > 0u; i--) {
 	//		dnew = *div;
-	//		if (divsample(&dnew, &hemi, hit_point) < 0) {
+	//		if (divsample(&dnew, &hemi, hit_point, nrm) < 0) {
 	//			dp++;
 	//			continue;
 	//		}
@@ -1363,9 +1336,9 @@ RT_METHOD void inithemi( AMBHEMI  *hp, const float3& ac, const float3& nrm )
 
 /* sample a division */
 #ifdef DAYSIM
-RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point, DaysimCoef, dc )
+RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point, const float3& normal, DaysimCoef, dc )
 #else
-RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point )
+RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point, const float3& normal )
 #endif
 {
 	PerRayData_radiance new_prd;

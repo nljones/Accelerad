@@ -12,6 +12,7 @@
 //#define HIT_TYPE
 //#define OLDAMB
 #define LIGHTS
+#define AMB_SAVE_MEM	/* Reduce global memory usage in ambient calculation by saving one row of samples at a time */
 
 #ifndef DAYSIM
 //#define DAYSIM
@@ -22,7 +23,6 @@ typedef float DaysimCoef[DAYSIM_MAX_COEFS];
 #endif
 #endif
 
-#define AMB_ROW_SIZE	32	/* Number of entries allowed per row of the ambient hemisphere. */
 
 typedef struct struct_DistantLight
 {

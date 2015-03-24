@@ -338,17 +338,8 @@ static void createContext( RTcontext* context, const int width, const int height
 	ray_type_count = 3u; /* shadow, radiance, and primary radiance */
 	entry_point_count = 1u; /* Generate radiance data */
 
-	if ( use_ambient ) {
+	if ( use_ambient )
 		ray_type_count++; /* ambient ray */
-		if ( ambdiv > AMB_ROW_SIZE * AMB_ROW_SIZE ) {
-			sprintf(errmsg, "number of ambient divisions cannot be greater than %i (currently %i).", AMB_ROW_SIZE * AMB_ROW_SIZE, ambdiv);
-			error(USER, errmsg);
-		}
-		if ( optix_stack_size < 124 * AMB_ROW_SIZE + 144 ) { // Based on memory requirements for samp_hemi() in ambient_normal.cu
-			sprintf(errmsg, "GPU stack size must be greater than %i (currently %i).", 124 * AMB_ROW_SIZE + 144, optix_stack_size);
-			error(USER, errmsg);
-		}
-	}
 	if ( calc_ambient ) {
 		ray_type_count += RAY_TYPE_COUNT;
 		entry_point_count += ENTRY_POINT_COUNT;
@@ -1011,10 +1002,53 @@ static RTmaterial createNormalMaterial( const RTcontext context, const OBJREC* r
 	RT_CHECK_ERROR( rtMaterialSetAnyHitProgram( material, SHADOW_RAY, shadow_normal_any_hit_program ) ); // Cannot use any hit program because closest might be light source
 #endif
 
-	if ( calc_ambient ) {
-		if ( !ambient_normal_closest_hit_program ) {
-			ptxFile( path_to_ptx, "ambient_normal" );
+	if (calc_ambient) {
+		if (!ambient_normal_closest_hit_program) {
+			RTbuffer buffer;
+			int n, i;
+
+			ptxFile(path_to_ptx, "ambient_normal");
 			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "closest_hit_ambient", &ambient_normal_closest_hit_program ) );
+
+			/* Create GPU scratch space buffers in global GPU memory */
+#ifndef OLDAMB
+			n = sqrt(ambdiv) + 0.5;
+			i = 1 + 5 * (ambacc > FTINY);	/* minimum number of samples */
+			if (n < i)
+				n = i;
+
+			createCustomBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, 9 * sizeof(float), n - 1, cuda_kmeans_clusters, &buffer); // Size of optix::Matrix<3, 3>
+			applyProgramObject(context, ambient_normal_closest_hit_program, "hess_row_buffer", buffer);
+
+			createBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT3, n - 1, cuda_kmeans_clusters, &buffer);
+			applyProgramObject(context, ambient_normal_closest_hit_program, "grad_row_buffer", buffer);
+
+#ifdef AMB_SAVE_MEM
+			createCustomBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, 7 * sizeof(float), n, cuda_kmeans_clusters, &buffer); // Size of AMBSAMP in ambient_normal.cu
+			applyProgramObject(context, ambient_normal_closest_hit_program, "amb_samp_buffer", buffer);
+
+			createBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT2, 4 * (n - 1), cuda_kmeans_clusters, &buffer);
+			applyProgramObject(context, ambient_normal_closest_hit_program, "corral_u_buffer", buffer);
+
+			createBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT, 4 * (n - 1), cuda_kmeans_clusters, &buffer);
+			applyProgramObject(context, ambient_normal_closest_hit_program, "corral_d_buffer", buffer);
+#else /* AMB_SAVE_MEM */
+			createCustomBuffer3D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, 7 * sizeof(float), n, n, cuda_kmeans_clusters, &buffer); // Size of AMBSAMP in ambient_normal.cu
+			applyProgramObject(context, ambient_normal_closest_hit_program, "amb_samp_buffer", buffer);
+#endif /* AMB_SAVE_MEM */
+#else /* OLDAMB */
+			n = sqrt(ambdiv / PI) + 0.5f;
+			i = ambacc > FTINY ? 3 : 1;	/* minimum number of samples */
+			if (n < i)
+				n = i;
+			n = PI * n + 0.5f;
+
+			createBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT, n, cuda_kmeans_clusters, &buffer);
+			applyProgramObject(context, ambient_normal_closest_hit_program, "rprevrow_buffer", buffer);
+
+			createBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT, n, cuda_kmeans_clusters, &buffer);
+			applyProgramObject(context, ambient_normal_closest_hit_program, "bprevrow_buffer", buffer);
+#endif /* OLDAMB */
 		}
 		RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, AMBIENT_RECORD_RAY, ambient_normal_closest_hit_program ) );
 

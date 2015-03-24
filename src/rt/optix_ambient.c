@@ -102,11 +102,12 @@ static void createAmbientSamplingCamera( const RTcontext context, const VIEW* vi
 		/* Ray generation program */
 		ptxFile( path_to_ptx, "ambient_cloud_generator" );
 		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "ambient_cloud_camera", &ray_gen_program ) );
-		applyProgramVariable1ui( context, ray_gen_program, "stride", thread_stride );
 
 		/* Exception program */
 		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "exception", &exception_program ) );
-		applyProgramVariable1ui( context, exception_program, "stride", thread_stride );
+
+		/* Stride for these programs */
+		applyContextVariable1ui(context, "stride", thread_stride);
 	}
 	RT_CHECK_ERROR( rtContextSetRayGenerationProgram( context, AMBIENT_ENTRY, ray_gen_program ) );
 	RT_CHECK_ERROR( rtContextSetExceptionProgram( context, AMBIENT_ENTRY, exception_program ) );

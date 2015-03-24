@@ -16,8 +16,6 @@ using namespace optix;
 #ifndef  MAXITER
 #define  MAXITER	10		/* maximum # specular ray attempts */
 #endif
-#define  FRESNE(ci)	(expf(-5.85f*(ci)) - 0.00287989916f) /* estimate of Fresnel function */
-#define  FRESTHRESH	0.017999f	/* minimum specularity for approx. */
 #define  MAXSPART	64		/* maximum partitions per source */
 //#define frandom()	(rnd( prd.seed )/float(RAND_MAX))
 //#define frandom()	(rnd( prd.seed ))

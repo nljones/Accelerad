@@ -26,6 +26,10 @@
 #define RAY_END		RT_DEFAULT_MAX	/* RT_DEFAULT_MAX squared is greater than Float.Inf */
 #define AMBIENT_RAY_LENGTH	(1e-2f)
 
+/* estimate of Fresnel function */
+#define FRESNE(ci)	(expf(-5.85f*(ci)) - 0.00287989916f)
+#define FRESTHRESH	0.017999f	/* minimum specularity for approx. */
+
 /* view types from view.h */
 #define  VT_PER		'v'		/* perspective */
 #define  VT_PAR		'l'		/* parallel */
