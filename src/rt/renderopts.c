@@ -14,7 +14,7 @@ static const char	RCSid[] = "$Id$";
 
 #ifdef ACCELERAD
 int use_optix = 1;			/* Flag to use OptiX for ray tracing */
-int optix_stack_size = 8192;	/* Stack size for OptiX program in bytes (-g) */
+int optix_stack_size = 4096;	/* Stack size for OptiX program in bytes (-g) */
 
 /* For OptiX iterative ambient sampling */
 unsigned int optix_amb_scale = 0u;		/* Scale to use for ambient sample spacing, zero to use all pixels (-al) */
