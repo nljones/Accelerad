@@ -216,7 +216,6 @@ m_brdf(			/* color a ray that hit a BRDTfunc material */
 	int  i;
 #ifdef DAYSIM
 	DaysimCoef daylightCoef;
-	daysimSet( daylightCoef, 0.0 );
 #endif
 						/* check arguments */
 	if ((m->oargs.nsargs < 10) | (m->oargs.nfargs < 9))
@@ -378,7 +377,6 @@ m_brdf2(			/* color a ray that hit a BRDF material */
 	double  dtmp;
 #ifdef DAYSIM
 	DaysimCoef daylightCoef;
-	daysimSet( daylightCoef, 0.0 );
 #endif
 						/* always a shadow */
 	if (r->crtype & SHADOW)

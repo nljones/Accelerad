@@ -187,7 +187,6 @@ m_aniso(			/* shade ray that hit something anisotropic */
 	int  i;
 #ifdef DAYSIM
 	DaysimCoef daylightCoef;
-	daysimSet(daylightCoef, 0.0);
 #endif
 						/* easy shadow test */
 	if (r->crtype & SHADOW)

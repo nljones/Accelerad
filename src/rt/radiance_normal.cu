@@ -549,6 +549,11 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 				nstarget = 1;
 		}
 		float3 scol = make_float3( 0.0f );
+#ifdef DAYSIM
+		DaysimCoef dc;
+		if (nstarget > 1)
+			daysimSet(dc, 0.0f);
+#endif
 		//dimlist[ndims++] = (int)(size_t)np->mp;
 		unsigned int maxiter = MAXITER * nstarget;
 		for (nstaken = ntrials = 0; nstaken < nstarget && ntrials < maxiter; ntrials++) {
@@ -581,6 +586,9 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 			if (nstarget > 1) {	
 				d = 2.0f / ( 1.0f - dot( ray.direction, normal ) / d );
 				scol += gaus_prd.result * d;
+#ifdef DAYSIM
+				daysimAddScaled(dc, gaus_prd.dc, d);
+#endif
 			} else {
 				rcol += gaus_prd.result * scolor;
 #ifdef DAYSIM
@@ -595,6 +603,9 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 			scol *= scolor;
 			d = (float)nstarget / ntrials;
 			rcol += scol * d;
+#ifdef DAYSIM
+			daysimAddScaled(prd.dc, dc, scolor.x * d);
+#endif
 		}
 		//ndims--;
 	}
