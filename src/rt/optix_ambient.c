@@ -18,8 +18,13 @@ static void createAmbientSamplingCamera( const RTcontext context, const VIEW* vi
 static void createGeometryInstanceAmbient( const RTcontext context, RTgeometryinstance* instance, const unsigned int ambinet_record_count );
 static void createAmbientAcceleration( const RTcontext context, const RTgeometryinstance instance );
 static unsigned int populateAmbientRecords( const RTcontext context, const int level );
+#ifdef DAYSIM
+static unsigned int gatherAmbientRecords( AMBTREE* at, AmbientRecord** records, float** dc, const int level );
+static int saveAmbientRecords( AmbientRecord* record, float* dc );
+#else
 static unsigned int gatherAmbientRecords( AMBTREE* at, AmbientRecord** records, const int level );
 static int saveAmbientRecords( AmbientRecord* record );
+#endif
 
 /* from rpict.c */
 extern double  dstrpix;			/* square pixel distribution */
@@ -35,6 +40,10 @@ extern void avsave(AMBVAL *av);
 
 /* Handles to objects used repeatedly in iterative irradiance cache builds */
 static RTbuffer ambient_record_input_buffer;
+#ifdef DAYSIM
+static RTbuffer ambient_dc_input_buffer;
+extern RTbuffer dc_scratch_buffer;
+#endif
 static RTgeometry ambient_record_geometry;
 static RTacceleration ambient_record_acceleration;
 
@@ -158,9 +167,12 @@ static void createGeometryInstanceAmbient( const RTcontext context, RTgeometryin
 static unsigned int populateAmbientRecords( const RTcontext context, const int level )
 {
 	//RTbuffer   ambient_record_input_buffer;
-	void*      ambient_record_input_buffer_data;
+	void*      data;
 
 	AmbientRecord* ambient_records, *ambient_records_ptr;
+#ifdef DAYSIM
+	float *ambient_dc, *ambient_dc_ptr;
+#endif
 	unsigned int useful_record_count = 0u;
 
 	/* Check that there are records */
@@ -170,9 +182,18 @@ static unsigned int populateAmbientRecords( const RTcontext context, const int l
 		if (ambient_records == NULL)
 			error(SYSTEM, "out of memory in populateAmbientRecords");
 		ambient_records_ptr = ambient_records;
+#ifdef DAYSIM
+		ambient_dc = (float*)malloc(sizeof(float) * daysimGetCoefficients() * nambvals);
+		if (ambient_dc == NULL)
+			error(SYSTEM, "out of memory in populateAmbientRecords");
+		ambient_dc_ptr = ambient_dc;
 
 		/* Get the ambient records from the octree structure. */
+		useful_record_count = gatherAmbientRecords(&atrunk, &ambient_records_ptr, &ambient_dc_ptr, level);
+#else
+		/* Get the ambient records from the octree structure. */
 		useful_record_count = gatherAmbientRecords( &atrunk, &ambient_records_ptr, level );
+#endif
 		fprintf(stderr, "Using %u of %u ambient records\n", useful_record_count, nambvals);
 	}
 
@@ -184,20 +205,43 @@ static unsigned int populateAmbientRecords( const RTcontext context, const int l
 		applyContextObject( context, "ambient_records", ambient_record_input_buffer );
 	}
 
+#ifdef DAYSIM
+	if (ambient_dc_input_buffer) {
+		RT_CHECK_ERROR(rtBufferSetSize2D(ambient_dc_input_buffer, useful_record_count ? daysimGetCoefficients() : 0, useful_record_count));
+	} else {
+		createBuffer2D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT, useful_record_count ? daysimGetCoefficients() : 0, useful_record_count, &ambient_dc_input_buffer);
+		applyContextObject(context, "ambient_dc", ambient_dc_input_buffer);
+	}
+#endif
+
 	if ( nambvals ) {
 		/* Copy ambient records from temporary storage to buffer. */
-		RT_CHECK_ERROR( rtBufferMap( ambient_record_input_buffer, &ambient_record_input_buffer_data ) );
-		memcpy( ambient_record_input_buffer_data, ambient_records, sizeof(AmbientRecord) * useful_record_count );
+		RT_CHECK_ERROR( rtBufferMap( ambient_record_input_buffer, &data ) );
+		memcpy( data, ambient_records, sizeof(AmbientRecord) * useful_record_count );
 		RT_CHECK_ERROR( rtBufferUnmap( ambient_record_input_buffer ) );
 
 		/* Free the temporary storage. */
 		free(ambient_records);
+
+#ifdef DAYSIM
+		/* Copy daylight coefficients from temporary storage to buffer. */
+		RT_CHECK_ERROR(rtBufferMap(ambient_dc_input_buffer, &data));
+		memcpy(data, ambient_dc, sizeof(float) * daysimGetCoefficients() * useful_record_count);
+		RT_CHECK_ERROR(rtBufferUnmap(ambient_dc_input_buffer));
+
+		/* Free the temporary storage. */
+		free(ambient_dc);
+#endif
 	}
 
 	return useful_record_count;
 }
 
+#ifdef DAYSIM
+static unsigned int gatherAmbientRecords(AMBTREE* at, AmbientRecord** records, float** dc, const int level)
+#else
 static unsigned int gatherAmbientRecords( AMBTREE* at, AmbientRecord** records, const int level )
+#endif
 {
 	AMBVAL* record;
 	AMBTREE* child;
@@ -227,7 +271,8 @@ static unsigned int gatherAmbientRecords( AMBTREE* at, AmbientRecord** records, 
 			(*records)->lvl = record->lvl;
 			(*records)->weight = record->weight;
 #ifdef DAYSIM
-			daysimCopy((*records)->dc, record->daylightCoef);
+			daysimCopy(*dc, record->daylightCoef);
+			(*dc) += daysimGetCoefficients();
 #endif
 
 			(*records)++;
@@ -239,13 +284,21 @@ static unsigned int gatherAmbientRecords( AMBTREE* at, AmbientRecord** records, 
 
 	for (i = 0u; i < 8u; i++) {
 		if (child != NULL) {
+#ifdef DAYSIM
+			count += gatherAmbientRecords(child++, records, dc, level);
+#else
 			count += gatherAmbientRecords( child++, records, level );
+#endif
 		}
 	}
 	return(count);
 }
 
+#ifdef DAYSIM
+static int saveAmbientRecords(AmbientRecord* record, float* dc)
+#else
 static int saveAmbientRecords( AmbientRecord* record )
+#endif
 {
 	AMBVAL amb;
 
@@ -283,7 +336,7 @@ static int saveAmbientRecords( AmbientRecord* record )
 	amb.lvl = record->lvl;
 	amb.weight = record->weight;
 #ifdef DAYSIM
-	daysimCopy(amb.daylightCoef, record->dc);
+	daysimCopy(amb.daylightCoef, dc);
 #endif
 #ifdef RAY_COUNT
 	ray_total += record->ray_count;
@@ -419,6 +472,10 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 	RTbuffer       seed_buffer, ambient_record_buffer;
 	PointDirection* seed_buffer_data, *cluster_buffer_data;
 	AmbientRecord* ambient_record_buffer_data;
+#ifdef DAYSIM
+	RTbuffer       ambient_dc_buffer;
+	float*         ambient_dc_buffer_data;
+#endif
 #ifdef ITERATIVE_KMEANS_IC
 	RTvariable     current_cluster_buffer;
 	RTbuffer*      cluster_buffer;
@@ -476,6 +533,10 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 	/* Create buffer for retrieving ambient records. */
 	createCustomBuffer1D( context, RT_BUFFER_OUTPUT, sizeof(AmbientRecord), cuda_kmeans_clusters, &ambient_record_buffer );
 	applyContextObject( context, "ambient_record_buffer", ambient_record_buffer );
+#ifdef DAYSIM
+	createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT, daysimGetCoefficients(), cuda_kmeans_clusters, &ambient_dc_buffer);
+	applyContextObject(context, "ambient_dc_buffer", ambient_dc_buffer);
+#endif
 
 	/* Set additional variables used for ambient record generation */
 	RT_CHECK_ERROR( rtContextDeclareVariable( context, "level", &level_var ) ); // Could be camera program variable
@@ -562,7 +623,7 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 		/* Set input buffer index for next iteration */
 		RT_CHECK_ERROR( rtVariableSetObject( current_cluster_buffer, cluster_buffer[level] ) );
 	}
-#else
+#else /* ITERATIVE_KMEANS_IC */
 	/* Retrieve potential seed points. */
 	RT_CHECK_ERROR( rtBufferMap( seed_buffer, (void**)&seed_buffer_data ) );
 	RT_CHECK_ERROR( rtBufferUnmap( seed_buffer ) );
@@ -574,6 +635,9 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 	RT_CHECK_ERROR( rtBufferUnmap( cluster_buffer ) );
 
 	level = ambounce;
+#endif /* ITERATIVE_KMEANS_IC */
+#ifdef DAYSIM
+	RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * maxdepth * 2, 1u, cuda_kmeans_clusters));
 #endif
 
 	while ( level-- ) {
@@ -585,12 +649,20 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 
 		RT_CHECK_ERROR( rtBufferMap( ambient_record_buffer, (void**)&ambient_record_buffer_data ) );
 		RT_CHECK_ERROR( rtBufferUnmap( ambient_record_buffer ) );
+#ifdef DAYSIM
+		RT_CHECK_ERROR(rtBufferMap(ambient_dc_buffer, (void**)&ambient_dc_buffer_data));
+		RT_CHECK_ERROR(rtBufferUnmap(ambient_dc_buffer));
+#endif
 
 		/* Copy the results to allocated memory. */
 		//TODO the buffer could go directoy to creating Bvh
 		record_count = 0u;
 		for (i = 0u; i < cuda_kmeans_clusters; i++) {
+#ifdef DAYSIM
+			record_count += saveAmbientRecords(&ambient_record_buffer_data[i], &ambient_dc_buffer_data[i * daysimGetCoefficients()]);
+#else
 			record_count += saveAmbientRecords( &ambient_record_buffer_data[i] );
+#endif
 		}
 #ifdef RAY_COUNT
 		fprintf(stderr, "Ray count %u (%f per thread).\n", ray_total, (float)ray_total/cuda_kmeans_clusters);

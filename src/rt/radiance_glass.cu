@@ -91,6 +91,7 @@ RT_PROGRAM void closest_hit_shadow()
 		new_prd.target = prd_shadow.target;
 		new_prd.result = make_float3( 0.0f );
 #ifdef DAYSIM
+		new_prd.dc = daysimNext(prd_shadow.dc);
 		daysimSet(new_prd.dc, 0.0f);
 #endif
 		optix::Ray trans_ray = optix::make_Ray(hit_point, ray.direction, shadow_ray_type, ray_start(hit_point, ray.direction, ffnormal, RAY_START), RAY_END);
@@ -161,6 +162,9 @@ RT_PROGRAM void closest_hit_radiance()
 			new_prd.ambient_depth = prd.ambient_depth;
 			//new_prd.seed = prd.seed;//lcg( prd.seed );
 			new_prd.state = prd.state;
+#ifdef DAYSIM
+			new_prd.dc = daysimNext(prd.dc);
+#endif
 			setupPayload(new_prd, 0);
 			Ray trans_ray = make_Ray( hit_point, ray.direction, radiance_ray_type, ray_start( hit_point, ray.direction, ffnormal, RAY_START ), RAY_END );
 			rtTrace(top_object, trans_ray, new_prd);
@@ -187,6 +191,9 @@ RT_PROGRAM void closest_hit_radiance()
 		new_prd.ambient_depth = prd.ambient_depth;
 		//new_prd.seed = prd.seed;//lcg( prd.seed );
 		new_prd.state = prd.state;
+#ifdef DAYSIM
+		new_prd.dc = daysimNext(prd.dc);
+#endif
 		setupPayload(new_prd, 0);
 		float3 R = reflect( ray.direction, ffnormal );
 		Ray refl_ray = make_Ray( hit_point, R, radiance_ray_type, ray_start( hit_point, R, ffnormal, RAY_START ), RAY_END );

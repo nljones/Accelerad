@@ -227,6 +227,9 @@ RT_PROGRAM void closest_hit_radiance()
 			new_prd.depth = prd.depth;
 			new_prd.ambient_depth = prd.ambient_depth;
 			new_prd.state = prd.state;
+#ifdef DAYSIM
+			new_prd.dc = daysimNext(prd.dc);
+#endif
 			setupPayload(new_prd, 0);
 			float3 R = ray.direction; //TODO may need to perturb
 			Ray trans_ray = make_Ray( hit_point, R, radiance_ray_type, ray_start( hit_point, R, ffnormal, RAY_START ), RAY_END );
@@ -275,6 +278,9 @@ RT_PROGRAM void closest_hit_radiance()
 		if (new_prd.weight >= minweight && new_prd.depth <= abs(maxdepth)) {
 			new_prd.ambient_depth = prd.ambient_depth;
 			new_prd.state = prd.state;
+#ifdef DAYSIM
+			new_prd.dc = daysimNext(prd.dc);
+#endif
 			setupPayload(new_prd, 0);
 			float3 R = reflect( ray.direction, ffnormal );
 			Ray refl_ray = make_Ray( hit_point, R, radiance_ray_type, ray_start( hit_point, R, ffnormal, RAY_START ), RAY_END );
@@ -327,6 +333,9 @@ RT_PROGRAM void closest_hit_radiance()
 
 		// compute direct lighting
 		PerRayData_shadow shadow_prd;
+#ifdef DAYSIM
+		shadow_prd.dc = daysimNext(prd.dc);
+#endif
 		Ray shadow_ray = make_Ray( hit_point, ffnormal, shadow_ray_type, RAY_START, RAY_END );
 
 		/* contributions from distant lights (mainly the sun) */
@@ -550,7 +559,7 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 		}
 		float3 scol = make_float3( 0.0f );
 #ifdef DAYSIM
-		DaysimCoef dc;
+		DaysimCoef dc = daysimNext(prd.dc);
 		if (nstarget > 1)
 			daysimSet(dc, 0.0f);
 #endif
@@ -577,6 +586,9 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 
 			gaus_ray.direction = normalize( gaus_ray.direction );
 			gaus_ray.tmin = ray_start( hit, gaus_ray.direction, normal, RAY_START );
+#ifdef DAYSIM
+			gaus_prd.dc = daysimNext(dc); // TODO could use prd.dc if nstarget == 1
+#endif
 			setupPayload(gaus_prd, 0);
 			//if (nstaken) // check for prd data that needs to be cleared
 			rtTrace(top_object, gaus_ray, gaus_prd);
@@ -649,6 +661,9 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 
 			gaus_ray.direction = normalize( gaus_ray.direction );
 			gaus_ray.tmin = ray_start( hit, gaus_ray.direction, normal, RAY_START );
+#ifdef DAYSIM
+			gaus_prd.dc = daysimNext(prd.dc);
+#endif
 			setupPayload(gaus_prd, 0);
 			//if (nstaken) // check for prd data that needs to be cleared
 			rtTrace(top_object, gaus_ray, gaus_prd);
@@ -697,6 +712,7 @@ RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& h
 		ambient_prd.ambient_depth = prd.ambient_depth;
 		ambient_prd.state = prd.state;
 #ifdef DAYSIM
+		ambient_prd.dc = daysimNext(prd.dc);
 		daysimSet(ambient_prd.dc, 0.0f);
 #endif
 #ifdef HIT_COUNT
@@ -733,7 +749,7 @@ RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& h
 	if (do_ambient) {			/* no ambient storage */
 		float3 acol = aval;
 #ifdef DAYSIM
-		DaysimCoef dc;
+		DaysimCoef dc = daysimNext(prd.dc);
 		daysimSet(dc, 0.0f);
 		d = doambient(&acol, normal, hit, dc);
 		if (d > FTINY)
@@ -746,7 +762,7 @@ RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& h
 	}
 dumbamb:					/* return global value */
 #ifdef DAYSIM
-	DaysimCoef dc;
+	DaysimCoef dc = daysimNext(prd.dc);
 	daysimSet(dc, aval.x);
 #endif
 	if ((ambvwt <= 0) || (navsum == 0)) {
@@ -813,6 +829,9 @@ RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit )
 	new_prd.ambient_depth = prd.ambient_depth + 1;
 	//new_prd.seed = prd.seed;//lcg( prd.seed );
 	new_prd.state = prd.state;
+#ifdef DAYSIM
+	new_prd.dc = daysimNext(dc);
+#endif
 
 	Ray amb_ray = make_Ray( hit, normal, radiance_ray_type, RAY_START, RAY_END ); // Use normal point as temporary direction
 	/* End ambsample setup */
@@ -1088,6 +1107,9 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit )
 	new_prd.ambient_depth = prd.ambient_depth + 1;
 	//new_prd.seed = prd.seed;//lcg( prd.seed );
 	new_prd.state = prd.state;
+#ifdef DAYSIM
+	new_prd.dc = daysimNext(dc);
+#endif
 	setupPayload(new_prd, 0);
 	Ray amb_ray = make_Ray( hit, rdir, radiance_ray_type, RAY_START, RAY_END );
 	rtTrace(top_object, amb_ray, new_prd);

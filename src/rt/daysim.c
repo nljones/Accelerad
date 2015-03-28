@@ -162,7 +162,7 @@ void daysimCheck(DaysimCoef daylightCoef, const double value, const char* where)
 			ratio = sum / value;
 	}
 	if (ratio < 0.9999) {
-		sprintf(errmsg, "The sum of the daylight cofficients is %e and does not equal the total red illuminance %e at %s\n", sum, value, where);
+		sprintf(errmsg, "The sum of the daylight cofficients is %e and does not equal the total red illuminance %e at %s", sum, value, where);
 		error(WARNING, errmsg);
 	} else {
 		//printf( "\n# ratio %12.9g\t[min( sum(DC)/ray-value, ray-value/sum(DC) )]", ratio );

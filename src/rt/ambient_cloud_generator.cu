@@ -13,7 +13,10 @@ rtDeclareVariable(unsigned int,  stride, , ) = 1u; /* Spacing between used threa
 
 /* Contex variables */
 rtBuffer<PointDirection, 1>      cluster_buffer; /* input */
-rtBuffer<AmbientRecord, 1>       ambient_record_buffer; /* output */
+rtBuffer<AmbientRecord, 1>       ambient_record_buffer; /* ambient record output */
+#ifdef DAYSIM
+rtBuffer<DC, 2>                  ambient_dc_buffer; /* daylight coefficient output */
+#endif
 rtDeclareVariable(rtObject,      top_object, , );
 rtDeclareVariable(rtObject,      top_irrad, , );
 rtDeclareVariable(unsigned int,  ambient_record_ray_type, , );
@@ -56,10 +59,11 @@ RT_PROGRAM void ambient_cloud_camera()
 	prd.result.dir = make_float3( 0.0f ); // Initialize in case something goes wrong
 #endif
 #ifdef DAYSIM
-	daysimSet(prd.result.dc, 0.0f);
+	prd.dc = make_uint3(0, 0, index);
+	daysimSet(prd.dc, 0.0f);
 #endif
 #ifdef RAY_COUNT
-	prd.result.ray_count = 0;
+	prd.result.ray_count = 1;
 #endif
 #ifdef HIT_COUNT
 	prd.result.hit_count = 0;
@@ -79,6 +83,9 @@ RT_PROGRAM void ambient_cloud_camera()
 	}
 
 	ambient_record_buffer[index] = prd.result;
+#ifdef DAYSIM
+	daysimCopy(&ambient_dc_buffer[make_uint2(0, index)], prd.dc);
+#endif
 }
 
 RT_PROGRAM void exception()

@@ -183,7 +183,7 @@ RT_PROGRAM void closest_hit_ambient()
 	//	weight = 1.25f * prd.weight;
 	float3 acol = make_float3( AVGREFL );
 #ifdef DAYSIM
-	DaysimCoef dc;
+	DaysimCoef dc = daysimNext(prd.dc);
 	daysimSet(dc, 0.0f);
 #endif
 #ifndef OLDAMB
@@ -239,7 +239,7 @@ RT_PROGRAM void closest_hit_ambient()
 	//prd.result.lvl = lvl;
 	//prd.result.weight = weight;
 #ifdef DAYSIM
-	daysimAssignScaled(prd.result.dc, dc, 1.0f / AVGREFL); // TODO Scaling should be done before extambient if textured
+	daysimAssignScaled(prd.dc, dc, 1.0f / AVGREFL); // TODO Scaling should be done before extambient if textured
 #endif
 }
 
@@ -787,6 +787,9 @@ RT_METHOD int ambsample( AMBHEMI *hp, AMBSAMP *ap, const int& i, const int& j, c
 	new_prd.ambient_depth = prd.result.lvl + 1;//prd.ambient_depth + 1;
 	//new_prd.seed = prd.seed;//lcg( prd.seed );
 	new_prd.state = prd.state;
+#ifdef DAYSIM
+	new_prd.dc = daysimNext(dc);
+#endif
 	setupPayload(new_prd, 1);
 	Ray amb_ray = make_Ray( hit, rdir, radiance_ray_type, ray_start( hit, rdir, normal, RAY_START ), RAY_END );
 	rtTrace(top_object, amb_ray, new_prd);
@@ -1336,7 +1339,7 @@ RT_METHOD void inithemi( AMBHEMI  *hp, const float3& ac, const float3& nrm )
 
 /* sample a division */
 #ifdef DAYSIM
-RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point, const float3& normal, DaysimCoef, dc )
+RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point, const float3& normal, DaysimCoef dc )
 #else
 RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point, const float3& normal )
 #endif
@@ -1380,6 +1383,9 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point, con
 	new_prd.ambient_depth = prd.result.lvl + 1;//prd.ambient_depth + 1;
 	//new_prd.seed = prd.seed;//lcg( prd.seed );
 	new_prd.state = prd.state;
+#ifdef DAYSIM
+	new_prd.dc = daysimNext(dc);
+#endif
 	setupPayload(new_prd, 1);
 	Ray amb_ray = make_Ray( hit_point, rdir, radiance_ray_type, ray_start( hit_point, rdir, normal, RAY_START ), RAY_END );
 	rtTrace(top_object, amb_ray, new_prd);

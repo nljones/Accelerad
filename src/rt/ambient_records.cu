@@ -12,6 +12,9 @@
 using namespace optix;
 
 rtBuffer<AmbientRecord> ambient_records;
+#ifdef DAYSIM
+rtBuffer<DC, 2> ambient_dc;
+#endif
 
 rtDeclareVariable(float,        ambacc, , ); /* Ambient accuracy (aa). This value will approximately equal the error from indirect illuminance interpolation */
 rtDeclareVariable(float,        minarad, , ); /* minimum ambient radius */
@@ -126,7 +129,7 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 		// This assignment to the prd would take place in the any-hit program if there were one
 		prd.result += record.val * ( d * wt );
 #ifdef DAYSIM
-		daysimAddScaled(prd.dc, record.dc, d * wt);
+		daysimAddScaled(prd.dc, &ambient_dc[make_uint2(0, primIdx)], d * wt);
 #endif
 
 		rtReportIntersection( 0 ); // There is only one material for ambient geometry group

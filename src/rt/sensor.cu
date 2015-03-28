@@ -13,6 +13,9 @@ rtDeclareVariable(unsigned int,  do_irrad, , ); /* Calculate irradiance (-i) */
 
 /* Contex variables */
 rtBuffer<RayData, 2>             ray_buffer;
+#ifdef DAYSIM
+rtBuffer<DC, 3>                  dc_buffer;
+#endif
 //rtBuffer<unsigned int, 2>        rnd_seeds;
 rtDeclareVariable(rtObject,      top_object, , );
 rtDeclareVariable(rtObject,      top_irrad, , );
@@ -47,6 +50,9 @@ RT_PROGRAM void ray_generator()
 	prd.depth = 0;
 	prd.ambient_depth = 0;
 	//prd.seed = rnd_seeds[launch_index];
+#ifdef DAYSIM
+	prd.dc = make_uint3(0, launch_index.x, launch_index.y);
+#endif
 	setupPayload(prd, 1);
 
 	const float tmin = ray_start( ray_buffer[launch_index].origin, RAY_START );
@@ -80,7 +86,7 @@ RT_PROGRAM void ray_generator()
 	//ray_buffer[launch_index].t = prd.distance;
 #endif
 #ifdef DAYSIM
-	daysimCopy(ray_buffer[launch_index].dc, prd.dc);
+	daysimCopy(&dc_buffer[prd.dc], prd.dc);
 #endif
 }
 

@@ -41,6 +41,7 @@ void endOptix();
 
 static void checkDevices();
 static void createContext( RTcontext* context, const int width, const int height, const double alarm );
+static void destroyContext(const RTcontext context);
 static void setupKernel( const RTcontext context, const VIEW* view, const int width, const int height );
 static void applyRadianceSettings( const RTcontext context );
 static void createCamera( const RTcontext context, const VIEW* view );
@@ -123,10 +124,14 @@ static RTprogram radiance_light_closest_hit_program, shadow_light_closest_hit_pr
 static RTprogram point_cloud_closest_hit_program, point_cloud_any_hit_program;
 #endif
 
+#ifdef DAYSIM
+/* Handles to objects used repeatedly for daylight coefficient calulation */
+RTbuffer dc_scratch_buffer = NULL;
+#endif
+
 #ifdef PREFER_TCC
-#define MAX_TCCS	16				/* Maximum number of Tesla devices to discover */
 static unsigned int tcc_count = 0u;	/* number of discovered Tesla devices */
-static int tcc[MAX_TCCS];			/* indices of discovered Tesla devices */
+static int *tcc = NULL;				/* indices of discovered Tesla devices */
 #endif
 
 
@@ -204,10 +209,16 @@ void computeOptix(const int width, const int height, const double alarm, RAY* ra
 	/* Primary RTAPI objects */
 	RTcontext           context;
 	RTbuffer            ray_buffer;
+#ifdef DAYSIM
+	RTbuffer            dc_buffer;
+#endif
 
 	/* Parameters */
 	unsigned int size, i;
 	RayData* data;
+#ifdef DAYSIM
+	float* dc_data;
+#endif
 
 	/* Set the size */
 	size = width * height;
@@ -220,7 +231,6 @@ void computeOptix(const int width, const int height, const double alarm, RAY* ra
 	
 	/* Input/output buffer */
 	createCustomBuffer2D( context, RT_BUFFER_INPUT_OUTPUT, sizeof(RayData), width, height, &ray_buffer );
-	//createCustomBuffer2D( context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, sizeof(RayData), width, height, &ray_buffer );
 	RT_CHECK_ERROR( rtBufferMap( ray_buffer, (void**)&data ) );
 	for (i = 0u; i < size; i++) {
 		getRay( data++, &rays[i] );
@@ -228,23 +238,46 @@ void computeOptix(const int width, const int height, const double alarm, RAY* ra
 	RT_CHECK_ERROR( rtBufferUnmap( ray_buffer ) );
 	applyContextObject( context, "ray_buffer", ray_buffer );
 
+#ifdef DAYSIM
+	/* Output daylight coefficient buffer */
+	createBuffer3D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT, daysimGetCoefficients(), width, height, &dc_buffer);
+	applyContextObject(context, "dc_buffer", dc_buffer);
+
+	/* Scratch space */
+	createBuffer3D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT, 0, 0, 0, &dc_scratch_buffer);
+	applyContextObject(context, "dc_scratch_buffer", dc_scratch_buffer);
+#endif
+
 	setupKernel( context, NULL, width, height );
+
+#ifdef DAYSIM
+	/* Set scratch buffer size for this OptiX kernel */
+	RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * maxdepth * 2, width, height));
+#endif
 
 	/* Run the OptiX kernel */
 	runKernel2D( context, RADIANCE_ENTRY, width, height );
 
 	RT_CHECK_ERROR( rtBufferMap( ray_buffer, (void**)&data ) );
 	RT_CHECK_ERROR( rtBufferUnmap( ray_buffer ) );
+#ifdef DAYSIM
+	RT_CHECK_ERROR(rtBufferMap(dc_buffer, (void**)&dc_data));
+	RT_CHECK_ERROR(rtBufferUnmap(dc_buffer));
+#endif
 
 	/* Copy the results to allocated memory. */
 	for (i = 0u; i < size; i++) {
 		if (data->weight == -1.0f)
 			printException(data->val, "sensor", i);
 		setRay( &rays[i], data++ );
+#ifdef DAYSIM
+		daysimCopy(rays[i].daylightCoef, dc_data);
+		dc_data += daysimGetCoefficients();
+#endif
 	}
 
 	/* Clean up */
-	RT_CHECK_ERROR( rtContextDestroy( context ) );
+	destroyContext(context);
 }
 
 /**
@@ -253,13 +286,9 @@ void computeOptix(const int width, const int height, const double alarm, RAY* ra
  */
 void endOptix()
 {
-	/* Primary RTAPI objects */
-	RTcontext context;
-
 	if ( context_handle == NULL ) return;
 
-	context = context_handle;
-	RT_CHECK_ERROR( rtContextDestroy( context ) );
+	destroyContext(context_handle);
 	context_handle = NULL;
 	buffer_handle = NULL;
 	camera_type = camera_eye = camera_u = camera_v = camera_w = camera_fov = camera_shift = camera_clip = NULL;
@@ -287,6 +316,7 @@ static void checkDevices()
 
 #ifdef PREFER_TCC
 	tcc_count = 0u;
+	tcc = (int*)malloc(device_count * sizeof(int));
 #endif
 
 	for (i = 0; i < device_count; i++) {
@@ -310,7 +340,7 @@ static void checkDevices()
 			continue;
 		}
 #ifdef PREFER_TCC
-		if (tcc_driver && (tcc_count < MAX_TCCS))
+		if (tcc_driver)
 			tcc[tcc_count++] = i;
 #endif
 	}
@@ -364,8 +394,11 @@ static void createContext( RTcontext* context, const int width, const int height
 
 #ifdef PREFER_TCC
 	/* Devices to use */
-	if ( tcc_count )
-		RT_CHECK_ERROR2( rtContextSetDevices( *context, tcc_count, tcc ) );
+	if (tcc_count && tcc != NULL) {
+		RT_CHECK_ERROR2(rtContextSetDevices(*context, tcc_count, tcc));
+		free(tcc);
+		tcc = NULL;
+	}
 #endif
 
 #ifdef TIMEOUT_CALLBACK
@@ -390,6 +423,14 @@ static void createContext( RTcontext* context, const int width, const int height
 	printCUDAProp();
 	printContextInfo( *context );
 #endif
+}
+
+/**
+ * Destroy the OptiX context and free resources.
+ */
+static void destroyContext(const RTcontext context)
+{
+	RT_CHECK_ERROR(rtContextDestroy(context));
 }
 
 static void setupKernel( const RTcontext context, const VIEW* view, const int width, const int height )
@@ -1504,10 +1545,6 @@ static void getRay( RayData* data, const RAY* ray )
 	data->weight = ray->rweight;
 	data->length = ray->rt;
 	//data->t = ray->rot;
-
-#ifdef DAYSIM
-	daysimCopy(data->dc, ray->daylightCoef); // Don't bother, it's empty
-#endif
 }
 
 static void setRay( RAY* ray, const RayData* data )
@@ -1527,10 +1564,6 @@ static void setRay( RAY* ray, const RayData* data )
 	ray->rweight = data->weight;
 	ray->rt = data->length;
 	//ray->rot = data->t; //TODO setting this requires that the ray has non-null ro.
-
-#ifdef DAYSIM
-	daysimCopy(ray->daylightCoef, data->dc);
-#endif
 }
 
 #endif /* ACCELERAD */

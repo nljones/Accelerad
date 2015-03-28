@@ -885,7 +885,7 @@ static void daysimOutput(RAY *r)				/* new function to print daylight_coef stati
 		}
 		if (ratio < 0.9999) {
 			sprintf(errmsg,
-				"The sum of the daylight cofficients is %e and does not equal the total red illuminance %e\n",
+				"The sum of the daylight cofficients is %e and does not equal the total red illuminance %e",
 				sum, colval(r->rcol, RED));
 			error(WARNING, errmsg);
 		} else {

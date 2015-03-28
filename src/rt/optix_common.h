@@ -14,15 +14,6 @@
 #define LIGHTS
 #define AMB_SAVE_MEM	/* Reduce global memory usage in ambient calculation by saving one row of samples at a time */
 
-#ifndef DAYSIM
-//#define DAYSIM
-#ifdef DAYSIM
-#define DAYSIM_MAX_COEFS		148
-//#define DAYSIM_MAX_COEFS		2306
-typedef float DaysimCoef[DAYSIM_MAX_COEFS];
-#endif
-#endif
-
 
 typedef struct struct_DistantLight
 {
@@ -60,9 +51,6 @@ typedef struct struct_ambient_record
 #endif
 	float  weight;	/* weight of parent ray */
 	unsigned int lvl;	/* recursion level of parent ray */
-#ifdef DAYSIM
-	DaysimCoef dc;	/* daylight coefficients */
-#endif
 #ifdef RAY_COUNT
 	int ray_count;
 #endif
@@ -93,9 +81,6 @@ typedef struct struct_ray_data
 	//char*  surface;
 	//char*  modifier;
 	//char*  material;
-#ifdef DAYSIM
-	DaysimCoef dc;	/* daylight coefficients */
-#endif
 } RayData;
 
 /* Structure to hold a point and direction */

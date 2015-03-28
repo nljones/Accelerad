@@ -63,7 +63,7 @@ RT_PROGRAM void miss()
 				prd_radiance.result += color;
 #ifdef DAYSIM
 				if (daylightCoefficients >= 2) {
-					int patch = DAYSIM_MAX_COEFS; // Ignore by default
+					int patch = daylightCoefficients; // Ignore by default
 					if (daysimSortMode == 1)
 						patch = i; // TODO This assumes that all sources are sun positions in numerical order
 					else if (daysimSortMode == 2)
@@ -104,7 +104,7 @@ RT_PROGRAM void miss_shadow()
 				result += color;
 #ifdef DAYSIM
 				if (daylightCoefficients >= 2) {
-					int patch = DAYSIM_MAX_COEFS; // Ignore by default
+					int patch = daylightCoefficients; // Ignore by default
 					if (daysimSortMode == 1)
 						patch = prd_shadow.target; // TODO This assumes that all sources are sun positions in numerical order
 					else if (daysimSortMode == 2)

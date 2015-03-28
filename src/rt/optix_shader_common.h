@@ -10,6 +10,7 @@
 #include "optix_common.h"
 
 //#define FILL_GAPS
+//#define DAYSIM
 
 /* OptiX method declaration in the style of RT_PROGRAM */
 #define RT_METHOD	static __inline__ __device__
@@ -42,6 +43,11 @@
 typedef curandState_t rand_state;
 #else
 typedef float rand_state;
+#endif
+
+#ifdef DAYSIM
+typedef uint3 DaysimCoef;
+typedef float DC;
 #endif
 
 #ifdef __CUDACC__
@@ -101,6 +107,9 @@ struct PerRayData_ambient_record
 	AmbientRecord result;
 	AmbientRecord* parent;
 	rand_state* state;
+#ifdef DAYSIM
+	DaysimCoef dc;	/* daylight coefficients */
+#endif
 };
 
 struct PerRayData_point_cloud
@@ -366,90 +375,135 @@ RT_METHOD unsigned int quadratic( float2* r, const float& a, const float& b, con
 #endif /* OLDAMB */
 
 #ifdef DAYSIM
-RT_METHOD void daysimCopy(DaysimCoef destin, const DaysimCoef source);
-RT_METHOD void daysimSet(DaysimCoef coef, const float value);
-RT_METHOD void daysimScale(DaysimCoef coef, const float scaling);
-RT_METHOD void daysimAdd(DaysimCoef result, const DaysimCoef add);
-RT_METHOD void daysimMult(DaysimCoef result, const DaysimCoef mult);
-RT_METHOD void daysimSetCoef(DaysimCoef result, const int index, const float value);
-RT_METHOD void daysimAddCoef(DaysimCoef result, const int index, const float add);
-RT_METHOD void daysimAddScaled(DaysimCoef result, const DaysimCoef add, const float scaling);
-RT_METHOD void daysimAssignScaled(DaysimCoef result, const DaysimCoef source, const float scaling);
-RT_METHOD void daysimCheck(DaysimCoef daylightCoef, const float value, const int error);
+RT_METHOD DaysimCoef daysimNext(const DaysimCoef& prev);
+RT_METHOD void daysimCopy(DC* destin, const DaysimCoef& source);
+RT_METHOD void daysimCopy(DaysimCoef& destin, const DaysimCoef& source);
+RT_METHOD void daysimSet(DaysimCoef& coef, const DC& value);
+RT_METHOD void daysimScale(DaysimCoef& coef, const DC& scaling);
+RT_METHOD void daysimAdd(DaysimCoef& result, const DaysimCoef& add);
+RT_METHOD void daysimMult(DaysimCoef& result, const DaysimCoef& mult);
+RT_METHOD void daysimSetCoef(DaysimCoef& result, const int& index, const DC& value);
+RT_METHOD void daysimAddCoef(DaysimCoef& result, const int& index, const DC& add);
+RT_METHOD void daysimAddScaled(DaysimCoef& result, const DC* add, const DC& scaling);
+RT_METHOD void daysimAddScaled(DaysimCoef& result, const DaysimCoef& add, const DC& scaling);
+RT_METHOD void daysimAssignScaled(DaysimCoef& result, const DaysimCoef& source, const DC& scaling);
+RT_METHOD void daysimCheck(DaysimCoef& daylightCoef, const DC& value, const int& error);
 
 rtDeclareVariable(int, daylightCoefficients, , ); /* number of daylight coefficients */
+rtBuffer<DC, 3> dc_scratch_buffer; /* scratch space for local storage of daylight coefficients */
+
+#define DC_ptr(index)	&dc_scratch_buffer[index]
+
+RT_METHOD DaysimCoef daysimNext(const DaysimCoef& prev)
+{
+	DaysimCoef next = prev;
+	next.x += daylightCoefficients;
+	if (next.x >= dc_scratch_buffer.size().x)
+		rtThrow(RT_EXCEPTION_INDEX_OUT_OF_BOUNDS); // TODO handle overflow
+	return next;
+}
 
 /* Copies a daylight coefficient set */
-RT_METHOD void daysimCopy(DaysimCoef destin, const DaysimCoef source)
+RT_METHOD void daysimCopy(DC* destin, const DaysimCoef& source)
 {
-	memcpy(destin, source, daylightCoefficients * sizeof(float));
-	//for (int i = 0; i < daylightCoefficients; i++)
-	//	destin[i] = source[i];
+	memcpy(destin, DC_ptr(source), daylightCoefficients * sizeof(DC));
+}
+
+/* Copies a daylight coefficient set */
+RT_METHOD void daysimCopy(DaysimCoef& destin, const DaysimCoef& source)
+{
+	memcpy(DC_ptr(destin), DC_ptr(source), daylightCoefficients * sizeof(DC));
 }
 
 /* Initialises all daylight coefficients with 'value' */
-RT_METHOD void daysimSet(DaysimCoef coef, const float value)
+RT_METHOD void daysimSet(DaysimCoef& coef, const DC& value)
 {
+	DC* ptr = DC_ptr(coef);
+
 	for (int i = 0; i < daylightCoefficients; i++)
-		coef[i] = value;
+		ptr[i] = value;
 }
 
 /* Scales the daylight coefficient set by the value 'scaling' */
-RT_METHOD void daysimScale(DaysimCoef coef, const float scaling)
+RT_METHOD void daysimScale(DaysimCoef& coef, const DC& scaling)
 {
+	DC* ptr = DC_ptr(coef);
+
 	for (int i = 0; i < daylightCoefficients; i++)
-		coef[i] *= scaling;
+		ptr[i] *= scaling;
 }
 
 /* Adds two daylight coefficient sets: result[i] = result[i] + add[i] */
-RT_METHOD void daysimAdd(DaysimCoef result, const DaysimCoef add)
+RT_METHOD void daysimAdd(DaysimCoef& result, const DaysimCoef& add)
 {
+	DC* result_prt = DC_ptr(result);
+	const DC* add_ptr = DC_ptr(add);
+
 	for (int i = 0; i < daylightCoefficients; i++)
-		result[i] += add[i];
+		result_prt[i] += add_ptr[i];
 }
 
 /* Multiply two daylight coefficient sets: result[i] = result[i] * add[i] */
-RT_METHOD void daysimMult(DaysimCoef result, const DaysimCoef mult)
+RT_METHOD void daysimMult(DaysimCoef& result, const DaysimCoef& mult)
 {
+	DC* result_prt = DC_ptr(result);
+	const DC* mult_ptr = DC_ptr(mult);
+
 	for (int i = 0; i < daylightCoefficients; i++)
-		result[i] *= mult[i];
+		result_prt[i] *= mult_ptr[i];
 }
 
 /* Sets the daylight coefficient at position 'index' to 'value' */
-RT_METHOD void daysimSetCoef(DaysimCoef result, const int index, const float value)
+RT_METHOD void daysimSetCoef(DaysimCoef& result, const int& index, const DC& value)
 {
 	if (index < daylightCoefficients)
-		result[index] = value;
+		(DC_ptr(result))[index] = value;
 }
 
 /* Adds 'value' to the daylight coefficient at position 'index' */
-RT_METHOD void daysimAddCoef(DaysimCoef result, const int index, const float add)
+RT_METHOD void daysimAddCoef(DaysimCoef& result, const int& index, const DC& add)
 {
 	if (index < daylightCoefficients)
-		result[index] += add;
+		(DC_ptr(result))[index] += add;
 }
 
 /* Adds the elements of 'source' scaled by 'scaling'  to 'result' */
-RT_METHOD void daysimAddScaled(DaysimCoef result, const DaysimCoef add, const float scaling)
+RT_METHOD void daysimAddScaled(DaysimCoef& result, const DC* add, const DC& scaling)
 {
+	DC* ptr = DC_ptr(result);
+
 	for (int i = 0; i < daylightCoefficients; i++)
-		result[i] += add[i] * scaling;
+		ptr[i] += add[i] * scaling;
+}
+
+/* Adds the elements of 'source' scaled by 'scaling'  to 'result' */
+RT_METHOD void daysimAddScaled(DaysimCoef& result, const DaysimCoef& add, const DC& scaling)
+{
+	DC* result_prt = DC_ptr(result);
+	const DC* add_ptr = DC_ptr(add);
+
+	for (int i = 0; i < daylightCoefficients; i++)
+		result_prt[i] += add_ptr[i] * scaling;
 }
 
 /* Assign the coefficients of 'source' scaled by 'scaling' to result */
-RT_METHOD void daysimAssignScaled(DaysimCoef result, const DaysimCoef source, const float scaling)
+RT_METHOD void daysimAssignScaled(DaysimCoef& result, const DaysimCoef& source, const DC& scaling)
 {
+	DC* result_prt = DC_ptr(result);
+	const DC* source_ptr = DC_ptr(source);
+
 	for (int i = 0; i < daylightCoefficients; i++)
-		result[i] = source[i] * scaling;
+		result_prt[i] = source_ptr[i] * scaling;
 }
 
 /* Check that the sum of daylight coefficients equals the red color channel */
-RT_METHOD void daysimCheck(DaysimCoef daylightCoef, const float value, const int error)
+RT_METHOD void daysimCheck(const DaysimCoef& daylightCoef, const DC& value, const int& error)
 {
-	float ratio, sum = 0.0f;
+	DC* ptr = DC_ptr(daylightCoef);
+	DC ratio, sum = 0.0f;
 
 	for (int k = 0; k < daylightCoefficients; k++)
-		sum += daylightCoef[k];
+		sum += ptr[k];
 
 	if (sum >= value) { /* test whether the sum of daylight coefficients corresponds to value for red */
 		if (sum == 0.0f) return;
