@@ -577,7 +577,7 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 #ifdef ADAPTIVE_SEED_SAMPLING
 		if (!level) {
 			clock_t kernel_start_clock, kernel_end_clock;
-			int i;
+			unsigned int i;
 			//int total = 0;
 			unsigned int missing = 0u;
 			unsigned int si = cuda_kmeans_clusters;
@@ -592,7 +592,7 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 			kernel_end_clock = clock();
 			fprintf( stderr, "Adaptive sampling: %u milliseconds.\n", (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC );
 
-			for ( i = 0; i < seed_count; i++ ) {
+			for ( i = 0u; i < seed_count; i++ ) {
 				if (score[i]) {
 					missing += score[i] - 1;
 					//total++;

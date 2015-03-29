@@ -89,6 +89,8 @@ main(int  argc, char  *argv[])
 	int j;
 #endif
 #ifdef ACCELERAD
+	char  *infile = NULL;
+	char  *outfile = NULL;
 	time_t rtrace_start_time, rtrace_end_time; // Timer in seconds for long jobs
 	clock_t rtrace_start_clock, rtrace_end_clock; // Timer in clock cycles for short jobs
 #endif
@@ -250,6 +252,16 @@ main(int  argc, char  *argv[])
 				goto badopt;
 			}
 			break;
+#ifdef ACCELERAD
+		case 'p':				/* input file */
+			check(2,"s");
+			infile = argv[++i];
+			break;
+		case 'q':				/* output file */
+			check(2,"s");
+			outfile = argv[++i];
+			break;
+#endif
 #ifdef  PERSIST
 		case 'P':				/* persist file */
 			if (argv[i][2] == 'P') {
@@ -370,6 +382,13 @@ main(int  argc, char  *argv[])
 	if (octnm == NULL)
 		error(USER, "missing octree argument");
 					/* set up output */
+#ifdef ACCELERAD
+	/* Write output to file. */
+	if (outfile != NULL && freopen(outfile, "w", stdout) == NULL) {
+		sprintf(errmsg, "cannot open output file \"%s\"", outfile);
+		error(SYSTEM, errmsg);
+	}
+#endif
 #ifdef  PERSIST
 	if (persist) {
 		duped1 = dup(fileno(stdout));	/* don't lose our output */
@@ -424,12 +443,12 @@ runagain:
 #ifdef ACCELERAD
 	rtrace_start_time = time((time_t *)NULL);
 	rtrace_start_clock = clock();
-#endif
-	rtrace(NULL, nproc);
-#ifdef ACCELERAD
+	rtrace(infile, nproc);
 	rtrace_end_clock = clock();
 	rtrace_end_time = time((time_t *)NULL);
 	fprintf(stderr, "%s time: %u milliseconds (%u seconds).\n", progname, (rtrace_end_clock - rtrace_start_clock) * 1000 / CLOCKS_PER_SEC, rtrace_end_time - rtrace_start_time);
+#else
+	rtrace(NULL, nproc);
 #endif
 					/* flush ambient file */
 	ambsync();
