@@ -10,16 +10,18 @@
 
 using namespace optix;
 
+#define threadIndex()	launch_index.y / stride
+//#define threadIndex()	(launch_index.x + launch_dim.x * launch_index.y) / stride
 #ifndef OLDAMB
 #define CORRAL
-#define hessrow(i)	hess_row_buffer[make_uint2(i, launch_index.y / stride)]
-#define gradrow(i)	grad_row_buffer[make_uint2(i, launch_index.y / stride)]
+#define hessrow(i)	hess_row_buffer[make_uint2(i, threadIndex())]
+#define gradrow(i)	grad_row_buffer[make_uint2(i, threadIndex())]
 #ifdef AMB_SAVE_MEM
-#define prevrow(i)	amb_samp_buffer[make_uint2(i, launch_index.y / stride)]
-#define corral_u(i)	corral_u_buffer[make_uint2(i, launch_index.y / stride)]
-#define corral_d(i)	corral_d_buffer[make_uint2(i, launch_index.y / stride)]
+#define prevrow(i)	amb_samp_buffer[make_uint2(i, threadIndex())]
+#define corral_u(i)	corral_u_buffer[make_uint2(i, threadIndex())]
+#define corral_d(i)	corral_d_buffer[make_uint2(i, threadIndex())]
 #else /* AMB_SAVE_MEM */
-#define ambsam(i,j)	amb_samp_buffer[make_uint3(i, j, launch_index.y / stride)]
+#define ambsam(i,j)	amb_samp_buffer[make_uint3(i, j, threadIndex())]
 #endif /* AMB_SAVE_MEM */
 
 typedef struct {
@@ -41,8 +43,8 @@ typedef struct {
 	float I1, I2;
 } FFTRI;		/* vectors and coefficients for Hessian calculation */
 #else /* OLDAMB */
-#define rprevrow(i)	rprevrow_buffer[make_uint2(i, launch_index.y / stride)]
-#define bprevrow(i)	bprevrow_buffer[make_uint2(i, launch_index.y / stride)]
+#define rprevrow(i)	rprevrow_buffer[make_uint2(i, threadIndex())]
+#define bprevrow(i)	bprevrow_buffer[make_uint2(i, threadIndex())]
 #endif /* OLDAMB */
 
 /* Context variables */
@@ -102,6 +104,7 @@ rtDeclareVariable(Ray, ray, rtCurrentRay, );
 rtDeclareVariable(float, t_hit, rtIntersectionDistance, );
 rtDeclareVariable(PerRayData_ambient_record, prd, rtPayload, );
 rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
+rtDeclareVariable(uint2, launch_dim, rtLaunchDim, );
 
 /* Attributes */
 rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );

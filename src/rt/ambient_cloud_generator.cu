@@ -8,6 +8,8 @@
 
 using namespace optix;
 
+#define threadIndex()	(launch_index.x + launch_dim.x * launch_index.y) / stride
+
 /* Program variables */
 rtDeclareVariable(unsigned int,  stride, , ) = 1u; /* Spacing between used threads in warp. */
 
@@ -34,15 +36,17 @@ RT_METHOD void init_state( PerRayData_ambient_record* prd )
 {
 	rand_state state;
 	prd->state = &state;
-	curand_init( launch_index.y + launch_dim.y * level, 0, 0, prd->state );
+	curand_init(launch_index.x + launch_dim.x * (launch_index.y + launch_dim.y * level), 0, 0, prd->state);
 }
 
 RT_PROGRAM void ambient_cloud_camera()
 {
 	// Check stride
-	if ( launch_index.y % stride )
+	if ((launch_index.x + launch_dim.x * launch_index.y) % stride)
 		return;
-	const unsigned int index = launch_index.y / stride;
+	const unsigned int index = threadIndex();
+	if (index >= cluster_buffer.size())
+		return;
 
 	PerRayData_ambient_record prd;
 	init_state( &prd );
@@ -91,12 +95,14 @@ RT_PROGRAM void ambient_cloud_camera()
 RT_PROGRAM void exception()
 {
 	// Check stride
-	if ( launch_index.y % stride )
+	if ((launch_index.x + launch_dim.x * launch_index.y) % stride)
+		return;
+	const unsigned int index = threadIndex();
+	if (index >= ambient_record_buffer.size())
 		return;
 
 	const unsigned int code = rtGetExceptionCode();
-	rtPrintf( "Caught exception 0x%X at launch index %d\n", code, launch_index.y );
-	const unsigned int index = launch_index.y / stride;
+	rtPrintf("Caught exception 0x%X at launch index (%d,%d)\n", code, launch_index.x, launch_index.y);
 	ambient_record_buffer[index].lvl = level;
 	ambient_record_buffer[index].val = exceptionToFloat3( code );
 #ifndef OLDAMB

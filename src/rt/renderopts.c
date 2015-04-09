@@ -13,8 +13,9 @@ static const char	RCSid[] = "$Id$";
 #include  "paths.h"
 
 #ifdef ACCELERAD
-int use_optix = 1;			/* Flag to use OptiX for ray tracing */
-int optix_stack_size = 4096;	/* Stack size for OptiX program in bytes (-g) */
+unsigned int use_optix = 1u;			/* Flag to use OptiX for ray tracing */
+unsigned int optix_stack_size = 4096u;	/* Stack size for OptiX program in bytes (-g) */
+unsigned int optix_processors = 0u;		/* Number of GPUs to use, or zero for all available GPUs (-n) */
 
 /* For OptiX iterative ambient sampling */
 unsigned int optix_amb_scale = 0u;		/* Scale to use for ambient sample spacing, zero to use all pixels (-al) */
@@ -106,6 +107,9 @@ getrenderopt(		/* get next render option */
 			check(3,"f");
 			specthresh = atof(av[1]);
 			return(1);
+#ifdef DAYSIM
+		case 'j':				/* old version for backward compatibility */
+#endif
 		case 's':				/* sampling */
 			check(3,"f");
 			specjitter = atof(av[1]);

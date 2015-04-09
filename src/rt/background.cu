@@ -19,9 +19,6 @@ rtBuffer<DistantLight> lights;
 rtBuffer<rtCallableProgramId<float(const float3)> > functions;
 //rtDeclareVariable(rtCallableProgramId<float(float3)>, func, , );
 //rtDeclareVariable(rtCallableProgramX<float(float3)>, func, , );
-#ifdef DAYSIM
-rtDeclareVariable(int, daysimSortMode, , ); /* how the daylight coefficients are sorted */
-#endif
 
 /* OptiX variables */
 rtDeclareVariable(PerRayData_radiance, prd_radiance, rtPayload, );
@@ -63,12 +60,7 @@ RT_PROGRAM void miss()
 				prd_radiance.result += color;
 #ifdef DAYSIM
 				if (daylightCoefficients >= 2) {
-					int patch = daylightCoefficients; // Ignore by default
-					if (daysimSortMode == 1)
-						patch = i; // TODO This assumes that all sources are sun positions in numerical order
-					else if (daysimSortMode == 2)
-						patch = daysimComputePatch(ray.direction);
-					daysimAddCoef(prd_radiance.dc, patch, color.x);
+					daysimAddCoef(prd_radiance.dc, daysimComputePatch(ray.direction), color.x);
 				}
 #endif /* DAYSIM */
 			}
@@ -104,12 +96,9 @@ RT_PROGRAM void miss_shadow()
 				result += color;
 #ifdef DAYSIM
 				if (daylightCoefficients >= 2) {
-					int patch = daylightCoefficients; // Ignore by default
-					if (daysimSortMode == 1)
-						patch = prd_shadow.target; // TODO This assumes that all sources are sun positions in numerical order
-					else if (daysimSortMode == 2)
-						patch = daysimComputePatch(ray.direction);
-					daysimAddCoef(prd_shadow.dc, patch, color.x);
+					// TODO This assumes that all sources are sun positions in numerical order
+					// TODO If files are merged, add 148 to prd_shadow.target
+					daysimAddCoef(prd_shadow.dc, prd_shadow.target, color.x);
 				}
 #endif /* DAYSIM */
 			}
@@ -125,8 +114,6 @@ RT_PROGRAM void miss_shadow()
 */
 RT_METHOD int daysimComputePatch(const float3 dir)
 {
-	int patch;
-
 	if (dir.z > 0.0f) { // sky
 		const int number[8] = { 0, 30, 60, 84, 108, 126, 138, 144 };
 		const float ring_division[8] = { 30.0f, 30.0f, 24.0f, 24.0f, 18.0f, 12.0f, 6.0f, 0.0f };
@@ -149,16 +136,13 @@ RT_METHOD int daysimComputePatch(const float3 dir)
 		//				1 unit = asin(z)*(2*7.5)/Pi)
 		//				1 unit = asin(z)*(15)/Pi)
 		// Note that (int) always rounds to the next lowest integer
-		patch = number[ringnumber] + ring_division[ringnumber] * (atan2f(dir.y, dir.x) * 0.5f * M_1_PIf + (dir.y >= 0.0f ? 0.0f : 1.0f));
-	} else { // ground
-		if (dir.z >= -0.17365f)
-			patch = 145;
-		else if (dir.z >= -0.5f)
-			patch = 146;
-		else
-			patch = 147;
+		return number[ringnumber] + ring_division[ringnumber] * (atan2f(dir.y, dir.x) * 0.5f * M_1_PIf + (dir.y >= 0.0f ? 0.0f : 1.0f));
 	}
-
-	return patch;
+	// ground
+	if (dir.z >= -0.17365f)
+		return 145;
+	if (dir.z >= -0.5f)
+		return 146;
+	return 147;
 }
 #endif /* DAYSIM */

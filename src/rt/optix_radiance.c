@@ -129,10 +129,8 @@ static RTprogram point_cloud_closest_hit_program, point_cloud_any_hit_program;
 RTbuffer dc_scratch_buffer = NULL;
 #endif
 
-#ifdef PREFER_TCC
-static unsigned int tcc_count = 0u;	/* number of discovered Tesla devices */
-static int *tcc = NULL;				/* indices of discovered Tesla devices */
-#endif
+static unsigned int gpu_count = 0u;	/* number of discovered GPU devices */
+static int *gpus = NULL;			/* indices of discovered GPU devices */
 
 
 /**
@@ -300,12 +298,16 @@ void endOptix()
  */
 static void checkDevices()
 {
-	unsigned int version, device_count, useable_device_count;
+	unsigned int version, device_count, useable_device_count, allowed_device_count;
 	unsigned int i;
 	unsigned int multiprocessor_count, threads_per_block, clock_rate, texture_count, timeout_enabled, tcc_driver, cuda_device;
 	unsigned int compute_capability[2];
 	char device_name[128];
 	RTsize memory_size;
+#ifdef PREFER_TCC
+	unsigned int tcc_count = 0u;
+	int *tcc;
+#endif
 
 	rtGetVersion( &version );
 	rtDeviceGetDeviceCount( &device_count );
@@ -313,10 +315,14 @@ static void checkDevices()
 		fprintf(stderr, "OptiX %i found %i GPU device%s:\n", version, device_count, device_count > 1 ? "s" : "");
 	}
 	useable_device_count = device_count;
+	allowed_device_count = (optix_processors && device_count > optix_processors) ? optix_processors : device_count;
 
+	if (allowed_device_count < device_count) {
+		gpu_count = 0u;
+		gpus = (int*)malloc(allowed_device_count * sizeof(int));
+	}
 #ifdef PREFER_TCC
-	tcc_count = 0u;
-	tcc = (int*)malloc(device_count * sizeof(int));
+	tcc = (int*)malloc(allowed_device_count * sizeof(int));
 #endif
 
 	for (i = 0; i < device_count; i++) {
@@ -339,8 +345,10 @@ static void checkDevices()
 			error(WARNING, errmsg);
 			continue;
 		}
+		if (gpus && gpu_count < allowed_device_count)
+			gpus[gpu_count++] = i;
 #ifdef PREFER_TCC
-		if (tcc_driver)
+		if (tcc_driver && tcc_count < allowed_device_count)
 			tcc[tcc_count++] = i;
 #endif
 	}
@@ -349,6 +357,21 @@ static void checkDevices()
 		sprintf(errmsg, "A supported GPU could not be found for OptiX %i.", version);
 		error(SYSTEM, errmsg);
 	}
+
+#ifdef PREFER_TCC
+	if (tcc_count) {
+		if (gpus) {
+			free(gpus);
+			gpus = NULL;
+		}
+		if (tcc_count < device_count) {
+			gpus = tcc;
+			gpu_count = tcc_count;
+		} else
+			free(tcc);
+	} else
+		free(tcc);
+#endif
 
 	fprintf(stderr, "\n");
 }
@@ -392,14 +415,12 @@ static void createContext( RTcontext* context, const int width, const int height
 	//RT_CHECK_ERROR2( rtBufferUnmap( seed_buffer ) );
 	//applyContextObject( *context, "rnd_seeds", seed_buffer );
 
-#ifdef PREFER_TCC
 	/* Devices to use */
-	if (tcc_count && tcc != NULL) {
-		RT_CHECK_ERROR2(rtContextSetDevices(*context, tcc_count, tcc));
-		free(tcc);
-		tcc = NULL;
+	if (gpu_count && gpus != NULL) {
+		RT_CHECK_ERROR2(rtContextSetDevices(*context, gpu_count, gpus));
+		free(gpus);
+		gpus = NULL;
 	}
-#endif
 
 #ifdef TIMEOUT_CALLBACK
 	if (alarm > 0)
@@ -504,7 +525,7 @@ static void applyRadianceSettings( const RTcontext context )
 
 #ifdef DAYSIM
 	/* Set daylight coefficient parameters */
-	applyContextVariable1i(context, "daysimSortMode", daysimSortMode); // -D
+	//applyContextVariable1i(context, "daysimSortMode", daysimSortMode); // -D
 	applyContextVariable1i(context, "daylightCoefficients", daysimGetCoefficients()); // -N
 #endif
 }

@@ -54,7 +54,7 @@ static RTacceleration ambient_record_acceleration;
 	For 2D (1xN) launch:
 		Optimal is 2
 */
-const unsigned int thread_stride = 2u;
+const unsigned int thread_stride = 4u;
 
 #ifdef RAY_COUNT
 static unsigned long ray_total = 0uL;
@@ -437,6 +437,7 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 
 }
 #else /* KMEANS_IC */
+#define CLUSTER_GRID_WIDTH	1u
 #define length_squared(v)	(v.x*v.x)+(v.y*v.y)+(v.z*v.z)
 #define is_nan(v)			(v.x!=v.x)||(v.y!=v.y)||(v.z!=v.z)
 
@@ -645,7 +646,7 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 
 		/* Run */
 		//runKernel1D( context, AMBIENT_ENTRY, cuda_kmeans_clusters * thread_stride );
-		runKernel2D( context, AMBIENT_ENTRY, 1u, cuda_kmeans_clusters * thread_stride );
+		runKernel2D(context, AMBIENT_ENTRY, CLUSTER_GRID_WIDTH, (cuda_kmeans_clusters * thread_stride - 1) / CLUSTER_GRID_WIDTH + 1);
 
 		RT_CHECK_ERROR( rtBufferMap( ambient_record_buffer, (void**)&ambient_record_buffer_data ) );
 		RT_CHECK_ERROR( rtBufferUnmap( ambient_record_buffer ) );

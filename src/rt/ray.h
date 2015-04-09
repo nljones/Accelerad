@@ -112,8 +112,9 @@ extern int	do_irrad;	/* compute irradiance? */
 extern int	rand_samp;	/* pure Monte Carlo sampling? */
 
 #ifdef ACCELERAD
-extern int use_optix;			/* Flag to use OptiX for ray tracing */
-extern int optix_stack_size;	/* Stack size for OptiX program in bytes */
+extern unsigned int use_optix;			/* Flag to use OptiX for ray tracing */
+extern unsigned int optix_stack_size;	/* Stack size for OptiX program in bytes */
+extern unsigned int optix_processors;	/* Number of GPUs to use, or zero for all available GPUs */
 
 /* For OptiX iterative ambient sampling */
 extern unsigned int optix_amb_scale;	/* Scale to use for ambient sample spacing */
