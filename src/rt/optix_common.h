@@ -7,7 +7,7 @@
 
 #include <optixu_vector_types.h>
 
-//#define RAY_COUNT
+#define RAY_COUNT
 //#define HIT_COUNT
 //#define HIT_TYPE
 //#define OLDAMB
@@ -81,6 +81,9 @@ typedef struct struct_ray_data
 	//char*  surface;
 	//char*  modifier;
 	//char*  material;
+#ifdef RAY_COUNT
+	int ray_count;
+#endif
 } RayData;
 
 /* Structure to hold a point and direction */

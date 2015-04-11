@@ -526,13 +526,13 @@ RT_METHOD void setupPayload(PerRayData_radiance& prd, const int& primary)
 	daysimSet(prd.dc, 0.0f);
 #endif
 #ifdef FILL_GAPS
-	new_prd.primary = primary;
+	prd.primary = primary;
 #endif
 #ifdef RAY_COUNT
-	new_prd.ray_count = 1;
+	prd.ray_count = 1;
 #endif
 #ifdef HIT_COUNT
-	new_prd.hit_count = 0;
+	prd.hit_count = 0;
 #endif
 }
 

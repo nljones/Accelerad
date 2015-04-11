@@ -339,7 +339,7 @@ static int saveAmbientRecords( AmbientRecord* record )
 	daysimCopy(amb.daylightCoef, dc);
 #endif
 #ifdef RAY_COUNT
-	ray_total += record->ray_count;
+	nrays += record->ray_count;
 #endif
 #ifdef HIT_COUNT
 	hit_total += record->hit_count;
@@ -666,8 +666,8 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 #endif
 		}
 #ifdef RAY_COUNT
-		fprintf(stderr, "Ray count %u (%f per thread).\n", ray_total, (float)ray_total/cuda_kmeans_clusters);
-		ray_total = 0;
+		fprintf(stderr, "Ray count %u (%f per thread).\n", nrays - ray_total, (float)(nrays - ray_total) / cuda_kmeans_clusters);
+		ray_total = nrays;
 #endif
 #ifdef HIT_COUNT
 		fprintf(stderr, "Hit count %u (%f per thread).\n", hit_total, (float)hit_total/cuda_kmeans_clusters);

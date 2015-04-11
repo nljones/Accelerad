@@ -15,7 +15,7 @@
 /* This is the maximum number of registers used by any cuda kernel in this in this file,
 found by using the flag "-Xptxas -v" to compile in nvcc. This should be updated when
 changes are made to the kernels. */
-#define REGISTERS_PER_THREAD	24
+#define REGISTERS_PER_THREAD	23
 #endif
 
 #ifdef __cplusplus
@@ -221,6 +221,8 @@ void mip_map_hits(PointDirection *deviceHits, PointDirection *deviceMipMap,
 	unsigned int offset = 0u;
 
 	unsigned int stride = 1u;
+	unsigned int levelWidth = width;
+	unsigned int levelHeight = height;
 
 	PointDirection hit;
 	unsigned int valid = idX < width && idY < height;
@@ -246,6 +248,8 @@ void mip_map_hits(PointDirection *deviceHits, PointDirection *deviceMipMap,
 			printf("mip_map_hits stride=%i, offset=%i, accum=%g,%g,%g\n", stride, offset, accum.pos.x, accum.pos.y, accum.pos.z);
 #endif
 		unsigned int stride2 = stride << 1;
+		levelWidth = (levelWidth - 1) / 2 + 1;
+		levelHeight = (levelHeight - 1) / 2 + 1;
 
 		if (!(idX % stride2) && !(idY % stride2)) {
 			accum = average_point_direction(
@@ -256,17 +260,17 @@ void mip_map_hits(PointDirection *deviceHits, PointDirection *deviceMipMap,
 			);
 
 			blockSharedMemory[sid] = accum;
-			deviceMipMap[offset + (idX + idY * width / stride2) / stride2] = accum;
+			deviceMipMap[offset + (idX + idY * levelWidth) / stride2] = accum;
 		}
 #ifdef PRINT_CUDA
 		if (!tid)
-			printf("mip_map_hits accum=%g,%g,%g\n", accum.pos.x, accum.pos.y, accum.pos.z);
+			printf("mip_map_hits width=%i, height=%i, accum=%g,%g,%g\n", levelWidth, levelHeight, accum.pos.x, accum.pos.y, accum.pos.z);
 #endif
 
 		__syncthreads();
 
 		stride = stride2;
-		offset += (width * height) / (stride2 * stride2);
+		offset += levelWidth * levelHeight;
 	}
 }
 
@@ -279,6 +283,8 @@ void calc_error(PointDirection *deviceHits, PointDirection *deviceMipMap, float 
 	unsigned int tid = idX + idY * width;
 
 	unsigned int stride = 1u;
+	unsigned int levelWidth = width;
+	unsigned int levelHeight = height;
 
 	if (idX < width && idY < height) {
 		PointDirection hit = deviceHits[tid];
@@ -295,9 +301,11 @@ void calc_error(PointDirection *deviceHits, PointDirection *deviceMipMap, float 
 				printf("calc_error stride=%i, i=%i, valid=%i\n", stride, i, valid);
 #endif
 			stride <<= 1;
+			levelWidth = (levelWidth - 1) / 2 + 1;
+			levelHeight = (levelHeight - 1) / 2 + 1;
 
-			error[tid + i * width * height] = valid ? geometric_error(hit, mipMapLevel[idX / stride + (idY / stride) * (width / stride)], alpha) : 0.0f;
-			mipMapLevel += (width * height) / (stride * stride);
+			error[tid + i * width * height] = valid ? geometric_error(hit, mipMapLevel[idX / stride + idY / stride * levelWidth], alpha) : 0.0f;
+			mipMapLevel += levelWidth * levelHeight;
 		}
 	}
 }
@@ -413,20 +421,27 @@ static void __cdecl cuda_mip_map_hits_recursive(PointDirection *deviceHits, Poin
 	if ( dimBlock.x < (1u << levels) ) {
 		unsigned int complete = 1u;
 		unsigned int offset = 0u;
-		unsigned int nextOffset = (width * height) >> 2; // TODO assumes size is a power of 4
+		unsigned int levelWidth = (width - 1) / 2 + 1;
+		unsigned int levelHeight = (height - 1) / 2 + 1;
 		for (unsigned int i = 1u; i < dimBlock.x / 2u; i <<= 1) {
 			complete++;
-			offset += nextOffset;
-			nextOffset >>= 2;
+			offset += levelWidth * levelHeight;
+			levelWidth = (levelWidth - 1) / 2 + 1;
+			levelHeight = (levelHeight - 1) / 2 + 1;
 		}
 
 		const unsigned int blockDim = calc_block_dim(maxThreadsPerBlock, levels - complete);
-		const unsigned int blocksX = (dimGrid.x - 1) / blockDim + 1;
-		const unsigned int blocksY = (dimGrid.y - 1) / blockDim + 1;
+		const unsigned int blocksX = (levelWidth - 1) / blockDim + 1;
+		const unsigned int blocksY = (levelHeight - 1) / blockDim + 1;
 		const dim3 dimSuperGrid(blocksX, blocksY);
 		const dim3 dimSuperBlock(blockDim, blockDim);
 
-		cuda_mip_map_hits_recursive(deviceMipMap + offset, deviceMipMap + offset + nextOffset, dimGrid.x, dimGrid.y, levels - complete, maxThreadsPerBlock, dimSuperGrid, dimSuperBlock, dimSuperBlock.x * dimSuperBlock.y * sizeof(PointDirection));
+#ifdef PRINT_CUDA
+		fprintf(stderr, "cuda_mip_map_hits_recursive: offset %i, width %i, height %i, levels %i\n", offset, levelWidth, levelHeight, levels - complete);
+#endif
+
+		cuda_mip_map_hits_recursive(deviceMipMap + offset, deviceMipMap + offset + levelWidth * levelHeight,
+			levelWidth, levelHeight, levels - complete, maxThreadsPerBlock, dimSuperGrid, dimSuperBlock, dimSuperBlock.x * dimSuperBlock.y * sizeof(PointDirection));
 	}
 }
 
@@ -523,7 +538,15 @@ void __cdecl cuda_score_hits(PointDirection *hits, int *seeds, const unsigned in
 
 #ifdef MULTI_BLOCK
 	/* Allocate memory on the GPU */
-	checkCuda(cudaMalloc(&deviceMipMap, size * sizeof(PointDirection) / 3u)); // Storage requirement for mip map is 1/3 or original data
+	unsigned int mipMapSize = 0u;
+	unsigned int levelWidth = width;
+	unsigned int levelHeight = height;
+	while (levelWidth > 1u || levelHeight > 1u) {
+		levelWidth = (levelWidth - 1) / 2 + 1;
+		levelHeight = (levelHeight - 1) / 2 + 1;
+		mipMapSize += levelWidth * levelHeight;
+	}
+	checkCuda(cudaMalloc(&deviceMipMap, mipMapSize * sizeof(PointDirection))); // Storage requirement for mip map is 1/3 or original data
 	checkCuda(cudaMalloc(&deviceError, size * levels * sizeof(float)));
 
 	/* Calculate average of hits at each quad tree node */

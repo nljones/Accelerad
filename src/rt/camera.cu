@@ -22,6 +22,9 @@ rtDeclareVariable(unsigned int,  do_irrad, , ); /* Calculate irradiance (-i) */
 
 /* Contex variables */
 rtBuffer<float4, 2>              output_buffer;
+#ifdef RAY_COUNT
+rtBuffer<unsigned int, 2>        ray_count_buffer;
+#endif
 //rtBuffer<unsigned int, 2>        rnd_seeds;
 rtDeclareVariable(rtObject,      top_object, , );
 rtDeclareVariable(unsigned int,  radiance_ray_type, , );
@@ -114,10 +117,11 @@ RT_PROGRAM void image_camera()
 	float expected_fps   = 1.0f;
 	float pixel_time     = ( t1 - t0 ) * time_view_scale * expected_fps;
 	output_buffer[launch_index] = make_float4( pixel_time );
-#elif defined RAY_COUNT
-	output_buffer[launch_index] = make_float4( make_float3( prd.ray_count ), prd.distance );
 #else
 	output_buffer[launch_index] = make_float4( prd.result, prd.distance );
+#endif
+#ifdef RAY_COUNT
+	ray_count_buffer[launch_index] = prd.ray_count;
 #endif
 }
 

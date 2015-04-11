@@ -76,14 +76,15 @@ RT_PROGRAM void ray_generator()
 	float expected_fps   = 1.0f;
 	float pixel_time     = ( t1 - t0 ) * time_view_scale * expected_fps;
 	ray_buffer[launch_index].val = make_float3( pixel_time );
-#elif defined RAY_COUNT
-	ray_buffer[launch_index].val = make_float3( prd.ray_count );
 #else
 	ray_buffer[launch_index].val = prd.result;
+#endif
 	//ray_buffer[launch_index].hit = ray_buffer[launch_index].origin + prd.distance * ray_buffer[launch_index].dir;
 	ray_buffer[launch_index].weight = prd.weight;
 	ray_buffer[launch_index].length = prd.distance;
 	//ray_buffer[launch_index].t = prd.distance;
+#ifdef RAY_COUNT
+	ray_buffer[launch_index].ray_count = prd.ray_count;
 #endif
 #ifdef DAYSIM
 	daysimCopy(&dc_buffer[prd.dc], prd.dc);

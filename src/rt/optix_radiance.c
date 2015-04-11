@@ -93,6 +93,9 @@ static unsigned int calc_ambient = 0u;
 /* Handles to objects used repeatedly in animation */
 static RTcontext context_handle = NULL;
 static RTbuffer buffer_handle = NULL;
+#ifdef RAY_COUNT
+static RTbuffer ray_count_buffer_handle = NULL;
+#endif
 static RTvariable camera_type, camera_eye, camera_u, camera_v, camera_w, camera_fov, camera_shift, camera_clip;
 
 /* Handles to buffer data */
@@ -148,6 +151,11 @@ void renderOptix(const VIEW* view, const int width, const int height, const doub
 	unsigned int i, size;
 	float* data;
 
+#ifdef RAY_COUNT
+	RTbuffer            ray_count_buffer;
+	unsigned int *ray_count_data;
+#endif
+
 	/* Set the size */
 	size = width * height;
 
@@ -160,6 +168,12 @@ void renderOptix(const VIEW* view, const int width, const int height, const doub
 		createBuffer2D( context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT4, width, height, &output_buffer );
 		applyContextObject( context, "output_buffer", output_buffer );
 
+#ifdef RAY_COUNT
+		createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_UNSIGNED_INT, width, height, &ray_count_buffer);
+		applyContextObject(context, "ray_count_buffer", ray_count_buffer);
+		ray_count_buffer_handle = ray_count_buffer;
+#endif
+
 		/* Save handles to objects used in animations */
 		context_handle = context;
 		buffer_handle = output_buffer;
@@ -169,6 +183,9 @@ void renderOptix(const VIEW* view, const int width, const int height, const doub
 		/* Retrieve handles for previously created objects */
 		context = context_handle;
 		output_buffer = buffer_handle;
+#ifdef RAY_COUNT
+		ray_count_buffer = ray_count_buffer_handle;
+#endif
 	}
 
 	/* Run the OptiX kernel */
@@ -177,6 +194,11 @@ void renderOptix(const VIEW* view, const int width, const int height, const doub
 
 	RT_CHECK_ERROR( rtBufferMap( output_buffer, (void**)&data ) );
 	RT_CHECK_ERROR( rtBufferUnmap( output_buffer ) );
+
+#ifdef RAY_COUNT
+	RT_CHECK_ERROR(rtBufferMap(ray_count_buffer, (void**)&ray_count_data));
+	RT_CHECK_ERROR(rtBufferUnmap(ray_count_buffer));
+#endif
 
 	/* Copy the results to allocated memory. */
 	for (i = 0u; i < size; i++) {
@@ -188,6 +210,9 @@ void renderOptix(const VIEW* view, const int width, const int height, const doub
 			depths[i] = data[3];
 		}
 		data += 4;
+#ifdef RAY_COUNT
+		nrays += ray_count_data[i];
+#endif
 	}
 
 #ifdef PRINT_OPTIX
@@ -267,6 +292,9 @@ void computeOptix(const int width, const int height, const double alarm, RAY* ra
 	for (i = 0u; i < size; i++) {
 		if (data->weight == -1.0f)
 			printException(data->val, "sensor", i);
+#ifdef RAY_COUNT
+		nrays += data->ray_count;
+#endif
 		setRay( &rays[i], data++ );
 #ifdef DAYSIM
 		daysimCopy(rays[i].daylightCoef, dc_data);
@@ -289,6 +317,9 @@ void endOptix()
 	destroyContext(context_handle);
 	context_handle = NULL;
 	buffer_handle = NULL;
+#ifdef RAY_COUNT
+	ray_count_buffer_handle = NULL;
+#endif
 	camera_type = camera_eye = camera_u = camera_v = camera_w = camera_fov = camera_shift = camera_clip = NULL;
 }
 

@@ -223,8 +223,8 @@ report(int dummy)		/* report progress */
 {
 	tlastrept = time((time_t *)NULL);
 #ifdef ACCELERAD
-	if (use_optix) {
-		/* Don't report when using OptiX because we don't track number of rays or percent done. */
+	if (use_optix && pctdone < 100.0) {
+		/* Don't report when using OptiX because we don't track percent done. */
 		return;
 	}
 #endif
