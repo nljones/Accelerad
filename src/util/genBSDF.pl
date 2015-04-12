@@ -9,7 +9,7 @@ use strict;
 my $windoz = ($^O eq "MSWin32" or $^O eq "MSWin64");
 use File::Temp qw/ :mktemp  /;
 sub userror {
-	print STDERR "Usage: genBSDF [-n Nproc][-c Nsamp][-W][-t{3|4} Nlog2][-r \"ropts\"][-f \"x=string;y=string\"][-dim xmin xmax ymin ymax zmin zmax][{+|-}C][{+|-}f][{+|-}b][{+|-}mgf][{+|-}geom units] [input ..]\n";
+	print STDERR "Usage: genBSDF [-n Nproc][-c Nsamp][-W][-t{3|4} Nlog2][-r \"ropts\"][-s \"x=string;y=string\"][-dim xmin xmax ymin ymax zmin zmax][{+|-}C][{+|-}f][{+|-}b][{+|-}mgf][{+|-}geom units] [input ..]\n";
 	exit 1;
 }
 my ($td,$radscn,$mgfscn,$octree,$fsender,$bsender,$receivers,$facedat,$behinddat,$rmtmp);
@@ -66,7 +66,7 @@ if ($windoz) {
 	$rmtmp = "rm -rf $td";
 }
 my @savedARGV = @ARGV;
-my $rfluxmtx = "rfluxmtx -v -ab 5 -ad 700 -lw 3e-6";
+my $rfluxmtx = "rfluxmtx -ab 5 -ad 700 -lw 3e-6";
 my $wrapper = "wrapBSDF";
 my $tensortree = 0;
 my $ttlog2 = 4;
@@ -104,12 +104,15 @@ while ($#ARGV >= 0) {
 	} elsif ("$ARGV[0]" eq "-t") {
 		# Use value < 0 for rttree_reduce bypass
 		$pctcull = $ARGV[1];
+		if ($pctcull >= 100) {
+			die "Illegal -t culling percentage, must be < 100\n";
+		}
 		shift @ARGV;
 	} elsif ("$ARGV[0]" =~ /^-t[34]$/) {
 		$tensortree = substr($ARGV[0], 2, 1);
 		$ttlog2 = $ARGV[1];
 		shift @ARGV;
-	} elsif ("$ARGV[0]" eq "-f") {
+	} elsif ("$ARGV[0]" eq "-s") {
 		$wrapper .= " -f \"$ARGV[1]\"";
 		shift @ARGV;
 	} elsif ("$ARGV[0]" eq "-W") {
@@ -171,16 +174,18 @@ if ( $geout ) {
 	$wrapper .= " -g $mgfscn";
 }
 # Create receiver & sender surfaces (rectangular)
+my $FEPS = 1e-5;
 my $nx = int(sqrt($nsamp*($dim[1]-$dim[0])/($dim[3]-$dim[2])) + 1);
 my $ny = int($nsamp/$nx + 1);
 $nsamp = $nx * $ny;
 my $ns = 2**$ttlog2;
 open(RADSCN, "> $receivers");
-print RADSCN '#@rfluxmtx ' . ($tensortree ? "h=sc$ns\n" : "h=kf\n");
-print RADSCN '#@rfluxmtx ' . "u=Y o=$facedat\n\n";
+print RADSCN '#@rfluxmtx ' . ($tensortree ? "h=-sc$ns\n" : "h=-kf\n");
+print RADSCN '#@rfluxmtx ' . "u=-Y o=$facedat\n\n";
 print RADSCN "void glow receiver_face\n0\n0\n4 1 1 1 0\n\n";
 print RADSCN "receiver_face source f_receiver\n0\n0\n4 0 0 1 180\n\n";
-print RADSCN '#@rfluxmtx ' . "u=Y o=$behinddat\n\n";
+print RADSCN '#@rfluxmtx ' . ($tensortree ? "h=+sc$ns\n" : "h=+kf\n");
+print RADSCN '#@rfluxmtx ' . "u=-Y o=$behinddat\n\n";
 print RADSCN "void glow receiver_behind\n0\n0\n4 1 1 1 0\n\n";
 print RADSCN "receiver_behind source b_receiver\n0\n0\n4 0 0 -1 180\n";
 close RADSCN;
@@ -188,22 +193,28 @@ close RADSCN;
 $rfluxmtx .= " -n $nproc -c $nsamp";
 if ( $tensortree != 3 ) {	# Isotropic tensor tree is exception
 	open (RADSCN, "> $fsender");
-	print RADSCN '#@rfluxmtx u=Y ' . ($tensortree ? "h=sc$ns\n\n" : "h=kf\n\n");
+	print RADSCN '#@rfluxmtx u=-Y ' . ($tensortree ? "h=-sc$ns\n\n" : "h=-kf\n\n");
 	print RADSCN "void polygon fwd_sender\n0\n0\n12\n";
-	printf RADSCN "\t%f\t%f\t%f\n", $dim[0], $dim[2], $dim[4];
-	printf RADSCN "\t%f\t%f\t%f\n", $dim[0], $dim[3], $dim[4];
-	printf RADSCN "\t%f\t%f\t%f\n", $dim[1], $dim[3], $dim[4];
-	printf RADSCN "\t%f\t%f\t%f\n", $dim[1], $dim[2], $dim[4];
+	printf RADSCN "\t%e\t%e\t%e\n", $dim[0], $dim[2], $dim[4]-$FEPS;
+	printf RADSCN "\t%e\t%e\t%e\n", $dim[0], $dim[3], $dim[4]-$FEPS;
+	printf RADSCN "\t%e\t%e\t%e\n", $dim[1], $dim[3], $dim[4]-$FEPS;
+	printf RADSCN "\t%e\t%e\t%e\n", $dim[1], $dim[2], $dim[4]-$FEPS;
 	close RADSCN;
 	open (RADSCN, "> $bsender");
-	print RADSCN '#@rfluxmtx u=Y ' . ($tensortree ? "h=sc$ns\n\n" : "h=kf\n\n");
-	print RADSCN "void polygon fwd_sender\n0\n0\n12\n";
-	printf RADSCN "\t%f\t%f\t%f\n", $dim[0], $dim[2], $dim[5];
-	printf RADSCN "\t%f\t%f\t%f\n", $dim[1], $dim[2], $dim[5];
-	printf RADSCN "\t%f\t%f\t%f\n", $dim[1], $dim[3], $dim[5];
-	printf RADSCN "\t%f\t%f\t%f\n", $dim[0], $dim[3], $dim[5];
+	print RADSCN '#@rfluxmtx u=-Y ' . ($tensortree ? "h=+sc$ns\n\n" : "h=+kf\n\n");
+	print RADSCN "void polygon bwd_sender\n0\n0\n12\n";
+	printf RADSCN "\t%e\t%e\t%e\n", $dim[0], $dim[2], $dim[5]+$FEPS;
+	printf RADSCN "\t%e\t%e\t%e\n", $dim[1], $dim[2], $dim[5]+$FEPS;
+	printf RADSCN "\t%e\t%e\t%e\n", $dim[1], $dim[3], $dim[5]+$FEPS;
+	printf RADSCN "\t%e\t%e\t%e\n", $dim[0], $dim[3], $dim[5]+$FEPS;
 	close RADSCN;
 }
+# Calculate CIE (u',v') from Radiance RGB:
+my $CIEuv =	'Xi=.5141*Ri+.3239*Gi+.1620*Bi;' .
+		'Yi=.2651*Ri+.6701*Gi+.0648*Bi;' .
+		'Zi=.0241*Ri+.1229*Gi+.8530*Bi;' .
+		'den=Xi+15*Yi+3*Zi;' .
+		'uprime=4*Xi/den;vprime=9*Yi/den;' ;
 # Create data segments (all the work happens here)
 if ( $tensortree ) {
 	do_tree_bsdf();
@@ -219,7 +230,7 @@ print "<!-- Created by: genBSDF @savedARGV -->\n";
 system $wrapper;
 die "Could not wrap BSDF data\n" if ( $? );
 # Clean up temporary files and exit
-system $rmtmp;
+exec $rmtmp;
 
 #-------------- End of main program segment --------------#
 
@@ -295,16 +306,16 @@ sub ttree_out {
 		my $ttyp = ("tb","tf")[$forw];
 		ttree_comp($ttyp, "Visible", $transdat, ($tb,$tf)[$forw]);
 		if ( $docolor ) {
-			ttree_comp($ttyp, "CIE-X", $transdat, ($tbx,$tfx)[$forw]);
-			ttree_comp($ttyp, "CIE-Z", $transdat, ($tbz,$tfz)[$forw]);
+			ttree_comp($ttyp, "CIE-u", $transdat, ($tbx,$tfx)[$forw]);
+			ttree_comp($ttyp, "CIE-v", $transdat, ($tbz,$tfz)[$forw]);
 		}
 	}
 	# Output reflection
 	my $rtyp = ("rb","rf")[$forw];
 	ttree_comp($rtyp, "Visible", $refldat, ($rb,$rf)[$forw]);
 	if ( $docolor ) {
-		ttree_comp($rtyp, "CIE-X", $refldat, ($rbx,$rfx)[$forw]);
-		ttree_comp($rtyp, "CIE-Z", $refldat, ($rbz,$rfz)[$forw]);
+		ttree_comp($rtyp, "CIE-u", $refldat, ($rbx,$rfx)[$forw]);
+		ttree_comp($rtyp, "CIE-v", $refldat, ($rbz,$rfz)[$forw]);
 	}
 }	# end of ttree_out()
 
@@ -318,35 +329,45 @@ sub ttree_comp {
 	if ($windoz) {
 		if ("$spec" eq "Visible") {
 			$cmd = qq{rcalc -e "Omega:PI/($ns*$ns)" } .
-				q{-e "$1=(0.265*$1+0.670*$2+0.065*$3)/Omega"};
-		} elsif ("$spec" eq "CIE-X") {
-			$cmd = qq{rcalc -e "Omega:PI/($ns*$ns)" } .
-				q{-e "$1=(0.514*$1+0.324*$2+0.162*$3)/Omega"};
-		} elsif ("$spec" eq "CIE-Z") {
-			$cmd = qq{rcalc -e "Omega:PI/($ns*$ns)" } .
-				q{-e "$1=(0.024*$1+0.123*$2+0.853*$3)/Omega"};
+				q{-e "Ri=$1;Gi=$2;Bi=$3" } .
+				qq{-e "$CIEuv" } .
+				q{-e "$1=Yi/Omega"};
+		} elsif ("$spec" eq "CIE-u") {
+			$cmd = q{rcalc -e "Ri=$1;Gi=$2;Bi=$3" } .
+				qq{-e "$CIEuv" } .
+				q{-e "$1=uprime"};
+		} elsif ("$spec" eq "CIE-v") {
+			$cmd = q{rcalc -e "Ri=$1;Gi=$2;Bi=$3" } .
+				qq{-e "$CIEuv" } .
+				q{-e "$1=vprime"};
 		}
 	} else {
 		if ("$spec" eq "Visible") {
 			$cmd = "rcalc -if3 -e 'Omega:PI/($ns*$ns)' " .
-				q{-e '$1=(0.265*$1+0.670*$2+0.065*$3)/Omega'};
-		} elsif ("$spec" eq "CIE-X") {
-			$cmd = "rcalc -if3 -e 'Omega:PI/($ns*$ns)' " .
-				q{-e '$1=(0.514*$1+0.324*$2+0.162*$3)/Omega'};
-		} elsif ("$spec" eq "CIE-Z") {
-			$cmd = "rcalc -if3 -e 'Omega:PI/($ns*$ns)' " .
-				q{-e '$1=(0.024*$1+0.123*$2+0.853*$3)/Omega'};
+				q{-e 'Ri=$1;Gi=$2;Bi=$3' } .
+				"-e '$CIEuv' " .
+				q{-e '$1=Yi/Omega'};
+		} elsif ("$spec" eq "CIE-u") {
+			$cmd = q{rcalc -if3 -e 'Ri=$1;Gi=$2;Bi=$3' } .
+				"-e '$CIEuv' " .
+				q{-e '$1=uprime'};
+		} elsif ("$spec" eq "CIE-v") {
+			$cmd = q{rcalc -if3 -e 'Ri=$1;Gi=$2;Bi=$3' } .
+				"-e '$CIEuv' " .
+				q{-e '$1=vprime'};
 		}
 	}
 	if ($pctcull >= 0) {
 		my $avg = ( "$typ" =~ /^r[fb]/ ) ? " -a" : "";
+		my $pcull = ("$spec" eq "Visible") ? $pctcull :
+						     (100 - (100-$pctcull)*.25) ;
 		if ($windoz) {
 			$cmd = "rcollate -ho -oc 1 $src | " .
 					$cmd .
-					" | rttree_reduce$avg -h -fa -t $pctcull -r $tensortree -g $ttlog2";
+					" | rttree_reduce$avg -h -fa -t $pcull -r $tensortree -g $ttlog2";
 		} else {
 			$cmd .= " -of $src " .
-					"| rttree_reduce$avg -h -ff -t $pctcull -r $tensortree -g $ttlog2";
+					"| rttree_reduce$avg -h -ff -t $pcull -r $tensortree -g $ttlog2";
 		}
 		# print STDERR "Running: $cmd\n";
 		system "$cmd > $dest";
@@ -371,7 +392,7 @@ sub ttree_comp {
 		close DATOUT;
 	}
 	if ( "$spec" ne "$curspec" ) {
-		$wrapper .= " -s $spec"
+		$wrapper .= " -s $spec";
 		$curspec = $spec;
 	}
 	$wrapper .= " -$typ $dest";
@@ -434,18 +455,18 @@ sub matrix_comp {
 	my $dest = shift;
 	my $cmd = "rmtxop -fa -t";
 	if ("$spec" eq "Visible") {
-		$cmd .= " -c 0.265 0.670 0.065";
+		$cmd .= " -c 0.2651 0.6701 0.0648";
 	} elsif ("$spec" eq "CIE-X") {
-		$cmd .= " -c 0.514 0.324 0.162";
+		$cmd .= " -c 0.5141 0.3239 0.1620";
 	} elsif ("$spec" eq "CIE-Z") {
-		$cmd .= " -c 0.024 0.123 0.853";
+		$cmd .= " -c 0.0241 0.1229 0.8530";
 	}
-	$cmd .= " $src | getinfo -";
+	$cmd .= " $src | rcollate -ho -oc 145";
 	# print STDERR "Running: $cmd\n";
 	system "$cmd > $dest";
 	die "Failure running rttree_reduce" if ( $? );
 	if ( "$spec" ne "$curspec" ) {
-		$wrapper .= " -s $spec"
+		$wrapper .= " -s $spec";
 		$curspec = $spec;
 	}
 	$wrapper .= " -$typ $dest";

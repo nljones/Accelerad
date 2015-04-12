@@ -19,6 +19,7 @@ static const char RCSid[] = "$Id$";
 #include  "otypes.h"
 #include  "rtotypes.h"
 #include  "random.h"
+#include  "pmapmat.h"
 
 #ifndef  MAXITER
 #define  MAXITER	10		/* maximum # specular ray attempts */
@@ -115,6 +116,22 @@ dirnorm(		/* compute source contribution */
 		scalecolor(ctmp, dtmp);
 		addcolor(cval, ctmp);
 	}
+	
+	if (ldot < -FTINY && ltdiff > FTINY) {
+		/*
+		 *  Compute diffuse transmission.
+		 */
+		copycolor(ctmp, np->mcolor);
+		dtmp = -ldot * omega * ltdiff * (1.0/PI);
+		scalecolor(ctmp, dtmp);
+		addcolor(cval, ctmp);
+	}
+	
+	/* PMAP: skip direct specular via ambient bounce if already accounted for
+	 * in photon map */
+	if (ambRayInPmap(np->rp))
+		return;
+
 	if (ldot > FTINY && (np->specfl&(SP_REFL|SP_PURE)) == SP_REFL) {
 		/*
 		 *  Compute specular reflection coefficient using
@@ -141,15 +158,8 @@ dirnorm(		/* compute source contribution */
 			addcolor(cval, ctmp);
 		}
 	}
-	if (ldot < -FTINY && ltdiff > FTINY) {
-		/*
-		 *  Compute diffuse transmission.
-		 */
-		copycolor(ctmp, np->mcolor);
-		dtmp = -ldot * omega * ltdiff * (1.0/PI);
-		scalecolor(ctmp, dtmp);
-		addcolor(cval, ctmp);
-	}
+	
+
 	if (ldot < -FTINY && (np->specfl&(SP_TRAN|SP_PURE)) == SP_TRAN) {
 		/*
 		 *  Compute specular transmission.  Specular transmission
@@ -187,6 +197,10 @@ m_normal(			/* color a ray that hit something normal */
 #ifdef DAYSIM
 	DaysimCoef daylightCoef;
 #endif
+
+	/* PMAP: skip transmitted shadow ray if accounted for in photon map */
+	if (shadowRayInPmap(r))
+		return(1);
 						/* easy shadow test */
 	if (r->crtype & SHADOW && m->otype != MAT_TRANS)
 		return(1);
@@ -261,7 +275,11 @@ m_normal(			/* color a ray that hit something normal */
 	} else
 		nd.tdiff = nd.tspec = nd.trans = 0.0;
 						/* transmitted ray */
-	if ((nd.specfl&(SP_TRAN|SP_PURE|SP_TBLT)) == (SP_TRAN|SP_PURE)) {
+
+	/* PMAP: skip indirect specular trans via ambient bounce if already
+	 * accounted for in photon map */
+	if (!ambRayInPmap(r) &&
+		    (nd.specfl&(SP_TRAN|SP_PURE|SP_TBLT)) == (SP_TRAN|SP_PURE)) {
 		RAY  lr;
 		copycolor(lr.rcoef, nd.mcolor);	/* modified by color */
 		scalecolor(lr.rcoef, nd.tspec);
@@ -309,7 +327,10 @@ m_normal(			/* color a ray that hit something normal */
 		checknorm(nd.vrefl);
 	}
 						/* reflected ray */
-	if ((nd.specfl&(SP_REFL|SP_PURE|SP_RBLT)) == (SP_REFL|SP_PURE)) {
+	/* PMAP: skip indirect specular refl via ambient ray if already accounted
+	 * for in photon map */
+	if (!ambRayInPmap(r) &&
+		    (nd.specfl&(SP_REFL|SP_PURE|SP_RBLT)) == (SP_REFL|SP_PURE)) {
 		RAY  lr;
 		if (rayorigin(&lr, REFLECTED, r, nd.scolor) == 0) {
 			VCOPY(lr.rdir, nd.vrefl);
@@ -332,11 +353,14 @@ m_normal(			/* color a ray that hit something normal */
 	if (nd.specfl & SP_PURE && nd.rdiff <= FTINY && nd.tdiff <= FTINY)
 		return(1);			/* 100% pure specular */
 
-	if (!(nd.specfl & SP_PURE))
+	/* PMAP: skip indirect gaussian via ambient bounce if already accounted
+	 * for in photon map */
+	if (!ambRayInPmap(r))	
+		if (!(nd.specfl & SP_PURE))
 #ifdef DAYSIM
-		gaussamp(&nd, daylightCoef);		/* checks *BLT flags */
+			gaussamp(&nd, daylightCoef);		/* checks *BLT flags */
 #else
-		gaussamp(&nd);		/* checks *BLT flags */
+			gaussamp(&nd);		/* checks *BLT flags */
 #endif
 
 	if (nd.rdiff > FTINY) {		/* ambient from this side */

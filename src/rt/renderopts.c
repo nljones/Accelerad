@@ -11,6 +11,7 @@ static const char	RCSid[] = "$Id$";
 
 #include  "ray.h"
 #include  "paths.h"
+#include  "pmapopt.h"
 
 #ifdef ACCELERAD
 unsigned int use_optix = 1u;			/* Flag to use OptiX for ray tracing */
@@ -270,7 +271,11 @@ getrenderopt(		/* get next render option */
 		}
 		break;
 	}
-	return(-1);		/* unknown option */
+	
+	/* PMAP: Parse photon mapping options */
+	return(getPmapRenderOpt(ac, av));
+	
+/*	return(-1); */		/* unknown option */
 
 #undef	check
 #undef	bool
@@ -315,4 +320,7 @@ print_rdefaults(void)		/* print default render values to stdout */
 	printf("-lr %-9d\t\t\t# limit reflection%s\n", maxdepth,
 			maxdepth<=0 ? " (Russian roulette)" : "");
 	printf("-lw %.2e\t\t\t# limit weight\n", minweight);
+	
+	/* PMAP: output photon map defaults */
+	printPmapDefaults();
 }

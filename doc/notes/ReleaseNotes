@@ -2001,6 +2001,9 @@ some systems, and may have been source of other errors as well.
 
 (Above changes included in 4.2.2 patch release.)
 
+===================
+Version 5.0
+
 Improved ambient extrapolation to avoid zero values.  Actual
 threshold set to 5% of recorded value.
 
@@ -2009,3 +2012,17 @@ illegal orientation vectors are dealt with more gracefully.
 
 Created wrapBSDF tool and incorporated into genBSDF along
 with new rfluxmtx computation.
+
+Initial check-in of Roland Schregle's photon map integration.
+New 5.0a version designation as suggested by Andy McNeil.
+
+Added left-hand coordinate sytems to rfluxmtx to correct
+problems with coordinate axis orientations pointed out by
+David Geisler-Moroder.
+
+Added color output to genBSDF (+C option) and support for
+color rendering of Klems and tensor tree data.
+
+Fixed bug discovered by Jacob Jonsson in Klems BSDF
+interpolator that caused it to over-predict normal
+transmittance and reflectance.

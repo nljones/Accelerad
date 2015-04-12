@@ -1,6 +1,4 @@
-#ifndef lint
 static const char	RCSid[] = "$Id$";
-#endif
 /*
  *  ambient.c - routines dealing with ambient (inter-reflected) component.
  *
@@ -17,6 +15,7 @@ static const char	RCSid[] = "$Id$";
 #include  "resolu.h"
 #include  "ambient.h"
 #include  "random.h"
+#include  "pmapamb.h"
 
 #ifndef  OCTSCALE
 #define	 OCTSCALE	1.0	/* ceil((valid rad.)/(cube size)) */
@@ -307,13 +306,25 @@ multambient(		/* compute ambient component & multiply by coef. */
 )
 {
 	static int  rdepth = 0;			/* ambient recursion */
-	COLOR	acol;
+	COLOR	acol, caustic;
 	int	ok;
 	double	d, l;
 #ifdef DAYSIM
 	DaysimCoef dcAcol;
 #endif
 
+	/* PMAP: Factor in ambient from photon map, if enabled and ray is
+	 * ambient. Return as all ambient components accounted for, else
+	 * continue. */
+	if (ambPmap(aval, r, rdepth))
+		return;
+
+	/* PMAP: Factor in specular-diffuse ambient (caustics) from photon
+	 * map, if enabled and ray is primary, else caustic is zero.  Continue
+	 * with RADIANCE ambient calculation */
+	copycolor(caustic, aval);
+	ambPmapCaustic(caustic, r, rdepth);
+	
 	if (ambdiv <= 0)			/* no ambient calculation */
 		goto dumbamb;
 						/* check number of bounces */
@@ -341,6 +352,9 @@ multambient(		/* compute ambient component & multiply by coef. */
 #ifdef DAYSIM
 		daysimCopy(daylightCoef, dcAcol);
 #endif
+
+		/* PMAP: add in caustic */
+		addcolor(aval, caustic);
 		return;
 	}
 
@@ -364,8 +378,13 @@ multambient(		/* compute ambient component & multiply by coef. */
 		daysimScale(dcAcol, d);
 		daysimMult(daylightCoef, dcAcol);
 #endif
+
+		/* PMAP: add in caustic */
+		addcolor(aval, caustic);
+
 		return;
 	}
+	
 	rdepth++;				/* need to cache new value */
 #ifndef DAYSIM
 	ok = makeambient(acol, r, nrm, rdepth - 1);
@@ -373,21 +392,30 @@ multambient(		/* compute ambient component & multiply by coef. */
 	ok = makeambient(acol, r, nrm, rdepth - 1, dcAcol);
 #endif
 	rdepth--;
+	
 	if (ok) {
 		multcolor(aval, acol);		/* computed new value */
 #ifdef DAYSIM
 		daysimMult(daylightCoef, dcAcol);
 #endif
+
+		/* PMAP: add in caustic */
+		addcolor(aval, caustic);
 		return;
 	}
+	
 dumbamb:					/* return global value */
 	if ((ambvwt <= 0) | (navsum == 0)) {
 		multcolor(aval, ambval);
 #ifdef DAYSIM
 		daysimScale(daylightCoef, colval(ambval, RED));
 #endif
+		
+		/* PMAP: add in caustic */
+		addcolor(aval, caustic);
 		return;
 	}
+	
 	l = bright(ambval);			/* average in computations */
 	if (l > FTINY) {
 		d = (log(l)*(double)ambvwt + avsum) /
@@ -746,7 +774,7 @@ multambient(		/* compute ambient component & multiply by coef. */
 )
 {
 	static int  rdepth = 0;			/* ambient recursion */
-	COLOR	acol;
+	COLOR	acol, caustic;
 	double	d, l;
 
 #ifdef DAYSIM
@@ -754,6 +782,17 @@ multambient(		/* compute ambient component & multiply by coef. */
 	daysimCopy( dcAcol, daylightCoef );
 #endif
 
+	/* PMAP: Factor in ambient from global photon map (if enabled) and return
+	 * as all ambient components accounted for */
+	if (ambGlobalPmap(aval, r, rdepth))
+		return;
+
+	/* PMAP: Otherwise factor in ambient from caustic photon map
+	 * (ambCausticPmap() returns zero if caustic photons disabled) and
+	 * continue with RADIANCE ambient calculation */
+	copycolor(caustic, aval);
+	ambCausticPmap(caustic, r, rdepth);
+	
 	if (ambdiv <= 0)			/* no ambient calculation */
 		goto dumbamb;
 						/* check number of bounces */
@@ -776,6 +815,12 @@ multambient(		/* compute ambient component & multiply by coef. */
 		if (d <= FTINY)
 			goto dumbamb;
 		copycolor(aval, acol);
+#ifdef DAYSIM
+		daysimCopy(daylightCoef, dcAcol);
+#endif
+
+		/* PMAP: add in caustic */
+		addcolor(aval, caustic);	
 		return;
 	}
 
@@ -796,10 +841,15 @@ multambient(		/* compute ambient component & multiply by coef. */
 		scalecolor(acol, d);
 		multcolor(aval, acol);
 #ifdef DAYSIM
-		daysimScale( dcAcol, d*colval( aval, RED ) ); // combine scale+mult
+		daysimScale(dcAcol, d);
+		daysimMult(daylightCoef, dcAcol);
 #endif
+
+		/* PMAP: add in caustic */
+		addcolor(aval, caustic);	
 		return;
 	}
+	
 	rdepth++;				/* need to cache new value */
 #ifndef DAYSIM
 	d = makeambient(acol, r, nrm, rdepth-1);
@@ -807,21 +857,30 @@ multambient(		/* compute ambient component & multiply by coef. */
 	d = makeambient(acol, r, nrm, rdepth - 1, dcAcol);
 #endif
 	rdepth--;
+	
 	if (d > FTINY) {
 		multcolor(aval, acol);		/* got new value */
 #ifdef DAYSIM
-		daysimScale( dcAcol, colval( aval, RED ) );
+		daysimMult(daylightCoef, dcAcol);
 #endif
+
+		/* PMAP: add in caustic */
+		addcolor(aval, caustic);	
 		return;
 	}
+	
 dumbamb:					/* return global value */
 	if ((ambvwt <= 0) | (navsum == 0)) {
 		multcolor(aval, ambval);
 #ifdef DAYSIM
-		daysimSet( dcAcol, colval( ambval, RED )*colval( aval, RED ) ); // combine
+		daysimScale(daylightCoef, colval(ambval, RED));
 #endif
+
+		/* PMAP: add in caustic */
+		addcolor(aval, caustic);	
 		return;
 	}
+	
 	l = bright(ambval);			/* average in computations */
 	if (l > FTINY) {
 		d = (log(l)*(double)ambvwt + avsum) /
@@ -830,13 +889,13 @@ dumbamb:					/* return global value */
 		scalecolor(aval, d);
 		multcolor(aval, ambval);	/* apply color of ambval */
 #ifdef DAYSIM
-		daysimSet(dcAcol, colval(ambval, RED)*d*colval(aval, RED));
+		daysimScale(daylightCoef, colval(ambval, RED)*d);
 #endif
 	} else {
 		d = exp( avsum / (double)navsum );
 		scalecolor(aval, d);		/* neutral color */
 #ifdef DAYSIM
-		daysimSet(dcAcol, d*colval(aval, RED));
+		daysimScale(daylightCoef, d);
 #endif
 	}
 }

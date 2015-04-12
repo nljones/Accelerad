@@ -458,6 +458,15 @@ RT_METHOD float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const 
 		float dtmp = ldot * omega * lrdiff * M_1_PIf;
 		cval += mcolor * dtmp;
 	}
+#ifdef TRANSMISSION
+	if (ldot < -FTINY && ltdiff > FTINY) {
+		/*
+		 *  Compute diffuse transmission.
+		 */
+		float dtmp = -ldot * omega * ltdiff * M_1_PIf;
+		cval += mcolor * dtmp;
+	}
+#endif
 	if (ldot > FTINY && (specfl&(SP_REFL|SP_PURE)) == SP_REFL) {
 		/*
 		 *  Compute specular reflection coefficient using
@@ -483,13 +492,6 @@ RT_METHOD float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const 
 		}
 	}
 #ifdef TRANSMISSION
-	if (ldot < -FTINY && ltdiff > FTINY) {
-		/*
-		 *  Compute diffuse transmission.
-		 */
-		float dtmp = -ldot * omega * ltdiff * M_1_PIf;
-		cval += mcolor * dtmp;
-	}
 	if (ldot < -FTINY && (specfl&(SP_TRAN|SP_PURE)) == SP_TRAN) {
 		/*
 		 *  Compute specular transmission.  Specular transmission

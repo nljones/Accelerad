@@ -9,6 +9,7 @@
 #include  "octree.h"
 #include  "object.h"
 #include  "color.h"
+#include  "pmapparm.h"
 
 #ifndef DAYSIM
 /* Compiler setting to calculate Daysim daylight coefficients. Should only be used with rtrace. */
@@ -199,6 +200,9 @@ typedef struct {		/* rendering parameter holder */
 	int	ambincl;
 	short	amblndx[AMBLLEN+1];
 	char	amblval[AMBLLEN*AMBWORD];
+	
+	/* PMAP: photon mapping parameters */
+	PhotonMapParams pmapParams [NUM_PMAP_TYPES];
 } RAYPARAMS;
 
 #define rpambmod(p,i)	( (i)>=AMBLLEN||(p)->amblndx[i]<0 ? \
