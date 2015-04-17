@@ -85,8 +85,8 @@ main(int  argc, char  *argv[])
 	int  rval;
 	int  i;
 #ifdef ACCELERAD
-	time_t rpict_start_time, rpict_end_time; // Timer in seconds for long jobs
-	clock_t rpict_start_clock, rpict_end_clock; // Timer in clock cycles for short jobs
+	time_t rpict_time; // Timer in seconds for long jobs
+	clock_t rpict_clock; // Timer in clock cycles for short jobs
 #endif
 					/* record start time */
 	tstart = time((time_t *)NULL);
@@ -359,14 +359,18 @@ runagain:
 #endif
 					/* batch render picture(s) */
 #ifdef ACCELERAD
-	rpict_start_time = time((time_t *)NULL);
-	rpict_start_clock = clock();
+	rpict_time = time((time_t *)NULL);
+	rpict_clock = clock();
 #endif
 	rpict(seqstart, outfile, zfile, recover);
 #ifdef ACCELERAD
-	rpict_end_clock = clock();
-	rpict_end_time = time((time_t *)NULL);
-	fprintf(stderr, "%s time: %u milliseconds (%u seconds).\n", progname, (rpict_end_clock - rpict_start_clock) * 1000 / CLOCKS_PER_SEC, rpict_end_time - rpict_start_time);
+	rpict_clock = clock() - rpict_clock;
+	rpict_time = time((time_t *)NULL) - rpict_time;
+	if (abs(rpict_clock / CLOCKS_PER_SEC - rpict_time) <= 1)
+		sprintf(errmsg, "ray tracing time: %u milliseconds (%u seconds).", rpict_clock * 1000 / CLOCKS_PER_SEC, rpict_time);
+	else
+		sprintf(errmsg, "ray tracing time: %u seconds.", rpict_time);
+	eputs(errmsg);
 #endif
 					/* flush ambient file */
 	ambsync();

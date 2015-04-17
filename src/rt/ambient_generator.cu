@@ -71,7 +71,7 @@ RT_PROGRAM void ambient_camera()
 	unsigned int power_of_two = 0u; // always a power of 2
 
 	// Zero or negative aft clipping distance indicates infinity
-	float aft = clip.y;
+	float aft = clip.y - clip.x;
 	if (aft <= FTINY) {
 		aft = RAY_END;
 	}
@@ -129,9 +129,11 @@ RT_PROGRAM void ambient_camera()
 			d *= 1.0f + z;
 		}
 
-		float3 ray_direction = normalize(d.x*U + d.y*V + z*W);
+		float3 ray_direction = d.x*U + d.y*V + z*W;
+		ray_origin += clip.x * ray_direction;
+		ray_direction = normalize(ray_direction);
 
-		Ray ray = make_Ray(ray_origin, ray_direction, ambient_record_ray_type, clip.x, aft);
+		Ray ray = make_Ray(ray_origin, ray_direction, ambient_record_ray_type, 0.0f, aft);
 
 #ifndef OLDAMB
 		prd.result.rad = make_float2( 0.0f );

@@ -57,8 +57,8 @@ void runKernel2D( const RTcontext context, const unsigned int entry, const int w
 void runKernel3D( const RTcontext context, const unsigned int entry, const int width, const int height, const int depth )
 {
 	/* Timers */
-	time_t kernel_start_time, kernel_end_time; // Timer in seconds for long jobs
-	clock_t kernel_start_clock, kernel_end_clock; // Timer in clock cycles for short jobs
+	time_t kernel_time; // Timer in seconds for long jobs
+	clock_t kernel_clock; // Timer in clock cycles for short jobs
 
 #ifdef REPORT_GPU_STATE
 	/* Print context attributes before */
@@ -67,17 +67,17 @@ void runKernel3D( const RTcontext context, const unsigned int entry, const int w
 
 	/* Validate and compile if necessary */
 	RT_CHECK_ERROR( rtContextValidate( context ) );
-	kernel_start_clock = clock();
+	kernel_clock = clock();
 	RT_CHECK_ERROR( rtContextCompile( context ) ); // This should happen automatically when necessary.
-	kernel_end_clock = clock();
-	if ( kernel_end_clock - kernel_start_clock )
-		fprintf(stderr, "OptiX compile time: %u milliseconds.\n", (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC);
+	kernel_clock = clock() - kernel_clock;
+	if (kernel_clock)
+		fprintf(stderr, "OptiX compile time: %u milliseconds.\n", kernel_clock * 1000 / CLOCKS_PER_SEC);
 
 	/* Start timers */
-	kernel_start_time = time((time_t *)NULL);
-	kernel_start_clock = clock();
+	kernel_time = time((time_t *)NULL);
+	kernel_clock = clock();
 #ifdef TIMEOUT_CALLBACK
-	last_callback_time = kernel_start_clock;
+	last_callback_time = kernel_clock;
 #endif
 
 	/* Run */
@@ -89,11 +89,14 @@ void runKernel3D( const RTcontext context, const unsigned int entry, const int w
 		RT_CHECK_ERROR( rtContextLaunch1D( context, entry, width ) );
 
 	/* Stop timers */
-	kernel_end_clock = clock();
-	kernel_end_time = time((time_t *)NULL);
-	fprintf(stderr, "OptiX kernel time: %u milliseconds (%u seconds).\n", (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC, kernel_end_time - kernel_start_time);
+	kernel_clock = clock() - kernel_clock;
+	kernel_time = time((time_t *)NULL) - kernel_time;
+	if (abs(kernel_clock / CLOCKS_PER_SEC - kernel_time) <= 1)
+		fprintf(stderr, "OptiX kernel time: %u milliseconds (%u seconds).\n", kernel_clock * 1000 / CLOCKS_PER_SEC, kernel_time);
+	else
+		fprintf(stderr, "OptiX kernel time: %u seconds.\n", kernel_time);
 #ifdef CUMULTATIVE_TIME
-	cumulative_millis += (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC;
+	cumulative_millis += kernel_clock * 1000 / CLOCKS_PER_SEC;
 	fprintf(stderr, "OptiX kernel cumulative time: %u milliseconds.\n", cumulative_millis);
 #endif
 

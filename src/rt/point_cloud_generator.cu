@@ -68,11 +68,13 @@ RT_PROGRAM void point_cloud_camera()
 	float3 direction;
 	float2 d = make_float2( curand_uniform( &state ), curand_uniform( &state ) );
 	d = 0.5f + dstrpix * ( 0.5f - d ); // this is pixjitter() from rpict.c
+	float3 ray_origin = eye;
+	float fore = 0.0f;
+	float aft = RAY_END;
 
 	// Set initial ray direction
 	if ( camera ) { // using the camera viewport
 		d = shift + ( make_float2( launch_index ) + d ) / make_float2( launch_dim ) - 0.5f;
-		float3 ray_origin = eye;
 		float z = 1.0f;
 
 		// This is adapted from viewray() in image.c.
@@ -106,15 +108,25 @@ RT_PROGRAM void point_cloud_camera()
 			d *= 1.0f + z;
 		}
 
-		direction = normalize(d.x*U + d.y*V + z*W);
+		direction = d.x*U + d.y*V + z*W;
+		ray_origin += clip.x * direction;
+		direction = normalize(direction);
+
+		// Zero or negative aft clipping distance indicates infinity
+		aft = clip.y - clip.x;
+		if (aft <= FTINY) {
+			aft = RAY_END;
+		}
 	} else { // using a sphere with equal solid angle divisions
 		d = ( make_float2( launch_index ) + d ) / make_float2( launch_dim );// - 0.5f;
 
 		// Get the position and normal of the first ray
 		direction = uniform_solid_angle( d );
+
+		fore = ray_start(ray_origin, RAY_START);
 	}
 
-	Ray ray = make_Ray(eye, direction, point_cloud_ray_type, ray_start( eye, RAY_START ), RAY_END);
+	Ray ray = make_Ray(ray_origin, direction, point_cloud_ray_type, fore, aft);
 
 	unsigned int loop = 2u * seeds; // Prevent infinite looping
 	while ( index.z < seeds && loop-- ) {
@@ -145,6 +157,9 @@ RT_PROGRAM void point_cloud_camera()
 		float yd = sinf(phi) * zd;
 		zd = sqrtf(1.0f - zd*zd);
 		ray.direction = normalize( xd*ux + yd*uy + zd*uz );
+
+		ray.tmin = ray_start(ray.origin, RAY_START);
+		ray.tmax = RAY_END;
 	}
 
 	// If outdoors, there are no bounces, but we need to prevent junk data
