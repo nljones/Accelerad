@@ -137,6 +137,7 @@ typedef struct {
 } AMBHEMI;		/* ambient sample hemisphere */
 #endif /* OLDAMB */
 
+RT_METHOD void checkFinite( const float3& v );
 RT_METHOD int isnan( const float3& v );
 RT_METHOD int isinf( const float3& v );
 RT_METHOD int isfinite( const float3& v );
@@ -146,6 +147,15 @@ RT_METHOD float3 cross_direction( const float3& v );
 RT_METHOD float ray_start( const float3& hit, const float& t );
 RT_METHOD float ray_start( const float3& hit, const float3& dir, const float3& normal, const float& t );
 RT_METHOD float3 exceptionToFloat3( const unsigned int& code );
+RT_METHOD float4 exceptionToFloat4( const unsigned int& code );
+
+/* Throw exception if any vector elements are NaN or infinte. */
+RT_METHOD void checkFinite( const float3& v )
+{
+	if (isfinite(v)) return;
+	if (isnan(v)) rtThrow(RT_EXCEPTION_NAN);
+	rtThrow(RT_EXCEPTION_INF);
+}
 
 /* Test if any vector elements are NaN. */
 RT_METHOD int isnan( const float3& v )
@@ -202,9 +212,13 @@ RT_METHOD float ray_start( const float3& hit, const float3& dir, const float3& n
 /* Convert exception to float3 code. */
 RT_METHOD float3 exceptionToFloat3( const unsigned int& code )
 {
-	if ( code < RT_EXCEPTION_USER )
-		return make_float3( 0.0f, RT_EXCEPTION_USER - code, 0.0f );
-	return make_float3( 1.0f, code - RT_EXCEPTION_USER, 0.0f );
+	return make_float3(code, 0.0f, 0.0f);
+}
+
+/* Convert exception to float4 code. */
+RT_METHOD float4 exceptionToFloat4( const unsigned int& code )
+{
+	return make_float4(code, 0.0f, 0.0f, -1.0f);
 }
 
 #ifndef RANDOM

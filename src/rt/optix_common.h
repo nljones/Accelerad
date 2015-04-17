@@ -15,6 +15,13 @@
 #define AMB_SAVE_MEM	/* Reduce global memory usage in ambient calculation by saving one row of samples at a time */
 
 
+/*! Additional Exceptions */
+typedef enum
+{
+	RT_EXCEPTION_INF = RT_EXCEPTION_PROGRAM_ID_INVALID - 2,  /*!< Inf error */
+	RT_EXCEPTION_NAN = RT_EXCEPTION_PROGRAM_ID_INVALID - 1   /*!< NaN error */
+} RTexceptionUser;
+
 typedef struct struct_DistantLight
 {
 #if defined(__cplusplus)

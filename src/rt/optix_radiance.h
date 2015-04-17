@@ -190,7 +190,11 @@ void initArraydl(DistantLightArray *a, const size_t initialSize);
 DistantLight insertArraydl(DistantLightArray *a, const DistantLight element);
 void freeArraydl(DistantLightArray *a);
 void handleError( const RTcontext context, const RTresult code, const char* file, const int line, const int etype );
-void printException( const float3 code, const char* location, const int index );
+#ifdef DEBUG_OPTIX
+void logException(const RTexception type);
+void flushExceptionLog(const char* location);
+void printException(const RTexception type, const int index, const char* location);
+#endif
 void ptxFile( char* path, const char* name );
 #ifdef TIMEOUT_CALLBACK
 int timeoutCallback(void);

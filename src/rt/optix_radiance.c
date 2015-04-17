@@ -202,18 +202,20 @@ void renderOptix(const VIEW* view, const int width, const int height, const doub
 
 	/* Copy the results to allocated memory. */
 	for (i = 0u; i < size; i++) {
-		if ( nancolor( data ) ) {
-			setcolor( colors[i], 0.0f, 0.0f, 0.0f );
-			depths[i] = 0.0f;
-		} else {
-			copycolor( colors[i], data );
-			depths[i] = data[3];
-		}
+#ifdef DEBUG_OPTIX
+		if (data[3] == -1.0f)
+			logException((RTexception)((int)data[0]));
+#endif
+		copycolor( colors[i], data );
+		depths[i] = data[3];
 		data += 4;
 #ifdef RAY_COUNT
 		nrays += ray_count_data[i];
 #endif
 	}
+#ifdef DEBUG_OPTIX
+	flushExceptionLog("camera");
+#endif
 
 #ifdef PRINT_OPTIX
 	/* Exit if message printing is on */
@@ -290,8 +292,10 @@ void computeOptix(const int width, const int height, const double alarm, RAY* ra
 
 	/* Copy the results to allocated memory. */
 	for (i = 0u; i < size; i++) {
+#ifdef DEBUG_OPTIX
 		if (data->weight == -1.0f)
-			printException(data->val, "sensor", i);
+			logException((RTexception)data->val.x);
+#endif
 #ifdef RAY_COUNT
 		nrays += data->ray_count;
 #endif
@@ -301,6 +305,9 @@ void computeOptix(const int width, const int height, const double alarm, RAY* ra
 		dc_data += daysimGetCoefficients();
 #endif
 	}
+#ifdef DEBUG_OPTIX
+	flushExceptionLog("sensor");
+#endif
 
 	/* Clean up */
 	destroyContext(context);
@@ -1319,13 +1326,13 @@ static int createFunction( const RTcontext context, const OBJREC* rec )
 	/* Get transform */
 	if ( !createTransform( &bxp, rec ) )
 		objerror(rec, USER, "bad transform");
-	float transform[9] = {
-		bxp.xfm[0][0], bxp.xfm[1][0], bxp.xfm[2][0],
-		bxp.xfm[0][1], bxp.xfm[1][1], bxp.xfm[2][1],
-		bxp.xfm[0][2], bxp.xfm[1][2], bxp.xfm[2][2]
-	};
 
 	if ( rec->oargs.nsargs >= 2 ) {
+		float transform[9] = {
+			bxp.xfm[0][0], bxp.xfm[1][0], bxp.xfm[2][0],
+			bxp.xfm[0][1], bxp.xfm[1][1], bxp.xfm[2][1],
+			bxp.xfm[0][2], bxp.xfm[1][2], bxp.xfm[2][2]
+		};
 		if ( !strcmp(rec->oargs.sarg[0], "skybr") && !strcmp(rec->oargs.sarg[1], "skybright.cal") ) {
 			ptxFile( path_to_ptx, "skybright" );
 			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "sky_bright", &program ) );

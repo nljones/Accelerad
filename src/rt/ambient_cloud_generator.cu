@@ -86,6 +86,8 @@ RT_PROGRAM void ambient_cloud_camera()
 			rtTrace(top_object, ray, prd);
 	}
 
+	checkFinite(prd.result.val);
+
 	ambient_record_buffer[index] = prd.result;
 #ifdef DAYSIM
 	daysimCopy(&ambient_dc_buffer[make_uint2(0, index)], prd.dc);

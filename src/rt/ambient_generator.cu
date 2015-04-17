@@ -149,6 +149,8 @@ RT_PROGRAM void ambient_camera()
 
 		rtTrace(top_object, ray, prd);
 
+		checkFinite(prd.result.val);
+
 		index.z = segment;
 		ambient_record_buffer[index] = prd.result;
 	}

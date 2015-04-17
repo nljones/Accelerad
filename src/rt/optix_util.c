@@ -472,11 +472,62 @@ void handleError( const RTcontext context, const RTresult code, const char* file
 	error( etype, errmsg );
 }
 
-void printException( const float3 code, const char* location, const int index )
+#ifdef DEBUG_OPTIX
+static IntArray *error_log; // Keep track of error types and occurance frequencies as ordered pairs
+
+void logException(const RTexception type)
 {
-	if ( code.x == 0.0f ) {
+	unsigned int i;
+
+	if (!error_log) {
+		error_log = (IntArray *)malloc(sizeof(IntArray));
+		if (!error_log)
+			error(SYSTEM, "out of memory in logException");
+		initArrayi(error_log, (RT_EXCEPTION_USER - RT_EXCEPTION_PROGRAM_ID_INVALID) * 2);
+	}
+
+	for (i = 0u; i < error_log->count; i += 2u)
+		if (type == error_log->array[i]) {
+			error_log->array[i + 1]++;
+			return;
+		}
+
+	insertArray2i(error_log, type, 1);
+}
+
+void flushExceptionLog(const char* location)
+{
+	unsigned int i;
+
+	if (!error_log) return; // No errors!
+
+	for (i = 0u; i < error_log->count; i += 2u)
+		printException((RTexception)error_log->array[i], error_log->array[i + 1], location);
+
+	freeArrayi(error_log);
+	free(error_log);
+	error_log = NULL;
+}
+
+void printException(const RTexception type, const int count, const char* location)
+{
+	char times[16];
+	
+	if (count < 1)
+		return;
+
+	if (count > 1)
+		sprintf(times, " %i times", count);
+	else
+		sprintf(times, "");
+
+	if (type < RT_EXCEPTION_USER) {
 		char* msg;
-		switch ( (int)( RT_EXCEPTION_USER - code.y ) ) {
+		switch (type) {
+		case RT_EXCEPTION_INF:
+			msg = "Infinite result";			break;
+		case RT_EXCEPTION_NAN:
+			msg = "NAN result";					break;
 		case RT_EXCEPTION_PROGRAM_ID_INVALID:
 			msg = "Program ID not valid";		break;
 		case RT_EXCEPTION_TEXTURE_ID_INVALID:
@@ -496,12 +547,13 @@ void printException( const float3 code, const char* location, const int index )
 		default:
 			msg = "Unknown error";				break;
 		}
-		sprintf(errmsg, "Exception on %s %i: %s", location, index, msg);
+		sprintf(errmsg, "%s occurred%s in %s", msg, times, location);
 	} else {
-		sprintf(errmsg, "Exception on %s %i: User exception %g", location, index, code.y);
+		sprintf(errmsg, "Exception %i occurred%s in %s", type - RT_EXCEPTION_USER, times, location);
 	}
 	error(WARNING, errmsg);
 }
+#endif /* DEBUG_OPTIX */
 
 //void programCreateFromPTX( RTcontext context, const char* ptx, const char* program_name, RTprogram* program )
 //{

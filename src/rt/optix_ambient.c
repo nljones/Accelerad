@@ -311,7 +311,7 @@ static int saveAmbientRecords( AmbientRecord* record )
 	if ( rad < FTINY ) {
 #ifdef DEBUG_OPTIX
 		if ( rad < -FTINY ) // Something bad happened
-			printException( record->val, "ambient level", record->lvl );
+			logException((RTexception)record->val.x);
 #endif
 		return(0);
 	}
@@ -425,6 +425,9 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 		for (i = 0u; i < generated_record_count; i++) {
 			useful_record_count += saveAmbientRecords( &ambient_record_buffer_data[i] );
 		}
+#ifdef DEBUG_OPTIX
+		flushExceptionLog("ambient calculation");
+#endif
 		fprintf(stderr, "Retrieved %u ambient records from %u queries at level %u.\n\n", useful_record_count, generated_record_count, level);
 
 		// Populate ambinet records
@@ -665,6 +668,9 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 			record_count += saveAmbientRecords( &ambient_record_buffer_data[i] );
 #endif
 		}
+#ifdef DEBUG_OPTIX
+		flushExceptionLog("ambient calculation");
+#endif
 #ifdef RAY_COUNT
 		fprintf(stderr, "Ray count %u (%f per thread).\n", nrays - ray_total, (float)(nrays - ray_total) / cuda_kmeans_clusters);
 		ray_total = nrays;
@@ -766,13 +772,18 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 	//TODO Is there any point in filtering out values that are not valid (length(seed_buffer_data[i].dir) == 0)?
 	for ( i = 0u; i < seed_count; i++) {
 		if ( length_squared( seed_buffer_data[i].dir ) < FTINY ) {
-			if ( length_squared( seed_buffer_data[i].pos ) > FTINY )
-				printException( seed_buffer_data[i].pos, "seed", i );
+#ifdef DEBUG_OPTIX
+			if (length_squared(seed_buffer_data[i].pos) > FTINY)
+				logException((RTexception)seed_buffer_data[i].pos.x);
+#endif
 		} else if ( is_nan( seed_buffer_data[i].pos ) || is_nan( seed_buffer_data[i].dir ) )
 			fprintf(stderr, "NaN in seed %u (%g, %g, %g) (%g, %g, %g)\n", i, seed_buffer_data[i].pos.x, seed_buffer_data[i].pos.y, seed_buffer_data[i].pos.z, seed_buffer_data[i].dir.x, seed_buffer_data[i].dir.y, seed_buffer_data[i].dir.z);
 		else
 			seeds[good_seed_count++] = &seed_buffer_data[i];
 	}
+#ifdef DEBUG_OPTIX
+	flushExceptionLog("ambient seeding");
+#endif
 	fprintf(stderr, "Retrieved %u of %u potential seeds at level %u.\n", good_seed_count, seed_count, level);
 
 	/* Check that enough seeds were found */

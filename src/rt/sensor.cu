@@ -70,6 +70,8 @@ RT_PROGRAM void ray_generator()
 		rtTrace(top_object, ray, prd);
 	}
 
+	checkFinite(prd.result);
+
 #ifdef TIME_VIEW
 	clock_t t1 = clock();
  

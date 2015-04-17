@@ -113,6 +113,8 @@ RT_PROGRAM void image_camera()
 
 	rtTrace(top_object, ray, prd);
 
+	checkFinite(prd.result);
+
 #ifdef TIME_VIEW
 	clock_t t1 = clock();
  
@@ -138,27 +140,6 @@ RT_PROGRAM void exception()
 	float pixel_time     = ( t1 - output_buffer[launch_index].x ) * time_view_scale * expected_fps;
 	output_buffer[launch_index] = make_float4( pixel_time );
 #else
-	if (code == RT_EXCEPTION_PROGRAM_ID_INVALID)
-		output_buffer[launch_index] = make_float4(0.5f, 0.0f, 0.5f, 0.0f);
-	else if (code == RT_EXCEPTION_TEXTURE_ID_INVALID)
-		output_buffer[launch_index] = make_float4(0.5f, 0.0f, 0.0f, 0.0f);
-	else if (code == RT_EXCEPTION_BUFFER_ID_INVALID)
-		output_buffer[launch_index] = make_float4(0.0f, 1.0f, 1.0f, 0.0f);
-	else if (code == RT_EXCEPTION_INDEX_OUT_OF_BOUNDS)
-		output_buffer[launch_index] = make_float4(0.0f, 1.0f, 0.5f, 0.0f);
-	else if (code == RT_EXCEPTION_STACK_OVERFLOW)
-		output_buffer[launch_index] = make_float4(0.0f, 1.0f, 0.0f, 0.0f);
-	else if (code == RT_EXCEPTION_BUFFER_INDEX_OUT_OF_BOUNDS)
-		output_buffer[launch_index] = make_float4(0.0f, 0.5f, 0.5f, 0.0f);
-	else if (code == RT_EXCEPTION_INVALID_RAY)
-		output_buffer[launch_index] = make_float4(0.0f, 0.5f, 0.0f, 0.0f);
-	else if (code == RT_EXCEPTION_INTERNAL_ERROR)
-		output_buffer[launch_index] = make_float4(0.0f, 0.0f, 1.0f, 0.0f);
-	else if (code == RT_EXCEPTION_USER)
-		output_buffer[launch_index] = make_float4(0.0f, 0.0f, 0.5f, 0.0f);
-	else {
-		unsigned int error = code - RT_EXCEPTION_USER;
-		output_buffer[launch_index] = make_float4((error >> 2) & 1u, (error >> 1) & 1u, error & 1u, 0.0f);
-	}
+	output_buffer[launch_index] = exceptionToFloat4(code);
 #endif
 }
