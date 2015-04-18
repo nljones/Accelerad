@@ -506,7 +506,11 @@ printdefaults(void)			/* print default values to stdout */
 	printf("-pd %f\t\t\t# pixel depth-of-field\n", dblur);
 	printf("-ps %-9d\t\t\t# pixel sample\n", psample);
 	printf("-pt %f\t\t\t# pixel threshold\n", maxdiff);
+#ifdef ACCELERAD
+	printf("-t  %f\t\t\t# time between reports\n", ralrm);
+#else
 	printf("-t  %-9d\t\t\t# time between reports\n", ralrm);
+#endif
 	printf(erract[WARNING].pf != NULL ?
 			"-w+\t\t\t\t# warning messages on\n" :
 			"-w-\t\t\t\t# warning messages off\n");

@@ -285,6 +285,9 @@ getrenderopt(		/* get next render option */
 void
 print_rdefaults(void)		/* print default render values to stdout */
 {
+#ifdef ACCELERAD
+	printf("-g  %-9d\t\t\t# GPU stack size (bytes)\n", optix_stack_size);
+#endif
 	printf(do_irrad ? "-i+\t\t\t\t# irradiance calculation on\n" :
 			"-i-\t\t\t\t# irradiance calculation off\n");
 	printf(rand_samp ? "-u+\t\t\t\t# uncorrelated Monte Carlo sampling\n" :
@@ -309,6 +312,14 @@ print_rdefaults(void)		/* print default render values to stdout */
 	printf("-ar %-9d\t\t\t# ambient resolution\n", ambres);
 	printf("-ad %-9d\t\t\t# ambient divisions\n", ambdiv);
 	printf("-as %-9d\t\t\t# ambient super-samples\n", ambssamp);
+#ifdef ACCELERAD
+	printf("-al %-9d\t\t\t# ambient sample spacing (GPU only)\n", optix_amb_scale);
+	printf("-az %-9d\t\t\t# ambient grid density (GPU only)\n", optix_amb_grid_size);
+	printf("-ac %-9d\t\t\t# ambient k-means clusters (GPU only)\n", cuda_kmeans_clusters);
+	printf("-am %-9d\t\t\t# ambient k-means iterations (GPU only)\n", cuda_kmeans_iterations);
+	printf("-at %f\t\t\t# ambient k-means threshold (GPU only)\n", cuda_kmeans_threshold);
+	printf("-ax %f\t\t\t# ambient k-means weighting factor (GPU only)\n", cuda_kmeans_error);
+#endif
 	printf("-me %.2e %.2e %.2e\t# mist extinction coefficient\n",
 			colval(cextinction,RED),
 			colval(cextinction,GRN),

@@ -597,8 +597,18 @@ printdefaults(void)			/* print default values to stdout */
 		case '-': printf(" stroke"); break;
 		}
 	putchar('\n');
+#ifdef ACCELERAD
+	printf("-t  %f\t\t\t# time between reports\n", ralrm);
+#endif
 	printf(erract[WARNING].pf != NULL ?
 			"-w+\t\t\t\t# warning messages on\n" :
 			"-w-\t\t\t\t# warning messages off\n");
 	print_rdefaults();
+#ifdef DAYSIM
+	printf("-L  %f\t\t\t# luminance of sky segments\n", daysimLuminousSkySegments);
+	printf(daysimSortMode == 1 ?
+		"-Dm\t\t\t\t# sort by sky segment modifier number (direct calculation)\n",
+		"-Dd\t\t\t\t# sort by loaction of sky segment (diffuse calculation)\n");
+	printf("-N  %-9d\t\t\t# number of daylight coefficients\n", daysimGetCoefficients());
+#endif
 }

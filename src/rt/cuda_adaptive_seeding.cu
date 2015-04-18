@@ -11,6 +11,9 @@
 //#define PRINT_CUDA
 #define MULTI_BLOCK
 
+#define VALID_HORIZONTAL	0x01	/* Horizontal neighbor quad tree node is valid. */
+#define VALID_VERTICAL		0x10	/* Vertical neighbor quad tree node is valid. */
+
 #ifdef CAP_REGISTERS_PER_THREAD
 /* This is the maximum number of registers used by any cuda kernel in this in this file,
 found by using the flag "-Xptxas -v" to compile in nvcc. This should be updated when
@@ -160,10 +163,15 @@ void geometric_variation(PointDirection *deviceHits, int *seed,
 
 		/* Divide the pool proportinally to error at each quad-tree node. */
 		if (idX < width && idY < height && !(idX % stride) && !(idY % stride)) {
+			valid = 0u;
+			if (idX + stride2 < width)
+				valid |= VALID_HORIZONTAL;
+			if (idY + stride2 < height)
+				valid |= VALID_VERTICAL;
 			float err0 = error[tid];
-			float err1 = error[tid + stride2];
-			float err2 = error[tid + stride2 * width];
-			float err3 = error[tid + stride2 * (width + 1)];
+			float err1 = (valid & VALID_HORIZONTAL) ? error[tid + stride2] : 0.0f;
+			float err2 = (valid & VALID_VERTICAL) ? error[tid + stride2 * width] : 0.0f;
+			float err3 = (valid & (VALID_HORIZONTAL | VALID_VERTICAL)) == (VALID_HORIZONTAL | VALID_VERTICAL) ? error[tid + stride2 * (width + 1)] : 0.0f;
 			float errSum = err0 + err1 + err2 + err3;
 			int seedSum = seed[tid];
 			float scoreSum = errSum > 0.0f ? seedSum / errSum : 0.0f;
@@ -190,11 +198,11 @@ void geometric_variation(PointDirection *deviceHits, int *seed,
 			}
 
 			seed[tid] = s[0];
-			if (idX + stride2 < width)
+			if (valid & VALID_HORIZONTAL)
 				seed[tid + stride2] = s[1];
-			if (idY + stride2 < height) {
+			if (valid & VALID_VERTICAL) {
 				seed[tid + stride2 * width] = s[2];
-				if (idX + stride2 < width)
+				if (valid & VALID_HORIZONTAL)
 					seed[tid + stride2 * (width + 1)] = s[3];
 			}
 		}
@@ -362,11 +370,16 @@ void calc_score(float *error, int *seed, const unsigned int width, const unsigne
 
 		/* Divide the pool proportinally to error at each quad-tree node. */
 		if (valid && !(idX % stride) && !(idY % stride)) {
+			unsigned int valid2 = 0u;
+			if (idX + stride2 < width)
+				valid2 |= VALID_HORIZONTAL;
+			if (idY + stride2 < height)
+				valid2 |= VALID_VERTICAL;
 			unsigned int lid = tid + width * height * i;
 			float err0 = error[lid];
-			float err1 = error[lid + stride2];
-			float err2 = error[lid + stride2 * width];
-			float err3 = error[lid + stride2 * (width + 1)];
+			float err1 = (valid2 & VALID_HORIZONTAL) ? error[lid + stride2] : 0.0f;
+			float err2 = (valid2 & VALID_VERTICAL) ? error[lid + stride2 * width] : 0.0f;
+			float err3 = (valid2 & (VALID_HORIZONTAL | VALID_VERTICAL)) == (VALID_HORIZONTAL | VALID_VERTICAL) ? error[lid + stride2 * (width + 1)] : 0.0f;
 			float errSum = err0 + err1 + err2 + err3;
 			int seedSum = seed[tid];
 			float scoreSum = errSum > 0.0f ? seedSum / errSum : 0.0f;
@@ -393,11 +406,11 @@ void calc_score(float *error, int *seed, const unsigned int width, const unsigne
 			}
 
 			seed[tid] = s[0];
-			if (idX + stride2 < width)
+			if (valid2 & VALID_HORIZONTAL)
 				seed[tid + stride2] = s[1];
-			if (idY + stride2 < height) {
+			if (valid2 & VALID_VERTICAL) {
 				seed[tid + stride2 * width] = s[2];
-				if (idX + stride2 < width)
+				if (valid2 & VALID_HORIZONTAL)
 					seed[tid + stride2 * (width + 1)] = s[3];
 			}
 		}
