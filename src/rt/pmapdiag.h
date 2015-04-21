@@ -31,11 +31,13 @@
    #endif
    
    #include  <time.h>   
-
-#ifndef SIGCONT /* XXX This is a hack by NLJ to get things to compile on Windows. */
-#include <signal.h>
-#define SIGCONT		SIGABRT
-#endif
+   #include  <signal.h>
+   
+   #ifdef _WIN32
+      #ifndef SIGCONT
+         #define SIGCONT	SIGABRT // XXX Hack by NLJ to get rpict to run on Windows
+      #endif
+   #endif
    
    /* Time at start & last report */
    extern time_t repStartTime, repLastTime;   
