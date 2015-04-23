@@ -30,7 +30,9 @@ extern "C" {
 
 #ifndef ACCELERAD
 /* Compiler setting to use OptiX ray tracing */
-#define ACCELERAD   
+#define ACCELERAD
+/* Compiler setting to allow debugging of OptiX ray tracing */
+#define ACCELERAD_DEBUG
 #endif
 
 #define  MAXDIM		32	/* maximum number of dimensions */
@@ -115,7 +117,9 @@ extern int	rand_samp;	/* pure Monte Carlo sampling? */
 #ifdef ACCELERAD
 extern unsigned int use_optix;			/* Flag to use OptiX for ray tracing */
 extern unsigned int optix_stack_size;	/* Stack size for OptiX program in bytes */
+#ifdef ACCELERAD_DEBUG
 extern unsigned int optix_processors;	/* Number of GPUs to use, or zero for all available GPUs */
+#endif
 
 /* For OptiX iterative ambient sampling */
 extern unsigned int optix_amb_scale;	/* Scale to use for ambient sample spacing */

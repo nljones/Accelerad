@@ -33,6 +33,8 @@
 #define EXPECTED_SOURCES	3
 #define EXPECTED_FUNCTIONS	8
 
+#define DEFAULT_SPHERE_STEPS	4
+
 #ifdef ACCELERAD
 
 void renderOptix( const VIEW* view, const int width, const int height, const double alarm, COLOR* colors, float* depths );
@@ -54,6 +56,7 @@ static __inline void createTriangle(const OBJREC *material, const int a, const i
 static int createTriangles(const FACE *face, const OBJREC* material);
 static int addTriangle(const Vert2_list *tp, int a, int b, int c);
 #endif /* TRIANGULATE */
+static void createSphere(const OBJREC* rec, const OBJREC* parent);
 static void createMesh(const OBJREC* rec, const OBJREC* parent);
 static RTmaterial createNormalMaterial( const RTcontext context, const OBJREC* rec );
 static RTmaterial createGlassMaterial( const RTcontext context, const OBJREC* rec );
@@ -353,12 +356,16 @@ static void checkDevices()
 		fprintf(stderr, "OptiX %i found %i GPU device%s:\n", version, device_count, device_count > 1 ? "s" : "");
 	}
 	useable_device_count = device_count;
+#ifdef ACCELERAD_DEBUG
 	allowed_device_count = (optix_processors && device_count > optix_processors) ? optix_processors : device_count;
 
 	if (allowed_device_count < device_count) {
 		gpu_count = 0u;
 		gpus = (int*)malloc(allowed_device_count * sizeof(int));
 	}
+#else
+	allowed_device_count = device_count;
+#endif
 #ifdef PREFER_TCC
 	tcc = (int*)malloc(allowed_device_count * sizeof(int));
 #endif
@@ -645,7 +652,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	OBJREC* rec, *parent;
 
 	/* Timers */
-	clock_t geometry_start_clock, geometry_end_clock;
+	clock_t geometry_clock;
 
 	/* This array gives the OptiX buffer index of each rad file object.
 	 * The OptiX buffer refered to depends on the type of object.
@@ -653,7 +660,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	buffer_entry_index = (int *)malloc(sizeof(int) * nobjects);
 	if (buffer_entry_index == NULL) goto memerr;
 
-	geometry_start_clock = clock();
+	geometry_clock = clock();
 
 	/* Create buffers for storing geometry information. */
 	vertices = (FloatArray *)malloc(sizeof(FloatArray));
@@ -805,8 +812,8 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	freeArrayi(functions);
 	free(functions);
 
-	geometry_end_clock = clock();
-	fprintf(stderr, "Geometry build time: %u milliseconds.\n", (geometry_end_clock - geometry_start_clock) * 1000 / CLOCKS_PER_SEC);
+	geometry_clock = clock() - geometry_clock;
+	fprintf(stderr, "Geometry build time: %lu milliseconds.\n", geometry_clock * 1000 / CLOCKS_PER_SEC);
 	return;
 memerr:
 	error(SYSTEM, "out of memory in createGeometryInstance");
@@ -845,6 +852,10 @@ static void addRadianceObject(const RTcontext context, const OBJREC* rec, const 
 		break;
 	case OBJ_FACE: // Typical polygons
 		createFace(rec, parent);
+		break;
+	case OBJ_SPHERE: // Sphere
+	case OBJ_BUBBLE: // Bubble
+		createSphere(rec, parent);
 		break;
 	case OBJ_MESH: // Mesh from file
 		createMesh(rec, parent);
@@ -1002,6 +1013,107 @@ static int addTriangle( const Vert2_list *tp, int a, int b, int c )
 	return(1);
 }
 #endif /* TRIANGULATE */
+
+static void createSphere(const OBJREC* rec, const OBJREC* parent)
+{
+	unsigned int i, j, steps;
+	int direction;
+	FVECT x, y, z;
+	OBJREC* material = findmaterial(parent);
+
+	// Create octahedron
+	IntArray *sph_vertex_indices = (IntArray *)malloc(sizeof(IntArray));
+	FloatArray *sph_vertices = (FloatArray *)malloc(sizeof(FloatArray));
+	if (sph_vertex_indices == NULL || sph_vertices == NULL) goto sphmemerr;
+	initArrayi(sph_vertex_indices, 24u);
+	initArrayf(sph_vertices, 18u);
+
+	insertArray3i(sph_vertex_indices, 0, 2, 4);
+    insertArray3i(sph_vertex_indices, 2, 1, 4);
+    insertArray3i(sph_vertex_indices, 1, 3, 4);
+    insertArray3i(sph_vertex_indices, 3, 0, 4);
+    insertArray3i(sph_vertex_indices, 0, 5, 2);
+    insertArray3i(sph_vertex_indices, 2, 5, 1);
+    insertArray3i(sph_vertex_indices, 1, 5, 3);
+    insertArray3i(sph_vertex_indices, 3, 5, 0);
+
+	insertArray3f(sph_vertices, 1.0f, 0.0f, 0.0f);
+	insertArray3f(sph_vertices,-1.0f, 0.0f, 0.0f);
+	insertArray3f(sph_vertices, 0.0f, 1.0f, 0.0f);
+	insertArray3f(sph_vertices, 0.0f,-1.0f, 0.0f);
+	insertArray3f(sph_vertices, 0.0f, 0.0f, 1.0f);
+	insertArray3f(sph_vertices, 0.0f, 0.0f,-1.0f);
+
+	if (rec->oargs.nfargs > 4)
+		steps = rec->oargs.farg[4];
+	else
+		steps = DEFAULT_SPHERE_STEPS;
+
+	direction = rec->otype == OBJ_SPHERE ? 1 : -1; // Sphere or Bubble
+
+	// Subdivide triangles
+	for (i = 0u; i < steps; i++) {
+		IntArray *new_vertex_indices = (IntArray *)malloc(sizeof(IntArray));
+		if (new_vertex_indices == NULL) goto sphmemerr;
+		initArrayi(new_vertex_indices, sph_vertex_indices->count * 4);
+
+		for (j = 0u; j < sph_vertex_indices->count; j += 3) {
+			VADD(x, &sph_vertices->array[sph_vertex_indices->array[j] * 3], &sph_vertices->array[sph_vertex_indices->array[j + 1] * 3]);
+			VADD(y, &sph_vertices->array[sph_vertex_indices->array[j + 1] * 3], &sph_vertices->array[sph_vertex_indices->array[j + 2] * 3]);
+			VADD(z, &sph_vertices->array[sph_vertex_indices->array[j + 2] * 3], &sph_vertices->array[sph_vertex_indices->array[j] * 3]);
+			normalize(x);
+			normalize(y);
+			normalize(z);
+
+			insertArray3f(sph_vertices, x[0], x[1], x[2]);
+			insertArray3f(sph_vertices, y[0], y[1], y[2]);
+			insertArray3f(sph_vertices, z[0], z[1], z[2]);
+
+			insertArray3i(new_vertex_indices, sph_vertex_indices->array[j], sph_vertices->count / 3 - 3, sph_vertices->count / 3 - 1);
+			insertArray3i(new_vertex_indices, sph_vertices->count / 3 - 3, sph_vertex_indices->array[j + 1], sph_vertices->count / 3 - 2);
+			insertArray3i(new_vertex_indices, sph_vertices->count / 3 - 1, sph_vertices->count / 3 - 2, sph_vertex_indices->array[j + 2]);
+			insertArray3i(new_vertex_indices, sph_vertices->count / 3 - 3, sph_vertices->count / 3 - 2, sph_vertices->count / 3 - 1);
+		}
+
+		freeArrayi(sph_vertex_indices);
+		free(sph_vertex_indices);
+
+		sph_vertex_indices = new_vertex_indices;
+	}
+
+	// Add resulting traingles
+	for (j = 1u; j < sph_vertex_indices->count; j += 3) {
+		createTriangle(material,
+			vertex_index_0 + sph_vertex_indices->array[j - direction],
+			vertex_index_0 + sph_vertex_indices->array[j],
+			vertex_index_0 + sph_vertex_indices->array[j + direction]);
+	}
+
+	// Add resulting vertices
+	for (j = 0u; j < sph_vertices->count; j += 3) {
+		insertArray3f(vertices,
+			rec->oargs.farg[0] + rec->oargs.farg[3] * sph_vertices->array[j],
+			rec->oargs.farg[1] + rec->oargs.farg[3] * sph_vertices->array[j + 1],
+			rec->oargs.farg[2] + rec->oargs.farg[3] * sph_vertices->array[j + 2]);
+		insertArray3f(normals,
+			direction * sph_vertices->array[j],
+			direction * sph_vertices->array[j + 1],
+			direction * sph_vertices->array[j + 2]);
+		insertArray2f(tex_coords, 0.0f, 0.0f);
+	}
+
+	vertex_index_0 += sph_vertices->count / 3;
+
+	// Free memory
+	freeArrayi(sph_vertex_indices);
+	free(sph_vertex_indices);
+	freeArrayf(sph_vertices);
+	free(sph_vertices);
+
+	return;
+sphmemerr:
+	error(SYSTEM, "out of memory in createSphere");
+}
 
 static void createMesh(const OBJREC* rec, const OBJREC* parent)
 {

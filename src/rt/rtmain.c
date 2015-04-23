@@ -89,9 +89,11 @@ main(int  argc, char  *argv[])
 #ifdef DAYSIM
 	int j;
 #endif
-#ifdef ACCELERAD
+#ifdef ACCELERAD_DEBUG
 	char  *infile = NULL;
 	char  *outfile = NULL;
+#endif
+#ifdef ACCELERAD
 	time_t rtrace_time; // Timer in seconds for long jobs
 	clock_t rtrace_clock; // Timer in clock cycles for short jobs
 #endif
@@ -134,7 +136,7 @@ main(int  argc, char  *argv[])
 		case 'n':				/* number of cores */
 			check(2,"i");
 			nproc = atoi(argv[++i]);
-#ifdef ACCELERAD
+#ifdef ACCELERAD_DEBUG
 			optix_processors = nproc;
 #endif
 			if (nproc <= 0)
@@ -256,7 +258,7 @@ main(int  argc, char  *argv[])
 				goto badopt;
 			}
 			break;
-#ifdef ACCELERAD
+#ifdef ACCELERAD_DEBUG
 		case 'p':				/* input file */
 			check(2,"s");
 			infile = argv[++i];
@@ -386,7 +388,7 @@ main(int  argc, char  *argv[])
 	if (octnm == NULL)
 		error(USER, "missing octree argument");
 					/* set up output */
-#ifdef ACCELERAD
+#ifdef ACCELERAD_DEBUG
 	/* Write output to file. */
 	if (outfile != NULL && freopen(outfile, "w", stdout) == NULL) {
 		sprintf(errmsg, "cannot open output file \"%s\"", outfile);
@@ -449,16 +451,20 @@ runagain:
 #ifdef ACCELERAD
 	rtrace_time = time((time_t *)NULL);
 	rtrace_clock = clock();
+#endif
+#ifdef ACCELERAD_DEBUG
 	rtrace(infile, nproc);
+#else
+	rtrace(NULL, nproc);
+#endif
+#ifdef ACCELERAD
 	rtrace_clock = clock() - rtrace_clock;
 	rtrace_time = time((time_t *)NULL) - rtrace_time;
 	if (abs(rtrace_clock / CLOCKS_PER_SEC - rtrace_time) <= 1)
-		sprintf(errmsg, "ray tracing time: %lu milliseconds (%lu seconds).", rtrace_clock * 1000 / CLOCKS_PER_SEC, rtrace_time);
+		sprintf(errmsg, "ray tracing time: %lu milliseconds (%lu seconds).\n", rtrace_clock * 1000 / CLOCKS_PER_SEC, rtrace_time);
 	else
-		sprintf(errmsg, "ray tracing time: %lu seconds.", rtrace_time);
+		sprintf(errmsg, "ray tracing time: %lu seconds.\n", rtrace_time);
 	eputs(errmsg);
-#else
-	rtrace(NULL, nproc);
 #endif
 					/* flush ambient file */
 	ambsync();

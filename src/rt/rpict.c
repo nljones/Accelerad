@@ -329,7 +329,7 @@ rpict(			/* generate image(s) */
 		pctdone = 0.0;
 		if (pout != NULL) {
 			sprintf(fbuf, pout, seq);
-#ifndef ACCELERAD /* For testing purposes, we don't care about overwriting existing files. */
+#ifndef ACCELERAD_DEBUG /* For testing purposes, we don't care about overwriting existing files. */
 			if (file_exists(fbuf)) {
 				if (prvr != NULL || !strcmp(fbuf, pout)) {
 					sprintf(errmsg,
@@ -340,7 +340,7 @@ rpict(			/* generate image(s) */
 				setview(&ourview);
 				continue;		/* don't clobber */
 			}
-#endif /* ACCELERAD */
+#endif /* ACCELERAD_DEBUG */
 			if (freopen(fbuf, "w", stdout) == NULL) {
 				sprintf(errmsg,
 					"cannot open output file \"%s\"", fbuf);
@@ -806,13 +806,13 @@ pixvalue(		/* compute pixel value */
 	rayvalue(&thisray);			/* trace ray */
 
 	copycolor(col, thisray.rcol);		/* return color */
-#ifdef ACCELERAD
+#ifdef ACCELERAD_DEBUG
 	/* Check for NaN values in order to prevent them from being averaged into the image. */
 	if (col[0] != col[0] || col[1] != col[1] || col[2] != col[2]) {
 		setcolor(col, 0.0f, 0.0f, 0.0f);
 		return(0.0);
 	}
-#endif /* ACCELERAD */
+#endif /* ACCELERAD_DEBUG */
 
 	return(thisray.rt);			/* return distance */
 }

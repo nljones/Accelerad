@@ -124,7 +124,7 @@ main(int  argc, char  *argv[])
 		}
 						/* rpict options */
 		switch (argv[i][1]) {
-#ifdef ACCELERAD
+#ifdef ACCELERAD_DEBUG
 		case 'n':				/* number of GPU devices */
 			check(2, "i");
 			optix_processors = atoi(argv[++i]);
@@ -367,9 +367,9 @@ runagain:
 	rpict_clock = clock() - rpict_clock;
 	rpict_time = time((time_t *)NULL) - rpict_time;
 	if (abs(rpict_clock / CLOCKS_PER_SEC - rpict_time) <= 1)
-		sprintf(errmsg, "ray tracing time: %lu milliseconds (%lu seconds).", rpict_clock * 1000 / CLOCKS_PER_SEC, rpict_time);
+		sprintf(errmsg, "ray tracing time: %lu milliseconds (%lu seconds).\n", rpict_clock * 1000 / CLOCKS_PER_SEC, rpict_time);
 	else
-		sprintf(errmsg, "ray tracing time: %lu seconds.", rpict_time);
+		sprintf(errmsg, "ray tracing time: %lu seconds.\n", rpict_time);
 	eputs(errmsg);
 #endif
 					/* flush ambient file */

@@ -16,7 +16,9 @@ static const char	RCSid[] = "$Id$";
 #ifdef ACCELERAD
 unsigned int use_optix = 1u;			/* Flag to use OptiX for ray tracing */
 unsigned int optix_stack_size = 4096u;	/* Stack size for OptiX program in bytes (-g) */
+#ifdef ACCELERAD_DEBUG
 unsigned int optix_processors = 0u;		/* Number of GPUs to use, or zero for all available GPUs (-n) */
+#endif
 
 /* For OptiX iterative ambient sampling */
 unsigned int optix_amb_scale = 0u;		/* Scale to use for ambient sample spacing, zero to use all pixels (-al) */
@@ -181,11 +183,11 @@ getrenderopt(		/* get next render option */
 			check(3,"i");
 			optix_amb_seeds_per_thread = atoi(av[1]);
 			return(1);
-		case 'c':				/* Number of clusters of ambient for k-means */
+		case 'c':				/* Number of k-means clusters for ambient calculation */
 			check(3,"i");
 			cuda_kmeans_clusters = atoi(av[1]);
 			return(1);
-		case 'm':				/* Maximum number of k-means iterations */
+		case 'n':				/* Maximum number of k-means iterations */
 			check(3,"i");
 			cuda_kmeans_iterations = atoi(av[1]);
 			return(1);
@@ -316,7 +318,7 @@ print_rdefaults(void)		/* print default render values to stdout */
 	printf("-al %-9d\t\t\t# ambient sample spacing (GPU only)\n", optix_amb_scale);
 	printf("-az %-9d\t\t\t# ambient grid density (GPU only)\n", optix_amb_grid_size);
 	printf("-ac %-9d\t\t\t# ambient k-means clusters (GPU only)\n", cuda_kmeans_clusters);
-	printf("-am %-9d\t\t\t# ambient k-means iterations (GPU only)\n", cuda_kmeans_iterations);
+	printf("-an %-9d\t\t\t# ambient k-means iterations (GPU only)\n", cuda_kmeans_iterations);
 	printf("-at %f\t\t\t# ambient k-means threshold (GPU only)\n", cuda_kmeans_threshold);
 	printf("-ax %f\t\t\t# ambient k-means weighting factor (GPU only)\n", cuda_kmeans_error);
 #endif
