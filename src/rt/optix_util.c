@@ -71,7 +71,7 @@ void runKernel3D( const RTcontext context, const unsigned int entry, const int w
 	RT_CHECK_ERROR( rtContextCompile( context ) ); // This should happen automatically when necessary.
 	kernel_clock = clock() - kernel_clock;
 	if (kernel_clock)
-		fprintf(stderr, "OptiX compile time: %u milliseconds.\n", kernel_clock * 1000 / CLOCKS_PER_SEC);
+		fprintf(stderr, "OptiX compile time: %lu milliseconds.\n", kernel_clock * 1000 / CLOCKS_PER_SEC);
 
 	/* Start timers */
 	kernel_time = time((time_t *)NULL);
@@ -92,9 +92,9 @@ void runKernel3D( const RTcontext context, const unsigned int entry, const int w
 	kernel_clock = clock() - kernel_clock;
 	kernel_time = time((time_t *)NULL) - kernel_time;
 	if (abs(kernel_clock / CLOCKS_PER_SEC - kernel_time) <= 1)
-		fprintf(stderr, "OptiX kernel time: %u milliseconds (%u seconds).\n", kernel_clock * 1000 / CLOCKS_PER_SEC, kernel_time);
+		fprintf(stderr, "OptiX kernel time: %lu milliseconds (%lu seconds).\n", kernel_clock * 1000 / CLOCKS_PER_SEC, kernel_time);
 	else
-		fprintf(stderr, "OptiX kernel time: %u seconds.\n", kernel_time);
+		fprintf(stderr, "OptiX kernel time: %lu seconds.\n", kernel_time);
 #ifdef CUMULTATIVE_TIME
 	cumulative_millis += kernel_clock * 1000 / CLOCKS_PER_SEC;
 	fprintf(stderr, "OptiX kernel cumulative time: %u milliseconds.\n", cumulative_millis);
@@ -591,7 +591,7 @@ int timeoutCallback(void)
 	int earlyexit = 0;
 	clock_t callback_time = clock();
 	//fprintf(stderr, "OptiX kernel running...\n");
-	fprintf(stderr, "OptiX kernel running: %u milliseconds since last callback.\n", (callback_time - last_callback_time) * 1000 / CLOCKS_PER_SEC);
+	fprintf(stderr, "OptiX kernel running: %lu milliseconds since last callback.\n", (callback_time - last_callback_time) * 1000 / CLOCKS_PER_SEC);
 	last_callback_time = callback_time;
 	return earlyexit; 
 }

@@ -453,9 +453,9 @@ runagain:
 	rtrace_clock = clock() - rtrace_clock;
 	rtrace_time = time((time_t *)NULL) - rtrace_time;
 	if (abs(rtrace_clock / CLOCKS_PER_SEC - rtrace_time) <= 1)
-		sprintf(errmsg, "ray tracing time: %u milliseconds (%u seconds).", rtrace_clock * 1000 / CLOCKS_PER_SEC, rtrace_time);
+		sprintf(errmsg, "ray tracing time: %lu milliseconds (%lu seconds).", rtrace_clock * 1000 / CLOCKS_PER_SEC, rtrace_time);
 	else
-		sprintf(errmsg, "ray tracing time: %u seconds.", rtrace_time);
+		sprintf(errmsg, "ray tracing time: %lu seconds.", rtrace_time);
 	eputs(errmsg);
 #else
 	rtrace(NULL, nproc);

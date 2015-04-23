@@ -839,11 +839,8 @@ RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit )
 	/* End ambsample setup */
 
 					/* make tangent plane axes */
-	float3 uy = make_float3( curand_uniform( prd.state ), curand_uniform( prd.state ), curand_uniform( prd.state ) ) - 0.5f;
-	uy = fmaxf( cross_direction( normal ) * 2.0f - 1.0f, uy );
-	float3 ux = cross( uy, normal );
-	ux = normalize( ux );
-	uy = cross( normal, ux );
+	float3 ux = getperpendicular( normal, prd.state );
+	float3 uy = cross( normal, ux );
 					/* sample divisions */
 	for (i = n; i--; )
 	    for (j = n; j--; ) {

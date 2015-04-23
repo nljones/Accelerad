@@ -496,10 +496,7 @@ RT_METHOD int samp_hemi(
 	d = 1.0f / (n*n);
 	hp->acoef *= d;
 					/* make tangent plane axes */
-	hp->uy = make_float3( curand_uniform( prd.state ), curand_uniform( prd.state ), curand_uniform( prd.state ) ) - 0.5f;
-	hp->uy = fmaxf( cross_direction( normal ) * 2.0f - 1.0f, hp->uy );
-	hp->ux = cross( hp->uy, normal );
-	hp->ux = normalize( hp->ux );
+	hp->ux = getperpendicular( normal, prd.state );
 	hp->uy = cross( normal, hp->ux );
 
 #ifdef AMB_SAVE_MEM

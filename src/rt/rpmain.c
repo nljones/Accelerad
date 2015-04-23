@@ -367,9 +367,9 @@ runagain:
 	rpict_clock = clock() - rpict_clock;
 	rpict_time = time((time_t *)NULL) - rpict_time;
 	if (abs(rpict_clock / CLOCKS_PER_SEC - rpict_time) <= 1)
-		sprintf(errmsg, "ray tracing time: %u milliseconds (%u seconds).", rpict_clock * 1000 / CLOCKS_PER_SEC, rpict_time);
+		sprintf(errmsg, "ray tracing time: %lu milliseconds (%lu seconds).", rpict_clock * 1000 / CLOCKS_PER_SEC, rpict_time);
 	else
-		sprintf(errmsg, "ray tracing time: %u seconds.", rpict_time);
+		sprintf(errmsg, "ray tracing time: %lu seconds.", rpict_time);
 	eputs(errmsg);
 #endif
 					/* flush ambient file */

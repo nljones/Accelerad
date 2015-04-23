@@ -144,6 +144,7 @@ RT_METHOD int isfinite( const float3& v );
 RT_METHOD float2 sqrtf( const float2& v );
 RT_METHOD float3 sqrtf( const float3& v );
 RT_METHOD float3 cross_direction( const float3& v );
+RT_METHOD float3 getperpendicular( const float3& v, rand_state* state );
 RT_METHOD float ray_start( const float3& hit, const float& t );
 RT_METHOD float ray_start( const float3& hit, const float3& dir, const float3& normal, const float& t );
 RT_METHOD float3 exceptionToFloat3( const unsigned int& code );
@@ -195,6 +196,13 @@ RT_METHOD float3 cross_direction( const float3& v )
 	if ( v.y < 0.6f && v.y > -0.6f )
 		return make_float3( 0.0f, 1.0f, 0.0f );
 	return make_float3( 0.0f, 0.0f, 1.0f );
+}
+
+/* Choose random perpedicular direction */
+RT_METHOD float3 getperpendicular( const float3& v, rand_state* state )
+{
+	return optix::normalize(optix::cross(fmaxf(cross_direction(v) * 2.0f - 1.0f,
+		make_float3(curand_uniform(state), curand_uniform(state), curand_uniform(state)) - 0.5f), v));
 }
 
 /* Determine a safe starting value for ray t normal to surface. */
