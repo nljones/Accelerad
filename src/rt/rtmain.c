@@ -80,6 +80,7 @@ main(int  argc, char  *argv[])
 				case 'n': case 'N': case 'f': case 'F': \
 				case '-': case '0': var = 0; break; \
 				default: goto badopt; }
+	extern char  *octname;
 	int  persist = 0;
 	char  *octnm = NULL;
 	char  **tralp = NULL;
@@ -403,7 +404,7 @@ main(int  argc, char  *argv[])
 #endif
 	if (outform != 'a')
 		SET_FILE_BINARY(stdout);
-	readoct(octnm, loadflags, &thescene, NULL);
+	readoct(octname = octnm, loadflags, &thescene, NULL);
 	nsceneobjs = nobjects;
 
 	if (loadflags & IO_INFO) {	/* print header */
