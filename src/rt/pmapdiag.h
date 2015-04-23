@@ -33,12 +33,7 @@
    #include  <time.h>   
    #include  <signal.h>
    
-   #ifdef _WIN32
-      #ifndef SIGCONT
-         #define SIGCONT	SIGABRT // XXX Hack by NLJ to get rpict to run on Windows
-      #endif
-   #endif
-   
+
    /* Time at start & last report */
    extern time_t repStartTime, repLastTime;   
    /* Report progress & completion counters */
