@@ -62,6 +62,7 @@ RT_PROGRAM void ambient_camera()
 	PerRayData_ambient_record prd;
 	init_state( &prd );
 	prd.parent = NULL;
+	prd.result.pos = prd.result.val = make_float3( 0.0f );
 	prd.result.lvl = level;
 	prd.result.weight = 1.0f;
 	for ( int i = level; i--; )
@@ -163,9 +164,5 @@ RT_PROGRAM void exception()
 	uint3 index = make_uint3( launch_index, segments - 1u ); // record error to last segment
 	ambient_record_buffer[index].lvl = level;
 	ambient_record_buffer[index].val = exceptionToFloat3( code );
-#ifndef OLDAMB
-	ambient_record_buffer[index].rad = make_float2( -1.0f );
-#else
-	ambient_record_buffer[index].rad = -1.0f;
-#endif
+	ambient_record_buffer[index].weight = -1.0f;
 }

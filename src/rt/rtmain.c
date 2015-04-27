@@ -461,7 +461,7 @@ runagain:
 #ifdef ACCELERAD
 	rtrace_clock = clock() - rtrace_clock;
 	rtrace_time = time((time_t *)NULL) - rtrace_time;
-	if (abs(rtrace_clock / CLOCKS_PER_SEC - rtrace_time) <= 1)
+	if (labs(rtrace_clock / CLOCKS_PER_SEC - rtrace_time) <= 1)
 		sprintf(errmsg, "ray tracing time: %lu milliseconds (%lu seconds).\n", rtrace_clock * 1000 / CLOCKS_PER_SEC, rtrace_time);
 	else
 		sprintf(errmsg, "ray tracing time: %lu seconds.\n", rtrace_time);
@@ -614,7 +614,7 @@ printdefaults(void)			/* print default values to stdout */
 #ifdef DAYSIM
 	printf("-L  %f\t\t\t# luminance of sky segments\n", daysimLuminousSkySegments);
 	printf(daysimSortMode == 1 ?
-		"-Dm\t\t\t\t# sort by sky segment modifier number (direct calculation)\n",
+		"-Dm\t\t\t\t# sort by sky segment modifier number (direct calculation)\n" :
 		"-Dd\t\t\t\t# sort by loaction of sky segment (diffuse calculation)\n");
 	printf("-N  %-9d\t\t\t# number of daylight coefficients\n", daysimGetCoefficients());
 #endif

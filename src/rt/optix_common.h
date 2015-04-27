@@ -12,7 +12,6 @@
 //#define HIT_TYPE
 //#define OLDAMB
 #define LIGHTS
-#define AMB_SAVE_MEM	/* Reduce global memory usage in ambient calculation by saving one row of samples at a time */
 
 
 /*! Additional Exceptions */

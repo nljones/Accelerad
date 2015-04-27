@@ -7,6 +7,7 @@
 #include <optixu/optixu_math_namespace.h>
 #include <optixu/optixu_matrix_namespace.h>
 #include "optix_shader_common.h"
+#include "optix_ambient_common.h"
 
 using namespace optix;
 
@@ -23,12 +24,6 @@ using namespace optix;
 #else /* AMB_SAVE_MEM */
 #define ambsam(i,j)	amb_samp_buffer[make_uint3(i, j, threadIndex())]
 #endif /* AMB_SAVE_MEM */
-
-typedef struct {
-	float3	v;		/* hemisphere sample value */
-	float	d;		/* reciprocal distance (1/rt) */
-	float3	p;		/* intersection point */
-} AMBSAMP;		/* sample value */
 
 typedef struct {
 	int	ns;		/* number of samples per axis */
@@ -88,11 +83,11 @@ rtDeclareVariable(float,        tspec, , ) = 0.0f; /* The material transmitted s
 rtBuffer<optix::Matrix<3, 3>, 2> hess_row_buffer;
 rtBuffer<float3, 2>              grad_row_buffer;
 #ifdef AMB_SAVE_MEM
-rtBuffer<AMBSAMP, 2>             amb_samp_buffer;
+rtBuffer<AmbientSample, 2>       amb_samp_buffer;
 rtBuffer<float2, 2>              corral_u_buffer;
 rtBuffer<float, 2>               corral_d_buffer;
 #else /* AMB_SAVE_MEM */
-rtBuffer<AMBSAMP, 3>             amb_samp_buffer;
+rtBuffer<AmbientSample, 3>       amb_samp_buffer;
 #endif /* AMB_SAVE_MEM */
 #else /* OLDAMB */
 rtBuffer<float, 2>               rprevrow_buffer;
@@ -114,43 +109,25 @@ rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
 RT_METHOD int check_overlap( const float3& normal, const float3& hit );
 #ifndef OLDAMB
 RT_METHOD int plugaleak( const AmbientRecord* record, const float3& anorm, const float3& normal, const float3& hit, float ang );
-#ifdef DAYSIM
-RT_METHOD int doambient(float3 *rcol, optix::Matrix<2, 3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit, DaysimCoef dc);
-RT_METHOD int ambsample(AMBHEMI *hp, AMBSAMP *ap, const int& i, const int& j, const float3& normal, const float3& hit, DaysimCoef dc);
-#else
 RT_METHOD int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit );
-RT_METHOD int ambsample(AMBHEMI *hp, AMBSAMP *ap, const int& i, const int& j, const float3& normal, const float3& hit);
-#endif
+RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const int& i, const int& j, const float3& normal, const float3& hit);
 #ifdef AMB_SAVE_MEM
-#ifdef DAYSIM
-RT_METHOD int samp_hemi(AMBHEMI *hp, float3 *rcol, float wt, optix::Matrix<2, 3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit, DaysimCoef dc);
-#else
 RT_METHOD int samp_hemi(AMBHEMI *hp, float3 *rcol, float wt, optix::Matrix<2, 3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit);
-#endif
 #else /* AMB_SAVE_MEM */
-#ifdef DAYSIM
-RT_METHOD int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const float3& normal, const float3& hit, DaysimCoef dc );
-#else
 RT_METHOD int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const float3& normal, const float3& hit );
-#endif
 RT_METHOD void ambHessian( AMBHEMI *hp, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, const float3& normal, const float3& hit );
 RT_METHOD void ambdirgrad( AMBHEMI *hp, const float3& u, const float3& v, float2 *dg, const float3& normal, const float3& hit );
 RT_METHOD unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, const float2& r, const float3& normal, const float3& hit );
 #endif /* AMB_SAVE_MEM */
-RT_METHOD float back_ambval( const AMBSAMP *n1, const AMBSAMP *n2, const AMBSAMP *n3 );
-RT_METHOD void comp_fftri( FFTRI *ftp, const AMBSAMP *n0, const AMBSAMP *n1, const float3& hit );
+RT_METHOD float back_ambval( const AmbientSample *n1, const AmbientSample *n2, const AmbientSample *n3 );
+RT_METHOD void comp_fftri( FFTRI *ftp, const AmbientSample *n0, const AmbientSample *n1, const float3& hit );
 RT_METHOD optix::Matrix<3,3> compose_matrix( const float3& va, const float3& vb );
 RT_METHOD optix::Matrix<3,3> comp_hessian( FFTRI *ftp, const float3& normal );
 RT_METHOD float3 comp_gradient( FFTRI *ftp, const float3& normal );
 RT_METHOD optix::Matrix<2,2> eigenvectors( optix::Matrix<2,3> *uv, float2 *ra, optix::Matrix<3,3> *hessian );
 #else /* OLDAMB */
-#ifdef DAYSIM
-RT_METHOD float doambient( float3 *rcol, float3 *pg, float3 *dg, const float3& normal, const float3& hit, DaysimCoef dc );
-RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit, const float3& normal, DaysimCoef dc );
-#else
 RT_METHOD float doambient( float3 *rcol, float3 *pg, float3 *dg, const float3& normal, const float3& hit );
 RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit, const float3& normal );
-#endif
 RT_METHOD void inithemi( AMBHEMI  *hp, const float3& ac, const float3& normal );
 //RT_METHOD void comperrs( AMBSAMP *da, AMBHEMI *hp );
 //RT_METHOD int ambcmp( const void *p1, const void *p2 );
@@ -186,8 +163,7 @@ RT_PROGRAM void closest_hit_ambient()
 	//	weight = 1.25f * prd.weight;
 	float3 acol = make_float3( AVGREFL );
 #ifdef DAYSIM
-	DaysimCoef dc = daysimNext(prd.dc);
-	daysimSet(dc, 0.0f);
+	daysimSet(prd.dc, 0.0f);
 #endif
 #ifndef OLDAMB
 	optix::Matrix<2,3> uv;
@@ -197,11 +173,7 @@ RT_PROGRAM void closest_hit_ambient()
 	unsigned int corral = 0u;
 
 	/* compute ambient */
-#ifdef DAYSIM
-	int i = doambient( &acol, &uv, &rad, &pg, &dg, &corral, ffnormal, hit_point, dc );
-#else
 	int i = doambient( &acol, &uv, &rad, &pg, &dg, &corral, ffnormal, hit_point );
-#endif
 	if ( !i || rad.x <= FTINY )	/* no Hessian or zero radius */
 		return;
 #else
@@ -209,11 +181,7 @@ RT_PROGRAM void closest_hit_ambient()
 	float3 dg = make_float3( 0.0f );
 
 	/* compute ambient */
-#ifdef DAYSIM
-	float rad = doambient( &acol, &pg, &dg, ffnormal, hit_point, dc );
-#else
 	float rad = doambient( &acol, &pg, &dg, ffnormal, hit_point );
-#endif
 	if ( rad <= FTINY )
 		return;
 #endif
@@ -242,7 +210,7 @@ RT_PROGRAM void closest_hit_ambient()
 	//prd.result.lvl = lvl;
 	//prd.result.weight = weight;
 #ifdef DAYSIM
-	daysimAssignScaled(prd.dc, dc, 1.0f / AVGREFL); // TODO Scaling should be done before extambient if textured
+	daysimScale(prd.dc, 1.0f / AVGREFL); // TODO Scaling should be done before extambient if textured
 #endif
 }
 
@@ -355,11 +323,7 @@ RT_METHOD int plugaleak( const AmbientRecord* record, const float3& anorm, const
 	return( dot( shadow_prd.result, shadow_prd.result ) < 1.0f );	/* check for occluder */
 }
 
-#ifdef DAYSIM
-RT_METHOD int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit, DaysimCoef dc )
-#else
 RT_METHOD int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit )
-#endif
 {
 	const float wt = prd.result.weight;
 	AMBHEMI hp;
@@ -368,11 +332,7 @@ RT_METHOD int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *ra, float
 #ifdef AMB_SAVE_MEM
 		uv, ra, pg, dg, crlp,
 #endif
-		normal, hit
-#ifdef DAYSIM
-		, dc
-#endif
-		))
+		normal, hit))
 		return(0);
 
 	/* clear return values */
@@ -408,7 +368,7 @@ RT_METHOD int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *ra, float
 				/* relative Y channel from here on... */
 	for (int i = 0; i < hp.ns; i++)
 		for (int j = 0; j < hp.ns; j++) {
-			AMBSAMP	*ap = &ambsam(i, j);
+			AmbientSample *ap = &ambsam(i, j);
 			ap->v.y = bright(ap->v) * d + K;
 		}
 
@@ -473,16 +433,15 @@ RT_METHOD int samp_hemi(
 #endif /* AMB_SAVE_MEM */
 	const float3& normal,
 	const float3& hit
-#ifdef DAYSIM
-	, DaysimCoef dc
-#endif
 )
 {
 	float	d;
 	int	j;
 					/* set number of divisions */
+#ifndef AMB_PARALLEL
 	if (ambacc <= FTINY && wt > (d = 0.8f * fmaxf(*rcol) * wt / (ambdiv*minweight))) //TODO second wt should be radiance ray weight
 		wt = d;			/* avoid ray termination */
+#endif
 	int n = sqrtf(ambdiv * wt) + 0.5f;
 	int i = 1 + 5 * (ambacc > FTINY);	/* minimum number of samples */
 	if (n < i)
@@ -496,11 +455,15 @@ RT_METHOD int samp_hemi(
 	d = 1.0f / (n*n);
 	hp->acoef *= d;
 					/* make tangent plane axes */
+#ifdef AMB_PARALLEL
+	hp->ux = getperpendicular(normal);
+#else
 	hp->ux = getperpendicular( normal, prd.state );
+#endif
 	hp->uy = cross( normal, hp->ux );
 
 #ifdef AMB_SAVE_MEM
-	AMBSAMP current, prev;
+	AmbientSample current, prev;
 
 	/* ambHessian from ambcomp.c */
 	optix::Matrix<3,3> hessian;
@@ -537,11 +500,7 @@ RT_METHOD int samp_hemi(
 		float3 gradcol;
 
 	    for ( j = 0; j < hp->ns; j++ ) {
-#ifdef DAYSIM
-			hp->sampOK += ambsample(hp, &current, i, j, normal, hit, dc);
-#else
 			hp->sampOK += ambsample(hp, &current, i, j, normal, hit);
-#endif
 			current.v.y = bright( current.v ); /* relative Y channel from here on... */
 
 			/* ambHessian from ambcomp.c */
@@ -626,11 +585,7 @@ RT_METHOD int samp_hemi(
 					/* sample divisions */
 	for (i = hp->ns; i--; )
 	    for (j = hp->ns; j--; )
-#ifdef DAYSIM
-			hp->sampOK += ambsample(hp, &ambsam(i, j), i, j, normal, hit, dc);
-#else
 			hp->sampOK += ambsample(hp, &ambsam(i, j), i, j, normal, hit);
-#endif
 #endif /* AMB_SAVE_MEM */
 	*rcol = hp->acol;
 
@@ -744,12 +699,26 @@ RT_METHOD int samp_hemi(
 	return( 1 );			/* all is well */
 }
 
-#ifdef DAYSIM
-RT_METHOD int ambsample( AMBHEMI *hp, AMBSAMP *ap, const int& i, const int& j, const float3& normal, const float3& hit, DaysimCoef dc )
-#else
-RT_METHOD int ambsample( AMBHEMI *hp, AMBSAMP *ap, const int& i, const int& j, const float3& normal, const float3& hit )
-#endif
+RT_METHOD int ambsample( AMBHEMI *hp, AmbientSample *ap, const int& i, const int& j, const float3& normal, const float3& hit )
 {
+#ifdef AMB_PARALLEL
+	if (ap->d == -1.0f) // An exception occurred
+		rtThrow((int)(ap->v.x));
+	if (ap->d == 0.0f) // No exception, but bad data
+		return(0);
+
+	ap->v *= hp->acoef;	/* apply coefficient */
+#ifdef DAYSIM
+	DaysimCoef sample_dc = make_uint3(0, i + hp->ns * j, prd.dc.z);
+	daysimAddScaled(prd.dc, sample_dc, hp->acoef.x);
+#endif
+#ifdef RAY_COUNT
+	prd.result.ray_count += ap->ray_count;
+#endif
+#ifdef HIT_COUNT
+	prd.result.hit_count += ap->hit_count;
+#endif
+#else /* AMB_PARALLEL */
 	PerRayData_radiance new_prd;
 	float b2;
 					/* generate hemispherical sample */
@@ -788,7 +757,7 @@ RT_METHOD int ambsample( AMBHEMI *hp, AMBSAMP *ap, const int& i, const int& j, c
 	//new_prd.seed = prd.seed;//lcg( prd.seed );
 	new_prd.state = prd.state;
 #ifdef DAYSIM
-	new_prd.dc = daysimNext(dc);
+	new_prd.dc = daysimNext(prd.dc);
 #endif
 	setupPayload(new_prd, 1);
 	Ray amb_ray = make_Ray( hit, rdir, radiance_ray_type, ray_start( hit, rdir, normal, RAY_START ), RAY_END );
@@ -812,7 +781,7 @@ RT_METHOD int ambsample( AMBHEMI *hp, AMBSAMP *ap, const int& i, const int& j, c
 		if ( new_prd.distance > 10.0f * maxarad ) // 10 * thescene.cusize
 			new_prd.distance = 10.0f * maxarad;
 		ap->p = hit + rdir * new_prd.distance;
-		ap->v = new_prd.result; // only one AMBSAMP, otherwise would need +=
+		ap->v = new_prd.result; // only one AmbientSample, otherwise would need +=
 	//} else {			/* else update recorded value */
 	//	hp->acol -= ap->v;
 	//	zd = 1.0f / (float)(n+1);
@@ -821,15 +790,16 @@ RT_METHOD int ambsample( AMBHEMI *hp, AMBSAMP *ap, const int& i, const int& j, c
 	//	ap->v *= zd;
 	//	ap->v += new_prd.result;
 	//}
-	hp->acol += ap->v;	/* add to our sum */
 #ifdef DAYSIM
-	daysimAddScaled(dc, new_prd.dc, hp->acoef.x);
+	daysimAddScaled(prd.dc, new_prd.dc, hp->acoef.x);
 #endif
+#endif /* AMB_PARALLEL */
+	hp->acol += ap->v;	/* add to our sum */
 	return(1);
 }
 
 /* Return brightness of farthest ambient sample */
-RT_METHOD float back_ambval( const AMBSAMP *n1, const AMBSAMP *n2, const AMBSAMP *n3 )
+RT_METHOD float back_ambval( const AmbientSample *n1, const AmbientSample *n2, const AmbientSample *n3 )
 {
 	if (n1->d <= n2->d) {
 		if (n1->d <= n3->d)
@@ -842,7 +812,7 @@ RT_METHOD float back_ambval( const AMBSAMP *n1, const AMBSAMP *n2, const AMBSAMP
 }
 
 /* Compute vectors and coefficients for Hessian/gradient calcs */
-RT_METHOD void comp_fftri( FFTRI *ftp, const AMBSAMP *n0, const AMBSAMP *n1, const float3& hit )
+RT_METHOD void comp_fftri( FFTRI *ftp, const AmbientSample *n0, const AmbientSample *n1, const float3& hit )
 {
 	ftp->r_i = n0->p - hit;
 	ftp->r_i1 = n1->p - hit;
@@ -1044,7 +1014,7 @@ RT_METHOD void ambdirgrad( AMBHEMI *hp, const float3& u, const float3& v, float2
 	float2 dgsum = make_float2( 0.0f );	/* sum values times -tan(theta) */
 	for (int i = 0; i < hp->ns; i++)
 		for (int j = 0; j < hp->ns; j++) {
-			AMBSAMP	*ap = &ambsam(i, j);
+			AmbientSample *ap = &ambsam(i, j);
 					/* use vector for azimuth + 90deg */
 			float3 vd = ap->p - hit;
 					/* brightness over cosine factor */
@@ -1080,7 +1050,7 @@ RT_METHOD unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, const flo
 					/* else circle around perimeter */
 	for ( i = 0; i < hp->ns; i++ )
 	    for ( j = 0; j < hp->ns; j += !i|(i==hp->ns-1) ? 1 : hp->ns-1 ) {
-			AMBSAMP	*ap = &ambsam(i, j);
+			AmbientSample *ap = &ambsam(i, j);
 			if ( ( ap->d <= FTINY ) | ( ap->d >= max_d ) )
 				continue;	/* too far or too near */
 			const float2 u = *uv * ( ap->p - hit );
@@ -1108,11 +1078,7 @@ RT_METHOD unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, const flo
 #endif /* AMB_SAVE_MEM */
 #else /* OLDAMB */
 
-#ifdef DAYSIM
-RT_METHOD float doambient( float3 *rcol, float3 *pg, float3 *dg, const float3& nrm, const float3& hit_point, DaysimCoef dc )
-#else
 RT_METHOD float doambient( float3 *rcol, float3 *pg, float3 *dg, const float3& nrm, const float3& hit_point )
-#endif
 {
 	float  b, d;
 	AMBHEMI  hemi;
@@ -1171,11 +1137,7 @@ RT_METHOD float doambient( float3 *rcol, float3 *pg, float3 *dg, const float3& n
 			dp->v = make_float3( 0.0f );
 			dp->r = 0.0f;
 			dp->n = 0;
-#ifdef DAYSIM
-			if (divsample(dp, &hemi, hit_point, nrm, dc) < 0) {
-#else
 			if (divsample(dp, &hemi, hit_point, nrm) < 0) {
-#endif
 				rprevrow(i) = rprev = dp->r; // Set values for posgradient to avoid NaN
 				bprevrow(i) = bprev = bright(dp->v);
 				if (div != NULL)
@@ -1338,11 +1300,7 @@ RT_METHOD void inithemi( AMBHEMI  *hp, const float3& ac, const float3& nrm )
 }
 
 /* sample a division */
-#ifdef DAYSIM
-RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point, const float3& normal, DaysimCoef dc )
-#else
 RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point, const float3& normal )
-#endif
 {
 	PerRayData_radiance new_prd;
 	//RAY  ar;
@@ -1384,7 +1342,7 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point, con
 	//new_prd.seed = prd.seed;//lcg( prd.seed );
 	new_prd.state = prd.state;
 #ifdef DAYSIM
-	new_prd.dc = daysimNext(dc);
+	new_prd.dc = daysimNext(prd.dc);
 #endif
 	setupPayload(new_prd, 1);
 	Ray amb_ray = make_Ray( hit_point, rdir, radiance_ray_type, ray_start( hit_point, rdir, normal, RAY_START ), RAY_END );
@@ -1402,7 +1360,7 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point, con
 	new_prd.result *= h->acoef;	/* apply coefficient */
 	dp->v += new_prd.result;
 #ifdef DAYSIM
-	daysimAddScaled(dc, new_prd.dc, h->acoef.x);
+	daysimAddScaled(prd.dc, new_prd.dc, h->acoef.x);
 #endif
 	/* use rt to improve gradient calc */
 	if (new_prd.distance > FTINY && new_prd.distance < RAY_END)

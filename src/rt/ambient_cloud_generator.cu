@@ -51,6 +51,7 @@ RT_PROGRAM void ambient_cloud_camera()
 	PerRayData_ambient_record prd;
 	init_state( &prd );
 	prd.parent = NULL;
+	prd.result.pos = prd.result.val = make_float3( 0.0f );
 	prd.result.lvl = level;
 	prd.result.weight = 1.0f;
 	for ( int i = level; i--; )
@@ -107,9 +108,5 @@ RT_PROGRAM void exception()
 	rtPrintf("Caught exception 0x%X at launch index (%d,%d)\n", code, launch_index.x, launch_index.y);
 	ambient_record_buffer[index].lvl = level;
 	ambient_record_buffer[index].val = exceptionToFloat3( code );
-#ifndef OLDAMB
-	ambient_record_buffer[index].rad = make_float2( -1.0f );
-#else
-	ambient_record_buffer[index].rad = -1.0f;
-#endif
+	ambient_record_buffer[index].weight = -1.0f;
 }

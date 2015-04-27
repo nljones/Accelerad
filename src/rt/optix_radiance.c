@@ -272,7 +272,11 @@ void computeOptix(const int width, const int height, const double alarm, RAY* ra
 	applyContextObject(context, "dc_buffer", dc_buffer);
 
 	/* Scratch space */
+#ifdef AMB_PARALLEL
+	createBuffer3D(context, RT_BUFFER_INPUT_OUTPUT, RT_FORMAT_FLOAT, 0, 0, 0, &dc_scratch_buffer);
+#else
 	createBuffer3D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT, 0, 0, 0, &dc_scratch_buffer);
+#endif
 	applyContextObject(context, "dc_scratch_buffer", dc_scratch_buffer);
 #endif
 
@@ -433,14 +437,14 @@ static void createContext( RTcontext* context, const int width, const int height
 	use_ambient = ambacc > FTINY && ambounce > 0;
 	calc_ambient = use_ambient && nambvals == 0u;// && (ambfile == NULL || !ambfile[0]); // TODO Should really look at ambfp in ambinet.c to check that file is readable
 
-	ray_type_count = 3u; /* shadow, radiance, and primary radiance */
-	entry_point_count = 1u; /* Generate radiance data */
-
-	if ( use_ambient )
-		ray_type_count++; /* ambient ray */
 	if ( calc_ambient ) {
-		ray_type_count += RAY_TYPE_COUNT;
-		entry_point_count += ENTRY_POINT_COUNT;
+		ray_type_count = RAY_TYPE_COUNT;
+		entry_point_count = ENTRY_POINT_COUNT;
+	} else {
+		ray_type_count = 3u; /* shadow, radiance, and primary radiance */
+		entry_point_count = 1u; /* Generate radiance data */
+		if ( use_ambient )
+			ray_type_count++; /* ambient ray */
 	}
 
 	/* Setup context */
@@ -1236,7 +1240,7 @@ static RTmaterial createNormalMaterial( const RTcontext context, const OBJREC* r
 			applyProgramObject(context, ambient_normal_closest_hit_program, "grad_row_buffer", buffer);
 
 #ifdef AMB_SAVE_MEM
-			createCustomBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, 7 * sizeof(float), n, cuda_kmeans_clusters, &buffer); // Size of AMBSAMP in ambient_normal.cu
+			createCustomBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, sizeof(AmbientSample), n, cuda_kmeans_clusters, &buffer);
 			applyProgramObject(context, ambient_normal_closest_hit_program, "amb_samp_buffer", buffer);
 
 			createBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT2, 4 * (n - 1), cuda_kmeans_clusters, &buffer);
@@ -1245,8 +1249,13 @@ static RTmaterial createNormalMaterial( const RTcontext context, const OBJREC* r
 			createBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT, 4 * (n - 1), cuda_kmeans_clusters, &buffer);
 			applyProgramObject(context, ambient_normal_closest_hit_program, "corral_d_buffer", buffer);
 #else /* AMB_SAVE_MEM */
-			createCustomBuffer3D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, 7 * sizeof(float), n, n, cuda_kmeans_clusters, &buffer); // Size of AMBSAMP in ambient_normal.cu
+#ifdef AMB_PARALLEL
+			createCustomBuffer3D(context, RT_BUFFER_INPUT_OUTPUT, sizeof(AmbientSample), n, n, cuda_kmeans_clusters, &buffer);
+			applyContextObject(context, "amb_samp_buffer", buffer);
+#else
+			createCustomBuffer3D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, sizeof(AmbientSample), n, n, cuda_kmeans_clusters, &buffer);
 			applyProgramObject(context, ambient_normal_closest_hit_program, "amb_samp_buffer", buffer);
+#endif
 #endif /* AMB_SAVE_MEM */
 #else /* OLDAMB */
 			n = sqrt(ambdiv / PI) + 0.5f;

@@ -10,6 +10,7 @@
 
 #include <optix_world.h>
 #include "optix_common.h"
+#include "optix_ambient_common.h"
 
 
 #define  array2cuda2(c,a)	(c.x=a[0],c.y=a[1])
@@ -30,40 +31,37 @@
 #endif
 
 /* Entry points */
-#define RADIANCE_ENTRY		0u	/* Generate radiance data */
-#define AMBIENT_ENTRY		1u	/* Generate ambient records */
+typedef enum
+{
+	RADIANCE_ENTRY = 0,			/* Generate radiance data */
+	AMBIENT_ENTRY,				/* Generate ambient records */
 #ifdef KMEANS_IC
-#define POINT_CLOUD_ENTRY	2u	/* Generate point cloud */
+	POINT_CLOUD_ENTRY,			/* Generate point cloud */
 #ifdef ITERATIVE_KMEANS_IC
-#define HEMISPHERE_SAMPLING_ENTRY	3u	/* Generate point cloud from hemisphere */
+	HEMISPHERE_SAMPLING_ENTRY,	/* Generate point cloud from hemisphere */
+#ifdef AMB_PARALLEL
+	AMBIENT_SAMPLING_ENTRY,		/* Generate ambient samples for irradiance caching */
+#endif
 #endif
 #endif
 
-/* Entry point count for ambient calculation */
-#ifdef ITERATIVE_KMEANS_IC
-#define ENTRY_POINT_COUNT	3u	/* Generate ambient records, point cloud, and hemispherical sampling */
-#elif defined KMEANS_IC
-#define ENTRY_POINT_COUNT	2u	/* Generate ambient records and point cloud */
-#else
-#define ENTRY_POINT_COUNT	1u	/* Generate ambient records */
-#endif
+	ENTRY_POINT_COUNT			/* Entry point count for ambient calculation */
+} RTentry;
 
 /* Ray types */
-#define PRIMARY_RAY			0u	/* Radiance primary ray type for irradiance calculation */
-#define RADIANCE_RAY		1u	/* Radiance ray type */
-#define SHADOW_RAY			2u	/* Shadow ray type */
-#define AMBIENT_RAY			3u	/* Ray into ambient cache */
-#define AMBIENT_RECORD_RAY	4u	/* Ray to create ambient record */
+typedef enum
+{
+	PRIMARY_RAY = 0,	/* Radiance primary ray type for irradiance calculation */
+	RADIANCE_RAY,		/* Radiance ray type */
+	SHADOW_RAY,			/* Shadow ray type */
+	AMBIENT_RAY,		/* Ray into ambient cache */
+	AMBIENT_RECORD_RAY,	/* Ray to create ambient record */
 #ifdef KMEANS_IC
-#define POINT_CLOUD_RAY		5u	/* Ray to create point cloud */
+	POINT_CLOUD_RAY,	/* Ray to create point cloud */
 #endif
 
-/* Ray type count for ambient calculation */
-#ifdef KMEANS_IC
-#define RAY_TYPE_COUNT		2u	/* ambient record ray and point cloud ray */
-#else
-#define RAY_TYPE_COUNT		1u	/* ambient record ray */
-#endif
+	RAY_TYPE_COUNT		/* Entry point count for ambient calculation */
+} RTraytype;
 
 /* Error handling */
 #ifdef DEBUG_OPTIX

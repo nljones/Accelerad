@@ -144,6 +144,7 @@ RT_METHOD int isfinite( const float3& v );
 RT_METHOD float2 sqrtf( const float2& v );
 RT_METHOD float3 sqrtf( const float3& v );
 RT_METHOD float3 cross_direction( const float3& v );
+RT_METHOD float3 getperpendicular( const float3& v );
 RT_METHOD float3 getperpendicular( const float3& v, rand_state* state );
 RT_METHOD float ray_start( const float3& hit, const float& t );
 RT_METHOD float ray_start( const float3& hit, const float3& dir, const float3& normal, const float& t );
@@ -196,6 +197,12 @@ RT_METHOD float3 cross_direction( const float3& v )
 	if ( v.y < 0.6f && v.y > -0.6f )
 		return make_float3( 0.0f, 1.0f, 0.0f );
 	return make_float3( 0.0f, 0.0f, 1.0f );
+}
+
+/* Choose deterministic perpedicular direction */
+RT_METHOD float3 getperpendicular( const float3& v )
+{
+	return optix::normalize(optix::cross(cross_direction(v), v));;
 }
 
 /* Choose random perpedicular direction */
@@ -350,7 +357,7 @@ RT_METHOD void SDsquare2disk( float2& ds, const float& seedx, const float& seedy
 				phi = 0.0f;
 		}
 	}
-	r *= 0.9999999999999;	/* prophylactic against MS sin()/cos() impl. (probably unnecessary on GPU) */
+	r *= 0.9999999999999f;	/* prophylactic against MS sin()/cos() impl. (probably unnecessary on GPU) */
 	ds.x = r * cosf(phi);
 	ds.y = r * sinf(phi);
 }
@@ -402,6 +409,7 @@ RT_METHOD void daysimCopy(DC* destin, const DaysimCoef& source);
 RT_METHOD void daysimCopy(DaysimCoef& destin, const DaysimCoef& source);
 RT_METHOD void daysimSet(DaysimCoef& coef, const DC& value);
 RT_METHOD void daysimScale(DaysimCoef& coef, const DC& scaling);
+RT_METHOD void daysimAdd(DaysimCoef& result, const DC& value);
 RT_METHOD void daysimAdd(DaysimCoef& result, const DaysimCoef& add);
 RT_METHOD void daysimMult(DaysimCoef& result, const DaysimCoef& mult);
 RT_METHOD void daysimSetCoef(DaysimCoef& result, const int& index, const DC& value);
@@ -453,6 +461,15 @@ RT_METHOD void daysimScale(DaysimCoef& coef, const DC& scaling)
 
 	for (int i = 0; i < daylightCoefficients; i++)
 		ptr[i] *= scaling;
+}
+
+/* Adds a value to all daylight coefficients */
+RT_METHOD void daysimAdd(DaysimCoef& result, const DC& value)
+{
+	DC* ptr = DC_ptr(result);
+
+	for (int i = 0; i < daylightCoefficients; i++)
+		ptr[i] += value;
 }
 
 /* Adds two daylight coefficient sets: result[i] = result[i] + add[i] */

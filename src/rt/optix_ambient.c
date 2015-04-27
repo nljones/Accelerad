@@ -14,7 +14,7 @@
 #ifdef ACCELERAD
 
 static void updateAmbientCache( const RTcontext context, const unsigned int level );
-static void createAmbientSamplingCamera( const RTcontext context, const VIEW* view );
+static void createAmbientRecordCamera( const RTcontext context, const VIEW* view );
 static void createGeometryInstanceAmbient( const RTcontext context, RTgeometryinstance* instance, const unsigned int ambinet_record_count );
 static void createAmbientAcceleration( const RTcontext context, const RTgeometryinstance instance );
 static unsigned int populateAmbientRecords( const RTcontext context, const int level );
@@ -56,12 +56,14 @@ static RTacceleration ambient_record_acceleration;
 */
 const unsigned int thread_stride = 4u;
 
+#ifdef DEBUG_OPTIX
 #ifdef RAY_COUNT
 static unsigned long ray_total = 0uL;
 #endif
 #ifdef HIT_COUNT
 static unsigned long hit_total = 0uL;
 #endif
+#endif /* DEBUG_OPTIX */
 
 
 void setupAmbientCache( const RTcontext context, const unsigned int level )
@@ -86,7 +88,7 @@ static void updateAmbientCache( const RTcontext context, const unsigned int leve
 	RT_CHECK_ERROR( rtAccelerationMarkDirty( ambient_record_acceleration ) );
 }
 
-static void createAmbientSamplingCamera( const RTcontext context, const VIEW* view )
+static void createAmbientRecordCamera( const RTcontext context, const VIEW* view )
 {
 	RTprogram  ray_gen_program;
 	RTprogram  exception_program;
@@ -302,20 +304,6 @@ static int saveAmbientRecords( AmbientRecord* record )
 {
 	AMBVAL amb;
 
-	/* Check that an ambient record was created. */
-#ifndef OLDAMB
-	float rad = record->rad.x;
-#else
-	float rad = record->rad;
-#endif
-	if ( rad < FTINY ) {
-#ifdef DEBUG_OPTIX
-		if ( rad < -FTINY ) // Something bad happened
-			logException((RTexception)record->val.x);
-#endif
-		return(0);
-	}
-
 	cuda2array3( amb.pos, record->pos );
 	cuda2array3( amb.val, record->val );
 #ifndef OLDAMB
@@ -341,12 +329,24 @@ static int saveAmbientRecords( AmbientRecord* record )
 #ifdef RAY_COUNT
 	nrays += record->ray_count;
 #endif
+#ifdef DEBUG_OPTIX
 #ifdef HIT_COUNT
 	hit_total += record->hit_count;
 #endif
+#endif
 
-	avsave(&amb);
-	return(1);
+	/* Check that an ambient record was created. */
+	if (ambvalOK(&amb)) {
+		avsave(&amb);
+		return(1);
+	}
+
+#ifdef DEBUG_OPTIX
+	/* See what went wrong. */
+	if (record->weight == -1.0f)
+		logException((RTexception)record->val.x);
+#endif
+	return(0);
 }
 
 static void createAmbientAcceleration( const RTcontext context, const RTgeometryinstance instance )
@@ -393,7 +393,7 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 	generated_record_count = scaled_width * scaled_height * optix_amb_semgents;
 	level = ambounce;
 
-	createAmbientSamplingCamera( context, view );
+	createAmbientRecordCamera( context, view );
 
 	RT_CHECK_ERROR( rtContextDeclareVariable( context, "level", &level_var ) ); // Could be camera program variable
 
@@ -444,7 +444,11 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 #define length_squared(v)	(v.x*v.x)+(v.y*v.y)+(v.z*v.z)
 #define is_nan(v)			(v.x!=v.x)||(v.y!=v.y)||(v.z!=v.z)
 
+static unsigned int ambientDivisions(unsigned int level);
 static void createPointCloudCamera( const RTcontext context, const VIEW* view );
+#ifdef AMB_PARALLEL
+static void createAmbientSamplingCamera( const RTcontext context );
+#endif
 #ifdef ITERATIVE_KMEANS_IC
 static void createHemisphereSamplingCamera( const RTcontext context );
 #endif
@@ -489,8 +493,7 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 
 	unsigned int grid_width, grid_height, seeds_per_thread, seed_count, record_count, level, i;
 #ifdef ITERATIVE_KMEANS_IC
-	unsigned int divisions_theta, divisions_phi;
-	double weight;
+	unsigned int divisions;
 
 	seeds_per_thread = 1u;
 #else
@@ -509,10 +512,13 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 	seed_count = grid_width * grid_height * seeds_per_thread;
 
 	createPointCloudCamera( context, view );
+#ifdef AMB_PARALLEL
+	createAmbientSamplingCamera( context );
+#endif
 #ifdef ITERATIVE_KMEANS_IC
 	createHemisphereSamplingCamera( context );
 #endif
-	createAmbientSamplingCamera( context, NULL ); // Use input from kmeans to sample points instead of camera
+	createAmbientRecordCamera( context, NULL ); // Use input from kmeans to sample points instead of camera
 
 	/* Create buffer for retrieving potential seed points. */
 	createCustomBuffer3D( context, RT_BUFFER_OUTPUT, sizeof(PointDirection), grid_width, grid_height, seeds_per_thread, &seed_buffer );
@@ -559,19 +565,12 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 	for ( level = 0u; level < ambounce; level++ ) {
 		if ( level ) {
 			/* Adjust output buffer size */
-			weight = 1.0; //TODO set by level?
-			for ( i = level; i--; )
-				weight *= AVGREFL; //  Compute weight as in makeambient() from ambient.c
-			divisions_theta = sqrtf( ambdiv * weight / PI ) + 0.5;
-			i = ambacc > FTINY ? 3u : 1u;	/* minimum number of samples */
-			if ( divisions_theta < i )
-				divisions_theta = i;
-			divisions_phi = PI * divisions_theta + 0.5;
-			seed_count = cuda_kmeans_clusters * divisions_theta * divisions_phi;
-			RT_CHECK_ERROR( rtBufferSetSize3D( seed_buffer, cuda_kmeans_clusters, divisions_theta, divisions_phi ) );
+			divisions = ambientDivisions(level);
+			seed_count = cuda_kmeans_clusters * divisions * divisions;
+			RT_CHECK_ERROR( rtBufferSetSize3D( seed_buffer, cuda_kmeans_clusters, divisions, divisions ) );
 
 			/* Run kernel to gerate more seed points from cluster centers */
-			runKernel3D( context, HEMISPHERE_SAMPLING_ENTRY, cuda_kmeans_clusters, divisions_theta, divisions_phi ); // stride?
+			runKernel3D( context, HEMISPHERE_SAMPLING_ENTRY, cuda_kmeans_clusters, divisions, divisions ); // stride?
 		}
 
 		/* Retrieve potential seed points. */
@@ -581,7 +580,6 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 #ifdef ADAPTIVE_SEED_SAMPLING
 		if (!level) {
 			clock_t kernel_start_clock, kernel_end_clock;
-			unsigned int i;
 			//int total = 0;
 			unsigned int missing = 0u;
 			unsigned int si = cuda_kmeans_clusters;
@@ -641,11 +639,21 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 	level = ambounce;
 #endif /* ITERATIVE_KMEANS_IC */
 #ifdef DAYSIM
+#ifdef AMB_PARALLEL
+	divisions = ambientDivisions(0u);
+	RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * maxdepth * 2, divisions * divisions, cuda_kmeans_clusters));
+#else
 	RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * maxdepth * 2, 1u, cuda_kmeans_clusters));
+#endif
 #endif
 
 	while ( level-- ) {
 		RT_CHECK_ERROR( rtVariableSet1ui( level_var, level ) );
+
+#ifdef AMB_PARALLEL
+		divisions = ambientDivisions(level);
+		runKernel3D(context, AMBIENT_SAMPLING_ENTRY, divisions, divisions, cuda_kmeans_clusters);
+#endif
 
 		/* Run */
 		//runKernel1D( context, AMBIENT_ENTRY, cuda_kmeans_clusters * thread_stride );
@@ -670,15 +678,15 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 		}
 #ifdef DEBUG_OPTIX
 		flushExceptionLog("ambient calculation");
-#endif
 #ifdef RAY_COUNT
-		fprintf(stderr, "Ray count %u (%f per thread).\n", nrays - ray_total, (float)(nrays - ray_total) / cuda_kmeans_clusters);
+		fprintf(stderr, "Ray count %u (%f per ambient value).\n", nrays - ray_total, (float)(nrays - ray_total) / cuda_kmeans_clusters);
 		ray_total = nrays;
 #endif
 #ifdef HIT_COUNT
-		fprintf(stderr, "Hit count %u (%f per thread).\n", hit_total, (float)hit_total/cuda_kmeans_clusters);
+		fprintf(stderr, "Hit count %u (%f per ambient value).\n", hit_total, (float)hit_total/cuda_kmeans_clusters);
 		hit_total = 0;
 #endif
+#endif /* DEBUG_OPTIX */
 		fprintf(stderr, "Retrieved %u ambient records from %u queries at level %u.\n\n", record_count, cuda_kmeans_clusters, level);
 
 		/* Copy new ambient values into buffer for Bvh. */
@@ -697,6 +705,19 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 #ifdef ITERATIVE_KMEANS_IC
 	free(cluster_buffer);
 #endif
+}
+
+static unsigned int ambientDivisions(unsigned int level)
+{
+	unsigned int i, divisions;
+	double weight = 1.0; //TODO set by level?
+	for ( i = level; i--; )
+		weight *= AVGREFL; //  Compute weight as in makeambient() from ambient.c
+	divisions = sqrt(ambdiv * weight) + 0.5;
+	i = 1 + 5 * (ambacc > FTINY);	/* minimum number of samples */
+	if (divisions < i)
+		return i;
+	return divisions;
 }
 
 static void createPointCloudCamera( const RTcontext context, const VIEW* view )
@@ -739,20 +760,35 @@ static void createPointCloudCamera( const RTcontext context, const VIEW* view )
 	RT_CHECK_ERROR( rtContextSetMissProgram( context, POINT_CLOUD_RAY, miss_program ) );
 }
 
+#ifdef AMB_PARALLEL
+static void createAmbientSamplingCamera( const RTcontext context )
+{
+	RTprogram  program;
+
+	/* Ray generation program */
+	ptxFile( path_to_ptx, "ambient_sample_generator" );
+	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "ambient_sample_camera", &program ) );
+	RT_CHECK_ERROR( rtContextSetRayGenerationProgram( context, AMBIENT_SAMPLING_ENTRY, program ) );
+
+	/* Exception program */
+	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "exception", &program ) );
+	RT_CHECK_ERROR( rtContextSetExceptionProgram( context, AMBIENT_SAMPLING_ENTRY, program ) );
+}
+#endif /* AMB_PARALLEL */
+
 #ifdef ITERATIVE_KMEANS_IC
 static void createHemisphereSamplingCamera( const RTcontext context )
 {
-	RTprogram  ray_gen_program;
-	RTprogram  exception_program;
+	RTprogram  program;
 
 	/* Ray generation program */
 	ptxFile( path_to_ptx, "hemisphere_generator" );
-	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "hemisphere_camera", &ray_gen_program ) );
-	RT_CHECK_ERROR( rtContextSetRayGenerationProgram( context, HEMISPHERE_SAMPLING_ENTRY, ray_gen_program ) );
+	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "hemisphere_camera", &program ) );
+	RT_CHECK_ERROR( rtContextSetRayGenerationProgram( context, HEMISPHERE_SAMPLING_ENTRY, program ) );
 
 	/* Exception program */
-	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "exception", &exception_program ) );
-	RT_CHECK_ERROR( rtContextSetExceptionProgram( context, HEMISPHERE_SAMPLING_ENTRY, exception_program ) );
+	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "exception", &program ) );
+	RT_CHECK_ERROR( rtContextSetExceptionProgram( context, HEMISPHERE_SAMPLING_ENTRY, program ) );
 }
 #endif
 

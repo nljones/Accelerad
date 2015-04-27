@@ -562,8 +562,11 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 		float3 scol = make_float3( 0.0f );
 #ifdef DAYSIM
 		DaysimCoef dc = daysimNext(prd.dc);
-		if (nstarget > 1)
+		if (nstarget > 1) {
 			daysimSet(dc, 0.0f);
+			gaus_prd.dc = daysimNext(dc);
+		} else
+			gaus_prd.dc = dc;
 #endif
 		//dimlist[ndims++] = (int)(size_t)np->mp;
 		unsigned int maxiter = MAXITER * nstarget;
@@ -588,9 +591,6 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 
 			gaus_ray.direction = normalize( gaus_ray.direction );
 			gaus_ray.tmin = ray_start( hit, gaus_ray.direction, normal, RAY_START );
-#ifdef DAYSIM
-			gaus_prd.dc = daysimNext(dc); // TODO could use prd.dc if nstarget == 1
-#endif
 			setupPayload(gaus_prd, 0);
 			//if (nstaken) // check for prd data that needs to be cleared
 			rtTrace(top_object, gaus_ray, gaus_prd);
@@ -763,13 +763,9 @@ RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& h
 			return acol;
 	}
 dumbamb:					/* return global value */
-#ifdef DAYSIM
-	DaysimCoef dc = daysimNext(prd.dc);
-	daysimSet(dc, aval.x);
-#endif
 	if ((ambvwt <= 0) || (navsum == 0)) {
 #ifdef DAYSIM
-		daysimAddScaled(prd.dc, dc, ambval.x);
+		daysimAdd(prd.dc, aval.x * ambval.x);
 #endif
 		return aval * ambval;
 	}
@@ -779,12 +775,12 @@ dumbamb:					/* return global value */
 		d = expf(d) / l;
 		aval *= ambval;	/* apply color of ambval */
 #ifdef DAYSIM
-		daysimAddScaled(prd.dc, dc, ambval.x * d);
+		daysimAdd(prd.dc, aval.x * ambval.x * d);
 #endif
 	} else {
 		d = expf( avsum / (float)navsum );
 #ifdef DAYSIM
-		daysimAddScaled(prd.dc, dc, d);
+		daysimAdd(prd.dc, aval.x * d);
 #endif
 	}
 	return aval * d;

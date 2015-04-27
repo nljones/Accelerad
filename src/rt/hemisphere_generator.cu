@@ -33,21 +33,17 @@ RT_PROGRAM void hemisphere_camera()
 		curand_init( launch_index.x + launch_dim.x * ( launch_index.y + launch_dim.y * launch_index.z ), 0, 0, &state );
 
 		// Make axes
-		float3 uz = normalize( eye.dir );
-		float3 uy = cross_direction( uz );
-		float3 ux = normalize( cross( uy, uz ) );
-		uy = normalize( cross( uz, ux ) );
-
-		// Set ray direction
-		float zd = sqrtf( ( launch_index.y + curand_uniform( &state ) ) / launch_dim.y );
-		float phi = 2.0f*M_PIf * ( launch_index.z + curand_uniform( &state ) ) / launch_dim.z;
-		float xd = cosf(phi) * zd;
-		float yd = sinf(phi) * zd;
-		zd = sqrtf(1.0f - zd*zd);
-		float3 rdir = normalize( xd * ux + yd * uy + zd * uz );
+		float3 uz = normalize(eye.dir);
+		float3 ux = getperpendicular(uz, &state);
+		float3 uy = cross(uz, ux);
+						/* avoid coincident samples */
+		float2 spt = 0.1f + 0.8f * make_float2(curand_uniform(&state), curand_uniform(&state));
+		SDsquare2disk(spt, (launch_index.y + spt.y) / launch_dim.y, (launch_index.x + spt.x) / launch_dim.x);
+		float zd = sqrtf(1.0f - dot(spt, spt));
+		float3 rdir = normalize(spt.x * ux + spt.y * uy + zd * uz);
 
 		// Trace the current ray
-		Ray ray = make_Ray(eye.pos, rdir, point_cloud_ray_type, ray_start( eye.pos, rdir, eye.dir, RAY_START ), RAY_END);
+		Ray ray = make_Ray(eye.pos, rdir, point_cloud_ray_type, ray_start( eye.pos, rdir, uz, RAY_START ), RAY_END);
 		rtTrace(top_object, ray, prd);
 
 		// Check for a valid result

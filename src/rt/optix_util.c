@@ -91,7 +91,7 @@ void runKernel3D( const RTcontext context, const unsigned int entry, const int w
 	/* Stop timers */
 	kernel_clock = clock() - kernel_clock;
 	kernel_time = time((time_t *)NULL) - kernel_time;
-	if (abs(kernel_clock / CLOCKS_PER_SEC - kernel_time) <= 1)
+	if (labs(kernel_clock / CLOCKS_PER_SEC - kernel_time) <= 1)
 		fprintf(stderr, "OptiX kernel time: %lu milliseconds (%lu seconds).\n", kernel_clock * 1000 / CLOCKS_PER_SEC, kernel_time);
 	else
 		fprintf(stderr, "OptiX kernel time: %lu seconds.\n", kernel_time);
