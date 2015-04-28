@@ -16,7 +16,7 @@ static clock_t last_callback_time;  /* time of last callback from GPU */
 #endif
 
 #ifdef CUMULTATIVE_TIME
-static unsigned long cumulative_millis = 0uL;  /* cumulative timing of kernel fuctions */
+static unsigned long long cumulative_millis = 0uLL;  /* cumulative timing of kernel fuctions */
 #endif
 
 
@@ -71,7 +71,7 @@ void runKernel3D( const RTcontext context, const unsigned int entry, const int w
 	RT_CHECK_ERROR( rtContextCompile( context ) ); // This should happen automatically when necessary.
 	kernel_clock = clock() - kernel_clock;
 	if (kernel_clock)
-		fprintf(stderr, "OptiX compile time: %lu milliseconds.\n", kernel_clock * 1000 / CLOCKS_PER_SEC);
+		fprintf(stderr, "OptiX compile time: %llu milliseconds.\n", kernel_clock * 1000LL / CLOCKS_PER_SEC);
 
 	/* Start timers */
 	kernel_time = time((time_t *)NULL);
@@ -91,13 +91,13 @@ void runKernel3D( const RTcontext context, const unsigned int entry, const int w
 	/* Stop timers */
 	kernel_clock = clock() - kernel_clock;
 	kernel_time = time((time_t *)NULL) - kernel_time;
-	if (labs(kernel_clock / CLOCKS_PER_SEC - kernel_time) <= 1)
-		fprintf(stderr, "OptiX kernel time: %lu milliseconds (%lu seconds).\n", kernel_clock * 1000 / CLOCKS_PER_SEC, kernel_time);
+	if (llabs(kernel_clock / CLOCKS_PER_SEC - kernel_time) <= 1)
+		fprintf(stderr, "OptiX kernel time: %llu milliseconds (%llu seconds).\n", kernel_clock * 1000LL / CLOCKS_PER_SEC, kernel_time);
 	else
-		fprintf(stderr, "OptiX kernel time: %lu seconds.\n", kernel_time);
+		fprintf(stderr, "OptiX kernel time: %llu seconds.\n", kernel_time);
 #ifdef CUMULTATIVE_TIME
-	cumulative_millis += kernel_clock * 1000 / CLOCKS_PER_SEC;
-	fprintf(stderr, "OptiX kernel cumulative time: %u milliseconds.\n", cumulative_millis);
+	cumulative_millis += kernel_clock * 1000LL / CLOCKS_PER_SEC;
+	fprintf(stderr, "OptiX kernel cumulative time: %llu milliseconds.\n", cumulative_millis);
 #endif
 
 #ifdef REPORT_GPU_STATE
@@ -591,7 +591,7 @@ int timeoutCallback(void)
 	int earlyexit = 0;
 	clock_t callback_time = clock();
 	//fprintf(stderr, "OptiX kernel running...\n");
-	fprintf(stderr, "OptiX kernel running: %lu milliseconds since last callback.\n", (callback_time - last_callback_time) * 1000 / CLOCKS_PER_SEC);
+	fprintf(stderr, "OptiX kernel running: %llu milliseconds since last callback.\n", (callback_time - last_callback_time) * 1000LL / CLOCKS_PER_SEC);
 	last_callback_time = callback_time;
 	return earlyexit; 
 }

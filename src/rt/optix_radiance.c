@@ -65,7 +65,7 @@ static DistantLight createDistantLight( const RTcontext context, const OBJREC* r
 static OBJREC* findFunction(OBJREC *o);
 static int createFunction( const RTcontext context, const OBJREC* rec );
 static int createTexture( const RTcontext context, const OBJREC* rec );
-static int createTransform( XF* bxp, const OBJREC* rec );
+static int createTransform( XF* fxp, XF* bxp, const OBJREC* rec );
 static void createAcceleration( const RTcontext context, const RTgeometryinstance instance );
 static void createIrradianceGeometry( const RTcontext context );
 static void printObect( const OBJREC* rec );
@@ -925,6 +925,7 @@ static void createFace(const OBJREC* rec, const OBJREC* parent)
 			/* Normal calculation from tmesh.cal */
 			double bu, bv;
 			FVECT v;
+			XF fxp;
 
 			k = (int)material->oargs.farg[0];
 			bu = face->va[3 * j + (k + 1) % 3];
@@ -934,9 +935,16 @@ static void createFace(const OBJREC* rec, const OBJREC* parent)
 			v[1] = bu * material->oargs.farg[4] + bv * material->oargs.farg[5] + material->oargs.farg[6];
 			v[2] = bu * material->oargs.farg[7] + bv * material->oargs.farg[8] + material->oargs.farg[9];
 
-			normalize(v);
+			/* Get transform */
+			if (!createTransform(&fxp, NULL, material))
+				objerror(material, USER, "bad transform");
+			multv3(v, v, fxp.xfm); //TODO Consider object transformation as well
 
-			insertArray3f(normals, v[0], v[1], v[2]);
+			if (fxp.sca == 0.0 || normalize(v) == 0.0) {
+				objerror(rec, WARNING, "illegal normal perturbation");
+				insertArray3f(normals, face->norm[0], face->norm[1], face->norm[2]);
+			} else
+				insertArray3f(normals, v[0], v[1], v[2]);
 		}
 		else {
 			//TODO Implement bump maps from texfunc and texdata
@@ -1445,7 +1453,7 @@ static int createFunction( const RTcontext context, const OBJREC* rec )
 	XF bxp;
 
 	/* Get transform */
-	if ( !createTransform( &bxp, rec ) )
+	if ( !createTransform( NULL, &bxp, rec ) )
 		objerror(rec, USER, "bad transform");
 
 	if ( rec->oargs.nsargs >= 2 ) {
@@ -1512,7 +1520,7 @@ static int createTexture( const RTcontext context, const OBJREC* rec )
 	dp = getdata(rec->oargs.sarg[1]); //TODO for Texdata and Colordata, use 3, 4, 5
 
 	/* Get transform */
-	if ( !createTransform( &bxp, rec ) )
+	if ( !createTransform( NULL, &bxp, rec ) )
 		objerror(rec, USER, "bad transform");
 
 	/* Create buffer for texture data */
@@ -1594,22 +1602,29 @@ static int createTexture( const RTcontext context, const OBJREC* rec )
 	return tex_id;
 }
 
-static int createTransform( XF* bxp, const OBJREC* rec )
+static int createTransform( XF* fxp, XF* bxp, const OBJREC* rec )
 {
 	/* Get transform - from getfunc in func.c */
 	unsigned int i = 0u;
 	while (i < rec->oargs.nsargs && rec->oargs.sarg[i][0] != '-')
 		i++;
 	if (i == rec->oargs.nsargs)	{		/* no transform */
-		*bxp = unitxf;
+		if (fxp)
+			*fxp = unitxf;
+		if (bxp)
+			*bxp = unitxf;
 		return 1;
 	}
 	
 	/* get transform */
-	if (invxf(bxp, rec->oargs.nsargs - i, rec->oargs.sarg + i) != rec->oargs.nsargs - i)
+	if (fxp && xf(fxp, rec->oargs.nsargs - i, rec->oargs.sarg + i) != rec->oargs.nsargs - i)
+		return 0;
+	if (bxp && invxf(bxp, rec->oargs.nsargs - i, rec->oargs.sarg + i) != rec->oargs.nsargs - i)
 		return 0;
 
-	if (bxp->sca < 0.0) 
+	if (fxp && fxp->sca < 0.0) 
+		fxp->sca = -fxp->sca;
+	if (bxp && bxp->sca < 0.0) 
 		bxp->sca = -bxp->sca;
 
 	return 1;

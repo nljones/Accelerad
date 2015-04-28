@@ -366,10 +366,10 @@ runagain:
 #ifdef ACCELERAD
 	rpict_clock = clock() - rpict_clock;
 	rpict_time = time((time_t *)NULL) - rpict_time;
-	if (labs(rpict_clock / CLOCKS_PER_SEC - rpict_time) <= 1)
-		sprintf(errmsg, "ray tracing time: %lu milliseconds (%lu seconds).\n", rpict_clock * 1000 / CLOCKS_PER_SEC, rpict_time);
+	if (llabs(rpict_clock / CLOCKS_PER_SEC - rpict_time) <= 1)
+		sprintf(errmsg, "ray tracing time: %llu milliseconds (%llu seconds).\n", rpict_clock * 1000LL / CLOCKS_PER_SEC, rpict_time);
 	else
-		sprintf(errmsg, "ray tracing time: %lu seconds.\n", rpict_time);
+		sprintf(errmsg, "ray tracing time: %llu seconds.\n", rpict_time);
 	eputs(errmsg);
 #endif
 					/* flush ambient file */
