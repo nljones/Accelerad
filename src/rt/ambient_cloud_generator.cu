@@ -23,6 +23,7 @@ rtDeclareVariable(rtObject,      top_object, , );
 rtDeclareVariable(rtObject,      top_irrad, , );
 rtDeclareVariable(unsigned int,  ambient_record_ray_type, , );
 rtDeclareVariable(unsigned int,  level, , ) = 0u;
+rtDeclareVariable(unsigned int,  segment_offset, , ) = 0u;
 rtDeclareVariable(unsigned int,  imm_irrad, , ); /* Immediate irradiance (-I) */
 
 /* OptiX variables */
@@ -44,7 +45,7 @@ RT_PROGRAM void ambient_cloud_camera()
 	// Check stride
 	if ((launch_index.x + launch_dim.x * launch_index.y) % stride)
 		return;
-	const unsigned int index = threadIndex();
+	const unsigned int index = threadIndex() + segment_offset;
 	if (index >= cluster_buffer.size())
 		return;
 
@@ -64,7 +65,7 @@ RT_PROGRAM void ambient_cloud_camera()
 	prd.result.dir = make_float3( 0.0f ); // Initialize in case something goes wrong
 #endif
 #ifdef DAYSIM
-	prd.dc = make_uint3(0, 0, index);
+	prd.dc = make_uint3(0, 0, index - segment_offset);
 	daysimSet(prd.dc, 0.0f);
 #endif
 #ifdef RAY_COUNT
@@ -100,7 +101,7 @@ RT_PROGRAM void exception()
 	// Check stride
 	if ((launch_index.x + launch_dim.x * launch_index.y) % stride)
 		return;
-	const unsigned int index = threadIndex();
+	const unsigned int index = threadIndex() + segment_offset;
 	if (index >= ambient_record_buffer.size())
 		return;
 

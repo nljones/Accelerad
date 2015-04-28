@@ -936,11 +936,19 @@ static void createFace(const OBJREC* rec, const OBJREC* parent)
 			v[2] = bu * material->oargs.farg[7] + bv * material->oargs.farg[8] + material->oargs.farg[9];
 
 			/* Get transform */
-			if (!createTransform(&fxp, NULL, material))
+			if (!(k = createTransform(&fxp, NULL, material)))
 				objerror(material, USER, "bad transform");
-			multv3(v, v, fxp.xfm); //TODO Consider object transformation as well
+			if (k != 1) { // not identity
+				FVECT v1;
+				VCOPY(v1, v);
+				if (normalize(v1) != 0.0) {
+					VSUB(v, v1, face->norm);
+					multv3(v, v, fxp.xfm); //TODO Consider object transformation as well
+					VSUM(v, face->norm, v, 1.0 / fxp.sca);
+				}
+			}
 
-			if (fxp.sca == 0.0 || normalize(v) == 0.0) {
+			if (normalize(v) == 0.0) {
 				objerror(rec, WARNING, "illegal normal perturbation");
 				insertArray3f(normals, face->norm[0], face->norm[1], face->norm[2]);
 			} else
@@ -1627,7 +1635,7 @@ static int createTransform( XF* fxp, XF* bxp, const OBJREC* rec )
 	if (bxp && bxp->sca < 0.0) 
 		bxp->sca = -bxp->sca;
 
-	return 1;
+	return 2;
 }
 
 static void createAcceleration( const RTcontext context, const RTgeometryinstance instance )

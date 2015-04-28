@@ -17,6 +17,7 @@ rtBuffer<AmbientSample, 3>      amb_samp_buffer; /* ambient sample output */
 rtDeclareVariable(rtObject,     top_object, , );
 rtDeclareVariable(unsigned int, radiance_ray_type, , );
 rtDeclareVariable(unsigned int, level, , ) = 0u;
+rtDeclareVariable(unsigned int, segment_offset, , ) = 0u;
 
 rtDeclareVariable(float,        ambacc, , ); /* Ambient accuracy (aa). This value will approximately equal the error from indirect illuminance interpolation */
 rtDeclareVariable(float,        maxarad, , ); /* maximum ambient radius */
@@ -36,7 +37,9 @@ RT_METHOD void init_state( PerRayData_radiance* prd )
 
 RT_PROGRAM void ambient_sample_camera()
 {
-	PointDirection cluster = cluster_buffer[launch_index.z];
+	uint3 index = launch_index;
+	index.z += segment_offset;
+	PointDirection cluster = cluster_buffer[index.z];
 
 	PerRayData_radiance prd;
 	init_state(&prd);
@@ -53,7 +56,7 @@ RT_PROGRAM void ambient_sample_camera()
 		prd.weight *= AVGREFL; // Compute weight as in makeambient() from ambient.c
 
 	if (prd.weight < minweight) { //if (rayorigin(&ar, AMBIENT, r, ar.rcoef) < 0)
-		amb_samp_buffer[launch_index].d = 0.0f;
+		amb_samp_buffer[index].d = 0.0f;
 		return;
 	}
 	//if (ambacc > FTINY) {
@@ -84,33 +87,33 @@ RT_PROGRAM void ambient_sample_camera()
 	Ray ray = make_Ray(cluster.pos, rdir, radiance_ray_type, ray_start(cluster.pos, rdir, cluster.dir, RAY_START), RAY_END);
 	rtTrace(top_object, ray, prd);
 #ifdef RAY_COUNT
-	amb_samp_buffer[launch_index].ray_count = prd.ray_count;
+	amb_samp_buffer[index].ray_count = prd.ray_count;
 #endif
 #ifdef HIT_COUNT
-	amb_samp_buffer[launch_index].hit_count = prd.hit_count;
+	amb_samp_buffer[index].hit_count = prd.hit_count;
 #endif
 
 	//ndims--;
 	checkFinite(prd.result);
 	if (prd.distance <= FTINY) {
-		amb_samp_buffer[launch_index].d = 0.0f;
+		amb_samp_buffer[index].d = 0.0f;
 		return;
 	}
 
 	//if ( new_prd.distance * ap->d < 1.0f )		/* new/closer distance? */ //TODO where did this value come from?
-		amb_samp_buffer[launch_index].d = 1.0f / prd.distance;
+		amb_samp_buffer[index].d = 1.0f / prd.distance;
 	//if (!n) {			/* record first vertex & value */
 		if ( prd.distance > 10.0f * maxarad ) // 10 * thescene.cusize
 			prd.distance = 10.0f * maxarad;
-		amb_samp_buffer[launch_index].p = cluster.pos + rdir * prd.distance;
-		amb_samp_buffer[launch_index].v = prd.result; // only one AmbientSample, otherwise would need +=
+		amb_samp_buffer[index].p = cluster.pos + rdir * prd.distance;
+		amb_samp_buffer[index].v = prd.result; // only one AmbientSample, otherwise would need +=
 	//} else {			/* else update recorded value */
 	//	hp->acol -= ap->v;
 	//	zd = 1.0f / (float)(n+1);
 	//	prd.result *= zd;
 	//	zd *= (float)n;
-	//	ambient_sample_buffer[launch_index].v *= zd;
-	//	ambient_sample_buffer[launch_index].v += new_prd.result;
+	//	ambient_sample_buffer[index].v *= zd;
+	//	ambient_sample_buffer[index].v += new_prd.result;
 	//}
 }
 
@@ -118,14 +121,16 @@ RT_PROGRAM void exception()
 {
 	const unsigned int code = rtGetExceptionCode();
 	rtPrintf("Caught exception 0x%X at launch index (%d,%d,%d)\n", code, launch_index.x, launch_index.y, launch_index.z);
-	amb_samp_buffer[launch_index].d = -1.0f;
-	amb_samp_buffer[launch_index].v = exceptionToFloat3( code );
-	amb_samp_buffer[launch_index].p = exceptionToFloat3( code );
+	uint3 index = launch_index;
+	index.z += segment_offset;
+	amb_samp_buffer[index].d = -1.0f;
+	amb_samp_buffer[index].v = exceptionToFloat3( code );
+	amb_samp_buffer[index].p = exceptionToFloat3( code );
 #ifdef RAY_COUNT
-	amb_samp_buffer[launch_index].ray_count = 0;
+	amb_samp_buffer[index].ray_count = 0;
 #endif
 #ifdef HIT_COUNT
-	amb_samp_buffer[launch_index].hit_count = 0;
+	amb_samp_buffer[index].hit_count = 0;
 #endif
 }
 

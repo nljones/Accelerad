@@ -483,6 +483,11 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 #ifdef DAYSIM
 	RTbuffer       ambient_dc_buffer;
 	float*         ambient_dc_buffer_data;
+#ifdef AMB_PARALLEL
+	RTvariable     segment_var = NULL;
+	unsigned int   kmeans_clusters_per_segment;
+	unsigned long long bytes_per_kmeans_cluster;
+#endif
 #endif
 #ifdef ITERATIVE_KMEANS_IC
 	RTvariable     current_cluster_buffer;
@@ -638,26 +643,50 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 
 	level = ambounce;
 #endif /* ITERATIVE_KMEANS_IC */
+#ifndef AMB_PARALLEL
 #ifdef DAYSIM
-#ifdef AMB_PARALLEL
-	divisions = ambientDivisions(0u);
-	RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * maxdepth * 2, divisions * divisions, cuda_kmeans_clusters));
-#else
 	RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * maxdepth * 2, 1u, cuda_kmeans_clusters));
 #endif
-#endif
+#endif /* AMB_PARALLEL */
 
 	while ( level-- ) {
 		RT_CHECK_ERROR( rtVariableSet1ui( level_var, level ) );
 
 #ifdef AMB_PARALLEL
 		divisions = ambientDivisions(level);
+#ifdef DAYSIM
+		/* Determine how large the scratch space can be */
+		kmeans_clusters_per_segment = cuda_kmeans_clusters;
+		bytes_per_kmeans_cluster = (unsigned long long)sizeof(float) * daysimGetCoefficients() * maxdepth * 2 * divisions * divisions;
+		while (bytes_per_kmeans_cluster * kmeans_clusters_per_segment > INT_MAX) { // Limit imposed by OptiX
+			kmeans_clusters_per_segment = (kmeans_clusters_per_segment - 1) / 2 + 1;
+		}
+
+		RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * maxdepth * 2, divisions * divisions, kmeans_clusters_per_segment));
+
+		/* Create variable for offset into scratch space */
+		if (!segment_var)
+			RT_CHECK_ERROR(rtContextDeclareVariable(context, "segment_offset", &segment_var));
+
+		for (i = 0; i < cuda_kmeans_clusters; i += kmeans_clusters_per_segment) {
+			RT_CHECK_ERROR(rtVariableSet1ui(segment_var, i));
+
+			/* Run */
+			runKernel3D(context, AMBIENT_SAMPLING_ENTRY, divisions, divisions, kmeans_clusters_per_segment);
+			runKernel2D(context, AMBIENT_ENTRY, CLUSTER_GRID_WIDTH, (kmeans_clusters_per_segment * thread_stride - 1) / CLUSTER_GRID_WIDTH + 1);
+		}
+#else /* DAYSIM */
+
+		/* Run */
 		runKernel3D(context, AMBIENT_SAMPLING_ENTRY, divisions, divisions, cuda_kmeans_clusters);
-#endif
+		runKernel2D(context, AMBIENT_ENTRY, CLUSTER_GRID_WIDTH, (cuda_kmeans_clusters * thread_stride - 1) / CLUSTER_GRID_WIDTH + 1);
+#endif /* DAYSIM */
+#else /* AMB_PARALLEL */
 
 		/* Run */
 		//runKernel1D( context, AMBIENT_ENTRY, cuda_kmeans_clusters * thread_stride );
 		runKernel2D(context, AMBIENT_ENTRY, CLUSTER_GRID_WIDTH, (cuda_kmeans_clusters * thread_stride - 1) / CLUSTER_GRID_WIDTH + 1);
+#endif /* AMB_PARALLEL */
 
 		RT_CHECK_ERROR( rtBufferMap( ambient_record_buffer, (void**)&ambient_record_buffer_data ) );
 		RT_CHECK_ERROR( rtBufferUnmap( ambient_record_buffer ) );
