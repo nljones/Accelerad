@@ -196,7 +196,7 @@ static unsigned int populateAmbientRecords( const RTcontext context, const int l
 		/* Get the ambient records from the octree structure. */
 		useful_record_count = gatherAmbientRecords( &atrunk, &ambient_records_ptr, level );
 #endif
-		fprintf(stderr, "Using %u of %u ambient records\n", useful_record_count, nambvals);
+		mprintf("Using %u of %u ambient records\n", useful_record_count, nambvals);
 	}
 
 	/* Create or resize the buffer of ambient records. */
@@ -428,7 +428,7 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 #ifdef DEBUG_OPTIX
 		flushExceptionLog("ambient calculation");
 #endif
-		fprintf(stderr, "Retrieved %u ambient records from %u queries at level %u.\n\n", useful_record_count, generated_record_count, level);
+		mprintf("Retrieved %u ambient records from %u queries at level %u.\n\n", useful_record_count, generated_record_count, level);
 
 		// Populate ambinet records
 		updateAmbientCache( context, level );
@@ -584,7 +584,7 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 
 #ifdef ADAPTIVE_SEED_SAMPLING
 		if (!level) {
-			clock_t kernel_start_clock, kernel_end_clock;
+			clock_t kernel_clock;
 			//int total = 0;
 			unsigned int missing = 0u;
 			unsigned int si = cuda_kmeans_clusters;
@@ -594,10 +594,10 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 			if (score == NULL || temp_list == NULL)
 				error(SYSTEM, "out of memory in createAmbientRecords");
 
-			kernel_start_clock = clock();
+			kernel_clock = clock();
 			cuda_score_hits( seed_buffer_data, score, grid_width, grid_height, cuda_kmeans_error / (ambacc * maxarad), cuda_kmeans_clusters );
-			kernel_end_clock = clock();
-			fprintf( stderr, "Adaptive sampling: %u milliseconds.\n", (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC );
+			kernel_clock = clock() - kernel_clock;
+			mprintf("Adaptive sampling: %llu milliseconds.\n", kernel_clock * 1000uLL / CLOCKS_PER_SEC);
 
 			for ( i = 0u; i < seed_count; i++ ) {
 				if (score[i]) {
@@ -612,7 +612,7 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 				else
 					temp_list[ci++] = seed_buffer_data[i];
 			}
-			//fprintf( stderr, "Score total: %i\n", total );
+			//mprintf("Score total: %i\n", total);
 
 			memcpy( seed_buffer_data, temp_list, seed_count * sizeof(PointDirection) );
 
@@ -708,15 +708,15 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 #ifdef DEBUG_OPTIX
 		flushExceptionLog("ambient calculation");
 #ifdef RAY_COUNT
-		fprintf(stderr, "Ray count %u (%f per ambient value).\n", nrays - ray_total, (float)(nrays - ray_total) / cuda_kmeans_clusters);
+		mprintf("Ray count %u (%f per ambient value).\n", nrays - ray_total, (float)(nrays - ray_total) / cuda_kmeans_clusters);
 		ray_total = nrays;
 #endif
 #ifdef HIT_COUNT
-		fprintf(stderr, "Hit count %u (%f per ambient value).\n", hit_total, (float)hit_total/cuda_kmeans_clusters);
+		mprintf("Hit count %u (%f per ambient value).\n", hit_total, (float)hit_total/cuda_kmeans_clusters);
 		hit_total = 0;
 #endif
 #endif /* DEBUG_OPTIX */
-		fprintf(stderr, "Retrieved %u ambient records from %u queries at level %u.\n\n", record_count, cuda_kmeans_clusters, level);
+		mprintf("Retrieved %u ambient records from %u queries at level %u.\n\n", record_count, cuda_kmeans_clusters, level);
 
 		/* Copy new ambient values into buffer for Bvh. */
 		updateAmbientCache( context, level );
@@ -823,7 +823,7 @@ static void createHemisphereSamplingCamera( const RTcontext context )
 
 static void createKMeansClusters( const unsigned int seed_count, const unsigned int cluster_count, PointDirection* seed_buffer_data, PointDirection* cluster_buffer_data, const unsigned int level )
 {
-	clock_t kernel_start_clock, kernel_end_clock; // Timer in clock cycles for short jobs
+	clock_t kernel_clock; // Timer in clock cycles for short jobs
 	unsigned int good_seed_count, i, j;
 	PointDirection **seeds, **clusters; // input and output for cuda_kmeans()
 	int *membership, loops; // output from cuda_kmeans()
@@ -842,18 +842,18 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 				logException((RTexception)seed_buffer_data[i].pos.x);
 #endif
 		} else if ( is_nan( seed_buffer_data[i].pos ) || is_nan( seed_buffer_data[i].dir ) )
-			fprintf(stderr, "NaN in seed %u (%g, %g, %g) (%g, %g, %g)\n", i, seed_buffer_data[i].pos.x, seed_buffer_data[i].pos.y, seed_buffer_data[i].pos.z, seed_buffer_data[i].dir.x, seed_buffer_data[i].dir.y, seed_buffer_data[i].dir.z);
+			mprintf("NaN in seed %u (%g, %g, %g) (%g, %g, %g)\n", i, seed_buffer_data[i].pos.x, seed_buffer_data[i].pos.y, seed_buffer_data[i].pos.z, seed_buffer_data[i].dir.x, seed_buffer_data[i].dir.y, seed_buffer_data[i].dir.z);
 		else
 			seeds[good_seed_count++] = &seed_buffer_data[i];
 	}
 #ifdef DEBUG_OPTIX
 	flushExceptionLog("ambient seeding");
 #endif
-	fprintf(stderr, "Retrieved %u of %u potential seeds at level %u.\n", good_seed_count, seed_count, level);
+	mprintf("Retrieved %u of %u potential seeds at level %u.\n", good_seed_count, seed_count, level);
 
 	/* Check that enough seeds were found */
 	if ( good_seed_count <= cluster_count ) {
-		fprintf(stderr, "Using all %u seeds at level %u (%u needed for k-means).\n\n", good_seed_count, level, cluster_count);
+		mprintf("Using all %u seeds at level %u (%u needed for k-means).\n\n", good_seed_count, level, cluster_count);
 		for ( i = 0u; i < good_seed_count; i++ )
 			cluster_buffer_data[i] = *seeds[i];
 		for ( ; i < cluster_count; i++ )
@@ -864,7 +864,7 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 
 	/* Check that k-means should be used */
 	if ( !cuda_kmeans_iterations ) {
-		fprintf(stderr, "Using first %u seeds at level %u.\n\n", cluster_count, level);
+		mprintf("Using first %u seeds at level %u.\n\n", cluster_count, level);
 		for ( i = 0u; i < cluster_count; i++ )
 			cluster_buffer_data[i] = *seeds[i]; //TODO should randomly choose from array
 		free(seeds);
@@ -876,10 +876,10 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 	distance = (float*) malloc(good_seed_count * sizeof(float));
 	if (membership == NULL || distance == NULL)
 		error(SYSTEM, "out of memory in createKMeansClusters");
-	kernel_start_clock = clock();
+	kernel_clock = clock();
 	clusters = (PointDirection**)cuda_kmeans((float**)seeds, sizeof(PointDirection) / sizeof(float), good_seed_count, cluster_count, cuda_kmeans_iterations, cuda_kmeans_threshold, cuda_kmeans_error / (ambacc * maxarad), level, membership, distance, &loops);
-	kernel_end_clock = clock();
-	fprintf(stderr, "K-means performed %u loop iterations in %u milliseconds.\n", loops, (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC);
+	kernel_clock = clock() - kernel_clock;
+	mprintf("K-means performed %u loop iterations in %u milliseconds.\n", loops, kernel_clock * 1000uLL / CLOCKS_PER_SEC);
 
 	/* Populate buffer of seed point clusters. */
 	min_distance = (float*) malloc(cluster_count * sizeof(float));
@@ -895,7 +895,7 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 		}
 #ifdef DEBUG_OPTIX
 		else if ( min_distance[j] != min_distance[j] )
-			fprintf(stderr, "NaN distance from seed %u to cluster %u\n", i, j);
+			mprintf("NaN distance from seed %u to cluster %u\n", i, j);
 #endif
 	}
 	j = 0u;
@@ -906,12 +906,12 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 		}
 #ifdef DEBUG_OPTIX
 		else if ( is_nan(cluster_buffer_data[i].pos) || is_nan(cluster_buffer_data[i].dir) )
-			fprintf(stderr, "NaN in cluster %u (%g, %g, %g) (%g, %g, %g)\n", i, cluster_buffer_data[i].pos.x, cluster_buffer_data[i].pos.y, cluster_buffer_data[i].pos.z, cluster_buffer_data[i].dir.x, cluster_buffer_data[i].dir.y, cluster_buffer_data[i].dir.z);
+			mprintf("NaN in cluster %u (%g, %g, %g) (%g, %g, %g)\n", i, cluster_buffer_data[i].pos.x, cluster_buffer_data[i].pos.y, cluster_buffer_data[i].pos.z, cluster_buffer_data[i].dir.x, cluster_buffer_data[i].dir.y, cluster_buffer_data[i].dir.z);
 		else if (length_squared( cluster_buffer_data[i].dir ) < FTINY)
-			fprintf(stderr, "Zero direction in cluster %u (%g, %g, %g) (%g, %g, %g)\n", i, cluster_buffer_data[i].pos.x, cluster_buffer_data[i].pos.y, cluster_buffer_data[i].pos.z, cluster_buffer_data[i].dir.x, cluster_buffer_data[i].dir.y, cluster_buffer_data[i].dir.z);
+			mprintf("Zero direction in cluster %u (%g, %g, %g) (%g, %g, %g)\n", i, cluster_buffer_data[i].pos.x, cluster_buffer_data[i].pos.y, cluster_buffer_data[i].pos.z, cluster_buffer_data[i].dir.x, cluster_buffer_data[i].dir.y, cluster_buffer_data[i].dir.z);
 #endif
 	}
-	fprintf(stderr, "K-means produced %u of %u clusters at level %u.\n\n", cluster_count - j, cluster_count, level);
+	mprintf("K-means produced %u of %u clusters at level %u.\n\n", cluster_count - j, cluster_count, level);
 
 	/* Free memory */
 	free(min_distance);
@@ -953,7 +953,7 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 //	kernel_start_clock = clock();
 //	groups = (PointDirection**)cuda_kmeans((float**)clusters, sizeof(PointDirection) / sizeof(float), cluster_count, group_count, cuda_kmeans_threshold, cuda_kmeans_error / (ambacc * maxarad), random_seeds, membership, distance, &loops);
 //	kernel_end_clock = clock();
-//	fprintf(stderr, "Kmeans performed %u loop iterations in %u milliseconds.\n", loops, (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC);
+//	mprintf("Kmeans performed %u loop iterations in %u milliseconds.\n", loops, (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC);
 //
 //	temp = (PointDirection*) malloc(cluster_count * sizeof(PointDirection));
 //	sortable = (CLUSTER*) malloc(cluster_count * sizeof(CLUSTER));
@@ -978,7 +978,7 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 //	free(clusters);
 //
 //	end_clock = clock();
-//	fprintf(stderr, "Sorting took %u milliseconds.\n", (end_clock - start_clock) * 1000 / CLOCKS_PER_SEC);
+//	mprintf("Sorting took %u milliseconds.\n", (end_clock - start_clock) * 1000 / CLOCKS_PER_SEC);
 //}
 //
 //static int clusterComparator( const void* a, const void* b )

@@ -31,6 +31,8 @@ extern char	*shm_boundary;		/* boundary of shared memory */
 #endif
 
 #ifdef ACCELERAD
+extern void mputs(const char* msg);
+
 extern double  ralrm;				/* seconds between reports */
 #endif
 
@@ -462,10 +464,10 @@ runagain:
 	rtrace_clock = clock() - rtrace_clock;
 	rtrace_time = time((time_t *)NULL) - rtrace_time;
 	if (llabs(rtrace_clock / CLOCKS_PER_SEC - rtrace_time) <= 1)
-		sprintf(errmsg, "ray tracing time: %llu milliseconds (%llu seconds).\n", rtrace_clock * 1000LL / CLOCKS_PER_SEC, rtrace_time);
+		sprintf(errmsg, "ray tracing time: %llu milliseconds (%llu seconds).\n", rtrace_clock * 1000uLL / CLOCKS_PER_SEC, rtrace_time);
 	else
 		sprintf(errmsg, "ray tracing time: %llu seconds.\n", rtrace_time);
-	eputs(errmsg);
+	mputs(errmsg);
 #endif
 					/* flush ambient file */
 	ambsync();

@@ -104,6 +104,9 @@ typedef enum
 #define RT_CHECK_WARN_NO_CONTEXT( func )	func
 #endif
 
+#define mprintf(format, ...) \
+	do { if (erract[WARNING].pf) fprintf(stderr, format, ##__VA_ARGS__); } while(0)
+
 /* Resizeable array structures */
 typedef struct {
 	int *array;
@@ -188,6 +191,7 @@ void initArraydl(DistantLightArray *a, const size_t initialSize);
 DistantLight insertArraydl(DistantLightArray *a, const DistantLight element);
 void freeArraydl(DistantLightArray *a);
 void handleError( const RTcontext context, const RTresult code, const char* file, const int line, const int etype );
+void mputs( const char* msg );
 #ifdef DEBUG_OPTIX
 void logException(const RTexception type);
 void flushExceptionLog(const char* location);

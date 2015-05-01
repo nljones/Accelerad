@@ -37,6 +37,8 @@ extern time_t  time();
 extern time_t  tstart;			/* start time */
 
 #ifdef ACCELERAD
+extern void mputs(const char* msg);
+
 extern double  ralrm;				/* seconds between reports */
 #else
 extern int  ralrm;			/* seconds between reports */
@@ -367,10 +369,10 @@ runagain:
 	rpict_clock = clock() - rpict_clock;
 	rpict_time = time((time_t *)NULL) - rpict_time;
 	if (llabs(rpict_clock / CLOCKS_PER_SEC - rpict_time) <= 1)
-		sprintf(errmsg, "ray tracing time: %llu milliseconds (%llu seconds).\n", rpict_clock * 1000LL / CLOCKS_PER_SEC, rpict_time);
+		sprintf(errmsg, "ray tracing time: %llu milliseconds (%llu seconds).\n", rpict_clock * 1000uLL / CLOCKS_PER_SEC, rpict_time);
 	else
 		sprintf(errmsg, "ray tracing time: %llu seconds.\n", rpict_time);
-	eputs(errmsg);
+	mputs(errmsg);
 #endif
 					/* flush ambient file */
 	ambsync();

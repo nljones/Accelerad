@@ -30,17 +30,17 @@ void printContextInfo( const RTcontext context )
 	//RT_CHECK_ERROR( rtContextGetRunningState( context, &value ) );
 	//fprintf(stderr, "OptiX kernel running:             %s\n", value ? "Yes" : "No");
 	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_MAX_TEXTURE_COUNT, sizeof(int), &value ) );
-	fprintf(stderr, "OptiX maximum textures:           %i\n", value);
+	mprintf("OptiX maximum textures:           %i\n", value);
 	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_CPU_NUM_THREADS, sizeof(int), &value ) ); // This can be set
-	fprintf(stderr, "OptiX host CPU threads:           %i\n", value);
+	mprintf("OptiX host CPU threads:           %i\n", value);
 	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_USED_HOST_MEMORY, sizeof(RTsize), &value ) );
-	fprintf(stderr, "OptiX host memory allocated:      %u bytes\n", value);
+	mprintf("OptiX host memory allocated:      %u bytes\n", value);
 	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_AVAILABLE_DEVICE_MEMORY, sizeof(RTsize), &value ) );
-	fprintf(stderr, "OptiX free device memory:         %u bytes\n", value);
+	mprintf("OptiX free device memory:         %u bytes\n", value);
 	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_GPU_PAGING_ACTIVE, sizeof(int), &value ) );
-	fprintf(stderr, "OptiX software paging:            %s\n", value ? "Yes" : "No");
+	mprintf("OptiX software paging:            %s\n", value ? "Yes" : "No");
 	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_GPU_PAGING_FORCED_OFF, sizeof(int), &value ) ); // This can be set
-	fprintf(stderr, "OptiX software paging prohibited: %s\n", value ? "Yes" : "No");
+	mprintf("OptiX software paging prohibited: %s\n", value ? "Yes" : "No");
 }
 #endif
 
@@ -71,7 +71,7 @@ void runKernel3D( const RTcontext context, const unsigned int entry, const int w
 	RT_CHECK_ERROR( rtContextCompile( context ) ); // This should happen automatically when necessary.
 	kernel_clock = clock() - kernel_clock;
 	if (kernel_clock)
-		fprintf(stderr, "OptiX compile time: %llu milliseconds.\n", kernel_clock * 1000LL / CLOCKS_PER_SEC);
+		mprintf("OptiX compile time: %llu milliseconds.\n", kernel_clock * 1000uLL / CLOCKS_PER_SEC);
 
 	/* Start timers */
 	kernel_time = time((time_t *)NULL);
@@ -92,12 +92,12 @@ void runKernel3D( const RTcontext context, const unsigned int entry, const int w
 	kernel_clock = clock() - kernel_clock;
 	kernel_time = time((time_t *)NULL) - kernel_time;
 	if (llabs(kernel_clock / CLOCKS_PER_SEC - kernel_time) <= 1)
-		fprintf(stderr, "OptiX kernel time: %llu milliseconds (%llu seconds).\n", kernel_clock * 1000LL / CLOCKS_PER_SEC, kernel_time);
+		mprintf("OptiX kernel time: %llu milliseconds (%llu seconds).\n", kernel_clock * 1000uLL / CLOCKS_PER_SEC, kernel_time);
 	else
-		fprintf(stderr, "OptiX kernel time: %llu seconds.\n", kernel_time);
+		mprintf("OptiX kernel time: %llu seconds.\n", kernel_time);
 #ifdef CUMULTATIVE_TIME
-	cumulative_millis += kernel_clock * 1000LL / CLOCKS_PER_SEC;
-	fprintf(stderr, "OptiX kernel cumulative time: %llu milliseconds.\n", cumulative_millis);
+	cumulative_millis += kernel_clock * 1000uLL / CLOCKS_PER_SEC;
+	mprintf("OptiX kernel cumulative time: %llu milliseconds.\n", cumulative_millis);
 #endif
 
 #ifdef REPORT_GPU_STATE
@@ -472,6 +472,14 @@ void handleError( const RTcontext context, const RTresult code, const char* file
 	error( etype, errmsg );
 }
 
+/* Print a message if messages r */
+void mputs( const char* msg )
+{
+	/* Check if warnings are printed */
+	if (erract[WARNING].pf)
+		(*erract[WARNING].pf)(msg);
+}
+
 #ifdef DEBUG_OPTIX
 static IntArray *error_log; // Keep track of error types and occurance frequencies as ordered pairs
 
@@ -580,7 +588,7 @@ void ptxFile( char* path, const char* name )
 		error(SYSTEM, errmsg);
 	}
 	//sprintf( path, "%s/cuda_compile_ptx_generated_%s.cu.ptx", optix_ptx_dir, name );
-	//fprintf( stderr, "Referencing %s\n", path );
+	//mprintf("Referencing %s\n", path);
 }
 
 #ifdef TIMEOUT_CALLBACK
@@ -590,8 +598,8 @@ int timeoutCallback(void)
 {
 	int earlyexit = 0;
 	clock_t callback_time = clock();
-	//fprintf(stderr, "OptiX kernel running...\n");
-	fprintf(stderr, "OptiX kernel running: %llu milliseconds since last callback.\n", (callback_time - last_callback_time) * 1000LL / CLOCKS_PER_SEC);
+	//mprintf("OptiX kernel running...\n");
+	mprintf("OptiX kernel running: %llu milliseconds since last callback.\n", (callback_time - last_callback_time) * 1000uLL / CLOCKS_PER_SEC);
 	last_callback_time = callback_time;
 	return earlyexit; 
 }

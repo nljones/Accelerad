@@ -357,7 +357,7 @@ static void checkDevices()
 	rtGetVersion( &version );
 	rtDeviceGetDeviceCount( &device_count );
 	if (device_count) {
-		fprintf(stderr, "OptiX %i found %i GPU device%s:\n", version, device_count, device_count > 1 ? "s" : "");
+		mprintf("OptiX %i found %i GPU device%s:\n", version, device_count, device_count > 1 ? "s" : "");
 	}
 	useable_device_count = device_count;
 #ifdef ACCELERAD_DEBUG
@@ -385,7 +385,7 @@ static void checkDevices()
 		rtDeviceGetAttribute( i, RT_DEVICE_ATTRIBUTE_EXECUTION_TIMEOUT_ENABLED, sizeof(timeout_enabled), &timeout_enabled );
 		rtDeviceGetAttribute( i, RT_DEVICE_ATTRIBUTE_TCC_DRIVER, sizeof(tcc_driver), &tcc_driver );
 		rtDeviceGetAttribute( i, RT_DEVICE_ATTRIBUTE_CUDA_DEVICE_ORDINAL, sizeof(cuda_device), &cuda_device );
-		fprintf(stderr, "Device %u: %s with %u multiprocessors, %u threads per block, %u kHz, %u bytes global memory, %u hardware textures, compute capability %u.%u, timeout %sabled, Tesla compute cluster driver %sabled, cuda device %u.\n",
+		mprintf("Device %u: %s with %u multiprocessors, %u threads per block, %u kHz, %u bytes global memory, %u hardware textures, compute capability %u.%u, timeout %sabled, Tesla compute cluster driver %sabled, cuda device %u.\n",
 			i, device_name, multiprocessor_count, threads_per_block, clock_rate, memory_size, texture_count, compute_capability[0], compute_capability[1], timeout_enabled ? "en" : "dis", tcc_driver ? "en" : "dis", cuda_device);
 
 		if (compute_capability[0] < 2u) {
@@ -422,7 +422,7 @@ static void checkDevices()
 		free(tcc);
 #endif
 
-	fprintf(stderr, "\n");
+	mprintf("\n");
 }
 
 static void createContext( RTcontext* context, const int width, const int height, const double alarm )
@@ -719,7 +719,6 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	}
 
 	/* Get the scene geometry as a list of triangles. */
-	//fprintf(stderr, "Num objects %i\n", nobjects);
 	for (i = 0; i < nobjects; i++) {
 		/* By default, no buffer entry is refered to. */
 		buffer_entry_index[i] = -1;
@@ -817,7 +816,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	free(functions);
 
 	geometry_clock = clock() - geometry_clock;
-	fprintf(stderr, "Geometry build time: %lu milliseconds.\n", geometry_clock * 1000 / CLOCKS_PER_SEC);
+	mprintf("Geometry build time: %lu milliseconds.\n", geometry_clock * 1000 / CLOCKS_PER_SEC);
 	return;
 memerr:
 	error(SYSTEM, "out of memory in createGeometryInstance");
@@ -1715,20 +1714,17 @@ static void printObect( const OBJREC* rec )
 {
 	unsigned int i;
 
-	fprintf(stderr, "Unsupported object\n", rec->oname);
-	fprintf(stderr, "Object name: %s\n", rec->oname);
-	fprintf(stderr, "Object type: %s (%i)\n", ofun[rec->otype].funame, rec->otype);
-	if (rec->omod > OVOID) // does not modify void
-		fprintf(stderr, "Object modifies: %s (%i)\n", objptr(rec->omod)->oname, rec->omod);
-	if (rec->os)
-		fprintf(stderr, "Object structure: %s\n", rec->os);
-
+	sprintf(errmsg, "Unsupported object:\n%s(%i) %s(%i) %s", rec->omod > OVOID ? objptr(rec->omod)->oname : VOIDID, rec->omod, ofun[rec->otype].funame, rec->otype, rec->oname);
+	error(WARNING, errmsg);
+	mprintf("%i", rec->oargs.nsargs);
 	for (i = 0u; i < rec->oargs.nsargs; i++)
-		fprintf(stderr, "S Arg %i: %s\n", i, rec->oargs.sarg[i]);
+		mprintf(" %s", rec->oargs.sarg[i]);
+	mprintf("\n%i", rec->oargs.nfargs);
 	for (i = 0u; i < rec->oargs.nfargs; i++)
-		fprintf(stderr, "R Arg %i: %f\n", i, rec->oargs.farg[i]);
-
-	fprintf(stderr, "\n");
+		mprintf(" %g", rec->oargs.farg[i]);
+	if (rec->os)
+		mprintf("\nObject structure: %s", rec->os);
+	mprintf("\n\n");
 }
 
 static void getRay( RayData* data, const RAY* ray )
