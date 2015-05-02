@@ -27,6 +27,8 @@ static int saveAmbientRecords( AmbientRecord* record );
 #endif
 
 /* from rpict.c */
+extern void report(int);
+extern double  pctdone;			/* percentage done */
 extern double  dstrpix;			/* square pixel distribution */
 
 /* from ambient.c */
@@ -56,14 +58,9 @@ static RTacceleration ambient_record_acceleration;
 */
 const unsigned int thread_stride = 4u;
 
-#ifdef DEBUG_OPTIX
-#ifdef RAY_COUNT
-static unsigned long ray_total = 0uL;
-#endif
 #ifdef HIT_COUNT
 static unsigned long hit_total = 0uL;
 #endif
-#endif /* DEBUG_OPTIX */
 
 
 void setupAmbientCache( const RTcontext context, const unsigned int level )
@@ -329,10 +326,8 @@ static int saveAmbientRecords( AmbientRecord* record )
 #ifdef RAY_COUNT
 	nrays += record->ray_count;
 #endif
-#ifdef DEBUG_OPTIX
 #ifdef HIT_COUNT
 	hit_total += record->hit_count;
-#endif
 #endif
 
 	/* Check that an ambient record was created. */
@@ -375,7 +370,7 @@ static void createAmbientAcceleration( const RTcontext context, const RTgeometry
 }
 
 #ifndef KMEANS_IC
-void createAmbientRecords( const RTcontext context, const VIEW* view, const int width, const int height )
+void createAmbientRecords( const RTcontext context, const VIEW* view, const int width, const int height, const double alarm )
 {
 	RTvariable     level_var, avsum_var, navsum_var;
 	RTbuffer       ambient_record_buffer;
@@ -428,6 +423,15 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 #ifdef DEBUG_OPTIX
 		flushExceptionLog("ambient calculation");
 #endif
+#ifdef RAY_COUNT
+		pctdone = 100.0 * (ambounce - level) / (ambounce + 1);
+		if (alarm > 0)
+			report(0);
+#endif
+#ifdef HIT_COUNT
+		mprintf("Hit count %u (%f per ambient value).\n", hit_total, (float)hit_total / generated_record_count);
+		hit_total = 0;
+#endif
 		mprintf("Retrieved %u ambient records from %u queries at level %u.\n\n", useful_record_count, generated_record_count, level);
 
 		// Populate ambinet records
@@ -474,7 +478,7 @@ float** cuda_kmeans(float **objects,	/* in: [numObjs][numCoords] */
 void cuda_score_hits(PointDirection *hits, int *seeds, const unsigned int width, const unsigned int height, const float weight, const unsigned int seed_count);
 #endif /* ADAPTIVE_SEED_SAMPLING */
 
-void createAmbientRecords( const RTcontext context, const VIEW* view, const int width, const int height )
+void createAmbientRecords( const RTcontext context, const VIEW* view, const int width, const int height, const double alarm )
 {
 	RTvariable     level_var, avsum_var, navsum_var;
 	RTbuffer       seed_buffer, ambient_record_buffer;
@@ -707,15 +711,16 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 		}
 #ifdef DEBUG_OPTIX
 		flushExceptionLog("ambient calculation");
+#endif
 #ifdef RAY_COUNT
-		mprintf("Ray count %u (%f per ambient value).\n", nrays - ray_total, (float)(nrays - ray_total) / cuda_kmeans_clusters);
-		ray_total = nrays;
+		pctdone = 100.0 * (ambounce - level) / (ambounce + 1);
+		if (alarm > 0)
+			report(0);
 #endif
 #ifdef HIT_COUNT
 		mprintf("Hit count %u (%f per ambient value).\n", hit_total, (float)hit_total/cuda_kmeans_clusters);
 		hit_total = 0;
 #endif
-#endif /* DEBUG_OPTIX */
 		mprintf("Retrieved %u ambient records from %u queries at level %u.\n\n", record_count, cuda_kmeans_clusters, level);
 
 		/* Copy new ambient values into buffer for Bvh. */
@@ -879,7 +884,7 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 	kernel_clock = clock();
 	clusters = (PointDirection**)cuda_kmeans((float**)seeds, sizeof(PointDirection) / sizeof(float), good_seed_count, cluster_count, cuda_kmeans_iterations, cuda_kmeans_threshold, cuda_kmeans_error / (ambacc * maxarad), level, membership, distance, &loops);
 	kernel_clock = clock() - kernel_clock;
-	mprintf("K-means performed %u loop iterations in %u milliseconds.\n", loops, kernel_clock * 1000uLL / CLOCKS_PER_SEC);
+	mprintf("K-means performed %u loop iterations in %llu milliseconds.\n", loops, kernel_clock * 1000uLL / CLOCKS_PER_SEC);
 
 	/* Populate buffer of seed point clusters. */
 	min_distance = (float*) malloc(cluster_count * sizeof(float));
@@ -929,8 +934,8 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 //
 //static void sortKMeans( const unsigned int cluster_count, PointDirection* cluster_buffer_data )
 //{
-//	clock_t start_clock, end_clock; // Timer in clock cycles for short jobs
-//	clock_t kernel_start_clock, kernel_end_clock; // Timer in clock cycles for short jobs
+//	clock_t method_clock; // Timer in clock cycles for short jobs
+//	clock_t kernel_clock; // Timer in clock cycles for short jobs
 //	PointDirection **clusters, **groups, *temp;
 //	unsigned int group_count, i;
 //	CLUSTER* sortable;
@@ -940,7 +945,7 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 //
 //	group_count = cluster_count / 4u;
 //
-//	start_clock = clock();
+//	method_clock = clock();
 //
 //	/* Copy addresses to new array */
 //	clusters = (PointDirection**) malloc(cluster_count * sizeof(PointDirection*));
@@ -950,10 +955,10 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 //	/* Group the seeds into clusters with k-means */
 //	membership = (int*) malloc(cluster_count * sizeof(int));
 //	distance = (float*) malloc(cluster_count * sizeof(float));
-//	kernel_start_clock = clock();
+//	kernel_clock = clock();
 //	groups = (PointDirection**)cuda_kmeans((float**)clusters, sizeof(PointDirection) / sizeof(float), cluster_count, group_count, cuda_kmeans_threshold, cuda_kmeans_error / (ambacc * maxarad), random_seeds, membership, distance, &loops);
-//	kernel_end_clock = clock();
-//	mprintf("Kmeans performed %u loop iterations in %u milliseconds.\n", loops, (kernel_end_clock - kernel_start_clock) * 1000 / CLOCKS_PER_SEC);
+//	kernel_clock = clock() - kernel_clock;
+//	mprintf("Kmeans performed %u loop iterations in %llu milliseconds.\n", loops, kernel_clock * 1000uLL / CLOCKS_PER_SEC);
 //
 //	temp = (PointDirection*) malloc(cluster_count * sizeof(PointDirection));
 //	sortable = (CLUSTER*) malloc(cluster_count * sizeof(CLUSTER));
@@ -977,8 +982,8 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 //	free(membership);
 //	free(clusters);
 //
-//	end_clock = clock();
-//	mprintf("Sorting took %u milliseconds.\n", (end_clock - start_clock) * 1000 / CLOCKS_PER_SEC);
+//	method_clock = clock() - method_clock;
+//	mprintf("Sorting took %llu milliseconds.\n", method_clock * 1000uLL / CLOCKS_PER_SEC);
 //}
 //
 //static int clusterComparator( const void* a, const void* b )

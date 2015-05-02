@@ -85,7 +85,11 @@ static putf_t *putreal;
 extern void computeOptix(const int width, const int height, const double alarm, RAY* rays);
 
 double  ralrm = 0.0;				/* seconds between reports */
-double	dstrpix = 0.0; //TODO This shouldn't be necessary, but the variable must exist in optix_radiance.c
+
+/* TODO This shouldn't be necessary, but the variable must exist in optix_radiance.c */
+double	pctdone = 0.0;			/* percentage done */
+double	dstrpix = 0.0;			/* square pixel distribution */
+void report(int dummy) {}		/* report progress */
 #endif
 
 

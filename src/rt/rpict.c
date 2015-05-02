@@ -135,7 +135,11 @@ int  hres, vres;			/* resolution for this frame */
 
 static VIEW	lastview;		/* the previous view input */
 
+#ifdef ACCELERAD
+void report(int);
+#else
 static void report(int);
+#endif
 static int nextview(FILE *fp);
 static void render(char *zfile, char *oldfile);
 static void fillscanline(COLOR *scanline, float *zline, char *sd, int xres,
@@ -223,18 +227,16 @@ report(int dummy)		/* report progress */
 #endif
 }
 #else
+#ifdef ACCELERAD
+void
+#else
 static void
+#endif
 report(int dummy)		/* report progress */
 {
 	char	bcStat [128];
 	
 	tlastrept = time((time_t *)NULL);
-#ifdef ACCELERAD
-	if (use_optix && pctdone < 100.0) {
-		/* Don't report when using OptiX because we don't track percent done. */
-		return;
-	}
-#endif
 
 /* PMAP: Get photon map bias compensation statistics */
 	pmapBiasCompReport(bcStat);
@@ -491,6 +493,9 @@ render(				/* render the scene */
 			lseek(zfd, (off_t)i*hres*sizeof(float), SEEK_SET) < 0)
 		error(SYSTEM, "z-file seek error in render");
 	pctdone = 100.0*i/vres;
+#ifdef ACCELERAD
+	if (!use_optix) /* Don't report if using OptiX. */
+#endif
 	if (ralrm > 0)			/* report init stats */
 		report(0);
 #ifdef SIGCONT
@@ -498,6 +503,9 @@ render(				/* render the scene */
 	signal(SIGCONT, report);
 #endif
 	ypos = vres-1 - i;			/* initialize sampling */
+#ifdef ACCELERAD
+	if (!use_optix) /* Don't draw sources separately. */
+#endif
 	if (directvis)
 		init_drawsources(psample);
 	fillscanline(scanbar[0], zbar[0], sampdens, hres, ypos, hstep);
@@ -540,6 +548,9 @@ render(				/* render the scene */
 			goto writerr;
 							/* record progress */
 		pctdone = 100.0*(vres-1-ypos)/vres;
+#ifdef ACCELERAD
+		if (!use_optix) /* Don't report if using OptiX. */
+#endif
 		if (ralrm > 0 && time((time_t *)NULL) >= tlastrept+ralrm)
 			report(0);
 #ifdef SIGCONT

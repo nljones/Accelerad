@@ -44,7 +44,7 @@ void endOptix();
 static void checkDevices();
 static void createContext( RTcontext* context, const int width, const int height, const double alarm );
 static void destroyContext(const RTcontext context);
-static void setupKernel( const RTcontext context, const VIEW* view, const int width, const int height );
+static void setupKernel( const RTcontext context, const VIEW* view, const int width, const int height, const double alarm );
 static void applyRadianceSettings( const RTcontext context );
 static void createCamera( const RTcontext context, const VIEW* view );
 static void updateCamera( const RTcontext context, const VIEW* view );
@@ -181,7 +181,7 @@ void renderOptix(const VIEW* view, const int width, const int height, const doub
 		context_handle = context;
 		buffer_handle = output_buffer;
 
-		setupKernel( context, view, width, height );
+		setupKernel( context, view, width, height, alarm );
 	} else {
 		/* Retrieve handles for previously created objects */
 		context = context_handle;
@@ -280,7 +280,7 @@ void computeOptix(const int width, const int height, const double alarm, RAY* ra
 	applyContextObject(context, "dc_scratch_buffer", dc_scratch_buffer);
 #endif
 
-	setupKernel( context, NULL, width, height );
+	setupKernel( context, NULL, width, height, 0.0 );
 
 #ifdef DAYSIM
 	/* Set scratch buffer size for this OptiX kernel */
@@ -503,7 +503,7 @@ static void destroyContext(const RTcontext context)
 	RT_CHECK_ERROR(rtContextDestroy(context));
 }
 
-static void setupKernel( const RTcontext context, const VIEW* view, const int width, const int height )
+static void setupKernel( const RTcontext context, const VIEW* view, const int width, const int height, const double alarm )
 {
 	/* Primary RTAPI objects */
 	RTgeometryinstance  instance;
@@ -519,7 +519,7 @@ static void setupKernel( const RTcontext context, const VIEW* view, const int wi
 	/* Set up irradiance cache of ambient values */
 	if ( use_ambient ) { // Don't bother with ambient records if -aa is set to zero
 		if ( calc_ambient ) // Run pre-process only if no ambient file is available
-			createAmbientRecords( context, view, width, height ); // implementation depends on current settings
+			createAmbientRecords( context, view, width, height, alarm ); // implementation depends on current settings
 		else
 			setupAmbientCache( context, 0u ); // only need level 0 for final gather
 	}
