@@ -78,7 +78,7 @@ RT_PROGRAM void ambient_sample_camera()
 
 	prd.depth = level + 1;//prd.depth + 1;
 	prd.ambient_depth = level + 1;//prd.ambient_depth + 1;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 	prd.dc = make_uint3(0, launch_index.x + launch_dim.x * launch_index.y, launch_index.z);
 	prd.dc = daysimNext(prd.dc); // Skip ahead one
 	daysimSet(prd.dc, 0.0f);

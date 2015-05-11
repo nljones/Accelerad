@@ -19,6 +19,10 @@ static clock_t last_callback_time;  /* time of last callback from GPU */
 static unsigned long long cumulative_millis = 0uLL;  /* cumulative timing of kernel fuctions */
 #endif
 
+/* from rpict.c */
+extern void report(int);
+extern double  pctdone;			/* percentage done */
+
 
 #ifdef REPORT_GPU_STATE
 void printContextInfo( const RTcontext context )
@@ -589,6 +593,13 @@ void ptxFile( char* path, const char* name )
 	}
 	//sprintf( path, "%s/cuda_compile_ptx_generated_%s.cu.ptx", optix_ptx_dir, name );
 	//mprintf("Referencing %s\n", path);
+}
+
+void reportProgress( const double progress, const double alarm )
+{
+	pctdone = progress;
+	if (alarm > 0)
+		report(0);
 }
 
 #ifdef TIMEOUT_CALLBACK

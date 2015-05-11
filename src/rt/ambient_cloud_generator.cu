@@ -16,7 +16,7 @@ rtDeclareVariable(unsigned int,  stride, , ) = 1u; /* Spacing between used threa
 /* Contex variables */
 rtBuffer<PointDirection, 1>      cluster_buffer; /* input */
 rtBuffer<AmbientRecord, 1>       ambient_record_buffer; /* ambient record output */
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 rtBuffer<DC, 2>                  ambient_dc_buffer; /* daylight coefficient output */
 #endif
 rtDeclareVariable(rtObject,      top_object, , );
@@ -64,7 +64,7 @@ RT_PROGRAM void ambient_cloud_camera()
 	prd.result.rad = 0.0f;
 	prd.result.dir = make_float3( 0.0f ); // Initialize in case something goes wrong
 #endif
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 	prd.dc = make_uint3(0, 0, index - segment_offset);
 	daysimSet(prd.dc, 0.0f);
 #endif
@@ -91,8 +91,9 @@ RT_PROGRAM void ambient_cloud_camera()
 	checkFinite(prd.result.val);
 
 	ambient_record_buffer[index] = prd.result;
-#ifdef DAYSIM
-	daysimCopy(&ambient_dc_buffer[make_uint2(0, index)], prd.dc);
+#ifdef DAYSIM_COMPATIBLE
+	if (ambient_dc_buffer.size().x)
+		daysimCopy(&ambient_dc_buffer[make_uint2(0, index)], prd.dc);
 #endif
 }
 

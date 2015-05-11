@@ -44,6 +44,9 @@ void endOptix();
 static void checkDevices();
 static void createContext( RTcontext* context, const int width, const int height, const double alarm );
 static void destroyContext(const RTcontext context);
+#ifdef DAYSIM_COMPATIBLE
+static void setupDaysim(const RTcontext context, RTbuffer* dc_buffer, const int width, const int height);
+#endif
 static void setupKernel( const RTcontext context, const VIEW* view, const int width, const int height, const double alarm );
 static void applyRadianceSettings( const RTcontext context );
 static void createCamera( const RTcontext context, const VIEW* view );
@@ -158,6 +161,9 @@ void renderOptix(const VIEW* view, const int width, const int height, const doub
 	RTbuffer            ray_count_buffer;
 	unsigned int *ray_count_data;
 #endif
+#ifdef DAYSIM_COMPATIBLE
+	RTbuffer            dc_buffer;
+#endif
 
 	/* Set the size */
 	size = width * height;
@@ -175,6 +181,9 @@ void renderOptix(const VIEW* view, const int width, const int height, const doub
 		createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_UNSIGNED_INT, width, height, &ray_count_buffer);
 		applyContextObject(context, "ray_count_buffer", ray_count_buffer);
 		ray_count_buffer_handle = ray_count_buffer;
+#endif
+#ifdef DAYSIM_COMPATIBLE
+		setupDaysim(context, &dc_buffer, width, height);
 #endif
 
 		/* Save handles to objects used in animations */
@@ -237,7 +246,7 @@ void computeOptix(const int width, const int height, const double alarm, RAY* ra
 	/* Primary RTAPI objects */
 	RTcontext           context;
 	RTbuffer            ray_buffer;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 	RTbuffer            dc_buffer;
 #endif
 
@@ -266,18 +275,8 @@ void computeOptix(const int width, const int height, const double alarm, RAY* ra
 	RT_CHECK_ERROR( rtBufferUnmap( ray_buffer ) );
 	applyContextObject( context, "ray_buffer", ray_buffer );
 
-#ifdef DAYSIM
-	/* Output daylight coefficient buffer */
-	createBuffer3D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT, daysimGetCoefficients(), width, height, &dc_buffer);
-	applyContextObject(context, "dc_buffer", dc_buffer);
-
-	/* Scratch space */
-#ifdef AMB_PARALLEL
-	createBuffer3D(context, RT_BUFFER_INPUT_OUTPUT, RT_FORMAT_FLOAT, 0, 0, 0, &dc_scratch_buffer);
-#else
-	createBuffer3D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT, 0, 0, 0, &dc_scratch_buffer);
-#endif
-	applyContextObject(context, "dc_scratch_buffer", dc_scratch_buffer);
+#ifdef DAYSIM_COMPATIBLE
+	setupDaysim(context, &dc_buffer, width, height);
 #endif
 
 	setupKernel( context, NULL, width, height, 0.0 );
@@ -503,6 +502,31 @@ static void destroyContext(const RTcontext context)
 	RT_CHECK_ERROR(rtContextDestroy(context));
 }
 
+#ifdef DAYSIM_COMPATIBLE
+static void setupDaysim(const RTcontext context, RTbuffer* dc_buffer, const int width, const int height)
+{
+#ifndef DAYSIM
+	RTbuffer            dc_scratch_buffer;
+#endif
+
+	/* Output daylight coefficient buffer */
+#ifdef DAYSIM
+	createBuffer3D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT, daysimGetCoefficients(), width, height, dc_buffer);
+#else
+	createBuffer3D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT, 0, 0, 0, dc_buffer);
+#endif
+	applyContextObject(context, "dc_buffer", *dc_buffer);
+
+	/* Scratch space */
+#if defined DAYSIM && defined AMB_PARALLEL
+	createBuffer3D(context, RT_BUFFER_INPUT_OUTPUT, RT_FORMAT_FLOAT, 0, 0, 0, &dc_scratch_buffer);
+#else
+	createBuffer3D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT, 0, 0, 0, &dc_scratch_buffer);
+#endif
+	applyContextObject(context, "dc_scratch_buffer", dc_scratch_buffer);
+}
+#endif /* DAYSIM_COMPATIBLE */
+
 static void setupKernel( const RTcontext context, const VIEW* view, const int width, const int height, const double alarm )
 {
 	/* Primary RTAPI objects */
@@ -515,6 +539,9 @@ static void setupKernel( const RTcontext context, const VIEW* view, const int wi
 	createAcceleration( context, instance );
 	if ( imm_irrad )
 		createIrradianceGeometry( context );
+
+	/* Initialize progress bar for some applications like IES<VE> */
+	reportProgress( 0.0, alarm );
 
 	/* Set up irradiance cache of ambient values */
 	if ( use_ambient ) { // Don't bother with ambient records if -aa is set to zero
@@ -575,7 +602,7 @@ static void applyRadianceSettings( const RTcontext context )
 #ifdef DAYSIM
 	/* Set daylight coefficient parameters */
 	//applyContextVariable1i(context, "daysimSortMode", daysimSortMode); // -D
-	applyContextVariable1i(context, "daylightCoefficients", daysimGetCoefficients()); // -N
+	applyContextVariable1ui(context, "daylightCoefficients", daysimGetCoefficients()); // -N
 #endif
 }
 
@@ -816,7 +843,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	free(functions);
 
 	geometry_clock = clock() - geometry_clock;
-	mprintf("Geometry build time: %lu milliseconds.\n", geometry_clock * 1000 / CLOCKS_PER_SEC);
+	mprintf("Geometry build time: %llu milliseconds.\n", geometry_clock * 1000uLL / CLOCKS_PER_SEC);
 	return;
 memerr:
 	error(SYSTEM, "out of memory in createGeometryInstance");

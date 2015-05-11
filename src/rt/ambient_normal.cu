@@ -162,7 +162,7 @@ RT_PROGRAM void closest_hit_ambient()
 	//if (prd.weight < 0.1f * weight)	/* heuristic override */
 	//	weight = 1.25f * prd.weight;
 	float3 acol = make_float3( AVGREFL );
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 	daysimSet(prd.dc, 0.0f);
 #endif
 #ifndef OLDAMB
@@ -209,7 +209,7 @@ RT_PROGRAM void closest_hit_ambient()
 #endif
 	//prd.result.lvl = lvl;
 	//prd.result.weight = weight;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 	daysimScale(prd.dc, 1.0f / AVGREFL); // TODO Scaling should be done before extambient if textured
 #endif
 }
@@ -708,7 +708,7 @@ RT_METHOD int ambsample( AMBHEMI *hp, AmbientSample *ap, const int& i, const int
 		return(0);
 
 	ap->v *= hp->acoef;	/* apply coefficient */
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 	DaysimCoef sample_dc = make_uint3(0, i + hp->ns * j, prd.dc.z);
 	daysimAddScaled(prd.dc, sample_dc, hp->acoef.x);
 #endif
@@ -756,7 +756,7 @@ RT_METHOD int ambsample( AMBHEMI *hp, AmbientSample *ap, const int& i, const int
 	new_prd.ambient_depth = prd.result.lvl + 1;//prd.ambient_depth + 1;
 	//new_prd.seed = prd.seed;//lcg( prd.seed );
 	new_prd.state = prd.state;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 	new_prd.dc = daysimNext(prd.dc);
 #endif
 	setupPayload(new_prd, 1);
@@ -790,7 +790,7 @@ RT_METHOD int ambsample( AMBHEMI *hp, AmbientSample *ap, const int& i, const int
 	//	ap->v *= zd;
 	//	ap->v += new_prd.result;
 	//}
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 	daysimAddScaled(prd.dc, new_prd.dc, hp->acoef.x);
 #endif
 #endif /* AMB_PARALLEL */
@@ -1341,7 +1341,7 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point, con
 	new_prd.ambient_depth = prd.result.lvl + 1;//prd.ambient_depth + 1;
 	//new_prd.seed = prd.seed;//lcg( prd.seed );
 	new_prd.state = prd.state;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 	new_prd.dc = daysimNext(prd.dc);
 #endif
 	setupPayload(new_prd, 1);
@@ -1359,7 +1359,7 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point, con
 		return(-1);
 	new_prd.result *= h->acoef;	/* apply coefficient */
 	dp->v += new_prd.result;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 	daysimAddScaled(prd.dc, new_prd.dc, h->acoef.x);
 #endif
 	/* use rt to improve gradient calc */

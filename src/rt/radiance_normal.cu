@@ -108,14 +108,14 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 #ifdef AMBIENT
 RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& hit );
 #ifndef OLDAMB
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit, DaysimCoef dc );
 #else
 RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit );
 #endif
 //RT_METHOD int ambsample( AMBHEMI *hp, const int& i, const int& j, const float3 normal, const float3 hit );
 #else /* OLDAMB */
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& hit, DaysimCoef dc );
 RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit, DaysimCoef dc );
 #else
@@ -227,7 +227,7 @@ RT_PROGRAM void closest_hit_radiance()
 			new_prd.depth = prd.depth;
 			new_prd.ambient_depth = prd.ambient_depth;
 			new_prd.state = prd.state;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 			new_prd.dc = daysimNext(prd.dc);
 #endif
 			setupPayload(new_prd, 0);
@@ -236,7 +236,7 @@ RT_PROGRAM void closest_hit_radiance()
 			rtTrace(top_object, trans_ray, new_prd);
 			float3 rcol = new_prd.result * mcolor * tspec;
 			result += rcol;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 			daysimAddScaled(prd.dc, new_prd.dc, mcolor.x * tspec);
 #endif
 			transtest = 2.0f * bright(rcol);
@@ -278,7 +278,7 @@ RT_PROGRAM void closest_hit_radiance()
 		if (new_prd.weight >= minweight && new_prd.depth <= abs(maxdepth)) {
 			new_prd.ambient_depth = prd.ambient_depth;
 			new_prd.state = prd.state;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 			new_prd.dc = daysimNext(prd.dc);
 #endif
 			setupPayload(new_prd, 0);
@@ -287,7 +287,7 @@ RT_PROGRAM void closest_hit_radiance()
 			rtTrace(top_object, refl_ray, new_prd);
 			float3 rcol = new_prd.result * scolor;
 			result += rcol;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 			daysimAddScaled(prd.dc, new_prd.dc, scolor.x);
 #endif
 			mirtest = 2.0f * bright(rcol);
@@ -333,7 +333,7 @@ RT_PROGRAM void closest_hit_radiance()
 
 		// compute direct lighting
 		PerRayData_shadow shadow_prd;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 		shadow_prd.dc = daysimNext(prd.dc);
 #endif
 		Ray shadow_ray = make_Ray( hit_point, ffnormal, shadow_ray_type, RAY_START, RAY_END );
@@ -433,7 +433,7 @@ RT_METHOD float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const 
 
 	// cast shadow ray
 	shadow_prd->result = make_float3( 0.0f );
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 	daysimSet(shadow_prd->dc, 0.0f);
 #endif
 	rtTrace( top_object, *shadow_ray, *shadow_prd );
@@ -508,7 +508,7 @@ RT_METHOD float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const 
 		}
 	}
 #endif
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 	daysimAddScaled(prd.dc, shadow_prd->dc, cval.x);
 #endif
 	return cval * shadow_prd->result;
@@ -560,7 +560,7 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 				nstarget = 1;
 		}
 		float3 scol = make_float3( 0.0f );
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 		DaysimCoef dc = daysimNext(prd.dc);
 		if (nstarget > 1) {
 			daysimSet(dc, 0.0f);
@@ -600,12 +600,12 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 			if (nstarget > 1) {	
 				d = 2.0f / ( 1.0f - dot( ray.direction, normal ) / d );
 				scol += gaus_prd.result * d;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 				daysimAddScaled(dc, gaus_prd.dc, d);
 #endif
 			} else {
 				rcol += gaus_prd.result * scolor;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 				daysimAddScaled(prd.dc, gaus_prd.dc, scolor.x);
 #endif
 			}
@@ -617,7 +617,7 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 			scol *= scolor;
 			d = (float)nstarget / ntrials;
 			rcol += scol * d;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 			daysimAddScaled(prd.dc, dc, scolor.x * d);
 #endif
 		}
@@ -663,7 +663,7 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 
 			gaus_ray.direction = normalize( gaus_ray.direction );
 			gaus_ray.tmin = ray_start( hit, gaus_ray.direction, normal, RAY_START );
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 			gaus_prd.dc = daysimNext(prd.dc);
 #endif
 			setupPayload(gaus_prd, 0);
@@ -672,7 +672,7 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 			resolvePayload(prd, gaus_prd);
 			rcol += gaus_prd.result * mcolor;
 			++nstaken;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 			daysimAddScaled(prd.dc, gaus_prd.dc, mcolor.x);
 #endif
 		}
@@ -713,7 +713,7 @@ RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& h
 		ambient_prd.wsum = 0.0f;
 		ambient_prd.ambient_depth = prd.ambient_depth;
 		ambient_prd.state = prd.state;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 		ambient_prd.dc = daysimNext(prd.dc);
 		daysimSet(ambient_prd.dc, 0.0f);
 #endif
@@ -728,7 +728,7 @@ RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& h
 #endif
 		if (ambient_prd.wsum > FTINY) { // TODO if miss program is called, set wsum = 1.0f or place this before ambacc == 0.0f
 			ambient_prd.result *= 1.0f / ambient_prd.wsum;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 			daysimAddScaled(prd.dc, ambient_prd.dc, aval.x / ambient_prd.wsum);
 #endif
 			return aval * ambient_prd.result;
@@ -750,7 +750,7 @@ RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& h
 	}
 	if (do_ambient) {			/* no ambient storage */
 		float3 acol = aval;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 		DaysimCoef dc = daysimNext(prd.dc);
 		daysimSet(dc, 0.0f);
 		d = doambient(&acol, normal, hit, dc);
@@ -764,7 +764,7 @@ RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& h
 	}
 dumbamb:					/* return global value */
 	if ((ambvwt <= 0) || (navsum == 0)) {
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 		daysimAdd(prd.dc, aval.x * ambval.x);
 #endif
 		return aval * ambval;
@@ -774,12 +774,12 @@ dumbamb:					/* return global value */
 		d = (logf(l)*(float)ambvwt + avsum) / (float)(ambvwt + navsum);
 		d = expf(d) / l;
 		aval *= ambval;	/* apply color of ambval */
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 		daysimAdd(prd.dc, aval.x * ambval.x * d);
 #endif
 	} else {
 		d = expf( avsum / (float)navsum );
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 		daysimAdd(prd.dc, aval.x * d);
 #endif
 	}
@@ -788,7 +788,7 @@ dumbamb:					/* return global value */
 
 #ifndef OLDAMB
 /* sample indirect hemisphere, based on samp_hemi in ambcomp.c */
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit, DaysimCoef dc )
 #else
 RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit )
@@ -827,7 +827,7 @@ RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit )
 	new_prd.ambient_depth = prd.ambient_depth + 1;
 	//new_prd.seed = prd.seed;//lcg( prd.seed );
 	new_prd.state = prd.state;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 	new_prd.dc = daysimNext(dc);
 #endif
 
@@ -860,7 +860,7 @@ RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit )
 			if ( new_prd.distance <= FTINY )
 				continue;		/* should never happen */
 			acol += new_prd.result * acoef;	/* add to our sum */
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 			daysimAddScaled(dc, new_prd.dc, acoef.x);
 #endif
 			sampOK++;
@@ -881,7 +881,7 @@ RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit )
 	return( 1 );			/* all is well */
 }
 #else /* OLDAMB */
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& hit, DaysimCoef dc )
 #else
 RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& hit )
@@ -926,7 +926,7 @@ RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& hit
 			dp->v = make_float3( 0.0f );
 			dp->r = 0.0f;
 			dp->n = 0;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 			if (divsample( dp, &hemi, hit, dc ) < 0) {
 #else
 			if (divsample( dp, &hemi, hit ) < 0) {
@@ -958,7 +958,7 @@ RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& hit
 						/* super-sample */
 		for (i = hemi.ns; i > 0; i--) {
 			dnew = *div;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 			if (divsample( &dnew, &hemi, hit, dc ) < 0) {
 #else
 			if (divsample( &dnew, &hemi, hit ) < 0) {
@@ -1057,7 +1057,7 @@ RT_METHOD void inithemi( AMBHEMI  *hp, float3 ac, const float3& normal )
 }
 
 /* sample a division */
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit, DaysimCoef dc )
 #else
 RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit )
@@ -1102,7 +1102,7 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit )
 	new_prd.ambient_depth = prd.ambient_depth + 1;
 	//new_prd.seed = prd.seed;//lcg( prd.seed );
 	new_prd.state = prd.state;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 	new_prd.dc = daysimNext(dc);
 #endif
 	setupPayload(new_prd, 0);
@@ -1114,7 +1114,7 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit )
 	if ( isnan( new_prd.result ) ) // TODO How does this happen?
 		return(-1);
 	new_prd.result *= h->acoef;	/* apply coefficient */
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 	daysimAddScaled(dc, new_prd.dc, h->acoef.x);
 #endif
 	dp->v += new_prd.result;

@@ -90,14 +90,14 @@ RT_PROGRAM void closest_hit_shadow()
 		//new_prd.depth = prd.depth + 1;
 		new_prd.target = prd_shadow.target;
 		new_prd.result = make_float3( 0.0f );
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 		new_prd.dc = daysimNext(prd_shadow.dc);
 		daysimSet(new_prd.dc, 0.0f);
 #endif
 		optix::Ray trans_ray = optix::make_Ray(hit_point, ray.direction, shadow_ray_type, ray_start(hit_point, ray.direction, ffnormal, RAY_START), RAY_END);
 		rtTrace(top_object, trans_ray, new_prd);
 		result += new_prd.result * trans;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 		daysimAddScaled(prd_shadow.dc, new_prd.dc, trans.x);
 #endif
 	//}
@@ -162,7 +162,7 @@ RT_PROGRAM void closest_hit_radiance()
 			new_prd.ambient_depth = prd.ambient_depth;
 			//new_prd.seed = prd.seed;//lcg( prd.seed );
 			new_prd.state = prd.state;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 			new_prd.dc = daysimNext(prd.dc);
 #endif
 			setupPayload(new_prd, 0);
@@ -172,7 +172,7 @@ RT_PROGRAM void closest_hit_radiance()
 			result += rcol;
 			transtest = 2.0f * bright( rcol );
 			transdist = t_hit + new_prd.distance;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 			daysimAddScaled(prd.dc, new_prd.dc, trans.x);
 #endif
 			resolvePayload(prd, new_prd);
@@ -191,7 +191,7 @@ RT_PROGRAM void closest_hit_radiance()
 		new_prd.ambient_depth = prd.ambient_depth;
 		//new_prd.seed = prd.seed;//lcg( prd.seed );
 		new_prd.state = prd.state;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 		new_prd.dc = daysimNext(prd.dc);
 #endif
 		setupPayload(new_prd, 0);
@@ -202,7 +202,7 @@ RT_PROGRAM void closest_hit_radiance()
 		result += rcol;
 		mirtest = 2.0f * bright( rcol );
 		mirdist = t_hit + new_prd.distance;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 		daysimAddScaled(prd.dc, new_prd.dc, refl.x);
 #endif
 		resolvePayload(prd, new_prd);

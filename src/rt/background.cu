@@ -26,8 +26,8 @@ rtDeclareVariable(PerRayData_shadow,   prd_shadow,   rtPayload, );
 rtDeclareVariable(optix::Ray, ray, rtCurrentRay, );
 
 
-#ifdef DAYSIM
-RT_METHOD int daysimComputePatch(const float3 dir);
+#ifdef DAYSIM_COMPATIBLE
+RT_METHOD unsigned int daysimComputePatch(const float3 dir);
 #endif
 
 RT_PROGRAM void miss()
@@ -58,11 +58,11 @@ RT_PROGRAM void miss()
 			if (light.function > -1 || prd_radiance.ambient_depth == 0) { //TODO need a better test, see badcomponent() in source.c
 				// no contribution to ambient calculation
 				prd_radiance.result += color;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 				if (daylightCoefficients >= 2) {
 					daysimAddCoef(prd_radiance.dc, daysimComputePatch(ray.direction), color.x);
 				}
-#endif /* DAYSIM */
+#endif /* DAYSIM_COMPATIBLE */
 			}
 		}
 	}
@@ -94,28 +94,28 @@ RT_PROGRAM void miss_shadow()
 					color *= functions[light.function]( H );
 				}
 				result += color;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 				if (daylightCoefficients >= 2) {
 					// TODO This assumes that all sources are sun positions in numerical order
 					// TODO If files are merged, add 148 to prd_shadow.target
 					daysimAddCoef(prd_shadow.dc, prd_shadow.target, color.x);
 				}
-#endif /* DAYSIM */
+#endif /* DAYSIM_COMPATIBLE */
 			}
 		}
 	}
 	prd_shadow.result = result;
 }
 
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 /*
 * Computes the sky/ground patch hit by a ray in direction (dx,dy,dz)
 * according to the Tregenza sky division.
 */
-RT_METHOD int daysimComputePatch(const float3 dir)
+RT_METHOD unsigned int daysimComputePatch(const float3 dir)
 {
 	if (dir.z > 0.0f) { // sky
-		const int number[8] = { 0, 30, 60, 84, 108, 126, 138, 144 };
+		const unsigned int number[8] = { 0, 30, 60, 84, 108, 126, 138, 144 };
 		const float ring_division[8] = { 30.0f, 30.0f, 24.0f, 24.0f, 18.0f, 12.0f, 6.0f, 0.0f };
 		int ringnumber = (int)(asinf(dir.z) * 15.0f * M_1_PIf);
 		// origin of the number "15":
@@ -145,4 +145,4 @@ RT_METHOD int daysimComputePatch(const float3 dir)
 		return 146;
 	return 147;
 }
-#endif /* DAYSIM */
+#endif /* DAYSIM_COMPATIBLE */

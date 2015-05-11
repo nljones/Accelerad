@@ -12,7 +12,7 @@
 using namespace optix;
 
 rtBuffer<AmbientRecord> ambient_records;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 rtBuffer<DC, 2> ambient_dc;
 #endif
 
@@ -128,8 +128,9 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 
 		// This assignment to the prd would take place in the any-hit program if there were one
 		prd.result += record.val * ( d * wt );
-#ifdef DAYSIM
-		daysimAddScaled(prd.dc, &ambient_dc[make_uint2(0, primIdx)], d * wt);
+#ifdef DAYSIM_COMPATIBLE
+		if (ambient_dc.size().x)
+			daysimAddScaled(prd.dc, &ambient_dc[make_uint2(0, primIdx)], d * wt);
 #endif
 
 		rtReportIntersection( 0 ); // There is only one material for ambient geometry group

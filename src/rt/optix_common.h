@@ -12,6 +12,7 @@
 //#define HIT_TYPE
 //#define OLDAMB
 #define LIGHTS
+//#define DAYSIM_COMPATIBLE
 
 
 /*! Additional Exceptions */

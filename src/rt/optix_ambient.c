@@ -27,8 +27,6 @@ static int saveAmbientRecords( AmbientRecord* record );
 #endif
 
 /* from rpict.c */
-extern void report(int);
-extern double  pctdone;			/* percentage done */
 extern double  dstrpix;			/* square pixel distribution */
 
 /* from ambient.c */
@@ -70,6 +68,19 @@ void setupAmbientCache( const RTcontext context, const unsigned int level )
 
 	unsigned int ambient_record_count;
 
+	/* Create the buffer of ambient records. */
+#ifdef DAYSIM_COMPATIBLE
+#ifndef DAYSIM
+	RTbuffer ambient_dc_input_buffer;
+#endif
+	createBuffer2D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT, 0, 0, &ambient_dc_input_buffer);
+	applyContextObject(context, "ambient_dc", ambient_dc_input_buffer);
+#endif
+
+	createCustomBuffer1D( context, RT_BUFFER_INPUT, sizeof(AmbientRecord), 0, &ambient_record_input_buffer );
+	applyContextObject( context, "ambient_records", ambient_record_input_buffer );
+
+	/* Populate the buffer of ambient records. */
 	ambient_record_count = populateAmbientRecords( context, level );
 	createGeometryInstanceAmbient( context, &ambient_records, ambient_record_count );
 	createAmbientAcceleration( context, ambient_records );
@@ -79,7 +90,7 @@ static void updateAmbientCache( const RTcontext context, const unsigned int leve
 {
 	unsigned int useful_record_count;
 			
-	// Populate ambinet records
+	/* Repopulate the buffer of ambient records. */
 	useful_record_count = populateAmbientRecords( context, level );
 	RT_CHECK_ERROR( rtGeometrySetPrimitiveCount( ambient_record_geometry, useful_record_count ) );
 	RT_CHECK_ERROR( rtAccelerationMarkDirty( ambient_record_acceleration ) );
@@ -196,21 +207,10 @@ static unsigned int populateAmbientRecords( const RTcontext context, const int l
 		mprintf("Using %u of %u ambient records\n", useful_record_count, nambvals);
 	}
 
-	/* Create or resize the buffer of ambient records. */
-	if ( ambient_record_input_buffer ) {
-		RT_CHECK_ERROR( rtBufferSetSize1D( ambient_record_input_buffer, useful_record_count ) );
-	} else {
-		createCustomBuffer1D( context, RT_BUFFER_INPUT, sizeof(AmbientRecord), useful_record_count, &ambient_record_input_buffer );
-		applyContextObject( context, "ambient_records", ambient_record_input_buffer );
-	}
-
+	/* Resize the buffer of ambient records. */
+	RT_CHECK_ERROR( rtBufferSetSize1D( ambient_record_input_buffer, useful_record_count ) );
 #ifdef DAYSIM
-	if (ambient_dc_input_buffer) {
-		RT_CHECK_ERROR(rtBufferSetSize2D(ambient_dc_input_buffer, useful_record_count ? daysimGetCoefficients() : 0, useful_record_count));
-	} else {
-		createBuffer2D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT, useful_record_count ? daysimGetCoefficients() : 0, useful_record_count, &ambient_dc_input_buffer);
-		applyContextObject(context, "ambient_dc", ambient_dc_input_buffer);
-	}
+	RT_CHECK_ERROR(rtBufferSetSize2D(ambient_dc_input_buffer, useful_record_count ? daysimGetCoefficients() : 0, useful_record_count));
 #endif
 
 	if ( nambvals ) {
@@ -424,9 +424,7 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 		flushExceptionLog("ambient calculation");
 #endif
 #ifdef RAY_COUNT
-		pctdone = 100.0 * (ambounce - level) / (ambounce + 1);
-		if (alarm > 0)
-			report(0);
+		reportProgress( 100.0 * (ambounce - level) / (ambounce + 1), alarm );
 #endif
 #ifdef HIT_COUNT
 		mprintf("Hit count %u (%f per ambient value).\n", hit_total, (float)hit_total / generated_record_count);
@@ -484,8 +482,10 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 	RTbuffer       seed_buffer, ambient_record_buffer;
 	PointDirection* seed_buffer_data, *cluster_buffer_data;
 	AmbientRecord* ambient_record_buffer_data;
-#ifdef DAYSIM
+#ifdef DAYSIM_COMPATIBLE
 	RTbuffer       ambient_dc_buffer;
+#endif
+#ifdef DAYSIM
 	float*         ambient_dc_buffer_data;
 #ifdef AMB_PARALLEL
 	RTvariable     segment_var = NULL;
@@ -552,8 +552,12 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 	/* Create buffer for retrieving ambient records. */
 	createCustomBuffer1D( context, RT_BUFFER_OUTPUT, sizeof(AmbientRecord), cuda_kmeans_clusters, &ambient_record_buffer );
 	applyContextObject( context, "ambient_record_buffer", ambient_record_buffer );
+#ifdef DAYSIM_COMPATIBLE
 #ifdef DAYSIM
 	createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT, daysimGetCoefficients(), cuda_kmeans_clusters, &ambient_dc_buffer);
+#else
+	createBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT, 0, 0, &ambient_dc_buffer);
+#endif
 	applyContextObject(context, "ambient_dc_buffer", ambient_dc_buffer);
 #endif
 
@@ -713,9 +717,7 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 		flushExceptionLog("ambient calculation");
 #endif
 #ifdef RAY_COUNT
-		pctdone = 100.0 * (ambounce - level) / (ambounce + 1);
-		if (alarm > 0)
-			report(0);
+		reportProgress( 100.0 * (ambounce - level) / (ambounce + 1), alarm );
 #endif
 #ifdef HIT_COUNT
 		mprintf("Hit count %u (%f per ambient value).\n", hit_total, (float)hit_total/cuda_kmeans_clusters);
