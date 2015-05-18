@@ -384,7 +384,7 @@ static void checkDevices()
 		rtDeviceGetAttribute( i, RT_DEVICE_ATTRIBUTE_EXECUTION_TIMEOUT_ENABLED, sizeof(timeout_enabled), &timeout_enabled );
 		rtDeviceGetAttribute( i, RT_DEVICE_ATTRIBUTE_TCC_DRIVER, sizeof(tcc_driver), &tcc_driver );
 		rtDeviceGetAttribute( i, RT_DEVICE_ATTRIBUTE_CUDA_DEVICE_ORDINAL, sizeof(cuda_device), &cuda_device );
-		mprintf("Device %u: %s with %u multiprocessors, %u threads per block, %u kHz, %u bytes global memory, %u hardware textures, compute capability %u.%u, timeout %sabled, Tesla compute cluster driver %sabled, cuda device %u.\n",
+		mprintf("Device %u: %s with %u multiprocessors, %u threads per block, %u kHz, %llu bytes global memory, %u hardware textures, compute capability %u.%u, timeout %sabled, Tesla compute cluster driver %sabled, cuda device %u.\n",
 			i, device_name, multiprocessor_count, threads_per_block, clock_rate, memory_size, texture_count, compute_capability[0], compute_capability[1], timeout_enabled ? "en" : "dis", tcc_driver ? "en" : "dis", cuda_device);
 
 		if (compute_capability[0] < 2u) {
@@ -1297,6 +1297,12 @@ static RTmaterial createNormalMaterial( const RTcontext context, const OBJREC* r
 #else
 			createCustomBuffer3D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, sizeof(AmbientSample), n, n, cuda_kmeans_clusters, &buffer);
 			applyProgramObject(context, ambient_normal_closest_hit_program, "amb_samp_buffer", buffer);
+#endif
+#ifdef AMB_SUPER_SAMPLE
+			if (!ambssamp)
+				n = 0;
+			createBuffer3D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT, n, n, n ? cuda_kmeans_clusters : 0, &buffer);
+			applyContextObject(context, "earr_buffer", buffer);
 #endif
 #endif /* AMB_SAVE_MEM */
 #else /* OLDAMB */

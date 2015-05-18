@@ -28,19 +28,20 @@ extern double  pctdone;			/* percentage done */
 void printContextInfo( const RTcontext context )
 {
 	int value;
+	RTsize size;
 
 	if ( !context ) return;
 
 	//RT_CHECK_ERROR( rtContextGetRunningState( context, &value ) );
-	//fprintf(stderr, "OptiX kernel running:             %s\n", value ? "Yes" : "No");
+	//mprintf("OptiX kernel running:             %s\n", value ? "Yes" : "No");
 	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_MAX_TEXTURE_COUNT, sizeof(int), &value ) );
 	mprintf("OptiX maximum textures:           %i\n", value);
 	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_CPU_NUM_THREADS, sizeof(int), &value ) ); // This can be set
 	mprintf("OptiX host CPU threads:           %i\n", value);
-	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_USED_HOST_MEMORY, sizeof(RTsize), &value ) );
-	mprintf("OptiX host memory allocated:      %u bytes\n", value);
-	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_AVAILABLE_DEVICE_MEMORY, sizeof(RTsize), &value ) );
-	mprintf("OptiX free device memory:         %u bytes\n", value);
+	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_USED_HOST_MEMORY, sizeof(RTsize), &size ) );
+	mprintf("OptiX host memory allocated:      %llu bytes\n", size);
+	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_AVAILABLE_DEVICE_MEMORY, sizeof(RTsize), &size ) );
+	mprintf("OptiX free device memory:         %llu bytes\n", size);
 	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_GPU_PAGING_ACTIVE, sizeof(int), &value ) );
 	mprintf("OptiX software paging:            %s\n", value ? "Yes" : "No");
 	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_GPU_PAGING_FORCED_OFF, sizeof(int), &value ) ); // This can be set

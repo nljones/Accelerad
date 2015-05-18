@@ -23,6 +23,9 @@ using namespace optix;
 #define corral_d(i)	corral_d_buffer[make_uint2(i, threadIndex())]
 #else /* AMB_SAVE_MEM */
 #define ambsam(i,j)	amb_samp_buffer[make_uint3(i, j, threadIndex())]
+#ifdef AMB_SUPER_SAMPLE
+#define earr(i,j)	earr_buffer[make_uint3(i, j, threadIndex())]
+#endif
 #endif /* AMB_SAVE_MEM */
 
 typedef struct {
@@ -88,6 +91,9 @@ rtBuffer<float2, 2>              corral_u_buffer;
 rtBuffer<float, 2>               corral_d_buffer;
 #else /* AMB_SAVE_MEM */
 rtBuffer<AmbientSample, 3>       amb_samp_buffer;
+#ifdef AMB_SUPER_SAMPLE
+rtBuffer<float, 3>               earr_buffer;
+#endif
 #endif /* AMB_SAVE_MEM */
 #else /* OLDAMB */
 rtBuffer<float, 2>               rprevrow_buffer;
@@ -110,10 +116,14 @@ RT_METHOD int check_overlap( const float3& normal, const float3& hit );
 #ifndef OLDAMB
 RT_METHOD int plugaleak( const AmbientRecord* record, const float3& anorm, const float3& normal, const float3& hit, float ang );
 RT_METHOD int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit );
-RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const int& i, const int& j, const float3& normal, const float3& hit);
+RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const int& i, const int& j, const int& n, const float3& normal, const float3& hit);
 #ifdef AMB_SAVE_MEM
 RT_METHOD int samp_hemi(AMBHEMI *hp, float3 *rcol, float wt, optix::Matrix<2, 3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit);
 #else /* AMB_SAVE_MEM */
+#ifdef AMB_SUPER_SAMPLE
+RT_METHOD void getambdiffs(AMBHEMI *hp);
+RT_METHOD void ambsupersamp(AMBHEMI *hp, int cnt, const float3& normal, const float3& hit);
+#endif /* AMB_SUPER_SAMPLE */
 RT_METHOD int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const float3& normal, const float3& hit );
 RT_METHOD void ambHessian( AMBHEMI *hp, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, const float3& normal, const float3& hit );
 RT_METHOD void ambdirgrad( AMBHEMI *hp, const float3& u, const float3& v, float2 *dg, const float3& normal, const float3& hit );
@@ -500,7 +510,7 @@ RT_METHOD int samp_hemi(
 		float3 gradcol;
 
 	    for ( j = 0; j < hp->ns; j++ ) {
-			hp->sampOK += ambsample(hp, &current, i, j, normal, hit);
+			hp->sampOK += ambsample(hp, &current, i, j, 0, normal, hit);
 			current.v.y = bright( current.v ); /* relative Y channel from here on... */
 
 			/* ambHessian from ambcomp.c */
@@ -585,7 +595,7 @@ RT_METHOD int samp_hemi(
 					/* sample divisions */
 	for (i = hp->ns; i--; )
 	    for (j = hp->ns; j--; )
-			hp->sampOK += ambsample(hp, &ambsam(i, j), i, j, normal, hit);
+			hp->sampOK += ambsample(hp, &ambsam(i, j), i, j, 0, normal, hit);
 #endif /* AMB_SAVE_MEM */
 	*rcol = hp->acol;
 
@@ -596,11 +606,6 @@ RT_METHOD int samp_hemi(
 		hp->sampOK *= -1;	/* soft failure */
 		return( 1 );
 	}
-	//n = ambssamp * wt + 0.5f;
-	//if (n > 8) {			/* perform super-sampling? */
-	//	ambsupersamp(hp, n);
-	//	*rcol = hp->acol;
-	//}
 
 #ifdef AMB_SAVE_MEM
 	/* doambient from ambcomp.c */
@@ -694,31 +699,44 @@ RT_METHOD int samp_hemi(
 				*pg *= 1.0f / sqrtf(d);
 		}
 	}
+#else /* AMB_SAVE_MEM */
+#ifdef AMB_SUPER_SAMPLE
+	n = ambssamp * wt + 0.5f;
+	if (n > 8) {			/* perform super-sampling? */
+		ambsupersamp(hp, n, normal, hit);
+		*rcol = hp->acol;
+	}
+#endif
 #endif /* AMB_SAVE_MEM */
 
 	return( 1 );			/* all is well */
 }
 
-RT_METHOD int ambsample( AMBHEMI *hp, AmbientSample *ap, const int& i, const int& j, const float3& normal, const float3& hit )
+RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const int& i, const int& j, const int& n, const float3& normal, const float3& hit)
 {
 #ifdef AMB_PARALLEL
-	if (ap->d == -1.0f) // An exception occurred
-		rtThrow((int)(ap->v.x));
-	if (ap->d == 0.0f) // No exception, but bad data
-		return(0);
+	if (!n) {
+		if (ap->d == -1.0f) // An exception occurred
+			rtThrow((int)(ap->v.x));
+		if (ap->d == 0.0f) // No exception, but bad data
+			return(0);
 
-	ap->v *= hp->acoef;	/* apply coefficient */
+		ap->v *= hp->acoef;	/* apply coefficient */
+		hp->acol += ap->v;	/* add to our sum */
 #ifdef DAYSIM_COMPATIBLE
-	DaysimCoef sample_dc = make_uint3(0, i + hp->ns * j, prd.dc.z);
-	daysimAddScaled(prd.dc, sample_dc, hp->acoef.x);
+		DaysimCoef sample_dc = make_uint3(0, i + hp->ns * j, prd.dc.z);
+		daysimAddScaled(prd.dc, sample_dc, hp->acoef.x);
 #endif
 #ifdef RAY_COUNT
-	prd.result.ray_count += ap->ray_count;
+		prd.result.ray_count += ap->ray_count;
 #endif
 #ifdef HIT_COUNT
-	prd.result.hit_count += ap->hit_count;
+		prd.result.hit_count += ap->hit_count;
 #endif
-#else /* AMB_PARALLEL */
+		return(1);
+	}
+#endif /* AMB_PARALLEL */
+#if defined AMB_SUPER_SAMPLE || not defined AMB_PARALLEL
 	PerRayData_radiance new_prd;
 	float b2;
 					/* generate hemispherical sample */
@@ -738,15 +756,9 @@ RT_METHOD int ambsample( AMBHEMI *hp, AmbientSample *ap, const int& i, const int
 	//hlist[1] = j;
 	//hlist[2] = i;
 	//multisamp(spt, 2, urand(ilhash(hlist,3)+n));
-	float2 spt = 0.1f + 0.8f * make_float2( curand_uniform( prd.state ), curand_uniform( prd.state ) );
-					/* avoid coincident samples */
-	//if (!n && (0 < i) & (i < hp->ns-1) &&
-	//		(0 < j) & (j < hp->ns-1)) {
-	//	if ((spt.x < 0.1f) | (spt.x >= 0.9f))
-	//		spt.x = 0.1f + 0.8f * curand_uniform( prd.state );
-	//	if ((spt.y < 0.1f) | (spt.y >= 0.9f))
-	//		spt.y = 0.1f + 0.8f * curand_uniform( prd.state );
-	//}
+	float2 spt = make_float2( curand_uniform( prd.state ), curand_uniform( prd.state ) );
+	if (!n) /* avoid coincident samples */
+		spt = 0.1f + 0.8f * spt;
 	SDsquare2disk( spt, (j+spt.y) / hp->ns, (i+spt.x) / hp->ns );
 	float zd = sqrtf( 1.0f - dot( spt, spt ) );
 	float3 rdir = normalize( spt.x*hp->ux + spt.y*hp->uy + zd*normal );
@@ -777,26 +789,96 @@ RT_METHOD int ambsample( AMBHEMI *hp, AmbientSample *ap, const int& i, const int
 	new_prd.result *= hp->acoef;	/* apply coefficient */
 	//if ( new_prd.distance * ap->d < 1.0f )		/* new/closer distance? */ //TODO where did this value come from?
 		ap->d = 1.0f / new_prd.distance;
-	//if (!n) {			/* record first vertex & value */
+	if (!n) {			/* record first vertex & value */
 		if ( new_prd.distance > 10.0f * maxarad ) // 10 * thescene.cusize
 			new_prd.distance = 10.0f * maxarad;
 		ap->p = hit + rdir * new_prd.distance;
 		ap->v = new_prd.result; // only one AmbientSample, otherwise would need +=
-	//} else {			/* else update recorded value */
-	//	hp->acol -= ap->v;
-	//	zd = 1.0f / (float)(n+1);
-	//	new_prd.result *= zd;
-	//	zd *= (float)n;
-	//	ap->v *= zd;
-	//	ap->v += new_prd.result;
-	//}
 #ifdef DAYSIM_COMPATIBLE
-	daysimAddScaled(prd.dc, new_prd.dc, hp->acoef.x);
+		daysimAddScaled(prd.dc, new_prd.dc, hp->acoef.x);
 #endif
-#endif /* AMB_PARALLEL */
+#ifdef AMB_SUPER_SAMPLE
+	} else {			/* else update recorded value */
+		hp->acol -= ap->v;
+		zd = 1.0f / (n+1);
+		new_prd.result *= zd;
+		zd *= n;
+		ap->v *= zd;
+		ap->v += new_prd.result;
+		// TODO daysim compatibility
+#endif
+	}
 	hp->acol += ap->v;	/* add to our sum */
+#endif /* AMB_SUPER_SAMPLE || !AMB_PARALLEL */
 	return(1);
 }
+
+#ifdef AMB_SUPER_SAMPLE
+/* Estimate errors based on ambient division differences */
+RT_METHOD void getambdiffs(AMBHEMI *hp)
+{
+	/* compute squared neighbor diffs */
+	for (unsigned int i = 0u; i < hp->ns; i++)
+		for (unsigned int j = 0u; j < hp->ns; j++) {
+			earr(i, j) = 0.0f;
+			float b = bright(ambsam(i, j).v);
+			if (i) {		/* from above */
+				float d2 = b - bright(ambsam(i - 1, j).v);
+				d2 *= d2;
+				earr(i, j) += d2;
+				earr(i - 1, j) += d2;
+			}
+			if (!j) continue;
+			/* from behind */
+			float d2 = b - bright(ambsam(i, j - 1).v);
+			d2 *= d2;
+			earr(i, j) += d2;
+			earr(i, j - 1) += d2;
+			if (!i) continue;
+			/* diagonal */
+			d2 = b - bright(ambsam(i - 1, j - 1).v);
+			d2 *= d2;
+			earr(i, j) += d2;
+			earr(i - 1, j - 1) += d2;
+		}
+
+	/* correct for number of neighbors */
+	earr(0, 0) *= 8.0f / 3.0f;
+	earr(0, hp->ns - 1) *= 8.0f / 3.0f;
+	earr(hp->ns - 1, 0) *= 8.0f / 3.0f;
+	earr(hp->ns - 1, hp->ns - 1) *= 8.0f / 3.0f;
+	for (unsigned int i = 1u; i < hp->ns - 1; i++) {
+		earr(i, 0) *= 8.0f / 5.0f;
+		earr(i, hp->ns - 1) *= 8.0f / 5.0f;
+		earr(0, i) *= 8.0f / 5.0f;
+		earr(hp->ns - 1, i) *= 8.0f / 5.0f;
+	}
+}
+
+/* Perform super-sampling on hemisphere (introduces bias) */
+RT_METHOD void ambsupersamp(AMBHEMI *hp, int cnt, const float3& normal, const float3& hit)
+{
+	getambdiffs(hp);
+	float e2rem = 0.0f;
+	float *ep = &earr(0, 0);
+
+	/* accumulate estimated variances */
+	for (unsigned int i = hp->ns * hp->ns; i--; )
+		e2rem += *ep++;
+
+	/* perform super-sampling */
+	ep = &earr(0, 0);
+	for (unsigned int i = 0u; i < hp->ns; i++)
+		for (unsigned int j = 0u; j < hp->ns; j++) {
+			if (e2rem <= FTINY)
+				return;	/* nothing left to do */
+			int nss = *ep / e2rem * cnt + curand_uniform( prd.state );
+			for (int n = 1; n <= nss && ambsample(hp, &ambsam(i, j), i, j, n, normal, hit); n++)
+				--cnt;
+			e2rem -= *ep++;		/* update remainder */
+		}
+}
+#endif /* AMB_SUPER_SAMPLE */
 
 /* Return brightness of farthest ambient sample */
 RT_METHOD float back_ambval( const AmbientSample *n1, const AmbientSample *n2, const AmbientSample *n3 )

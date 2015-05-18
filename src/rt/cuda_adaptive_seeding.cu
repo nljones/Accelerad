@@ -423,7 +423,7 @@ void calc_score(float *error, int *seed, const unsigned int width, const unsigne
 
 /* Calculate average of hits at each quad tree node */
 static void __cdecl cuda_mip_map_hits_recursive(PointDirection *deviceHits, PointDirection *deviceMipMap,
-	const unsigned int width, const unsigned int height, const unsigned int levels, const unsigned int maxThreadsPerBlock, dim3 dimGrid, dim3 dimBlock, unsigned int blockSharedMemorySize)
+	const unsigned int width, const unsigned int height, const unsigned int levels, const unsigned int maxThreadsPerBlock, dim3 dimGrid, dim3 dimBlock, size_t blockSharedMemorySize)
 {
 	/* Calculate average of hits at each quad tree node */
 	mip_map_hits <<< dimGrid, dimBlock, blockSharedMemorySize >>>
@@ -529,14 +529,14 @@ void __cdecl cuda_score_hits(PointDirection *hits, int *seeds, const unsigned in
 	const unsigned int blockDim = calc_block_dim(threadsPerBlock, levels);
 	const unsigned int blocksX = (width - 1) / blockDim + 1;
 	const unsigned int blocksY = (height - 1) / blockDim + 1;
-	const unsigned int blockSharedMemorySize = blockDim * blockDim * sizeof(PointDirection);
+	const size_t blockSharedMemorySize = blockDim * blockDim * sizeof(PointDirection);
 
 #ifndef MULTI_BLOCK
 	if (blocksX != 1u || blocksY != 1u)
 		err("WARNING: Your CUDA hardware has insufficient block size %u threads (%u x %u blocks needed). Recompile with MULTI_BLOCK flag.\n", deviceProp.maxThreadsPerBlock, blocksX, blocksY);
 #endif
 	if (blockSharedMemorySize > deviceProp.sharedMemPerBlock)
-		err("WARNING: Your CUDA hardware has insufficient block shared memory %u (%u needed).\n", deviceProp.sharedMemPerBlock, blockSharedMemorySize);
+		err("WARNING: Your CUDA hardware has insufficient block shared memory %llu (%llu needed).\n", deviceProp.sharedMemPerBlock, blockSharedMemorySize);
 
 	const dim3 dimGrid(blocksX, blocksY);
 	const dim3 dimBlock(blockDim, blockDim);
@@ -606,38 +606,42 @@ void __cdecl cuda_score_hits(PointDirection *hits, int *seeds, const unsigned in
 	checkCuda(cudaFree(deviceSeeds));
 }
 
-void printDevProp(cudaDeviceProp devProp)
+static void printDevProp(const cudaDeviceProp *devProp)
 {
-	fprintf(stderr, "Revision number:               %d.%d\n",  devProp.major, devProp.minor);
-	fprintf(stderr, "Name:                          %s\n",  devProp.name);
-	fprintf(stderr, "Total global memory:           %u bytes\n",  devProp.totalGlobalMem);
-	fprintf(stderr, "Total constant memory:         %u bytes\n",  devProp.totalConstMem);
-	fprintf(stderr, "L2 cache size:                 %u bytes\n",  devProp.l2CacheSize);
-	fprintf(stderr, "Total shared memory per block: %u\n",  devProp.sharedMemPerBlock);
-	fprintf(stderr, "Total registers per block:     %d\n",  devProp.regsPerBlock);
-	fprintf(stderr, "Warp size:                     %d\n",  devProp.warpSize);
-	fprintf(stderr, "Maximum memory pitch:          %u\n",  devProp.memPitch);
-	fprintf(stderr, "Maximum threads per block:     %d\n",  devProp.maxThreadsPerBlock);
+	fprintf(stderr, "Revision number:                    %d.%d\n", devProp->major, devProp->minor);
+	fprintf(stderr, "Name:                               %s\n", devProp->name);
+	fprintf(stderr, "Total global memory:                %llu bytes\n", devProp->totalGlobalMem);
+	fprintf(stderr, "Total constant memory:              %llu bytes\n", devProp->totalConstMem);
+	fprintf(stderr, "L2 cache size:                      %u bytes\n", devProp->l2CacheSize);
+	fprintf(stderr, "Maximum threads per block:          %d\n", devProp->maxThreadsPerBlock);
+	fprintf(stderr, "Shared memory per block:            %llu bytes\n", devProp->sharedMemPerBlock);
+	fprintf(stderr, "Registers per block:                %d\n", devProp->regsPerBlock);
+	fprintf(stderr, "Maximum threads per multiprocessor: %d\n", devProp->maxThreadsPerMultiProcessor);
+	fprintf(stderr, "Shared mem per multiprocessor:      %llu bytes\n", devProp->sharedMemPerMultiprocessor);
+	fprintf(stderr, "Registers per multiprocessor:       %d\n", devProp->regsPerMultiprocessor);
+	fprintf(stderr, "Warp size:                          %d\n", devProp->warpSize);
+	fprintf(stderr, "Maximum memory pitch:               %llu bytes\n", devProp->memPitch);
 	for (int i = 0; i < 3; ++i)
-	fprintf(stderr, "Maximum dimension %d of block:  %d\n", i, devProp.maxThreadsDim[i]);
+		fprintf(stderr, "Maximum dimension %d of block:       %d\n", i, devProp->maxThreadsDim[i]);
 	for (int i = 0; i < 3; ++i)
-	fprintf(stderr, "Maximum dimension %d of grid:   %d\n", i, devProp.maxGridSize[i]);
-	fprintf(stderr, "Global memory bus width:       %d bits\n",  devProp.memoryBusWidth);
-	fprintf(stderr, "Peak memory clock frequency:   %d kHz\n",  devProp.memoryClockRate);
-	fprintf(stderr, "Clock rate:                    %d kHz\n",  devProp.clockRate);
-	fprintf(stderr, "Texture alignment:             %u\n",  devProp.textureAlignment);
-	fprintf(stderr, "Texture pitch alignment:       %u\n",  devProp.texturePitchAlignment);
-	fprintf(stderr, "Concurrent kernels:            %s\n",  devProp.concurrentKernels ? "Yes" : "No");
-	fprintf(stderr, "Concurrent copy and execution: %s\n",  devProp.deviceOverlap ? "Yes" : "No");
-	fprintf(stderr, "Number of async engines:       %d\n",  devProp.asyncEngineCount);
-	fprintf(stderr, "Number of multiprocessors:     %d\n",  devProp.multiProcessorCount);
-	fprintf(stderr, "Kernel execution timeout:      %s\n",  devProp.kernelExecTimeoutEnabled ? "Yes" : "No");
-	fprintf(stderr, "Unified addressing with host:  %s\n",  devProp.unifiedAddressing ? "Yes" : "No");
-	fprintf(stderr, "Device can map host memory:    %s\n",  devProp.canMapHostMemory ? "Yes" : "No");
+		fprintf(stderr, "Maximum dimension %d of grid:        %d\n", i, devProp->maxGridSize[i]);
+	fprintf(stderr, "Global memory bus width:            %d bits\n", devProp->memoryBusWidth);
+	fprintf(stderr, "Peak memory clock frequency:        %d kHz\n", devProp->memoryClockRate);
+	fprintf(stderr, "Clock rate:                         %d kHz\n", devProp->clockRate);
+	fprintf(stderr, "Texture alignment:                  %u\n", devProp->textureAlignment);
+	fprintf(stderr, "Texture pitch alignment:            %u\n", devProp->texturePitchAlignment);
+	fprintf(stderr, "Concurrent kernels:                 %s\n", devProp->concurrentKernels ? "Yes" : "No");
+	fprintf(stderr, "Concurrent copy and execution:      %s\n", devProp->deviceOverlap ? "Yes" : "No");
+	fprintf(stderr, "Number of async engines:            %d\n", devProp->asyncEngineCount);
+	fprintf(stderr, "Number of multiprocessors:          %d\n", devProp->multiProcessorCount);
+	fprintf(stderr, "Kernel execution timeout:           %s\n", devProp->kernelExecTimeoutEnabled ? "Yes" : "No");
+	fprintf(stderr, "Unified addressing with host:       %s\n", devProp->unifiedAddressing ? "Yes" : "No");
+	fprintf(stderr, "Device can map host memory:         %s\n", devProp->canMapHostMemory ? "Yes" : "No");
+	fprintf(stderr, "Device supports managed memory:     %s\n", devProp->managedMemory ? "Yes" : "No");
 	return;
 }
  
-int printCUDAProp()
+void printCUDAProp()
 {
 	// Number of CUDA devices
 	int devCount;
@@ -652,14 +656,8 @@ int printCUDAProp()
 		fprintf(stderr, "\nCUDA Device #%d\n", i);
 		cudaDeviceProp devProp;
 		cudaGetDeviceProperties(&devProp, i);
-		printDevProp(devProp);
+		printDevProp(&devProp);
 	}
- 
-	//printf("\nPress any key to exit...");
-	//char c;
-	//scanf("%c", &c);
- 
-	return 0;
 }
 
 #ifdef __cplusplus

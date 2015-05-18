@@ -363,15 +363,15 @@ float** __cdecl cuda_kmeans(float **objects,      /* in: [numObjs][numCoords] */
 #endif
 	const unsigned int numClusterBlocks = (numObjs - 1) / numThreadsPerClusterBlock + 1;
 #if BLOCK_SHARED_MEM_OPTIMIZATION
-	const unsigned int clusterBlockSharedDataSize = numThreadsPerClusterBlock * sizeof(COUNTER) + numClusters * numCoords * sizeof(float);
+	const size_t clusterBlockSharedDataSize = numThreadsPerClusterBlock * sizeof(COUNTER) + numClusters * numCoords * sizeof(float);
 
 	if (clusterBlockSharedDataSize > deviceProp.sharedMemPerBlock) {
-		err("WARNING: Your CUDA hardware has insufficient block shared memory %u (%u needed). "
+		err("WARNING: Your CUDA hardware has insufficient block shared memory %llu (%llu needed). "
 			"You need to recompile with BLOCK_SHARED_MEM_OPTIMIZATION=0. "
 			"See the README for details.\n", deviceProp.sharedMemPerBlock, clusterBlockSharedDataSize);
 	}
 #else
-	const unsigned int clusterBlockSharedDataSize = numThreadsPerClusterBlock * sizeof(COUNTER);
+	const size_t clusterBlockSharedDataSize = numThreadsPerClusterBlock * sizeof(COUNTER);
 #endif
 
 	const unsigned int numReductionBlocks = (numClusterBlocks - 1) / numThreadsPerClusterBlock + 1;

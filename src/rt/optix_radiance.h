@@ -142,7 +142,7 @@ void setupAmbientCache( const RTcontext context, const unsigned int level );
 /* in optix_util.c */
 #ifdef REPORT_GPU_STATE
 void printContextInfo( const RTcontext context );
-extern int printCUDAProp();
+extern void printCUDAProp();
 #endif
 void runKernel1D( const RTcontext context, const unsigned int entry, const int size );
 void runKernel2D( const RTcontext context, const unsigned int entry, const int width, const int height );
