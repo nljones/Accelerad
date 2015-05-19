@@ -16,6 +16,7 @@
 #include <face.h>
 #include <mesh.h>
 #include "data.h"
+#include "random.h"
 
 #include "optix_radiance.h"
 
@@ -598,6 +599,9 @@ static void applyRadianceSettings( const RTcontext context )
 	applyContextVariable1f( context, "minweight", minweight ); // -lw, from ray.h
 	applyContextVariable1i( context, "maxdepth", maxdepth ); // -lr, from ray.h, negative values indicate Russian roulette
 	applyContextVariable1ui( context, "imm_irrad", imm_irrad ); // -I
+
+	if (rand_samp)
+		applyContextVariable1ui(context, "random_seed", random()); // -u
 
 #ifdef DAYSIM
 	/* Set daylight coefficient parameters */

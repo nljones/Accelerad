@@ -38,14 +38,6 @@ rtDeclareVariable(float, time_view_scale, , ) = 1e-6f;
 //#define TIME_VIEW
 
 
-// Initialize the random state
-RT_METHOD void init_state( PerRayData_radiance* prd )
-{
-	rand_state state;
-	prd->state = &state;
-	curand_init( launch_index.x + launch_dim.x * launch_index.y, 0, 0, prd->state );
-}
-
 // Pick the ray direction based on camera type as in image.c.
 RT_PROGRAM void image_camera()
 {
@@ -54,7 +46,7 @@ RT_PROGRAM void image_camera()
 	output_buffer[launch_index] = make_float4( t0 );
 #endif
 	PerRayData_radiance prd;
-	init_state( &prd );
+	init_rand(&prd.state, launch_index.x + launch_dim.x * launch_index.y);
 
 	float2 d = make_float2( curand_uniform( prd.state ), curand_uniform( prd.state ) );
 	d = 0.5f + dstrpix * ( 0.5f - d ); // this is pixjitter() from rpict.c

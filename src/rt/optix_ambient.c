@@ -490,7 +490,7 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 #ifdef AMB_PARALLEL
 	RTvariable     segment_var = NULL;
 	unsigned int   kmeans_clusters_per_segment;
-	unsigned long long bytes_per_kmeans_cluster;
+	size_t         bytes_per_kmeans_cluster;
 #endif
 #endif
 #ifdef ITERATIVE_KMEANS_IC
@@ -665,7 +665,7 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 #ifdef DAYSIM
 		/* Determine how large the scratch space can be */
 		kmeans_clusters_per_segment = cuda_kmeans_clusters;
-		bytes_per_kmeans_cluster = (unsigned long long)sizeof(float) * daysimGetCoefficients() * maxdepth * 2 * divisions * divisions;
+		bytes_per_kmeans_cluster = sizeof(float) * daysimGetCoefficients() * maxdepth * 2 * divisions * divisions;
 		while (bytes_per_kmeans_cluster * kmeans_clusters_per_segment > INT_MAX) { // Limit imposed by OptiX
 			kmeans_clusters_per_segment = (kmeans_clusters_per_segment - 1) / 2 + 1;
 		}

@@ -533,10 +533,10 @@ void __cdecl cuda_score_hits(PointDirection *hits, int *seeds, const unsigned in
 
 #ifndef MULTI_BLOCK
 	if (blocksX != 1u || blocksY != 1u)
-		err("WARNING: Your CUDA hardware has insufficient block size %u threads (%u x %u blocks needed). Recompile with MULTI_BLOCK flag.\n", deviceProp.maxThreadsPerBlock, blocksX, blocksY);
+		err("Your CUDA hardware has insufficient block size %u threads (%u x %u blocks needed). Recompile with MULTI_BLOCK flag.", deviceProp.maxThreadsPerBlock, blocksX, blocksY);
 #endif
 	if (blockSharedMemorySize > deviceProp.sharedMemPerBlock)
-		err("WARNING: Your CUDA hardware has insufficient block shared memory %llu (%llu needed).\n", deviceProp.sharedMemPerBlock, blockSharedMemorySize);
+		err("Your CUDA hardware has insufficient block shared memory %llu (%llu needed).", deviceProp.sharedMemPerBlock, blockSharedMemorySize);
 
 	const dim3 dimGrid(blocksX, blocksY);
 	const dim3 dimBlock(blockDim, blockDim);

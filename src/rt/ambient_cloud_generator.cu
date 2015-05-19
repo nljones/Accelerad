@@ -32,13 +32,6 @@ rtDeclareVariable(uint2, launch_dim,   rtLaunchDim, );
 //rtDeclareVariable(unsigned int, launch_index, rtLaunchIndex, );
 //rtDeclareVariable(unsigned int, launch_dim,   rtLaunchDim, );
 
-// Initialize the random state
-RT_METHOD void init_state( PerRayData_ambient_record* prd )
-{
-	rand_state state;
-	prd->state = &state;
-	curand_init(launch_index.x + launch_dim.x * (launch_index.y + launch_dim.y * level), 0, 0, prd->state);
-}
 
 RT_PROGRAM void ambient_cloud_camera()
 {
@@ -50,7 +43,7 @@ RT_PROGRAM void ambient_cloud_camera()
 		return;
 
 	PerRayData_ambient_record prd;
-	init_state( &prd );
+	init_rand(&prd.state, launch_index.x + launch_dim.x * (launch_index.y + launch_dim.y * level));
 	prd.parent = NULL;
 	prd.result.pos = prd.result.val = make_float3( 0.0f );
 	prd.result.lvl = level;

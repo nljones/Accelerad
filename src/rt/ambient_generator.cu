@@ -31,13 +31,6 @@ rtDeclareVariable(unsigned int,  level, , ) = 0u;
 rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
 rtDeclareVariable(uint2, launch_dim,   rtLaunchDim, );
 
-// Initialize the random state
-RT_METHOD void init_state( PerRayData_ambient_record* prd )
-{
-	rand_state state;
-	prd->state = &state;
-	curand_init( launch_index.x + launch_dim.x * launch_index.y, 0, 0, prd->state );
-}
 
 RT_METHOD float2 get_offset( unsigned int segment )
 {
@@ -60,7 +53,7 @@ RT_METHOD float2 get_offset( unsigned int segment )
 RT_PROGRAM void ambient_camera()
 {
 	PerRayData_ambient_record prd;
-	init_state( &prd );
+	init_rand(&prd.state, launch_index.x + launch_dim.x * launch_index.y);
 	prd.parent = NULL;
 	prd.result.pos = prd.result.val = make_float3( 0.0f );
 	prd.result.lvl = level;

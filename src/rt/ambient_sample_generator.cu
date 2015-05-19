@@ -27,13 +27,6 @@ rtDeclareVariable(float,        minweight, , ); /* minimum ray weight (lw) */
 rtDeclareVariable(uint3, launch_index, rtLaunchIndex, );
 rtDeclareVariable(uint3, launch_dim,   rtLaunchDim, );
 
-// Initialize the random state
-RT_METHOD void init_state( PerRayData_radiance* prd )
-{
-	rand_state state;
-	prd->state = &state;
-	curand_init(launch_index.x + launch_dim.x * (launch_index.y + launch_dim.y * (launch_index.z + launch_dim.z * level)), 0, 0, prd->state);
-}
 
 RT_PROGRAM void ambient_sample_camera()
 {
@@ -42,7 +35,7 @@ RT_PROGRAM void ambient_sample_camera()
 	PointDirection cluster = cluster_buffer[index.z];
 
 	PerRayData_radiance prd;
-	init_state(&prd);
+	init_rand(&prd.state, launch_index.x + launch_dim.x * (launch_index.y + launch_dim.y * (launch_index.z + launch_dim.z * level)));
 	float b2;
 					/* generate hemispherical sample */
 					/* ambient coefficient for weight */

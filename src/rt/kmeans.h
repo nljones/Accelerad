@@ -42,14 +42,15 @@
 #define RETURN_DISTANCE
 
 #include <assert.h>
+#include "rterror.h"
 
 #include "optix_world.h"
 #include "optix_common.h"
 
 typedef unsigned int COUNTER;
 
-#define msg(format, ...) do { fprintf(stderr, format, ##__VA_ARGS__); } while (0)
-#define err(format, ...) do { fprintf(stderr, format, ##__VA_ARGS__); exit(1); } while (0)
+#define msg(format, ...) do { sprintf(errmsg, format, ##__VA_ARGS__); error(WARNING, errmsg); } while (0)
+#define err(format, ...) do { sprintf(errmsg, format, ##__VA_ARGS__); error(INTERNAL, errmsg); } while (0)
 
 #define malloc2D(name, xDim, yDim, type) do {               \
 	name = (type **)malloc(xDim * sizeof(type *));          \
@@ -81,7 +82,7 @@ extern "C" {
 #define checkCuda( func ) do {	\
 	cudaError_t e = func;		\
 	if (e != cudaSuccess)		\
-		err("CUDA Error %d: %s\n(%s:%d)\n", e, cudaGetErrorString(e), __FILE__, __LINE__); } while(0)
+		err("CUDA Error %d: %s\n(%s:%d)", e, cudaGetErrorString(e), __FILE__, __LINE__); } while(0)
 
 #define checkLastCudaError()	\
 	checkCuda(cudaGetLastError())

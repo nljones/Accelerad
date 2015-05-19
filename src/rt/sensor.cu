@@ -30,13 +30,6 @@ rtDeclareVariable(float, time_view_scale, , ) = 1e-6f;
 
 //#define TIME_VIEW
 
-// Initialize the random state
-RT_METHOD void init_state( PerRayData_radiance* prd )
-{
-	rand_state state;
-	prd->state = &state;
-	curand_init( launch_index.x + launch_dim.x * launch_index.y, 0, 0, prd->state );
-}
 
 RT_PROGRAM void ray_generator()
 {
@@ -45,7 +38,7 @@ RT_PROGRAM void ray_generator()
 	ray_buffer[launch_index].val = make_float3( t0 );
 #endif
 	PerRayData_radiance prd;
-	init_state( &prd );
+	init_rand(&prd.state, launch_index.x + launch_dim.x * launch_index.y);
 	prd.weight = 1.0f;
 	prd.depth = 0;
 	prd.ambient_depth = 0;

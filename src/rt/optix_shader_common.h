@@ -235,14 +235,24 @@ RT_METHOD float4 exceptionToFloat4( const unsigned int& code )
 	return make_float4(code, 0.0f, 0.0f, -1.0f);
 }
 
-#ifndef RANDOM
-RT_METHOD void curand_init( const int& x, const int& y, const int& z, rand_state* state );
+RT_METHOD void init_rand(rand_state** pointer, const unsigned int& seed);
+#ifdef RANDOM
+rtDeclareVariable(unsigned int, random_seed, , ) = 0u; /* random seed to generate different results on each run */
+
+/* Initialize the random state */
+RT_METHOD void init_rand(rand_state** pointer, const unsigned int& seed)
+{
+	rand_state state;
+	*pointer = &state;
+	curand_init(seed + random_seed, 0, 0, *pointer);
+}
+#else /* RANDOM */
 RT_METHOD float curand_uniform( rand_state* state );
 
 /* Initialize the non-random number generator with zero. */
-RT_METHOD void curand_init( const int& x, const int& y, const int& z, rand_state* state )
+RT_METHOD void init_rand(rand_state** pointer, const unsigned int& seed)
 {
-	*state = 0.0f;
+	**pointer = 0.0f;
 }
 
 /* Return the value of the non-random number. */
