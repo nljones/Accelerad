@@ -201,7 +201,7 @@ RT_METHOD float3 cross_direction( const float3& v )
 /* Choose deterministic perpedicular direction */
 RT_METHOD float3 getperpendicular( const float3& v )
 {
-	return optix::normalize(optix::cross(cross_direction(v), v));;
+	return optix::normalize(optix::cross(cross_direction(v), v));
 }
 
 /* Choose random perpedicular direction */

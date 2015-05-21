@@ -66,6 +66,7 @@ void initPhotonMap (PhotonMap *pmap, PhotonMapType t)
 const PhotonPrimary* addPhotonPrimary (PhotonMap *pmap, const RAY *ray)
 {
    PhotonPrimary *prim = NULL;
+   FVECT dvec;
    
    if (!pmap || !ray)
       return NULL;
@@ -98,11 +99,12 @@ const PhotonPrimary* addPhotonPrimary (PhotonMap *pmap, const RAY *ray)
    prim -> srcIdx = -1;
       
    /* Reverse incident direction to point to light source */
-   prim -> dir [0] = -ray -> rdir [0];
-   prim -> dir [1] = -ray -> rdir [1];
-   prim -> dir [2] = -ray -> rdir [2];
+   dvec [0] = -ray -> rdir [0];
+   dvec [1] = -ray -> rdir [1];
+   dvec [2] = -ray -> rdir [2];
+   prim -> dir = encodedir(dvec);
 
-   VCOPY(prim -> org, ray -> rorg);
+   VCOPY(prim -> pos, ray -> rop);
    
    return prim;
 }

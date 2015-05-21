@@ -127,11 +127,10 @@ void savePhotonMap (const PhotonMap *pmap, const char *fname,
          
          putint(prim -> srcIdx, sizeof(prim -> srcIdx), file);
 
-         for (j = 0; j < 3; j++)
-            putflt(prim -> dir [j], file);
+         putint(prim -> dir, sizeof(prim -> dir), file);
             
          for (j = 0; j < 3; j++)
-            putflt(prim -> org [j], file);
+            putflt(prim -> pos [j], file);
          
          if (ferror(file))
             error(SYSTEM, "error writing primary photon rays");
@@ -249,11 +248,10 @@ PhotonMapType loadPhotonMap (PhotonMap *pmap, const char *fname)
          
          prim -> srcIdx = getint(sizeof(prim -> srcIdx), file);
          
-         for (j = 0; j < 3; j++)
-            prim -> dir [j] = getflt(file);
+         prim -> dir = getint(sizeof(prim -> dir), file);
             
          for (j = 0; j < 3; j++)
-            prim -> org [j] = getflt(file);
+            prim -> pos [j] = getflt(file);
             
          if (feof(file))
             error(SYSTEM, "error reading primary photon rays");

@@ -27,7 +27,7 @@ rtDeclareVariable(float,        rindex, , ) = 1.52f; /* Refractive index, usuall
 rtDeclareVariable(float3,       color, , ); /* The material color given by the rad file "glass" object */
 
 /* OptiX variables */
-rtDeclareVariable(optix::Ray, ray, rtCurrentRay, );
+rtDeclareVariable(Ray, ray, rtCurrentRay, );
 rtDeclareVariable(float, t_hit, rtIntersectionDistance, );
 rtDeclareVariable(PerRayData_radiance, prd, rtPayload, );
 rtDeclareVariable(PerRayData_shadow,   prd_shadow, rtPayload, );
@@ -46,6 +46,7 @@ RT_PROGRAM void closest_hit_shadow()
 	float3 world_geometric_normal = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, geometric_normal ) );
 
 	float3 ffnormal = faceforward( world_shading_normal, -ray.direction, world_geometric_normal );
+	float3 snormal = faceforward( world_geometric_normal, -ray.direction, world_geometric_normal );
 
 	PerRayData_shadow new_prd;             
 	float3 result = make_float3( 0.0f );
@@ -53,18 +54,22 @@ RT_PROGRAM void closest_hit_shadow()
 	float3 mcolor = color;
 
 	/* check transmission */
-	bool hastrans = optix::fmaxf( mcolor ) > 1e-15f;
+	bool hastrans = fmaxf( mcolor ) > 1e-15f;
 	if (!hastrans) {
 		return;
 	}
-	mcolor = optix::fmaxf( mcolor, make_float3( 1e-15f ) ); // no color channel should be smaller than 1e-15
+	mcolor = fmaxf( mcolor, make_float3( 1e-15f ) ); // no color channel should be smaller than 1e-15
 
 	/* get modifiers */
 	// we'll skip this for now
 
 	/* perturb normal */
 	// if there's a bump map, we use that, else
-	float pdot = -optix::dot( ray.direction, ffnormal );
+	float pdot = -dot( ray.direction, ffnormal );
+	if ((pdot > 0.0f) != (-dot(ray.direction, snormal) > 0.0)) {		/* fix orientation from raynormal in raytrace.c */
+		ffnormal += 2.0f * pdot * ray.direction;
+		pdot = -pdot;
+	}
 
 	/* angular transmission */
 	float cos2 = sqrtf( 1.0f + ( pdot * pdot - 1.0f ) / ( rindex * rindex ) );
@@ -94,7 +99,7 @@ RT_PROGRAM void closest_hit_shadow()
 		new_prd.dc = daysimNext(prd_shadow.dc);
 		daysimSet(new_prd.dc, 0.0f);
 #endif
-		optix::Ray trans_ray = optix::make_Ray(hit_point, ray.direction, shadow_ray_type, ray_start(hit_point, ray.direction, ffnormal, RAY_START), RAY_END);
+		Ray trans_ray = make_Ray(hit_point, ray.direction, shadow_ray_type, ray_start(hit_point, ray.direction, ffnormal, RAY_START), RAY_END);
 		rtTrace(top_object, trans_ray, new_prd);
 		result += new_prd.result * trans;
 #ifdef DAYSIM_COMPATIBLE
@@ -113,6 +118,7 @@ RT_PROGRAM void closest_hit_radiance()
 	float3 world_geometric_normal = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, geometric_normal ) );
 
 	float3 ffnormal = faceforward( world_shading_normal, -ray.direction, world_geometric_normal );
+	float3 snormal = faceforward( world_geometric_normal, -ray.direction, world_geometric_normal );
 
 	PerRayData_radiance new_prd;             
 	float3 result = make_float3( 0.0f );
@@ -120,9 +126,9 @@ RT_PROGRAM void closest_hit_radiance()
 	float3 mcolor = color;
 
 	/* check transmission */
-	bool hastrans = optix::fmaxf( mcolor ) > 1e-15f;
+	bool hastrans = fmaxf( mcolor ) > 1e-15f;
 	if (hastrans) {
-		mcolor = optix::fmaxf( mcolor, make_float3( 1e-15f ) ); // no color channel should be smaller than 1e-15
+		mcolor = fmaxf( mcolor, make_float3( 1e-15f ) ); // no color channel should be smaller than 1e-15
 	} // else we return if it's a shadow ray, which it isn't
 
 	/* get modifiers */
@@ -133,7 +139,11 @@ RT_PROGRAM void closest_hit_radiance()
 
 	/* perturb normal */
 	// if there's a bump map, we use that, else
-	float pdot = -optix::dot( ray.direction, ffnormal );
+	float pdot = -dot( ray.direction, ffnormal );
+	if ((pdot > 0.0f) != (-dot(ray.direction, snormal) > 0.0)) {		/* fix orientation from raynormal in raytrace.c */
+		ffnormal += 2.0f * pdot * ray.direction;
+		pdot = -pdot;
+	}
 
 	/* angular transmission */
 	float cos2 = sqrtf( 1.0f + ( pdot * pdot - 1.0f ) / ( rindex * rindex ) );
@@ -165,12 +175,25 @@ RT_PROGRAM void closest_hit_radiance()
 #ifdef DAYSIM_COMPATIBLE
 			new_prd.dc = daysimNext(prd.dc);
 #endif
+			float3 R = ray.direction;
+
+			/* perturb normal */
+			float3 pert = snormal - ffnormal;
+			int hastexture = dot(pert, pert) > FTINY * FTINY;
+			if (!new_prd.ambient_depth && hastexture) {
+				R = normalize(ray.direction + pert * (2.0f * (1.0f - rindex)));
+				if (isnan(R))
+					R = ray.direction;
+			} else {
+				transtest = 2;
+			}
+
 			setupPayload(new_prd, 0);
-			Ray trans_ray = make_Ray( hit_point, ray.direction, radiance_ray_type, ray_start( hit_point, ray.direction, ffnormal, RAY_START ), RAY_END );
+			Ray trans_ray = make_Ray( hit_point, R, radiance_ray_type, ray_start( hit_point, R, ffnormal, RAY_START ), RAY_END );
 			rtTrace(top_object, trans_ray, new_prd);
 			float3 rcol = new_prd.result * trans;
 			result += rcol;
-			transtest = 2.0f * bright( rcol );
+			transtest *= bright( rcol );
 			transdist = t_hit + new_prd.distance;
 #ifdef DAYSIM_COMPATIBLE
 			daysimAddScaled(prd.dc, new_prd.dc, trans.x);

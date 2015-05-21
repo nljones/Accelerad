@@ -951,7 +951,7 @@ static void createFace(const OBJREC* rec, const OBJREC* parent)
 	for (j = 0; j < face->nv; j++) {
 		insertArray3f(vertices, face->va[3 * j], face->va[3 * j + 1], face->va[3 * j + 2]);
 
-		if (material && material->otype == TEX_FUNC && material->oargs.nsargs == 4 && !strcmp(material->oargs.sarg[3], "tmesh.cal")) {
+		if (material && material->otype == TEX_FUNC && material->oargs.nsargs >= 4 && !strcmp(material->oargs.sarg[3], "tmesh.cal")) {
 			/* Normal calculation from tmesh.cal */
 			double bu, bv;
 			FVECT v;

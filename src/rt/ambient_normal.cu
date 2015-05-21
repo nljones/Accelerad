@@ -736,7 +736,7 @@ RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const int& i, const int&
 		return(1);
 	}
 #endif /* AMB_PARALLEL */
-#if defined AMB_SUPER_SAMPLE || not defined AMB_PARALLEL
+#if defined AMB_SUPER_SAMPLE || !defined AMB_PARALLEL
 	PerRayData_radiance new_prd;
 	float b2;
 					/* generate hemispherical sample */
@@ -787,7 +787,7 @@ RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const int& i, const int&
 	if ( new_prd.distance <= FTINY )
 		return(0);		/* should never happen */
 	new_prd.result *= hp->acoef;	/* apply coefficient */
-	//if ( new_prd.distance * ap->d < 1.0f )		/* new/closer distance? */ //TODO where did this value come from?
+	if (!n || new_prd.distance * ap->d < 1.0f )		/* new/closer distance? */
 		ap->d = 1.0f / new_prd.distance;
 	if (!n) {			/* record first vertex & value */
 		if ( new_prd.distance > 10.0f * maxarad ) // 10 * thescene.cusize

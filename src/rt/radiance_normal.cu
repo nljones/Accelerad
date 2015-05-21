@@ -158,6 +158,7 @@ RT_PROGRAM void closest_hit_radiance()
 	/* check for back side */
 	// if backvis is false, create a new ray starting from the hit point (i.e., ignore this hit)
 	float3 ffnormal = faceforward( world_shading_normal, -ray.direction, world_geometric_normal );
+	float3 snormal = faceforward( world_geometric_normal, -ray.direction, world_geometric_normal );
 
 	PerRayData_radiance new_prd;
 	float3 result = make_float3( 0.0f );
@@ -179,9 +180,15 @@ RT_PROGRAM void closest_hit_radiance()
 	/* perturb normal */
 	// if there's a bump map, we use that, else
 	float pdot = -dot( ray.direction, ffnormal );
+	if ((pdot > 0.0f) != (-dot(ray.direction, snormal) > 0.0)) {		/* fix orientation from raynormal in raytrace.c */
+		ffnormal += 2.0f * pdot * ray.direction;
+		pdot = -pdot;
+	}
+	if (pdot < 0.001f)
+		pdot = 0.001f;			/* non-zero for dirnorm() */
 
 	// if it's a face or a ring (which it is currently) label as flat
-	specfl |= SP_FLAT;
+	specfl |= SP_FLAT; // TODO what about curvature from vertex normals?
 
 	/* modify material color */
 	//mcolor *= rtTex3D(rtTextureId id, texcoord.x, texcoord.y, texcoord.z).xyz;
@@ -197,26 +204,27 @@ RT_PROGRAM void closest_hit_radiance()
 	float tdiff = 0.0f, tspec = 0.0f, trans = 0.0f; // because it's opaque
 #ifdef TRANSMISSION
 	float transtest = 0.0f, transdist = 0.0f;
+	float3 prdir = ray.direction;
 	if (transm > 0.0f) { // type == MAT_TRANS
 		trans = transm * (1.0f - rspec);
 		tspec = trans * tspecu;
 		tdiff = trans - tspec;
 		if (tspec > FTINY) {
 			specfl |= SP_TRAN;
+
+			/* perturb normal */
+			float3 pert = snormal - ffnormal;
+			int hastexture = dot(pert, pert) > FTINY * FTINY;
+			
 							/* check threshold */
 			if (!(specfl & SP_PURE) && specthresh >= tspec - FTINY)
 				specfl |= SP_TBLT;
-			//if (!hastexture || r->crtype & SHADOW) {
-			//	VCOPY(nd.prdir, r->rdir);
-			//	transtest = 2;
-			//} else {
-			//	for (i = 0; i < 3; i++)		/* perturb */
-			//		nd.prdir[i] = r->rdir[i] - r->pert[i];
-			//	if (DOT(nd.prdir, r->ron) < -FTINY)
-			//		nd.prdir = normalize(nd.prdir);	/* OK */
-			//	else
-			//		VCOPY(nd.prdir, r->rdir);
-			//}
+			if (prd.ambient_depth || !hastexture) {
+				transtest = 2.0f;
+			} else {
+				if (dot(prdir - pert, snormal) < -FTINY)
+					prdir = normalize(prdir - pert);	/* OK */
+			}
 		}
 	}
 
@@ -231,15 +239,14 @@ RT_PROGRAM void closest_hit_radiance()
 			new_prd.dc = daysimNext(prd.dc);
 #endif
 			setupPayload(new_prd, 0);
-			float3 R = ray.direction; //TODO may need to perturb
-			Ray trans_ray = make_Ray( hit_point, R, radiance_ray_type, ray_start( hit_point, R, ffnormal, RAY_START ), RAY_END );
+			Ray trans_ray = make_Ray(hit_point, prdir, radiance_ray_type, ray_start(hit_point, prdir, ffnormal, RAY_START), RAY_END);
 			rtTrace(top_object, trans_ray, new_prd);
 			float3 rcol = new_prd.result * mcolor * tspec;
 			result += rcol;
 #ifdef DAYSIM_COMPATIBLE
 			daysimAddScaled(prd.dc, new_prd.dc, mcolor.x * tspec);
 #endif
-			transtest = 2.0f * bright(rcol);
+			transtest *= bright(rcol);
 			transdist = t_hit + new_prd.distance;
 			resolvePayload(prd, new_prd);
 		}
@@ -282,8 +289,8 @@ RT_PROGRAM void closest_hit_radiance()
 			new_prd.dc = daysimNext(prd.dc);
 #endif
 			setupPayload(new_prd, 0);
-			float3 R = reflect( ray.direction, ffnormal );
-			Ray refl_ray = make_Ray( hit_point, R, radiance_ray_type, ray_start( hit_point, R, ffnormal, RAY_START ), RAY_END );
+			prdir = reflect(ray.direction, ffnormal);
+			Ray refl_ray = make_Ray(hit_point, prdir, radiance_ray_type, ray_start(hit_point, prdir, ffnormal, RAY_START), RAY_END);
 			rtTrace(top_object, refl_ray, new_prd);
 			float3 rcol = new_prd.result * scolor;
 			result += rcol;
@@ -530,17 +537,13 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 	gaus_prd.ambient_depth = prd.ambient_depth + 1; //TODO the increment is a hack to prevent the sun from affecting specular values
 	//gaus_prd.seed = prd.seed;//lcg( prd.seed );
 	gaus_prd.state = prd.state;
-#ifdef FILL_GAPS
-	gaus_prd.primary = 0;
-#endif
 	Ray gaus_ray = make_Ray( hit, normal, radiance_ray_type, RAY_START, RAY_END );
 
 	float d;
 
 	/* set up sample coordinates */
-	float3 v = cross_direction( normal ); // should be using perturned normal, but currently using ffnormal
-	float3 u = normalize( cross( v, normal ) );
-	v = normalize( cross( normal, u ) );
+	float3 u = getperpendicular(normal);
+	float3 v = normalize(cross(normal, u));
 
 	unsigned int nstarget, nstaken, ntrials;
 
@@ -1014,17 +1017,17 @@ RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& hit
 	//if (pg != NULL) {		/* reduce radius if gradient large */
 	//	d = DOT(pg,pg);
 	//	if (d*arad*arad > 1.0f)
-	//		arad = 1.0f/sqrt(d);
+	//		arad = 1.0f/sqrtf(d);
 	//}
 	if (arad < minarad) {
 		arad = minarad;
 		//if (pg != NULL && d*arad*arad > 1.0f) {	/* cap gradient */
-		//	d = 1.0f/arad/sqrt(d);
+		//	d = 1.0f/arad/sqrtf(d);
 		//	for (i = 0; i < 3; i++)
 		//		pg[i] *= d;
 		//}
 	}
-	if ((arad /= sqrt(prd.weight)) > maxarad)
+	if ((arad /= sqrtf(prd.weight)) > maxarad)
 		arad = maxarad;
 	return(arad);
 }
