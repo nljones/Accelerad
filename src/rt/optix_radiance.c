@@ -72,7 +72,7 @@ static int createTexture( const RTcontext context, const OBJREC* rec );
 static int createTransform( XF* fxp, XF* bxp, const OBJREC* rec );
 static void createAcceleration( const RTcontext context, const RTgeometryinstance instance );
 static void createIrradianceGeometry( const RTcontext context );
-static void printObect( const OBJREC* rec );
+static void printObject(const OBJREC* rec);
 static void getRay( RayData* data, const RAY* ray );
 static void setRay( RAY* ray, const RayData* data );
 
@@ -908,10 +908,10 @@ static void addRadianceObject(const RTcontext context, const OBJREC* rec, const 
 		if (rec->oargs.nsargs == 3) {
 			if (!strcmp(rec->oargs.sarg[2], "tmesh.cal")) break; // Handled by face
 		}
-		else if (rec->oargs.nsargs == 4) {
+		else if (rec->oargs.nsargs >= 4) {
 			if (!strcmp(rec->oargs.sarg[3], "tmesh.cal")) break; // Handled by face
 		}
-		printObect(rec);
+		printObject(rec);
 		break;
 	case MOD_ALIAS:
 		if (rec->oargs.nsargs) {
@@ -923,7 +923,7 @@ static void addRadianceObject(const RTcontext context, const OBJREC* rec, const 
 		break;
 	default:
 #ifdef DEBUG_OPTIX
-		printObect(rec);
+		printObject(rec);
 #endif
 		break;
 	}
@@ -938,8 +938,11 @@ static void createFace(const OBJREC* rec, const OBJREC* parent)
 		objerror(rec, USER, "missing material");
 #ifdef TRIANGULATE
 	/* Triangulate the face */
-	if (!createTriangles(face, material))
-		objerror(rec, INTERNAL, "triangulation failed");
+	if (!createTriangles(face, material)) {
+		objerror(rec, WARNING, "triangulation failed");
+		free(face);
+		return;
+	}
 #else /* TRIANGULATE */
 	/* Triangulate the polygon as a fan */
 	for (j = 2; j < face->nv; j++)
@@ -949,7 +952,7 @@ static void createFace(const OBJREC* rec, const OBJREC* parent)
 	/* Write the vertices to the buffers */
 	material = findFunction(parent); // TODO can there be multiple parent functions?
 	for (j = 0; j < face->nv; j++) {
-		insertArray3f(vertices, face->va[3 * j], face->va[3 * j + 1], face->va[3 * j + 2]);
+		insertArray3f(vertices, VERTEX(face, j)[0], VERTEX(face, j)[1], VERTEX(face, j)[2]);
 
 		if (material && material->otype == TEX_FUNC && material->oargs.nsargs >= 4 && !strcmp(material->oargs.sarg[3], "tmesh.cal")) {
 			/* Normal calculation from tmesh.cal */
@@ -958,8 +961,8 @@ static void createFace(const OBJREC* rec, const OBJREC* parent)
 			XF fxp;
 
 			k = (int)material->oargs.farg[0];
-			bu = face->va[3 * j + (k + 1) % 3];
-			bv = face->va[3 * j + (k + 2) % 3];
+			bu = VERTEX(face, j)[(k + 1) % 3];
+			bv = VERTEX(face, j)[(k + 2) % 3];
 
 			v[0] = bu * material->oargs.farg[1] + bv * material->oargs.farg[2] + material->oargs.farg[3];
 			v[1] = bu * material->oargs.farg[4] + bv * material->oargs.farg[5] + material->oargs.farg[6];
@@ -995,8 +998,8 @@ static void createFace(const OBJREC* rec, const OBJREC* parent)
 			double bu, bv;
 
 			k = (int)material->oargs.farg[0];
-			bu = face->va[3 * j + (k + 1) % 3];
-			bv = face->va[3 * j + (k + 2) % 3];
+			bu = VERTEX(face, j)[(k + 1) % 3];
+			bv = VERTEX(face, j)[(k + 2) % 3];
 
 			insertArray2f(tex_coords,
 				bu * material->oargs.farg[1] + bv * material->oargs.farg[2] + material->oargs.farg[3],
@@ -1039,13 +1042,13 @@ static int createTriangles(const FACE *face, const OBJREC *material)
 			return(0);
 		if (face->norm[face->ax] > 0)	/* maintain winding direction */
 			for (i = v2l->nv; i--; ) {
-				v2l->v[i].mX = (face->va+3*i)[(face->ax + 1) % 3];
-				v2l->v[i].mY = (face->va+3*i)[(face->ax + 2) % 3];
+				v2l->v[i].mX = VERTEX(face, i)[(face->ax + 1) % 3];
+				v2l->v[i].mY = VERTEX(face, i)[(face->ax + 2) % 3];
 			}
 		else
 			for (i = v2l->nv; i--; ) {
-				v2l->v[i].mX = (face->va+3*i)[(face->ax + 2) % 3];
-				v2l->v[i].mY = (face->va+3*i)[(face->ax + 1) % 3];
+				v2l->v[i].mX = VERTEX(face, i)[(face->ax + 2) % 3];
+				v2l->v[i].mY = VERTEX(face, i)[(face->ax + 1) % 3];
 			}
 		v2l->p = (void *)material;
 		i = polyTriangulate(v2l, addTriangle);
@@ -1070,6 +1073,8 @@ static void createSphere(const OBJREC* rec, const OBJREC* parent)
 	int direction;
 	FVECT x, y, z;
 	OBJREC* material = findmaterial(parent);
+	if (material == NULL)
+		objerror(rec, USER, "missing material");
 
 	// Create octahedron
 	IntArray *sph_vertex_indices = (IntArray *)malloc(sizeof(IntArray));
@@ -1531,11 +1536,11 @@ static int createFunction( const RTcontext context, const OBJREC* rec )
 			applyProgramVariable1f(context, program, "skybright", rec->oargs.farg[0]);
 			applyProgramVariable(context, program, "transform", sizeof(transform), transform);
 		} else {
-			printObect(rec);
+			printObject(rec);
 			return RT_PROGRAM_ID_NULL;
 		}
 	} else {
-		printObect(rec);
+		printObject(rec);
 		return RT_PROGRAM_ID_NULL;
 	}
 
@@ -1634,11 +1639,11 @@ static int createTexture( const RTcontext context, const OBJREC* rec )
 			if (rec->oargs.nfargs > 0)
 				applyProgramVariable1f( context, program, "multiplier", rec->oargs.farg[0] ); //TODO handle per-color channel multipliers
 		} else {
-			printObect(rec);
+			printObject(rec);
 			return RT_PROGRAM_ID_NULL;
 		}
 	} else {
-		printObect(rec);
+		printObject(rec);
 		return RT_PROGRAM_ID_NULL;
 	}
 	RT_CHECK_ERROR( rtProgramGetId( program, &tex_id ) );
@@ -1747,21 +1752,20 @@ static void createIrradianceGeometry( const RTcontext context )
 	RT_CHECK_ERROR( rtAccelerationMarkDirty( acceleration ) );
 }
 
-static void printObect( const OBJREC* rec )
+static void printObject(const OBJREC* rec)
 {
 	unsigned int i;
 
-	sprintf(errmsg, "Unsupported object:\n%s(%i) %s(%i) %s", rec->omod > OVOID ? objptr(rec->omod)->oname : VOIDID, rec->omod, ofun[rec->otype].funame, rec->otype, rec->oname);
-	error(WARNING, errmsg);
-	mprintf("%i", rec->oargs.nsargs);
+	objerror(rec, WARNING, "no GPU support");
+	mprintf(" %s(%i) %s(%i) %s\n %i", rec->omod > OVOID ? objptr(rec->omod)->oname : VOIDID, rec->omod, ofun[rec->otype].funame, rec->otype, rec->oname, rec->oargs.nsargs);
 	for (i = 0u; i < rec->oargs.nsargs; i++)
 		mprintf(" %s", rec->oargs.sarg[i]);
-	mprintf("\n%i", rec->oargs.nfargs);
+	mprintf("\n %i", rec->oargs.nfargs);
 	for (i = 0u; i < rec->oargs.nfargs; i++)
 		mprintf(" %g", rec->oargs.farg[i]);
 	if (rec->os)
-		mprintf("\nObject structure: %s", rec->os);
-	mprintf("\n\n");
+		mprintf("\n Object structure: %s", rec->os);
+	mprintf("\n");
 }
 
 static void getRay( RayData* data, const RAY* ray )
