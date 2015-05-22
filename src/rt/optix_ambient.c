@@ -28,6 +28,7 @@ static int saveAmbientRecords( AmbientRecord* record );
 
 /* from rpict.c */
 extern double  dstrpix;			/* square pixel distribution */
+extern double  dblur;			/* depth-of-field blur parameter */
 
 /* from ambient.c */
 extern AMBTREE	atrunk;		/* our ambient trunk node */
@@ -105,15 +106,6 @@ static void createAmbientRecordCamera( const RTcontext context, const VIEW* view
 		/* Ray generation program */
 		ptxFile( path_to_ptx, "ambient_generator" );
 		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "ambient_camera", &ray_gen_program ) );
-		applyProgramVariable1ui( context, ray_gen_program, "camera", view->type ); // -vt
-		applyProgramVariable3f( context, ray_gen_program, "eye", view->vp[0], view->vp[1], view->vp[2] ); // -vp
-		applyProgramVariable3f( context, ray_gen_program, "U", view->hvec[0], view->hvec[1], view->hvec[2] );
-		applyProgramVariable3f( context, ray_gen_program, "V", view->vvec[0], view->vvec[1], view->vvec[2] );
-		applyProgramVariable3f( context, ray_gen_program, "W", view->vdir[0], view->vdir[1], view->vdir[2] ); // -vd
-		applyProgramVariable2f( context, ray_gen_program, "fov", view->horiz, view->vert ); // -vh, -vv
-		applyProgramVariable2f( context, ray_gen_program, "shift", view->hoff, view->voff ); // -vs, -vl
-		applyProgramVariable2f( context, ray_gen_program, "clip", view->vfore, view->vaft ); // -vo, -va
-		//applyProgramVariable1f( context, ray_gen_program, "dstrpix", dstrpix ); // -pj
 
 		/* Exception program */
 		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "exception", &exception_program ) );
@@ -766,17 +758,6 @@ static void createPointCloudCamera( const RTcontext context, const VIEW* view )
 	if ( view ) {
 		ptxFile( path_to_ptx, "point_cloud_generator" );
 		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "point_cloud_camera", &ray_gen_program ) );
-		applyProgramVariable3f( context, ray_gen_program, "eye", view->vp[0], view->vp[1], view->vp[2] ); // -vp
-		if ( !optix_amb_grid_size ) { // Use camera for bounds of sampling area
-			applyProgramVariable1ui( context, ray_gen_program, "camera", view->type ); // -vt
-			applyProgramVariable3f( context, ray_gen_program, "U", view->hvec[0], view->hvec[1], view->hvec[2] );
-			applyProgramVariable3f( context, ray_gen_program, "V", view->vvec[0], view->vvec[1], view->vvec[2] );
-			applyProgramVariable3f( context, ray_gen_program, "W", view->vdir[0], view->vdir[1], view->vdir[2] ); // -vd
-			applyProgramVariable2f( context, ray_gen_program, "fov", view->horiz, view->vert ); // -vh, -vv
-			applyProgramVariable2f( context, ray_gen_program, "shift", view->hoff, view->voff ); // -vs, -vl
-			applyProgramVariable2f( context, ray_gen_program, "clip", view->vfore, view->vaft ); // -vo, -va
-		}
-		applyProgramVariable1f( context, ray_gen_program, "dstrpix", dstrpix ); // -pj
 	} else {
 		ptxFile( path_to_ptx, "sensor_cloud_generator" );
 		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "cloud_generator", &ray_gen_program ) );

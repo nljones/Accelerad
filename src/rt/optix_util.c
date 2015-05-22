@@ -113,102 +113,124 @@ void runKernel3D( const RTcontext context, const unsigned int entry, const int w
 
 /* Helper functions */
 
-void applyContextVariable1i( const RTcontext context, const char* name, const int value )
+RTvariable applyContextVariable1i(const RTcontext context, const char* name, const int value)
 {
 	RTvariable var;
 	RT_CHECK_ERROR( rtContextDeclareVariable( context, name, &var ) );
 	RT_CHECK_ERROR( rtVariableSet1i( var, value ) );
+	return var;
 }
 
-void applyContextVariable1ui( const RTcontext context, const char* name, const unsigned int value )
+RTvariable applyContextVariable1ui(const RTcontext context, const char* name, const unsigned int value)
 {
 	RTvariable var;
 	RT_CHECK_ERROR( rtContextDeclareVariable( context, name, &var ) );
 	RT_CHECK_ERROR( rtVariableSet1ui( var, value ) );
+	return var;
 }
 
-void applyContextVariable1f( const RTcontext context, const char* name, const float value )
+RTvariable applyContextVariable1f(const RTcontext context, const char* name, const float value)
 {
 	RTvariable var;
 	RT_CHECK_ERROR( rtContextDeclareVariable( context, name, &var ) );
 	RT_CHECK_ERROR( rtVariableSet1f( var, value ) );
+	return var;
 }
 
-void applyContextVariable3f( const RTcontext context, const char* name, const float x, const float y, const float z )
+RTvariable applyContextVariable2f(const RTcontext context, const char* name, const float x, const float y)
+{
+	RTvariable var;
+	RT_CHECK_ERROR(rtContextDeclareVariable(context, name, &var));
+	RT_CHECK_ERROR(rtVariableSet2f(var, x, y));
+	return var;
+}
+
+RTvariable applyContextVariable3f(const RTcontext context, const char* name, const float x, const float y, const float z)
 {
 	RTvariable var;
 	RT_CHECK_ERROR( rtContextDeclareVariable( context, name, &var ) );
 	RT_CHECK_ERROR( rtVariableSet3f( var, x, y, z ) );
+	return var;
 }
 
-void applyProgramVariable1i( const RTcontext context, const RTprogram program, const char* name, const int value )
+RTvariable applyProgramVariable1i(const RTcontext context, const RTprogram program, const char* name, const int value)
 {
 	RTvariable var;
 	RT_CHECK_ERROR( rtProgramDeclareVariable( program, name, &var ) );
 	RT_CHECK_ERROR( rtVariableSet1i( var, value ) );
+	return var;
 }
 
-void applyProgramVariable1ui( const RTcontext context, const RTprogram program, const char* name, const unsigned int value )
+RTvariable applyProgramVariable1ui(const RTcontext context, const RTprogram program, const char* name, const unsigned int value)
 {
 	RTvariable var;
 	RT_CHECK_ERROR( rtProgramDeclareVariable( program, name, &var ) );
 	RT_CHECK_ERROR( rtVariableSet1ui( var, value ) );
+	return var;
 }
 
-void applyProgramVariable1f( const RTcontext context, const RTprogram program, const char* name, const float value )
+RTvariable applyProgramVariable1f(const RTcontext context, const RTprogram program, const char* name, const float value)
 {
 	RTvariable var;
 	RT_CHECK_ERROR( rtProgramDeclareVariable( program, name, &var ) );
 	RT_CHECK_ERROR( rtVariableSet1f( var, value ) );
+	return var;
 }
 
-void applyProgramVariable2f( const RTcontext context, const RTprogram program, const char* name, const float x, const float y )
+RTvariable applyProgramVariable2f(const RTcontext context, const RTprogram program, const char* name, const float x, const float y)
 {
 	RTvariable var;
 	RT_CHECK_ERROR( rtProgramDeclareVariable( program, name, &var ) );
 	RT_CHECK_ERROR( rtVariableSet2f( var, x, y ) );
+	return var;
 }
 
-void applyProgramVariable3f( const RTcontext context, const RTprogram program, const char* name, const float x, const float y, const float z )
+RTvariable applyProgramVariable3f(const RTcontext context, const RTprogram program, const char* name, const float x, const float y, const float z)
 {
 	RTvariable var;
 	RT_CHECK_ERROR( rtProgramDeclareVariable( program, name, &var ) );
 	RT_CHECK_ERROR( rtVariableSet3f( var, x, y, z ) );
+	return var;
 }
 
-void applyProgramVariable( const RTcontext context, const RTprogram program, const char* name, const unsigned int size, const void* data )
+RTvariable applyProgramVariable(const RTcontext context, const RTprogram program, const char* name, const unsigned int size, const void* data)
 {
 	RTvariable var;
 	RT_CHECK_ERROR( rtProgramDeclareVariable( program, name, &var ) );
 	RT_CHECK_ERROR( rtVariableSetUserData( var, size, data ) );
+	return var;
 }
 
-void applyMaterialVariable1i( const RTcontext context, const RTmaterial material, const char* name, const int value )
+RTvariable applyMaterialVariable1i(const RTcontext context, const RTmaterial material, const char* name, const int value)
 {
 	RTvariable var;
 	RT_CHECK_ERROR( rtMaterialDeclareVariable( material, name, &var ) );
 	RT_CHECK_ERROR( rtVariableSet1i( var, value ) );
+	return var;
 }
 
-void applyMaterialVariable1ui( const RTcontext context, const RTmaterial material, const char* name, const unsigned int value )
+RTvariable applyMaterialVariable1ui(const RTcontext context, const RTmaterial material, const char* name, const unsigned int value)
 {
 	RTvariable var;
 	RT_CHECK_ERROR( rtMaterialDeclareVariable( material, name, &var ) );
 	RT_CHECK_ERROR( rtVariableSet1ui( var, value ) );
+	return var;
 }
 
-void applyMaterialVariable1f( const RTcontext context, const RTmaterial material, const char* name, const float value )
+RTvariable applyMaterialVariable1f(const RTcontext context, const RTmaterial material, const char* name, const float value)
 {
 	RTvariable var;
 	RT_CHECK_ERROR( rtMaterialDeclareVariable( material, name, &var ) );
 	RT_CHECK_ERROR( rtVariableSet1f( var, value ) );
+	return var;
 }
 
-void applyMaterialVariable3f( const RTcontext context, const RTmaterial material, const char* name, const float x, const float y, const float z )
+RTvariable applyMaterialVariable3f(const RTcontext context, const RTmaterial material, const char* name, const float x, const float y, const float z)
 {
 	RTvariable var;
 	RT_CHECK_ERROR( rtMaterialDeclareVariable( material, name, &var ) );
 	RT_CHECK_ERROR( rtVariableSet3f( var, x, y, z ) );
+	return var;
 }
 
 void createBuffer1D( const RTcontext context, const RTbuffertype type, const RTformat format, const int element_count, RTbuffer* buffer )
@@ -256,32 +278,36 @@ void createCustomBuffer3D( const RTcontext context, const RTbuffertype type, con
 	RT_CHECK_ERROR( rtBufferSetSize3D( *buffer, x_count, y_count, z_count ) );
 }
 
-void applyContextObject( const RTcontext context, const char* name, const RTobject object )
+RTvariable applyContextObject(const RTcontext context, const char* name, const RTobject object)
 {
 	RTvariable var;
 	RT_CHECK_ERROR( rtContextDeclareVariable( context, name, &var ) );
 	RT_CHECK_ERROR( rtVariableSetObject( var, object ) );
+	return var;
 }
 
-void applyProgramObject( const RTcontext context, const RTprogram program, const char* name, const RTobject object )
+RTvariable applyProgramObject(const RTcontext context, const RTprogram program, const char* name, const RTobject object)
 {
 	RTvariable var;
 	RT_CHECK_ERROR( rtProgramDeclareVariable( program, name, &var ) );
 	RT_CHECK_ERROR( rtVariableSetObject( var, object ) );
+	return var;
 }
 
-void applyGeometryObject( const RTcontext context, const RTgeometry geometry, const char* name, const RTobject object )
+RTvariable applyGeometryObject(const RTcontext context, const RTgeometry geometry, const char* name, const RTobject object)
 {
 	RTvariable var;
 	RT_CHECK_ERROR( rtGeometryDeclareVariable( geometry, name, &var ) );
 	RT_CHECK_ERROR( rtVariableSetObject( var, object ) );
+	return var;
 }
 
-void applyGeometryInstanceObject( const RTcontext context, const RTgeometryinstance instance, const char* name, const RTobject object )
+RTvariable applyGeometryInstanceObject(const RTcontext context, const RTgeometryinstance instance, const char* name, const RTobject object)
 {
 	RTvariable var;
 	RT_CHECK_ERROR( rtGeometryInstanceDeclareVariable( instance, name, &var ) );
 	RT_CHECK_ERROR( rtVariableSetObject( var, object ) );
+	return var;
 }
 
 void copyToBufferi(const RTcontext context, const RTbuffer buffer, const IntArray *a)

@@ -89,6 +89,7 @@ double  ralrm = 0.0;				/* seconds between reports */
 /* TODO This shouldn't be necessary, but the variable must exist in optix_radiance.c */
 double	pctdone = 0.0;			/* percentage done */
 double	dstrpix = 0.0;			/* square pixel distribution */
+double  dblur = 0.0;			/* depth-of-field blur parameter */
 void report(int dummy) {}		/* report progress */
 #endif
 

@@ -64,7 +64,7 @@ static void createSphere(const OBJREC* rec, const OBJREC* parent);
 static void createMesh(const OBJREC* rec, const OBJREC* parent);
 static RTmaterial createNormalMaterial( const RTcontext context, const OBJREC* rec );
 static RTmaterial createGlassMaterial( const RTcontext context, const OBJREC* rec );
-static RTmaterial createLightMaterial( const RTcontext context, const OBJREC* rec );
+static RTmaterial createLightMaterial( const RTcontext context, OBJREC* rec );
 static DistantLight createDistantLight( const RTcontext context, const OBJREC* rec, const OBJREC* parent );
 static OBJREC* findFunction(OBJREC *o);
 static int createFunction( const RTcontext context, const OBJREC* rec );
@@ -81,6 +81,7 @@ static void setRay( RAY* ray, const RayData* data );
 
 /* from rpict.c */
 extern double  dstrpix;			/* square pixel distribution */
+extern double  dblur;			/* depth-of-field blur parameter */
 
 /* from rtmain.c */
 extern int  imm_irrad;			/* compute immediate irradiance? */
@@ -103,7 +104,7 @@ static RTbuffer buffer_handle = NULL;
 #ifdef RAY_COUNT
 static RTbuffer ray_count_buffer_handle = NULL;
 #endif
-static RTvariable camera_type, camera_eye, camera_u, camera_v, camera_w, camera_fov, camera_shift, camera_clip;
+static RTvariable camera_type, camera_eye, camera_u, camera_v, camera_w, camera_fov, camera_shift, camera_clip, camera_vdist;
 
 /* Handles to buffer data */
 static int*       buffer_entry_index;
@@ -199,10 +200,10 @@ void renderOptix(const VIEW* view, const int width, const int height, const doub
 #ifdef RAY_COUNT
 		ray_count_buffer = ray_count_buffer_handle;
 #endif
+		updateCamera(context, view);
 	}
 
 	/* Run the OptiX kernel */
-	updateCamera( context, view );
 	runKernel2D( context, RADIANCE_ENTRY, width, height );
 
 	RT_CHECK_ERROR( rtBufferMap( output_buffer, (void**)&data ) );
@@ -334,7 +335,7 @@ void endOptix()
 #ifdef RAY_COUNT
 	ray_count_buffer_handle = NULL;
 #endif
-	camera_type = camera_eye = camera_u = camera_v = camera_w = camera_fov = camera_shift = camera_clip = NULL;
+	camera_type = camera_eye = camera_u = camera_v = camera_w = camera_fov = camera_shift = camera_clip = camera_vdist = NULL;
 }
 
 /**
@@ -534,7 +535,7 @@ static void setupKernel( const RTcontext context, const VIEW* view, const int wi
 	RTgeometryinstance  instance;
 
 	/* Setup state */
-	applyRadianceSettings( context );
+	applyRadianceSettings( context, view );
 	createCamera( context, view );
 	createGeometryInstance( context, &instance );
 	createAcceleration( context, instance );
@@ -553,7 +554,7 @@ static void setupKernel( const RTcontext context, const VIEW* view, const int wi
 	}
 }
 
-static void applyRadianceSettings( const RTcontext context )
+static void applyRadianceSettings( const RTcontext context, const VIEW* view )
 {
 	/* Define ray types */
 	applyContextVariable1ui( context, "radiance_primary_ray_type", PRIMARY_RAY );
@@ -603,6 +604,21 @@ static void applyRadianceSettings( const RTcontext context )
 	if (rand_samp)
 		applyContextVariable1ui(context, "random_seed", random()); // -u
 
+	if (view) {
+		camera_type  = applyContextVariable1ui(context, "camera", view->type); // -vt
+		camera_eye   = applyContextVariable3f(context, "eye", view->vp[0], view->vp[1], view->vp[2]); // -vp
+		camera_u     = applyContextVariable3f(context, "U", view->hvec[0], view->hvec[1], view->hvec[2]);
+		camera_v     = applyContextVariable3f(context, "V", view->vvec[0], view->vvec[1], view->vvec[2]);
+		camera_w     = applyContextVariable3f(context, "W", view->vdir[0], view->vdir[1], view->vdir[2]); // -vd
+		camera_fov   = applyContextVariable2f(context, "fov", view->horiz, view->vert); // -vh, -vv
+		camera_shift = applyContextVariable2f(context, "shift", view->hoff, view->voff); // -vs, -vl
+		camera_clip  = applyContextVariable2f(context, "clip", view->vfore, view->vaft); // -vo, -va
+		camera_vdist = applyContextVariable1f(context, "vdist", view->vdist);
+		applyContextVariable1f(context, "dstrpix", dstrpix); // -pj
+		//applyContextVariable1f(context, "mblur", mblur); // -pm
+		applyContextVariable1f(context, "dblur", dblur); // -pd
+	}
+
 #ifdef DAYSIM
 	/* Set daylight coefficient parameters */
 	//applyContextVariable1i(context, "daysimSortMode", daysimSortMode); // -D
@@ -621,23 +637,6 @@ static void createCamera( const RTcontext context, const VIEW* view )
 	if ( view ) { // do RPICT
 		ptxFile( path_to_ptx, "camera" );
 		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "image_camera", &ray_gen_program ) );
-		//applyProgramVariable1ui( context, ray_gen_program, "camera", view->type ); // -vt
-		//applyProgramVariable3f( context, ray_gen_program, "eye", view->vp[0], view->vp[1], view->vp[2] ); // -vp
-		//applyProgramVariable3f( context, ray_gen_program, "U", view->hvec[0], view->hvec[1], view->hvec[2] );
-		//applyProgramVariable3f( context, ray_gen_program, "V", view->vvec[0], view->vvec[1], view->vvec[2] );
-		//applyProgramVariable3f( context, ray_gen_program, "W", view->vdir[0], view->vdir[1], view->vdir[2] ); // -vd
-		//applyProgramVariable2f( context, ray_gen_program, "fov", view->horiz, view->vert ); // -vh, -vv
-		//applyProgramVariable2f( context, ray_gen_program, "shift", view->hoff, view->voff ); // -vs, -vl
-		//applyProgramVariable2f( context, ray_gen_program, "clip", view->vfore, view->vaft ); // -vo, -va
-		RT_CHECK_ERROR( rtProgramDeclareVariable( ray_gen_program, "camera", &camera_type ) ); // -vt
-		RT_CHECK_ERROR( rtProgramDeclareVariable( ray_gen_program, "eye", &camera_eye ) ); // -vp
-		RT_CHECK_ERROR( rtProgramDeclareVariable( ray_gen_program, "U", &camera_u ) );
-		RT_CHECK_ERROR( rtProgramDeclareVariable( ray_gen_program, "V", &camera_v ) );
-		RT_CHECK_ERROR( rtProgramDeclareVariable( ray_gen_program, "W", &camera_w ) ); // -vd
-		RT_CHECK_ERROR( rtProgramDeclareVariable( ray_gen_program, "fov", &camera_fov ) ); // -vh, -vv
-		RT_CHECK_ERROR( rtProgramDeclareVariable( ray_gen_program, "shift", &camera_shift ) ); // -vs, -vl
-		RT_CHECK_ERROR( rtProgramDeclareVariable( ray_gen_program, "clip", &camera_clip ) ); // -vo, -va
-		applyProgramVariable1f( context, ray_gen_program, "dstrpix", dstrpix ); // -pj
 	} else { // do RTRACE
 		ptxFile( path_to_ptx, "sensor" );
 		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "ray_generator", &ray_gen_program ) );
@@ -674,6 +673,7 @@ static void updateCamera( const RTcontext context, const VIEW* view )
 	RT_CHECK_ERROR( rtVariableSet2f( camera_fov, view->horiz, view->vert ) ); // -vh, -vv
 	RT_CHECK_ERROR( rtVariableSet2f( camera_shift, view->hoff, view->voff ) ); // -vs, -vl
 	RT_CHECK_ERROR( rtVariableSet2f( camera_clip, view->vfore, view->vaft ) ); // -vo, -va
+	RT_CHECK_ERROR( rtVariableSet1f( camera_vdist, view->vdist ) );
 }
 
 static void createGeometryInstance( const RTcontext context, RTgeometryinstance* instance )
@@ -940,8 +940,7 @@ static void createFace(const OBJREC* rec, const OBJREC* parent)
 	/* Triangulate the face */
 	if (!createTriangles(face, material)) {
 		objerror(rec, WARNING, "triangulation failed");
-		free(face);
-		return;
+		goto facedone;
 	}
 #else /* TRIANGULATE */
 	/* Triangulate the polygon as a fan */
@@ -952,7 +951,8 @@ static void createFace(const OBJREC* rec, const OBJREC* parent)
 	/* Write the vertices to the buffers */
 	material = findFunction(parent); // TODO can there be multiple parent functions?
 	for (j = 0; j < face->nv; j++) {
-		insertArray3f(vertices, VERTEX(face, j)[0], VERTEX(face, j)[1], VERTEX(face, j)[2]);
+		RREAL *va = VERTEX(face, j);
+		insertArray3f(vertices, va[0], va[1], va[2]);
 
 		if (material && material->otype == TEX_FUNC && material->oargs.nsargs >= 4 && !strcmp(material->oargs.sarg[3], "tmesh.cal")) {
 			/* Normal calculation from tmesh.cal */
@@ -961,8 +961,8 @@ static void createFace(const OBJREC* rec, const OBJREC* parent)
 			XF fxp;
 
 			k = (int)material->oargs.farg[0];
-			bu = VERTEX(face, j)[(k + 1) % 3];
-			bv = VERTEX(face, j)[(k + 2) % 3];
+			bu = va[(k + 1) % 3];
+			bv = va[(k + 2) % 3];
 
 			v[0] = bu * material->oargs.farg[1] + bv * material->oargs.farg[2] + material->oargs.farg[3];
 			v[1] = bu * material->oargs.farg[4] + bv * material->oargs.farg[5] + material->oargs.farg[6];
@@ -998,8 +998,8 @@ static void createFace(const OBJREC* rec, const OBJREC* parent)
 			double bu, bv;
 
 			k = (int)material->oargs.farg[0];
-			bu = VERTEX(face, j)[(k + 1) % 3];
-			bv = VERTEX(face, j)[(k + 2) % 3];
+			bu = va[(k + 1) % 3];
+			bv = va[(k + 2) % 3];
 
 			insertArray2f(tex_coords,
 				bu * material->oargs.farg[1] + bv * material->oargs.farg[2] + material->oargs.farg[3],
@@ -1012,7 +1012,8 @@ static void createFace(const OBJREC* rec, const OBJREC* parent)
 		}
 	}
 	vertex_index_0 += face->nv;
-	free(face);
+facedone:
+	freeface(rec);
 }
 
 static __inline void createTriangle(const OBJREC *material, const int a, const int b, const int c)
@@ -1394,7 +1395,7 @@ static RTmaterial createGlassMaterial( const RTcontext context, const OBJREC* re
 	return material;
 }
 
-static RTmaterial createLightMaterial( const RTcontext context, const OBJREC* rec )
+static RTmaterial createLightMaterial( const RTcontext context, OBJREC* rec )
 {
 	RTmaterial material;
 	OBJREC* mat;
@@ -1434,6 +1435,8 @@ static RTmaterial createLightMaterial( const RTcontext context, const OBJREC* re
 		applyMaterialVariable1f( context, material, "siz", spot->siz );
 		applyMaterialVariable1f( context, material, "flen", spot->flen );
 		applyMaterialVariable3f( context, material, "aim", spot->aim[0], spot->aim[1], spot->aim[2] );
+		free(spot);
+		rec->os = NULL;
 	}
 
 	/* Check for a parent function. */
@@ -1757,7 +1760,7 @@ static void printObject(const OBJREC* rec)
 	unsigned int i;
 
 	objerror(rec, WARNING, "no GPU support");
-	mprintf(" %s(%i) %s(%i) %s\n %i", rec->omod > OVOID ? objptr(rec->omod)->oname : VOIDID, rec->omod, ofun[rec->otype].funame, rec->otype, rec->oname, rec->oargs.nsargs);
+	mprintf(" %s(%i) %s(%i) %s(%i)\n %i", rec->omod > OVOID ? objptr(rec->omod)->oname : VOIDID, rec->omod, ofun[rec->otype].funame, rec->otype, rec->oname, objndx(rec), rec->oargs.nsargs);
 	for (i = 0u; i < rec->oargs.nsargs; i++)
 		mprintf(" %s", rec->oargs.sarg[i]);
 	mprintf("\n %i", rec->oargs.nfargs);

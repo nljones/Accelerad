@@ -9,14 +9,14 @@
 using namespace optix;
 
 /* Program variables */
-rtDeclareVariable(unsigned int,  camera, , ) = 0u;
-rtDeclareVariable(float3,        eye, , );
+rtDeclareVariable(unsigned int,  camera, , ); /* Camera type (-vt) */
+rtDeclareVariable(float3,        eye, , ); /* Eye position (-vp) */
 rtDeclareVariable(float3,        U, , ); /* view.hvec */
 rtDeclareVariable(float3,        V, , ); /* view.vvec */
 rtDeclareVariable(float3,        W, , ); /* view.vdir */
-rtDeclareVariable(float2,        fov, , );
-rtDeclareVariable(float2,        shift, , );
-rtDeclareVariable(float2,        clip, , );
+rtDeclareVariable(float2,        fov, , ); /* Field of view (-vh, -vv) */
+rtDeclareVariable(float2,        shift, , ); /* Camera shift (-vs, -vl) */
+rtDeclareVariable(float2,        clip, , ); /* Fore and aft clipping planes (-vo, -va) */
 rtDeclareVariable(float,         dstrpix, , ); /* Pixel sample jitter (-pj) */
 
 /* Contex variables */
@@ -60,13 +60,13 @@ RT_PROGRAM void point_cloud_camera()
 	prd.backup.dir = make_float3( 0.0f );
 
 	// Init random state
-	rand_state state;
-	curand_init( launch_index.x + launch_dim.x * launch_index.y, 0, 0, &state );
+	rand_state* state;
+	init_rand(&state, launch_index.x + launch_dim.x * launch_index.y);
 
 	uint3 index = make_uint3( launch_index, 0u );
 
-	float3 direction;
-	float2 d = make_float2( curand_uniform( &state ), curand_uniform( &state ) );
+	float3 ray_direction;
+	float2 d = make_float2( curand_uniform( state ), curand_uniform( state ) );
 	d = 0.5f + dstrpix * ( 0.5f - d ); // this is pixjitter() from rpict.c
 	float3 ray_origin = eye;
 	float fore = 0.0f;
@@ -108,9 +108,9 @@ RT_PROGRAM void point_cloud_camera()
 			d *= 1.0f + z;
 		}
 
-		direction = d.x*U + d.y*V + z*W;
-		ray_origin += clip.x * direction;
-		direction = normalize(direction);
+		ray_direction = d.x*U + d.y*V + z*W;
+		ray_direction += clip.x * ray_direction;
+		ray_direction = normalize(ray_direction);
 
 		// Zero or negative aft clipping distance indicates infinity
 		aft = clip.y - clip.x;
@@ -121,12 +121,12 @@ RT_PROGRAM void point_cloud_camera()
 		d = ( make_float2( launch_index ) + d ) / make_float2( launch_dim );// - 0.5f;
 
 		// Get the position and normal of the first ray
-		direction = uniform_solid_angle( d );
+		ray_direction = uniform_solid_angle(d);
 
 		fore = ray_start(ray_origin, RAY_START);
 	}
 
-	Ray ray = make_Ray(ray_origin, direction, point_cloud_ray_type, fore, aft);
+	Ray ray = make_Ray(ray_origin, ray_direction, point_cloud_ray_type, fore, aft);
 
 	unsigned int loop = 2u * seeds; // Prevent infinite looping
 	while ( index.z < seeds && loop-- ) {
@@ -139,7 +139,7 @@ RT_PROGRAM void point_cloud_camera()
 			index.z++;
 		} else {
 			prd.result.pos = eye;
-			prd.result.dir = direction;
+			prd.result.dir = ray_direction;
 		}
 
 		// Prepare for next ray
@@ -151,8 +151,8 @@ RT_PROGRAM void point_cloud_camera()
 		float3 ux = normalize( cross( uy, uz ) );
 		uy = normalize( cross( uz, ux ) );
 
-		float zd = sqrtf( curand_uniform( &state ) );
-		float phi = 2.0f*M_PIf * curand_uniform( &state );
+		float zd = sqrtf( curand_uniform( state ) );
+		float phi = 2.0f*M_PIf * curand_uniform( state );
 		float xd = cosf(phi) * zd;
 		float yd = sinf(phi) * zd;
 		zd = sqrtf(1.0f - zd*zd);

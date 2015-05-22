@@ -9,14 +9,14 @@
 using namespace optix;
 
 /* Program variables */
-rtDeclareVariable(unsigned int,  camera, , );
-rtDeclareVariable(float3,        eye, , );
+rtDeclareVariable(unsigned int,  camera, , ); /* Camera type (-vt) */
+rtDeclareVariable(float3,        eye, , ); /* Eye position (-vp) */
 rtDeclareVariable(float3,        U, , ); /* view.hvec */
 rtDeclareVariable(float3,        V, , ); /* view.vvec */
 rtDeclareVariable(float3,        W, , ); /* view.vdir */
-rtDeclareVariable(float2,        fov, , );
-rtDeclareVariable(float2,        shift, , );
-rtDeclareVariable(float2,        clip, , );
+rtDeclareVariable(float2,        fov, , ); /* Field of view (-vh, -vv) */
+rtDeclareVariable(float2,        shift, , ); /* Camera shift (-vs, -vl) */
+rtDeclareVariable(float2,        clip, , ); /* Fore and aft clipping planes (-vo, -va) */
 //rtDeclareVariable(float,         dstrpix, , ); /* Pixel sample jitter (-pj) */
 
 /* Contex variables */

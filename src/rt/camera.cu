@@ -9,15 +9,17 @@
 using namespace optix;
 
 /* Program variables */
-rtDeclareVariable(unsigned int,  camera, , );
-rtDeclareVariable(float3,        eye, , );
+rtDeclareVariable(unsigned int,  camera, , ); /* Camera type (-vt) */
+rtDeclareVariable(float3,        eye, , ); /* Eye position (-vp) */
 rtDeclareVariable(float3,        U, , ); /* view.hvec */
 rtDeclareVariable(float3,        V, , ); /* view.vvec */
 rtDeclareVariable(float3,        W, , ); /* view.vdir */
-rtDeclareVariable(float2,        fov, , );
-rtDeclareVariable(float2,        shift, , );
-rtDeclareVariable(float2,        clip, , );
+rtDeclareVariable(float2,        fov, , ); /* Field of view (-vh, -vv) */
+rtDeclareVariable(float2,        shift, , ); /* Camera shift (-vs, -vl) */
+rtDeclareVariable(float2,        clip, , ); /* Fore and aft clipping planes (-vo, -va) */
+rtDeclareVariable(float,         vdist, , ); /* Focal length */
 rtDeclareVariable(float,         dstrpix, , ); /* Pixel sample jitter (-pj) */
+rtDeclareVariable(float,         dblur, , ); /* Depth-of-field blur (-pd) */
 rtDeclareVariable(unsigned int,  do_irrad, , ); /* Calculate irradiance (-i) */
 
 /* Contex variables */
@@ -93,6 +95,30 @@ RT_PROGRAM void image_camera()
 	float aft = clip.y - clip.x;
 	if (aft <= FTINY) {
 		aft = RAY_END;
+	}
+
+	/* optional depth-of-field */
+	if (dblur > FTINY) {
+		float adj = 1.0f;
+		float dfd = 0.0f;
+
+		/* random point on disk */
+		SDsquare2disk(d, curand_uniform(prd.state), curand_uniform(prd.state));
+		d *= 0.5f * dblur;
+		if ((camera == VT_PER) | (camera == VT_PAR)) {
+			if (camera == VT_PER)
+				adj /= dot(ray_direction, W);
+		}
+		else {			/* non-standard view case */
+			dfd = M_PI_4f * dblur * (0.5f - curand_uniform(prd.state));
+		}
+		if ((camera != VT_ANG) & (camera != VT_PLS)) {
+			if (camera != VT_CYL)
+				d.x /= sqrt(dot(U, U));
+			d.y /= sqrt(dot(V, V));
+		}
+		ray_origin += d.x * U + d.y * V + dfd * W;
+		ray_direction = normalize(eye + adj * vdist * ray_direction - ray_origin);
 	}
 
 	Ray ray = make_Ray(ray_origin, ray_direction, do_irrad ? radiance_primary_ray_type : radiance_ray_type, 0.0f, aft);

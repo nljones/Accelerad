@@ -49,9 +49,6 @@ static const char RCSid[] = "$Id$";
 /* in optix_radiance.c */
 extern void renderOptix(const VIEW* view, const int width, const int height, const double alarm, COLOR* colors, float* depths);
 extern void endOptix();
-
-static COLOR* color_output = NULL; /* output radiance values from OptiX */
-static float* depth_output = NULL; /* output depth map from OptiX */
 #endif
 
 CUBE  thescene;				/* our scene */
@@ -443,13 +440,44 @@ render(				/* render the scene */
 #ifdef ACCELERAD
 	if (use_optix) {
 		/* Allocate memory to save the color and depth information once it is retrieved from the output buffer. */
-		color_output = (COLOR *)malloc(sizeof(COLOR) * hres * vres);
-		depth_output = (float *)malloc(sizeof(float) * hres * vres);
+		colptr = (COLOR *)malloc(sizeof(COLOR) * hres * vres);
+		zptr = (float *)malloc(sizeof(float) * hres * vres);
+		if (colptr == NULL || zptr == NULL)
+			goto memerr;
 
 		/* Now lets render an image on the graphics card */
-		renderOptix(&ourview, hres, vres, ralrm, color_output, depth_output);
+		renderOptix(&ourview, hres, vres, ralrm, colptr, zptr);
+
+		/* open z-file */
+		if (zfile != NULL) {
+			if ((zfd = open(zfile, O_WRONLY | O_CREAT, 0666)) == -1) {
+				sprintf(errmsg, "cannot open z-file \"%s\"", zfile);
+				error(SYSTEM, errmsg);
+			}
+			SET_FD_BINARY(zfd);
+		}
+		else {
+			zfd = -1;
+		}
+
+		/* Quick output handling */
+		fprtresolu(hres, vres, stdout);
+		for (i = vres; i--;) {
+			if (zfd != -1 && write(zfd, (char *)(zptr + hres * i), hres * sizeof(float)) < hres * sizeof(float))
+				goto writerr;
+			fwritescan(colptr + hres * i, hres, stdout);
+			if (fflush(stdout) == EOF)
+				goto writerr;
+		}
+
+		/* Unallocate the memory that was used to save the output transfered back from OptiX rendering. */
+		free(colptr);
+		free(zptr);
+		psample = -1;
+		sampdens = NULL;
+		goto alldone;
 	}
-#endif
+#endif /* ACCELERAD */
 					/* allocate scanlines */
 	for (i = 0; i <= psample; i++) {
 		scanbar[i] = (COLOR *)malloc(hres*sizeof(COLOR));
@@ -493,9 +521,6 @@ render(				/* render the scene */
 			lseek(zfd, (off_t)i*hres*sizeof(float), SEEK_SET) < 0)
 		error(SYSTEM, "z-file seek error in render");
 	pctdone = 100.0*i/vres;
-#ifdef ACCELERAD
-	if (!use_optix) /* Don't report if using OptiX. */
-#endif
 	if (ralrm > 0)			/* report init stats */
 		report(0);
 #ifdef SIGCONT
@@ -503,9 +528,6 @@ render(				/* render the scene */
 	signal(SIGCONT, report);
 #endif
 	ypos = vres-1 - i;			/* initialize sampling */
-#ifdef ACCELERAD
-	if (!use_optix) /* Don't draw sources separately. */
-#endif
 	if (directvis)
 		init_drawsources(psample);
 	fillscanline(scanbar[0], zbar[0], sampdens, hres, ypos, hstep);
@@ -527,9 +549,6 @@ render(				/* render the scene */
 				hres, ypos, hstep);
 							/* fill bar */
 		fillscanbar(scanbar, zbar, hres, ypos, ystep);
-#ifdef ACCELERAD
-		if (!use_optix) /* Don't shoot rays here, since the OptiX program should handle this. */
-#endif
 		if (directvis)				/* add bitty sources */
 			drawsources(scanbar, zbar, 0, hres, ypos, ystep);
 							/* write it out */
@@ -548,9 +567,6 @@ render(				/* render the scene */
 			goto writerr;
 							/* record progress */
 		pctdone = 100.0*(vres-1-ypos)/vres;
-#ifdef ACCELERAD
-		if (!use_optix) /* Don't report if using OptiX. */
-#endif
 		if (ralrm > 0 && time((time_t *)NULL) >= tlastrept+ralrm)
 			report(0);
 #ifdef SIGCONT
@@ -584,13 +600,6 @@ alldone:
 		report(0);
 #ifdef SIGCONT
 	signal(SIGCONT, SIG_DFL);
-#endif
-#ifdef ACCELERAD
-	if (use_optix) {
-		/* Unallocate the memory that was used to save the output transfered back from OptiX rendering. */
-		free(color_output);
-		free(depth_output);
-	}
 #endif
 	return;
 writerr:
@@ -740,15 +749,6 @@ pixvalue(		/* compute pixel value */
 	FVECT	lorg, ldir;
 	double	hpos, vpos, vdist, lmax;
 	int	i;
-#ifdef ACCELERAD
-	if (use_optix) {
-		//fprintf(stderr, "Getting color for (%i, %i).\n", x, y);
-		i = y * hres + x;
-		copycolor(col, color_output[i]);
-		//fprintf(stderr, "Got color (%f, %f, %f).\n", col[0], col[1], col[2]);
-		return depth_output[i];
-	}
-#endif /* ACCELERAD */
 						/* compute view ray */
 	setcolor(col, 0.0, 0.0, 0.0);
 	hpos = (x+pixjitter())/hres;
