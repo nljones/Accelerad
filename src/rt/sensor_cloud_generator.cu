@@ -18,7 +18,7 @@ rtDeclareVariable(rtObject,      top_object, , );
 rtDeclareVariable(rtObject,      top_irrad, , );
 rtDeclareVariable(unsigned int,  point_cloud_ray_type, , );
 rtDeclareVariable(unsigned int,  seeds, , ) = 1u; /* number of seed points to discover per thread */
-rtDeclareVariable(unsigned int,  imm_irrad, , ); /* Immediate irradiance (-I) */
+rtDeclareVariable(unsigned int,  imm_irrad, , ) = 0u; /* Immediate irradiance (-I) */
 
 /* OptiX variables */
 rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );

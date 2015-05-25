@@ -26,10 +26,6 @@ static unsigned int gatherAmbientRecords( AMBTREE* at, AmbientRecord** records, 
 static int saveAmbientRecords( AmbientRecord* record );
 #endif
 
-/* from rpict.c */
-extern double  dstrpix;			/* square pixel distribution */
-extern double  dblur;			/* depth-of-field blur parameter */
-
 /* from ambient.c */
 extern AMBTREE	atrunk;		/* our ambient trunk node */
 
@@ -534,8 +530,7 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 	for ( level = 0u; level < ambounce; level++ ) {
 		createCustomBuffer1D( context, RT_BUFFER_INPUT, sizeof(PointDirection), cuda_kmeans_clusters, &cluster_buffer[level] );
 	}
-	RT_CHECK_ERROR( rtContextDeclareVariable( context, "cluster_buffer", &current_cluster_buffer ) );
-	RT_CHECK_ERROR( rtVariableSetObject( current_cluster_buffer, cluster_buffer[0] ) );
+	current_cluster_buffer = applyContextObject(context, "cluster_buffer", cluster_buffer[0]);
 #else
 	createCustomBuffer1D( context, RT_BUFFER_INPUT, sizeof(PointDirection), cuda_kmeans_clusters, &cluster_buffer );
 	applyContextObject( context, "cluster_buffer", cluster_buffer );
@@ -554,8 +549,7 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 #endif
 
 	/* Set additional variables used for ambient record generation */
-	RT_CHECK_ERROR( rtContextDeclareVariable( context, "level", &level_var ) ); // Could be camera program variable
-	RT_CHECK_ERROR( rtVariableSet1ui( level_var, 0u ) ); // Must set a value in order to define type of variable
+	level_var = applyContextVariable1ui(context, "level", 0u); // Could be camera program variable
 
 	RT_CHECK_ERROR( rtContextQueryVariable( context, "avsum", &avsum_var ) );
 	RT_CHECK_ERROR( rtContextQueryVariable( context, "navsum", &navsum_var ) );
@@ -758,6 +752,9 @@ static void createPointCloudCamera( const RTcontext context, const VIEW* view )
 	if ( view ) {
 		ptxFile( path_to_ptx, "point_cloud_generator" );
 		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "point_cloud_camera", &ray_gen_program ) );
+
+		if (optix_amb_grid_size) // Ignore camera for bounds of sampling area
+			applyProgramVariable1ui(context, ray_gen_program, "camera", 0u); // Hide context variable
 	} else {
 		ptxFile( path_to_ptx, "sensor_cloud_generator" );
 		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "cloud_generator", &ray_gen_program ) );

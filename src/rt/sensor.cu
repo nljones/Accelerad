@@ -21,7 +21,7 @@ rtDeclareVariable(rtObject,      top_object, , );
 rtDeclareVariable(rtObject,      top_irrad, , );
 rtDeclareVariable(unsigned int,  radiance_ray_type, , );
 rtDeclareVariable(unsigned int,  radiance_primary_ray_type, , );
-rtDeclareVariable(unsigned int,  imm_irrad, , ); /* Immediate irradiance (-I) */
+rtDeclareVariable(unsigned int,  imm_irrad, , ) = 0u; /* Immediate irradiance (-I) */
 
 /* OptiX variables */
 rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );

@@ -24,7 +24,7 @@ rtDeclareVariable(rtObject,      top_irrad, , );
 rtDeclareVariable(unsigned int,  ambient_record_ray_type, , );
 rtDeclareVariable(unsigned int,  level, , ) = 0u;
 rtDeclareVariable(unsigned int,  segment_offset, , ) = 0u;
-rtDeclareVariable(unsigned int,  imm_irrad, , ); /* Immediate irradiance (-I) */
+rtDeclareVariable(unsigned int,  imm_irrad, , ) = 0u; /* Immediate irradiance (-I) */
 
 /* OptiX variables */
 rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );

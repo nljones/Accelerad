@@ -82,14 +82,12 @@ static putf_t *putreal;
 #define EXPECTED_RAY_COUNT	32
 
 /* from optix_radiance.c */
-extern void computeOptix(const int width, const int height, const double alarm, RAY* rays);
+extern void computeOptix(const int width, const int height, const unsigned int imm_irrad, const double alarm, RAY* rays);
 
 double  ralrm = 0.0;				/* seconds between reports */
 
 /* TODO This shouldn't be necessary, but the variable must exist in optix_radiance.c */
 double	pctdone = 0.0;			/* percentage done */
-double	dstrpix = 0.0;			/* square pixel distribution */
-double  dblur = 0.0;			/* depth-of-field blur parameter */
 void report(int dummy) {}		/* report progress */
 #endif
 
@@ -262,7 +260,7 @@ rtrace(				/* trace rays from file */
 	if (use_optix) {
 		/* Run OptiX kernel. */
 		total_rays = current_ray;
-		computeOptix( hresolu ? hresolu : 1, vresolu ? vresolu : total_rays, ralrm, ray_cache );
+		computeOptix(hresolu ? hresolu : 1, vresolu ? vresolu : total_rays, imm_irrad, ralrm, ray_cache);
 
 		/* Write output */
 		for ( current_ray = 0u; current_ray < total_rays; ) {

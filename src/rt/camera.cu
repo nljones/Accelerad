@@ -9,6 +9,7 @@
 using namespace optix;
 
 /* Program variables */
+rtDeclareVariable(unsigned int,  frame, , ); /* Current frame number, starting from zero */
 rtDeclareVariable(unsigned int,  camera, , ); /* Camera type (-vt) */
 rtDeclareVariable(float3,        eye, , ); /* Eye position (-vp) */
 rtDeclareVariable(float3,        U, , ); /* view.hvec */
@@ -19,6 +20,7 @@ rtDeclareVariable(float2,        shift, , ); /* Camera shift (-vs, -vl) */
 rtDeclareVariable(float2,        clip, , ); /* Fore and aft clipping planes (-vo, -va) */
 rtDeclareVariable(float,         vdist, , ); /* Focal length */
 rtDeclareVariable(float,         dstrpix, , ); /* Pixel sample jitter (-pj) */
+rtDeclareVariable(float,         mblur, , ); /* Motion blur (-pm) */
 rtDeclareVariable(float,         dblur, , ); /* Depth-of-field blur (-pd) */
 rtDeclareVariable(unsigned int,  do_irrad, , ); /* Calculate irradiance (-i) */
 
@@ -27,6 +29,7 @@ rtBuffer<float4, 2>              output_buffer;
 #ifdef RAY_COUNT
 rtBuffer<unsigned int, 2>        ray_count_buffer;
 #endif
+rtBuffer<RayParams, 2>           last_view_buffer;
 //rtBuffer<unsigned int, 2>        rnd_seeds;
 rtDeclareVariable(rtObject,      top_object, , );
 rtDeclareVariable(unsigned int,  radiance_ray_type, , );
@@ -81,7 +84,7 @@ RT_PROGRAM void image_camera()
 		z = cosf( M_PIf * dd );
 		d *= sqrtf( 1.0f - z*z ) / dd;
 	} else if ( camera == VT_PLS ) { /* planispheric fisheye */
-		d *= make_float2( sqrtf( dot( U, U ) ), sqrtf( dot( V, V ) ) );
+		d *= make_float2(length(U), length(V));
 		float dd = dot( d, d );
 		z = ( 1.0f - dd ) / ( 1.0f + dd );
 		d *= 1.0f + z;
@@ -96,11 +99,33 @@ RT_PROGRAM void image_camera()
 	if (aft <= FTINY) {
 		aft = RAY_END;
 	}
+	float distance = vdist;
+
+	/* optional motion blur */
+	if (mblur > FTINY) {
+		RayParams next;
+		next.aft = aft;
+		next.origin = ray_origin;
+		next.direction = ray_direction;
+		next.distance = distance;
+
+		if (frame) {
+			RayParams prev = last_view_buffer[launch_index];
+			z = mblur * (0.5f - curand_uniform(prd.state));
+
+			aft = lerp(aft, prev.aft, z);
+			ray_origin = lerp(ray_origin, prev.origin, z);
+			ray_direction = normalize(lerp(ray_direction, prev.direction, z));
+			distance = lerp(distance, prev.distance, z);
+		}
+
+		last_view_buffer[launch_index] = next;
+	}
 
 	/* optional depth-of-field */
 	if (dblur > FTINY) {
 		float adj = 1.0f;
-		float dfd = 0.0f;
+		z = 0.0f;
 
 		/* random point on disk */
 		SDsquare2disk(d, curand_uniform(prd.state), curand_uniform(prd.state));
@@ -110,15 +135,15 @@ RT_PROGRAM void image_camera()
 				adj /= dot(ray_direction, W);
 		}
 		else {			/* non-standard view case */
-			dfd = M_PI_4f * dblur * (0.5f - curand_uniform(prd.state));
+			z = M_PI_4f * dblur * (0.5f - curand_uniform(prd.state));
 		}
 		if ((camera != VT_ANG) & (camera != VT_PLS)) {
 			if (camera != VT_CYL)
-				d.x /= sqrt(dot(U, U));
-			d.y /= sqrt(dot(V, V));
+				d.x /= length(U);
+			d.y /= length(V);
 		}
-		ray_origin += d.x * U + d.y * V + dfd * W;
-		ray_direction = normalize(eye + adj * vdist * ray_direction - ray_origin);
+		ray_origin += d.x * U + d.y * V + z * W;
+		ray_direction = normalize(eye + adj * distance * ray_direction - ray_origin);
 	}
 
 	Ray ray = make_Ray(ray_origin, ray_direction, do_irrad ? radiance_primary_ray_type : radiance_ray_type, 0.0f, aft);

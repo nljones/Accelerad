@@ -48,8 +48,8 @@ static void destroyContext(const RTcontext context);
 #ifdef DAYSIM_COMPATIBLE
 static void setupDaysim(const RTcontext context, RTbuffer* dc_buffer, const int width, const int height);
 #endif
-static void setupKernel( const RTcontext context, const VIEW* view, const int width, const int height, const double alarm );
-static void applyRadianceSettings( const RTcontext context );
+static void setupKernel(const RTcontext context, const VIEW* view, const int width, const int height, const unsigned int imm_irrad, const double alarm);
+static void applyRadianceSettings(const RTcontext context, const VIEW* view, const unsigned int imm_irrad, const double dstrpix, const double mblur, const double dblur);
 static void createCamera( const RTcontext context, const VIEW* view );
 static void updateCamera( const RTcontext context, const VIEW* view );
 static void createGeometryInstance( const RTcontext context, RTgeometryinstance* instance );
@@ -70,7 +70,7 @@ static OBJREC* findFunction(OBJREC *o);
 static int createFunction( const RTcontext context, const OBJREC* rec );
 static int createTexture( const RTcontext context, const OBJREC* rec );
 static int createTransform( XF* fxp, XF* bxp, const OBJREC* rec );
-static void createAcceleration( const RTcontext context, const RTgeometryinstance instance );
+static void createAcceleration(const RTcontext context, const RTgeometryinstance instance, const unsigned int imm_irrad);
 static void createIrradianceGeometry( const RTcontext context );
 static void printObject(const OBJREC* rec);
 static void getRay( RayData* data, const RAY* ray );
@@ -78,13 +78,6 @@ static void setRay( RAY* ray, const RayData* data );
 
 #define nancolor(c)	c[0]!=c[0]||c[1]!=c[1]||c[2]!=c[2]
 
-
-/* from rpict.c */
-extern double  dstrpix;			/* square pixel distribution */
-extern double  dblur;			/* depth-of-field blur parameter */
-
-/* from rtmain.c */
-extern int  imm_irrad;			/* compute immediate irradiance? */
 
 /* from ambient.c */
 extern double  avsum;		/* computed ambient value sum (log) */
@@ -99,12 +92,13 @@ static unsigned int use_ambient = 0u;
 static unsigned int calc_ambient = 0u;
 
 /* Handles to objects used repeatedly in animation */
+static unsigned int frame = 0u;
 static RTcontext context_handle = NULL;
 static RTbuffer buffer_handle = NULL;
 #ifdef RAY_COUNT
 static RTbuffer ray_count_buffer_handle = NULL;
 #endif
-static RTvariable camera_type, camera_eye, camera_u, camera_v, camera_w, camera_fov, camera_shift, camera_clip, camera_vdist;
+static RTvariable camera_frame, camera_type, camera_eye, camera_u, camera_v, camera_w, camera_fov, camera_shift, camera_clip, camera_vdist;
 
 /* Handles to buffer data */
 static int*       buffer_entry_index;
@@ -149,11 +143,11 @@ static int *gpus = NULL;			/* indices of discovered GPU devices */
  * This may be called repeatedly in order to render an animation.
  * After the last call, endOptix() should be called.
  */
-void renderOptix(const VIEW* view, const int width, const int height, const double alarm, COLOR* colors, float* depths)
+void renderOptix(const VIEW* view, const int width, const int height, const double dstrpix, const double mblur, const double dblur, const double alarm, COLOR* colors, float* depths)
 {
 	/* Primary RTAPI objects */
 	RTcontext           context;
-	RTbuffer            output_buffer;
+	RTbuffer            output_buffer, lastview;
 
 	/* Parameters */
 	unsigned int i, size;
@@ -188,11 +182,18 @@ void renderOptix(const VIEW* view, const int width, const int height, const doub
 		setupDaysim(context, &dc_buffer, width, height);
 #endif
 
+		/* Ray parameters buffer for motion blur effect, only needed for rendering multiple frames */
+		if (mblur > FTINY)
+			createCustomBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, sizeof(RayParams), width, height, &lastview);
+		else
+			createCustomBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, sizeof(RayParams), 0, 0, &lastview);
+		applyContextObject(context, "last_view_buffer", lastview);
+
 		/* Save handles to objects used in animations */
 		context_handle = context;
 		buffer_handle = output_buffer;
 
-		setupKernel( context, view, width, height, alarm );
+		setupKernel(context, view, width, height, 0u, dstrpix, mblur, dblur, alarm);
 	} else {
 		/* Retrieve handles for previously created objects */
 		context = context_handle;
@@ -200,6 +201,9 @@ void renderOptix(const VIEW* view, const int width, const int height, const doub
 #ifdef RAY_COUNT
 		ray_count_buffer = ray_count_buffer_handle;
 #endif
+
+		/* Update the camera view for the next frame */
+		frame++;
 		updateCamera(context, view);
 	}
 
@@ -243,7 +247,7 @@ void renderOptix(const VIEW* view, const int width, const int height, const doub
 /**
  * Setup and run the OptiX kernel similar to RTRACE.
  */
-void computeOptix(const int width, const int height, const double alarm, RAY* rays)
+void computeOptix(const int width, const int height, const unsigned int imm_irrad, const double alarm, RAY* rays)
 {
 	/* Primary RTAPI objects */
 	RTcontext           context;
@@ -281,7 +285,7 @@ void computeOptix(const int width, const int height, const double alarm, RAY* ra
 	setupDaysim(context, &dc_buffer, width, height);
 #endif
 
-	setupKernel( context, NULL, width, height, 0.0 );
+	setupKernel(context, NULL, width, height, imm_irrad, 0.0, 0.0, 0.0, 0.0);
 
 #ifdef DAYSIM
 	/* Set scratch buffer size for this OptiX kernel */
@@ -335,7 +339,7 @@ void endOptix()
 #ifdef RAY_COUNT
 	ray_count_buffer_handle = NULL;
 #endif
-	camera_type = camera_eye = camera_u = camera_v = camera_w = camera_fov = camera_shift = camera_clip = camera_vdist = NULL;
+	camera_frame = camera_type = camera_eye = camera_u = camera_v = camera_w = camera_fov = camera_shift = camera_clip = camera_vdist = NULL;
 }
 
 /**
@@ -529,21 +533,18 @@ static void setupDaysim(const RTcontext context, RTbuffer* dc_buffer, const int 
 }
 #endif /* DAYSIM_COMPATIBLE */
 
-static void setupKernel( const RTcontext context, const VIEW* view, const int width, const int height, const double alarm )
+static void setupKernel(const RTcontext context, const VIEW* view, const int width, const int height, const unsigned int imm_irrad, const double dstrpix, const double mblur, const double dblur, const double alarm)
 {
 	/* Primary RTAPI objects */
 	RTgeometryinstance  instance;
 
 	/* Setup state */
-	applyRadianceSettings( context, view );
+	applyRadianceSettings(context, view, imm_irrad, dstrpix, mblur, dblur);
 	createCamera( context, view );
 	createGeometryInstance( context, &instance );
-	createAcceleration( context, instance );
+	createAcceleration(context, instance, imm_irrad);
 	if ( imm_irrad )
 		createIrradianceGeometry( context );
-
-	/* Initialize progress bar for some applications like IES<VE> */
-	reportProgress( 0.0, alarm );
 
 	/* Set up irradiance cache of ambient values */
 	if ( use_ambient ) { // Don't bother with ambient records if -aa is set to zero
@@ -554,7 +555,7 @@ static void setupKernel( const RTcontext context, const VIEW* view, const int wi
 	}
 }
 
-static void applyRadianceSettings( const RTcontext context, const VIEW* view )
+static void applyRadianceSettings(const RTcontext context, const VIEW* view, const unsigned int imm_irrad, const double dstrpix, const double mblur, const double dblur)
 {
 	/* Define ray types */
 	applyContextVariable1ui( context, "radiance_primary_ray_type", PRIMARY_RAY );
@@ -599,12 +600,12 @@ static void applyRadianceSettings( const RTcontext context, const VIEW* view )
 	/* Set ray limitting parameters */
 	applyContextVariable1f( context, "minweight", minweight ); // -lw, from ray.h
 	applyContextVariable1i( context, "maxdepth", maxdepth ); // -lr, from ray.h, negative values indicate Russian roulette
-	applyContextVariable1ui( context, "imm_irrad", imm_irrad ); // -I
 
 	if (rand_samp)
 		applyContextVariable1ui(context, "random_seed", random()); // -u
 
 	if (view) {
+		camera_frame = applyContextVariable1ui(context, "frame", frame);
 		camera_type  = applyContextVariable1ui(context, "camera", view->type); // -vt
 		camera_eye   = applyContextVariable3f(context, "eye", view->vp[0], view->vp[1], view->vp[2]); // -vp
 		camera_u     = applyContextVariable3f(context, "U", view->hvec[0], view->hvec[1], view->hvec[2]);
@@ -615,9 +616,10 @@ static void applyRadianceSettings( const RTcontext context, const VIEW* view )
 		camera_clip  = applyContextVariable2f(context, "clip", view->vfore, view->vaft); // -vo, -va
 		camera_vdist = applyContextVariable1f(context, "vdist", view->vdist);
 		applyContextVariable1f(context, "dstrpix", dstrpix); // -pj
-		//applyContextVariable1f(context, "mblur", mblur); // -pm
+		applyContextVariable1f(context, "mblur", mblur); // -pm
 		applyContextVariable1f(context, "dblur", dblur); // -pd
-	}
+	} else
+		applyContextVariable1ui(context, "imm_irrad", imm_irrad); // -I
 
 #ifdef DAYSIM
 	/* Set daylight coefficient parameters */
@@ -663,8 +665,9 @@ static void createCamera( const RTcontext context, const VIEW* view )
 
 static void updateCamera( const RTcontext context, const VIEW* view )
 {
-	if ( camera_type == NULL ) return; // Should really test all, but we'll assume that all are set together.
+	if (!view || !camera_frame) return; // Should really test all, but we'll assume that all are set together.
 
+	RT_CHECK_ERROR( rtVariableSet1ui( camera_frame, frame ) );
 	RT_CHECK_ERROR( rtVariableSet1ui( camera_type, view->type ) ); // -vt
 	RT_CHECK_ERROR( rtVariableSet3f( camera_eye, view->vp[0], view->vp[1], view->vp[2] ) ); // -vp
 	RT_CHECK_ERROR( rtVariableSet3f( camera_u, view->hvec[0], view->hvec[1], view->hvec[2] ) );
@@ -1682,7 +1685,7 @@ static int createTransform( XF* fxp, XF* bxp, const OBJREC* rec )
 	return 2;
 }
 
-static void createAcceleration( const RTcontext context, const RTgeometryinstance instance )
+static void createAcceleration( const RTcontext context, const RTgeometryinstance instance, const unsigned int imm_irrad )
 {
 	RTgeometrygroup geometrygroup;
 	RTacceleration  acceleration;

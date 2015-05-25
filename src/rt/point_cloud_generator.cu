@@ -33,12 +33,12 @@ RT_METHOD float3 uniform_solid_angle( float2 in )
 {
 	float2 d = 2.0f * in - 1.0f; // map input from [0, 1] to [-1, 1]
 	float z = d.y > 0.0f ? 1.0f : -1.0f;
-	if ( ( abs( d.x ) < FTINY ) && ( abs( d.y ) < FTINY ) )
+	if ( ( fabsf( d.x ) < FTINY ) && ( fabsf( d.y ) < FTINY ) )
 		return make_float3( 0.0f, 0.0f, z );
 
 	d.y = 2.0f * d.y - z;
 	float s, x, y;
-	if ( abs( d.x ) > abs( d.y ) ) {
+	if ( fabsf( d.x ) > fabsf( d.y ) ) {
 		float angle = M_PI_4f * d.y / d.x;
 		s = d.x;
 		x = cosf( angle );
@@ -69,7 +69,6 @@ RT_PROGRAM void point_cloud_camera()
 	float2 d = make_float2( curand_uniform( state ), curand_uniform( state ) );
 	d = 0.5f + dstrpix * ( 0.5f - d ); // this is pixjitter() from rpict.c
 	float3 ray_origin = eye;
-	float fore = 0.0f;
 	float aft = RAY_END;
 
 	// Set initial ray direction
@@ -102,7 +101,7 @@ RT_PROGRAM void point_cloud_camera()
 			z = cosf( M_PIf * dd );
 			d *= sqrtf( 1.0f - z*z ) / dd;
 		} else if ( camera == VT_PLS ) { /* planispheric fisheye */
-			d *= make_float2( sqrtf( dot( U, U ) ), sqrtf( dot( V, V ) ) );
+			d *= make_float2(length(U), length(V));
 			float dd = dot( d, d );
 			z = ( 1.0f - dd ) / ( 1.0f + dd );
 			d *= 1.0f + z;
@@ -122,11 +121,9 @@ RT_PROGRAM void point_cloud_camera()
 
 		// Get the position and normal of the first ray
 		ray_direction = uniform_solid_angle(d);
-
-		fore = ray_start(ray_origin, RAY_START);
 	}
 
-	Ray ray = make_Ray(ray_origin, ray_direction, point_cloud_ray_type, fore, aft);
+	Ray ray = make_Ray(ray_origin, ray_direction, point_cloud_ray_type, 0.0f, aft);
 
 	unsigned int loop = 2u * seeds; // Prevent infinite looping
 	while ( index.z < seeds && loop-- ) {

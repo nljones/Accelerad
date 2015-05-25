@@ -47,7 +47,7 @@ static const char RCSid[] = "$Id$";
 
 #ifdef ACCELERAD
 /* in optix_radiance.c */
-extern void renderOptix(const VIEW* view, const int width, const int height, const double alarm, COLOR* colors, float* depths);
+extern void renderOptix(const VIEW* view, const int width, const int height, const double dstrpix, const double mblur, const double dblur, const double alarm, COLOR* colors, float* depths);
 extern void endOptix();
 #endif
 
@@ -112,9 +112,6 @@ char  *amblist[AMBLLEN];		/* ambient include/exclude list */
 int  ambincl = -1;			/* include == 1, exclude == 0 */
 
 #ifdef ACCELERAD
-/* from optix_radiance.c */
-int  imm_irrad = 0; //TODO This shouldn't be necessary, but the variable must exist in optix_radiance.c
-
 double  ralrm = 0.0;				/* seconds between reports */
 #else
 int  ralrm = 0;				/* seconds between reports */
@@ -445,8 +442,13 @@ render(				/* render the scene */
 		if (colptr == NULL || zptr == NULL)
 			goto memerr;
 
+		/* Initialize progress bar for some applications like IES<VE> */
+		pctdone = 0.0;
+		if (ralrm > 0)
+			report(0);
+
 		/* Now lets render an image on the graphics card */
-		renderOptix(&ourview, hres, vres, ralrm, colptr, zptr);
+		renderOptix(&ourview, hres, vres, dstrpix, mblur, dblur, ralrm, colptr, zptr);
 
 		/* open z-file */
 		if (zfile != NULL) {

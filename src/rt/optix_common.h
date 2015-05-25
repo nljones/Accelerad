@@ -102,3 +102,15 @@ typedef struct struct_point_direction
 	float3 pos;		/* position in space */
 	float3 dir;		/* normal direction */
 } PointDirection;
+
+/* Structure to hold ray parameters */
+typedef struct struct_ray_parameters
+{
+#if defined(__cplusplus)
+	typedef optix::float3 float3;
+#endif
+	float aft;			/* distance to aft clipping plane */
+	float3 origin;		/* position in space */
+	float3 direction;	/* normal direction */
+	float distance;		/* focal length */
+} RayParams;

@@ -117,7 +117,7 @@ RT_PROGRAM void ambient_camera()
 			z = cosf( M_PIf * dd );
 			d *= sqrtf( 1.0f - z*z ) / dd;
 		} else if ( camera == VT_PLS ) { /* planispheric fisheye */
-			d *= make_float2( sqrtf( dot( U, U ) ), sqrtf( dot( V, V ) ) );
+			d *= make_float2(length(U), length(V));
 			float dd = dot( d, d );
 			z = ( 1.0f - dd ) / ( 1.0f + dd );
 			d *= 1.0f + z;
