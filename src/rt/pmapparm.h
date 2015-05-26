@@ -1,7 +1,7 @@
 /* 
    ==================================================================
-   Parameters common to all photon map modules. 
-   For inclusion in main program.
+   Parameters for photon map generation; used by MKPMAP
+   For inclusion in mkpmap.c
    
    Roland Schregle (roland.schregle@{hslu.ch, gmail.com}
    (c) Fraunhofer Institute for Solar Energy Systems,
@@ -38,8 +38,8 @@
    #define contribPmapParams  (pmapParams [PMAP_TYPE_CONTRIB])
    
    
-   extern float pdfSamples, preDistrib, finalGather, gatherTolerance,
-                maxDistCoeff;
+   extern float pdfSamples, preDistrib, finalGather, gatherTolerance, 
+                maxDistFix;
    extern unsigned long photonHeapSizeInc, photonMaxBounce;
    extern unsigned photonRepTime, maxPreDistrib, defaultGather;
 #ifdef PMAP_ROI                

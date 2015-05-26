@@ -456,7 +456,7 @@ RTmaterial insertArraym(MaterialArray *a, const RTmaterial element)
 		a->size *= 2;
 		a->array = (RTmaterial *)realloc(a->array, a->size * sizeof(RTmaterial));
 		if (a->array == NULL)
-			error(SYSTEM, "out of memory in insertArraydl");
+			error(SYSTEM, "out of memory in insertArraym");
 	}
 	return a->array[a->count++] = element;
 }

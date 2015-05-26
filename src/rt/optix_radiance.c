@@ -14,6 +14,7 @@
 #include "source.h"
 #include "ambient.h"
 #include <face.h>
+#include <cone.h>
 #include <mesh.h>
 #include "data.h"
 #include "random.h"
@@ -35,11 +36,14 @@
 #define EXPECTED_FUNCTIONS	8
 
 #define DEFAULT_SPHERE_STEPS	4
+#define DEFAULT_CONE_STEPS		24
+
+#define TCALNAME	"tmesh.cal"	/* the name of our auxiliary file */
 
 #ifdef ACCELERAD
 
-void renderOptix( const VIEW* view, const int width, const int height, const double alarm, COLOR* colors, float* depths );
-void computeOptix( const int width, const int height, const double alarm, RAY* rays );
+void renderOptix(const VIEW* view, const int width, const int height, const double dstrpix, const double mblur, const double dblur, const double alarm, COLOR* colors, float* depths);
+void computeOptix(const int width, const int height, const unsigned int imm_irrad, const double alarm, RAY* rays);
 void endOptix();
 
 static void checkDevices();
@@ -48,7 +52,7 @@ static void destroyContext(const RTcontext context);
 #ifdef DAYSIM_COMPATIBLE
 static void setupDaysim(const RTcontext context, RTbuffer* dc_buffer, const int width, const int height);
 #endif
-static void setupKernel(const RTcontext context, const VIEW* view, const int width, const int height, const unsigned int imm_irrad, const double alarm);
+static void setupKernel(const RTcontext context, const VIEW* view, const int width, const int height, const unsigned int imm_irrad, const double dstrpix, const double mblur, const double dblur, const double alarm);
 static void applyRadianceSettings(const RTcontext context, const VIEW* view, const unsigned int imm_irrad, const double dstrpix, const double mblur, const double dblur);
 static void createCamera( const RTcontext context, const VIEW* view );
 static void updateCamera( const RTcontext context, const VIEW* view );
@@ -61,6 +65,7 @@ static int createTriangles(const FACE *face, const OBJREC* material);
 static int addTriangle(const Vert2_list *tp, int a, int b, int c);
 #endif /* TRIANGULATE */
 static void createSphere(const OBJREC* rec, const OBJREC* parent);
+static void createCone(const OBJREC* rec, const OBJREC* parent);
 static void createMesh(const OBJREC* rec, const OBJREC* parent);
 static RTmaterial createNormalMaterial( const RTcontext context, const OBJREC* rec );
 static RTmaterial createGlassMaterial( const RTcontext context, const OBJREC* rec );
@@ -75,8 +80,6 @@ static void createIrradianceGeometry( const RTcontext context );
 static void printObject(const OBJREC* rec);
 static void getRay( RayData* data, const RAY* ray );
 static void setRay( RAY* ray, const RayData* data );
-
-#define nancolor(c)	c[0]!=c[0]||c[1]!=c[1]||c[2]!=c[2]
 
 
 /* from ambient.c */
@@ -891,8 +894,15 @@ static void addRadianceObject(const RTcontext context, const OBJREC* rec, const 
 		createFace(rec, parent);
 		break;
 	case OBJ_SPHERE: // Sphere
-	case OBJ_BUBBLE: // Bubble
+	case OBJ_BUBBLE: // Inverted sphere
 		createSphere(rec, parent);
+		break;
+	case OBJ_CONE: // Cone
+	case OBJ_CUP: // Inverted cone
+	case OBJ_CYLINDER: // Cylinder
+	case OBJ_TUBE: // Inverted cylinder
+	case OBJ_RING: // Disk
+		createCone(rec, parent);
 		break;
 	case OBJ_MESH: // Mesh from file
 		createMesh(rec, parent);
@@ -909,10 +919,10 @@ static void addRadianceObject(const RTcontext context, const OBJREC* rec, const 
 		break;
 	case TEX_FUNC:
 		if (rec->oargs.nsargs == 3) {
-			if (!strcmp(rec->oargs.sarg[2], "tmesh.cal")) break; // Handled by face
+			if (!strcmp(rec->oargs.sarg[2], TCALNAME)) break; // Handled by face
 		}
 		else if (rec->oargs.nsargs >= 4) {
-			if (!strcmp(rec->oargs.sarg[3], "tmesh.cal")) break; // Handled by face
+			if (!strcmp(rec->oargs.sarg[3], TCALNAME)) break; // Handled by face
 		}
 		printObject(rec);
 		break;
@@ -957,7 +967,7 @@ static void createFace(const OBJREC* rec, const OBJREC* parent)
 		RREAL *va = VERTEX(face, j);
 		insertArray3f(vertices, va[0], va[1], va[2]);
 
-		if (material && material->otype == TEX_FUNC && material->oargs.nsargs >= 4 && !strcmp(material->oargs.sarg[3], "tmesh.cal")) {
+		if (material && material->otype == TEX_FUNC && material->oargs.nsargs >= 4 && !strcmp(material->oargs.sarg[3], TCALNAME)) {
 			/* Normal calculation from tmesh.cal */
 			double bu, bv;
 			FVECT v;
@@ -996,7 +1006,7 @@ static void createFace(const OBJREC* rec, const OBJREC* parent)
 			insertArray3f(normals, face->norm[0], face->norm[1], face->norm[2]);
 		}
 
-		if (material && material->otype == TEX_FUNC && material->oargs.nsargs == 3 && !strcmp(material->oargs.sarg[2], "tmesh.cal")) {
+		if (material && material->otype == TEX_FUNC && material->oargs.nsargs == 3 && !strcmp(material->oargs.sarg[2], TCALNAME)) {
 			/* Texture coordinate calculation from tmesh.cal */
 			double bu, bv;
 
@@ -1172,6 +1182,88 @@ static void createSphere(const OBJREC* rec, const OBJREC* parent)
 	return;
 sphmemerr:
 	error(SYSTEM, "out of memory in createSphere");
+}
+
+static void createCone(const OBJREC* rec, const OBJREC* parent)
+{
+	unsigned int i, j, isCone, steps;
+	int direction;
+	double theta, sphi, cphi;
+	FVECT u, v, n;
+	CONE* cone = getcone(rec, 0);
+	OBJREC* material = findmaterial(parent);
+	if (material == NULL)
+		objerror(rec, USER, "missing material");
+
+	// Get orthonormal basis
+	if (!getperpendicular(u, cone->ad, 0))
+		objerror(rec, USER, "bad normal direction");
+	VCROSS(v, cone->ad, u);
+
+	isCone = rec->otype != OBJ_CYLINDER && rec->otype != OBJ_TUBE;
+	direction = (rec->otype == OBJ_CUP || rec->otype == OBJ_TUBE) ? -1 : 1;
+
+	if (rec->oargs.nfargs > 7 + isCone) // TODO oconv won't allow extra arguments
+		steps = rec->oargs.farg[7 + isCone];
+	else
+		steps = DEFAULT_CONE_STEPS;
+	if (steps < 3)
+		objerror(rec, USER, "resolution too low");
+	
+	// Check that cone is closed
+	if (isCone)
+		isCone = CO_R0(cone) == 0 ? 1u : CO_R1(cone) == 0 ? 2u : 0u;
+
+	if (CO_R0(cone) == CO_R1(cone)) { // Cylinder
+		sphi = 0.0;
+		cphi = 1.0;
+	}
+	else if (cone->al) { // Cone
+		double phi = atan((CO_R0(cone) - CO_R1(cone)) / cone->al);
+		sphi = sin(phi);
+		cphi = cos(phi);
+	}
+	else { // Ring
+		if (CO_R0(cone) < CO_R1(cone))
+			direction = -direction;
+		sphi = direction;
+		cphi = 0.0;
+	}
+
+	for (i = 0u; i < steps; i++) {
+		// Add traingles
+		if (isCone != 1)
+			createTriangle(material,
+				vertex_index_0 + (2 * i + 1 - direction) % (2 * steps),
+				vertex_index_0 + (2 * i + 1 + direction) % (2 * steps),
+				vertex_index_0 + (2 * i + 1) % (2 * steps));
+		if (isCone != 2)
+			createTriangle(material,
+				vertex_index_0 + (2 * i + 2) % (2 * steps),
+				vertex_index_0 + (2 * i + 2 + direction) % (2 * steps),
+				vertex_index_0 + (2 * i + 2 - direction) % (2 * steps));
+
+		// Add vertices
+		theta = PI * 2 * i / steps;
+		for (j = 0u; j < 3; j++)
+			n[j] = u[j] * cos(theta) + v[j] * sin(theta);
+		insertArray3f(vertices,
+			CO_P0(cone)[0] + CO_R0(cone) * n[0],
+			CO_P0(cone)[1] + CO_R0(cone) * n[1],
+			CO_P0(cone)[2] + CO_R0(cone) * n[2]);
+		insertArray3f(vertices,
+			CO_P1(cone)[0] + CO_R1(cone) * n[0],
+			CO_P1(cone)[1] + CO_R1(cone) * n[1],
+			CO_P1(cone)[2] + CO_R1(cone) * n[2]);
+		for (j = 0u; j < 3; j++)
+			n[j] = direction * (sphi * cone->ad[j] + cphi * n[j]);
+		insertArray3f(normals, n[0], n[1], n[2]);
+		insertArray3f(normals, n[0], n[1], n[2]);
+		insertArray2f(tex_coords, 0.0f, 0.0f);
+		insertArray2f(tex_coords, 0.0f, 0.0f);
+	}
+	vertex_index_0 += steps * 2;
+	freecone(rec);
 }
 
 static void createMesh(const OBJREC* rec, const OBJREC* parent)
@@ -1568,7 +1660,7 @@ static int createTexture( const RTcontext context, const OBJREC* rec )
 	unsigned int i, entries;
 
 	DATARRAY *dp;
-	COLORV* color;
+	//COLOR color;
 	XF bxp;
 
 	/* Load texture data */
@@ -1607,8 +1699,9 @@ static int createTexture( const RTcontext context, const OBJREC* rec )
 		memcpy(tex_buffer_data, dp->arr.d, entries * sizeof(float));
 	else // colors
 		for (i = 0u; i < entries; i++) {
-			colr_color(color, dp->arr.c[i]);
-			copycolor(tex_buffer_data, color);
+			colr_color(tex_buffer_data, dp->arr.c[i]);
+			//colr_color(color, dp->arr.c[i]);
+			//copycolor(tex_buffer_data, color);
 			tex_buffer_data += 3;
 		}
 	RT_CHECK_ERROR( rtBufferUnmap( tex_buffer ) );

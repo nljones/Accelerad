@@ -1,6 +1,7 @@
 /* 
    ==================================================================
-   Parameters common to all photon map modules. 
+   Parameters for photon map generation; used by MKPMAP
+   For inclusion in mkpmap.c
    
    Roland Schregle (roland.schregle@{hslu.ch, gmail.com}
    (c) Fraunhofer Institute for Solar Energy Systems,
@@ -28,8 +29,9 @@ float pdfSamples = 1000,                /* PDF samples per steradian */
                                            fraction of minGather/maxGather
                                            are restarted with a larger
                                            search radius */
-      maxDistCoeff = 100;               /* Coefficient for maximum photon
-                                           search radius  */
+      maxDistFix = 0;                   /* Static maximum photon search
+                                           radius (radius is adaptive if
+                                           this is zero) */
 
 #ifdef PMAP_ROI
    /* Region of interest bbox: {xmin, xmax, ymin, ymax, zmin, zmax} */

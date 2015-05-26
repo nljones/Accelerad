@@ -19,6 +19,7 @@
 #include "otypes.h"
 #include "source.h"
 #include "rcontrib.h"
+#include "random.h"
 
 
 
@@ -229,7 +230,7 @@ static void nearestNeighbours (PhotonMap* pmap, const float pos [3],
    }
 
    /* Reject photon if normal faces away (ignored for volume photons) */
-   if (norm && DOT(norm, p -> norm) <= 0)
+   if (norm && DOT(norm, p -> norm) <= 0.5 * frandom())
       return;
       
    if (isContribPmap(pmap) && pmap -> srcContrib) {
@@ -311,6 +312,10 @@ static void nearestNeighbours (PhotonMap* pmap, const float pos [3],
 /* Threshold below which we assume increasing max radius won't help */
 #define PMAP_SHORT_LOOKUP_THRESH 1
 
+/* Coefficient for adaptive maximum search radius */
+#define PMAP_MAXDIST_COEFF 100
+
+
 void findPhotons (PhotonMap* pmap, const RAY* ray)
 {
    float pos [3], norm [3];
@@ -332,17 +337,12 @@ void findPhotons (PhotonMap* pmap, const RAY* ray)
       pmap -> minError = FHUGE;
       pmap -> maxError = -FHUGE;
       pmap -> rmsError = 0;
-#ifdef PMAP_MAXDIST_ABS
-      /* Treat maxDistCoeff as an *absolute* and *fixed* max search radius.
-         Primarily intended for debugging; FOR ZE ECKSPURTZ ONLY! */
-      pmap -> maxDist0 = pmap -> maxDistLimit = maxDistCoeff;
-#else
-      /* Maximum search radius limit based on avg photon distance to
-       * centre of gravity */
+      /* Maximum search radius limit is based on avg photon distance to
+       * centre of gravity, unless fixed by user (maxDistFix > 0) */
       pmap -> maxDist0 = pmap -> maxDistLimit = 
-         maxDistCoeff * pmap -> squeueSize * pmap -> CoGdist / 
-         pmap -> heapSize;
-#endif      
+         maxDistFix > 0 ? maxDistFix
+                        : PMAP_MAXDIST_COEFF * pmap -> squeueSize * 
+                          pmap -> CoGdist / pmap -> heapSize;
    }
 
    do {
@@ -362,7 +362,6 @@ void findPhotons (PhotonMap* pmap, const RAY* ray)
          nearestNeighbours(pmap, pos, norm, 1);
       }
 
-#ifndef PMAP_MAXDIST_ABS      
       if (pmap -> squeueEnd < pmap -> squeueSize * pmap -> gatherTolerance) {
          /* Short lookup; too few photons found */
          if (pmap -> squeueEnd > PMAP_SHORT_LOOKUP_THRESH) {
@@ -370,43 +369,50 @@ void findPhotons (PhotonMap* pmap, const RAY* ray)
              * PMAP_SHORT_LOOKUP_THRESH photons under the assumption there
              * really are no photons in the vicinity, and increasing the max
              * search radius therefore won't help */
-   #ifdef PMAP_LOOKUP_WARN
+#ifdef PMAP_LOOKUP_WARN
             sprintf(errmsg, 
                     "%d/%d %s photons found at (%.2f,%.2f,%.2f) on %s",
                     pmap -> squeueEnd, pmap -> squeueSize, 
                     pmapName [pmap -> type], pos [0], pos [1], pos [2], 
                     ray -> ro ? ray -> ro -> oname : "<null>");
             error(WARNING, errmsg);         
-   #endif             
+#endif             
 
+            /* Bail out after warning if maxDist is fixed */
+            if (maxDistFix > 0)
+               return;
+            
             if (pmap -> maxDist0 < pmap -> maxDistLimit) {
                /* Increase max search radius if below limit & redo search */
                pmap -> maxDist0 *= PMAP_MAXDIST_INC;
-   #ifdef PMAP_LOOKUP_REDO
+#ifdef PMAP_LOOKUP_REDO
                redo = 1;
-   #endif               
-
-   #ifdef PMAP_LOOKUP_WARN
+#endif               
+#ifdef PMAP_LOOKUP_WARN
                sprintf(errmsg, 
                        redo ? "restarting photon lookup with max radius %.1e"
                             : "max photon lookup radius adjusted to %.1e",
                        pmap -> maxDist0);
                error(WARNING, errmsg);
-   #endif
+#endif
             }
-   #ifdef PMAP_LOOKUP_REDO
+#ifdef PMAP_LOOKUP_REDO
             else {
                sprintf(errmsg, "max photon lookup radius clamped to %.1e",
                        pmap -> maxDist0);
                error(WARNING, errmsg);
             }
-   #endif
+#endif
          }
          
          /* Reset successful lookup counter */
          pmap -> numLookups = 0;
       }
       else {
+         /* Bail out after warning if maxDist is fixed */
+         if (maxDistFix > 0)
+            return;
+            
          /* Increment successful lookup counter and reduce max search radius if
           * wraparound */
          pmap -> numLookups = (pmap -> numLookups + 1) % PMAP_MAXDIST_CNT;
@@ -415,7 +421,7 @@ void findPhotons (PhotonMap* pmap, const RAY* ray)
             
          redo = 0;
       }
-#endif
+      
    } while (redo);
 }
 
@@ -455,7 +461,7 @@ static void nearest1Neighbour (PhotonMap *pmap, const float pos [3],
    dv [2] = pos [2] - p -> pos [2];
    d2 = DOT(dv, dv);
    
-   if (d2 < pmap -> maxDist && DOT(norm, p -> norm) > 0) {
+   if (d2 < pmap -> maxDist && DOT(norm, p -> norm) > 0.5 * frandom()) {
       /* Closest photon so far with similar normal */
       pmap -> maxDist = d2;
       *photon = p;
