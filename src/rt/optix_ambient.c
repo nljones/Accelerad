@@ -35,6 +35,10 @@ extern unsigned int  nambvals;	/* total number of indirect values */
 
 extern void avsave(AMBVAL *av);
 
+/* Handles to objects used in ambient calculation */
+extern RTvariable avsum_var;
+extern RTvariable navsum_var;
+
 /* Handles to objects used repeatedly in iterative irradiance cache builds */
 static RTbuffer ambient_record_input_buffer;
 #ifdef DAYSIM
@@ -360,7 +364,7 @@ static void createAmbientAcceleration( const RTcontext context, const RTgeometry
 #ifndef KMEANS_IC
 void createAmbientRecords( const RTcontext context, const VIEW* view, const int width, const int height, const double alarm )
 {
-	RTvariable     level_var, avsum_var, navsum_var;
+	RTvariable     level_var;
 	RTbuffer       ambient_record_buffer;
 	AmbientRecord* ambient_record_buffer_data;
 
@@ -384,9 +388,6 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 	createCustomBuffer3D( context, RT_BUFFER_OUTPUT, sizeof(AmbientRecord), scaled_width, scaled_height, optix_amb_semgents, &ambient_record_buffer );
 	applyContextObject( context, "ambient_record_buffer", ambient_record_buffer );
 	applyContextVariable1ui( context, "segments", optix_amb_semgents );
-
-	RT_CHECK_ERROR( rtContextQueryVariable( context, "avsum", &avsum_var ) );
-	RT_CHECK_ERROR( rtContextQueryVariable( context, "navsum", &navsum_var ) );
 
 	/* Put any existing ambient records into GPU cache. There should be none. */
 	setupAmbientCache( context, 0u ); // Do this now to avoid additional setup time later
@@ -442,7 +443,13 @@ static void createAmbientSamplingCamera( const RTcontext context );
 #ifdef ITERATIVE_KMEANS_IC
 static void createHemisphereSamplingCamera( const RTcontext context );
 #endif
+static void chooseAmbientLocations(const RTcontext context, const unsigned int level, const unsigned int width, const unsigned int height, const unsigned int seeds_per_thread, RTbuffer seed_buffer, RTbuffer cluster_buffer);
 static void createKMeansClusters( const unsigned int seed_count, const unsigned int cluster_count, PointDirection* seed_buffer_data, PointDirection* cluster_buffer_data, const unsigned int level );
+#ifdef DAYSIM
+static void calcAmbientValues(const RTcontext context, const unsigned int level, const double alarm, RTbuffer ambient_record_buffer, RTbuffer ambient_dc_buffer, RTvariable segment_var);
+#else
+static void calcAmbientValues(const RTcontext context, const unsigned int level, const double alarm, RTbuffer ambient_record_buffer);
+#endif
 //static void sortKMeans( const unsigned int cluster_count, PointDirection* cluster_buffer_data );
 //static int clusterComparator( const void* a, const void* b );
 
@@ -466,20 +473,13 @@ void cuda_score_hits(PointDirection *hits, int *seeds, const unsigned int width,
 
 void createAmbientRecords( const RTcontext context, const VIEW* view, const int width, const int height, const double alarm )
 {
-	RTvariable     level_var, avsum_var, navsum_var;
+	RTvariable     level_var;
 	RTbuffer       seed_buffer, ambient_record_buffer;
-	PointDirection* seed_buffer_data, *cluster_buffer_data;
-	AmbientRecord* ambient_record_buffer_data;
 #ifdef DAYSIM_COMPATIBLE
 	RTbuffer       ambient_dc_buffer;
 #endif
 #ifdef DAYSIM
-	float*         ambient_dc_buffer_data;
-#ifdef AMB_PARALLEL
 	RTvariable     segment_var = NULL;
-	unsigned int   kmeans_clusters_per_segment;
-	size_t         bytes_per_kmeans_cluster;
-#endif
 #endif
 #ifdef ITERATIVE_KMEANS_IC
 	RTvariable     current_cluster_buffer;
@@ -488,10 +488,8 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 	RTbuffer       cluster_buffer;
 #endif
 
-	unsigned int grid_width, grid_height, seeds_per_thread, seed_count, record_count, level, i;
+	unsigned int grid_width, grid_height, seeds_per_thread, level;
 #ifdef ITERATIVE_KMEANS_IC
-	unsigned int divisions;
-
 	seeds_per_thread = 1u;
 #else
 	seeds_per_thread = optix_amb_seeds_per_thread;
@@ -506,7 +504,6 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 		grid_width = width;
 		grid_height = height;
 	}
-	seed_count = grid_width * grid_height * seeds_per_thread;
 
 	createPointCloudCamera( context, view );
 #ifdef AMB_PARALLEL
@@ -541,6 +538,10 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 	applyContextObject( context, "ambient_record_buffer", ambient_record_buffer );
 #ifdef DAYSIM_COMPATIBLE
 #ifdef DAYSIM
+#ifdef AMB_PARALLEL
+	/* Create variable for offset into scratch space */
+	RT_CHECK_ERROR(rtContextDeclareVariable(context, "segment_offset", &segment_var));
+#endif
 	createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT, daysimGetCoefficients(), cuda_kmeans_clusters, &ambient_dc_buffer);
 #else
 	createBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT, 0, 0, &ambient_dc_buffer);
@@ -551,90 +552,18 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 	/* Set additional variables used for ambient record generation */
 	level_var = applyContextVariable1ui(context, "level", 0u); // Could be camera program variable
 
-	RT_CHECK_ERROR( rtContextQueryVariable( context, "avsum", &avsum_var ) );
-	RT_CHECK_ERROR( rtContextQueryVariable( context, "navsum", &navsum_var ) );
-
 	/* Put any existing ambient records into GPU cache. There should be none. */
 	setupAmbientCache( context, 0u ); // Do this now to avoid additional setup time later
 
-	/* Run the kernel to get the first set of seed points. */
-	runKernel2D( context, POINT_CLOUD_ENTRY, grid_width, grid_height );
-
 #ifdef ITERATIVE_KMEANS_IC
 	for ( level = 0u; level < ambounce; level++ ) {
-		if ( level ) {
-			/* Adjust output buffer size */
-			divisions = ambientDivisions(level);
-			seed_count = cuda_kmeans_clusters * divisions * divisions;
-			RT_CHECK_ERROR( rtBufferSetSize3D( seed_buffer, cuda_kmeans_clusters, divisions, divisions ) );
-
-			/* Run kernel to gerate more seed points from cluster centers */
-			runKernel3D( context, HEMISPHERE_SAMPLING_ENTRY, cuda_kmeans_clusters, divisions, divisions ); // stride?
-		}
-
-		/* Retrieve potential seed points. */
-		RT_CHECK_ERROR( rtBufferMap( seed_buffer, (void**)&seed_buffer_data ) );
-		RT_CHECK_ERROR( rtBufferUnmap( seed_buffer ) );
-
-#ifdef ADAPTIVE_SEED_SAMPLING
-		if (!level) {
-			clock_t kernel_clock;
-			//int total = 0;
-			unsigned int missing = 0u;
-			unsigned int si = cuda_kmeans_clusters;
-			unsigned int ci = 0u;
-			int *score = (int*) malloc(seed_count * sizeof(int));
-			PointDirection *temp_list = (PointDirection*) malloc(seed_count * sizeof(PointDirection));
-			if (score == NULL || temp_list == NULL)
-				error(SYSTEM, "out of memory in createAmbientRecords");
-
-			kernel_clock = clock();
-			cuda_score_hits( seed_buffer_data, score, grid_width, grid_height, cuda_kmeans_error / (ambacc * maxarad), cuda_kmeans_clusters );
-			kernel_clock = clock() - kernel_clock;
-			mprintf("Adaptive sampling: %llu milliseconds.\n", kernel_clock * 1000uLL / CLOCKS_PER_SEC);
-
-			for ( i = 0u; i < seed_count; i++ ) {
-				if (score[i]) {
-					missing += score[i] - 1;
-					//total++;
-					temp_list[ci++] = seed_buffer_data[i];
-				} else if (missing) { // TODO need better way to randomly add extra cluster seeds
-					missing--;
-					temp_list[ci++] = seed_buffer_data[i];
-				} else if (si < seed_count)
-					temp_list[si++] = seed_buffer_data[i];
-				else
-					temp_list[ci++] = seed_buffer_data[i];
-			}
-			//mprintf("Score total: %i\n", total);
-
-			memcpy( seed_buffer_data, temp_list, seed_count * sizeof(PointDirection) );
-
-			free(score);
-			free(temp_list);
-		}
-#endif /* ADAPTIVE_SEED_SAMPLING */
-
-		/* Group seed points into clusters and add clusters to buffer */
-		RT_CHECK_ERROR( rtBufferMap( cluster_buffer[level], (void**)&cluster_buffer_data ) );
-		createKMeansClusters( seed_count, cuda_kmeans_clusters, seed_buffer_data, cluster_buffer_data, level );
-		//sortKMeans( cuda_kmeans_clusters, cluster_buffer_data );
-		RT_CHECK_ERROR( rtBufferUnmap( cluster_buffer[level] ) );
+		chooseAmbientLocations(context, level, grid_width, grid_height, seeds_per_thread, seed_buffer, cluster_buffer[level]);
 
 		/* Set input buffer index for next iteration */
 		RT_CHECK_ERROR( rtVariableSetObject( current_cluster_buffer, cluster_buffer[level] ) );
 	}
 #else /* ITERATIVE_KMEANS_IC */
-	/* Retrieve potential seed points. */
-	RT_CHECK_ERROR( rtBufferMap( seed_buffer, (void**)&seed_buffer_data ) );
-	RT_CHECK_ERROR( rtBufferUnmap( seed_buffer ) );
-
-	/* Group seed points into clusters and add clusters to buffer */
-	RT_CHECK_ERROR( rtBufferMap( cluster_buffer, (void**)&cluster_buffer_data ) );
-	createKMeansClusters( seed_count, cuda_kmeans_clusters, seed_buffer_data, cluster_buffer_data, 0u );
-	//sortKMeans( cuda_kmeans_clusters, cluster_buffer_data );
-	RT_CHECK_ERROR( rtBufferUnmap( cluster_buffer ) );
-
+	chooseAmbientLocations(context, 0u, grid_width, grid_height, seeds_per_thread, seed_buffer, cluster_buffer);
 	level = ambounce;
 #endif /* ITERATIVE_KMEANS_IC */
 #ifndef AMB_PARALLEL
@@ -645,83 +574,15 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 
 	while ( level-- ) {
 		RT_CHECK_ERROR( rtVariableSet1ui( level_var, level ) );
-
-#ifdef AMB_PARALLEL
-		divisions = ambientDivisions(level);
 #ifdef DAYSIM
-		/* Determine how large the scratch space can be */
-		kmeans_clusters_per_segment = cuda_kmeans_clusters;
-		bytes_per_kmeans_cluster = sizeof(float) * daysimGetCoefficients() * maxdepth * 2 * divisions * divisions;
-		while (bytes_per_kmeans_cluster * kmeans_clusters_per_segment > INT_MAX) { // Limit imposed by OptiX
-			kmeans_clusters_per_segment = (kmeans_clusters_per_segment - 1) / 2 + 1;
-		}
-
-		RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * maxdepth * 2, divisions * divisions, kmeans_clusters_per_segment));
-
-		/* Create variable for offset into scratch space */
-		if (!segment_var)
-			RT_CHECK_ERROR(rtContextDeclareVariable(context, "segment_offset", &segment_var));
-
-		for (i = 0; i < cuda_kmeans_clusters; i += kmeans_clusters_per_segment) {
-			RT_CHECK_ERROR(rtVariableSet1ui(segment_var, i));
-
-			/* Run */
-			runKernel3D(context, AMBIENT_SAMPLING_ENTRY, divisions, divisions, kmeans_clusters_per_segment);
-			runKernel2D(context, AMBIENT_ENTRY, CLUSTER_GRID_WIDTH, (kmeans_clusters_per_segment * thread_stride - 1) / CLUSTER_GRID_WIDTH + 1);
-		}
-#else /* DAYSIM */
-
-		/* Run */
-		runKernel3D(context, AMBIENT_SAMPLING_ENTRY, divisions, divisions, cuda_kmeans_clusters);
-		runKernel2D(context, AMBIENT_ENTRY, CLUSTER_GRID_WIDTH, (cuda_kmeans_clusters * thread_stride - 1) / CLUSTER_GRID_WIDTH + 1);
-#endif /* DAYSIM */
-#else /* AMB_PARALLEL */
-
-		/* Run */
-		//runKernel1D( context, AMBIENT_ENTRY, cuda_kmeans_clusters * thread_stride );
-		runKernel2D(context, AMBIENT_ENTRY, CLUSTER_GRID_WIDTH, (cuda_kmeans_clusters * thread_stride - 1) / CLUSTER_GRID_WIDTH + 1);
-#endif /* AMB_PARALLEL */
-
-		RT_CHECK_ERROR( rtBufferMap( ambient_record_buffer, (void**)&ambient_record_buffer_data ) );
-		RT_CHECK_ERROR( rtBufferUnmap( ambient_record_buffer ) );
-#ifdef DAYSIM
-		RT_CHECK_ERROR(rtBufferMap(ambient_dc_buffer, (void**)&ambient_dc_buffer_data));
-		RT_CHECK_ERROR(rtBufferUnmap(ambient_dc_buffer));
-#endif
-
-		/* Copy the results to allocated memory. */
-		//TODO the buffer could go directoy to creating Bvh
-		record_count = 0u;
-		for (i = 0u; i < cuda_kmeans_clusters; i++) {
-#ifdef DAYSIM
-			record_count += saveAmbientRecords(&ambient_record_buffer_data[i], &ambient_dc_buffer_data[i * daysimGetCoefficients()]);
+		calcAmbientValues(context, level, alarm, ambient_record_buffer, ambient_dc_buffer, segment_var);
 #else
-			record_count += saveAmbientRecords( &ambient_record_buffer_data[i] );
+		calcAmbientValues(context, level, alarm, ambient_record_buffer);
 #endif
-		}
-#ifdef DEBUG_OPTIX
-		flushExceptionLog("ambient calculation");
-#endif
-#ifdef RAY_COUNT
-		reportProgress( 100.0 * (ambounce - level) / (ambounce + 1), alarm );
-#endif
-#ifdef HIT_COUNT
-		mprintf("Hit count %u (%f per ambient value).\n", hit_total, (float)hit_total/cuda_kmeans_clusters);
-		hit_total = 0;
-#endif
-		mprintf("Retrieved %u ambient records from %u queries at level %u.\n\n", record_count, cuda_kmeans_clusters, level);
-
-		/* Copy new ambient values into buffer for Bvh. */
-		updateAmbientCache( context, level );
-
 #ifdef ITERATIVE_KMEANS_IC
 		if ( level )
 			RT_CHECK_ERROR( rtVariableSetObject( current_cluster_buffer, cluster_buffer[level - 1] ) );
 #endif
-
-		/* Update averages */
-		RT_CHECK_ERROR( rtVariableSet1f( avsum_var, avsum ) );
-		RT_CHECK_ERROR( rtVariableSet1ui( navsum_var, navsum ) );
 	}
 
 #ifdef ITERATIVE_KMEANS_IC
@@ -804,7 +665,82 @@ static void createHemisphereSamplingCamera( const RTcontext context )
 	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "exception", &program ) );
 	RT_CHECK_ERROR( rtContextSetExceptionProgram( context, HEMISPHERE_SAMPLING_ENTRY, program ) );
 }
-#endif
+#endif /* ITERATIVE_KMEANS_IC */
+
+static void chooseAmbientLocations(const RTcontext context, const unsigned int level, const unsigned int width, const unsigned int height, const unsigned int seeds_per_thread, RTbuffer seed_buffer, RTbuffer cluster_buffer)
+{
+	unsigned int seed_count, i;
+	PointDirection *seed_buffer_data, *cluster_buffer_data;
+
+	if (level) {
+		/* Adjust output buffer size */
+		unsigned int divisions = ambientDivisions(level);
+		seed_count = cuda_kmeans_clusters * divisions * divisions;
+		RT_CHECK_ERROR(rtBufferSetSize3D(seed_buffer, cuda_kmeans_clusters, divisions, divisions));
+
+		/* Run kernel to gerate more seed points from cluster centers */
+		runKernel3D(context, HEMISPHERE_SAMPLING_ENTRY, cuda_kmeans_clusters, divisions, divisions); // stride?
+	}
+	else {
+		seed_count = width * height * seeds_per_thread;
+
+		/* Run the kernel to get the first set of seed points. */
+		runKernel2D(context, POINT_CLOUD_ENTRY, width, height);
+	}
+
+	/* Retrieve potential seed points. */
+	RT_CHECK_ERROR(rtBufferMap(seed_buffer, (void**)&seed_buffer_data));
+	RT_CHECK_ERROR(rtBufferUnmap(seed_buffer));
+
+#ifdef ITERATIVE_KMEANS_IC
+#ifdef ADAPTIVE_SEED_SAMPLING
+	if (!level) {
+		clock_t kernel_clock;
+		//int total = 0;
+		unsigned int missing = 0u;
+		unsigned int si = cuda_kmeans_clusters;
+		unsigned int ci = 0u;
+		int *score = (int*)malloc(seed_count * sizeof(int));
+		PointDirection *temp_list = (PointDirection*)malloc(seed_count * sizeof(PointDirection));
+		if (score == NULL || temp_list == NULL)
+			error(SYSTEM, "out of memory in chooseAmbientLocations");
+
+		kernel_clock = clock();
+		cuda_score_hits(seed_buffer_data, score, width, height, cuda_kmeans_error / (ambacc * maxarad), cuda_kmeans_clusters);
+		kernel_clock = clock() - kernel_clock;
+		mprintf("Adaptive sampling: %llu milliseconds.\n", kernel_clock * 1000uLL / CLOCKS_PER_SEC);
+
+		for (i = 0u; i < seed_count; i++) {
+			if (score[i]) {
+				missing += score[i] - 1;
+				//total++;
+				temp_list[ci++] = seed_buffer_data[i];
+			}
+			else if (missing) { // TODO need better way to randomly add extra cluster seeds
+				missing--;
+				temp_list[ci++] = seed_buffer_data[i];
+			}
+			else if (si < seed_count)
+				temp_list[si++] = seed_buffer_data[i];
+			else
+				temp_list[ci++] = seed_buffer_data[i];
+		}
+		//mprintf("Score total: %i\n", total);
+
+		memcpy(seed_buffer_data, temp_list, seed_count * sizeof(PointDirection));
+
+		free(score);
+		free(temp_list);
+	}
+#endif /* ADAPTIVE_SEED_SAMPLING */
+#endif /* ITERATIVE_KMEANS_IC */
+
+	/* Group seed points into clusters and add clusters to buffer */
+	RT_CHECK_ERROR(rtBufferMap(cluster_buffer, (void**)&cluster_buffer_data));
+	createKMeansClusters(seed_count, cuda_kmeans_clusters, seed_buffer_data, cluster_buffer_data, level);
+	//sortKMeans( cuda_kmeans_clusters, cluster_buffer_data );
+	RT_CHECK_ERROR(rtBufferUnmap(cluster_buffer));
+}
 
 static void createKMeansClusters( const unsigned int seed_count, const unsigned int cluster_count, PointDirection* seed_buffer_data, PointDirection* cluster_buffer_data, const unsigned int level )
 {
@@ -905,6 +841,87 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 	free(distance);
 	free(membership);
 	free(seeds);
+}
+
+#ifdef DAYSIM
+static void calcAmbientValues(const RTcontext context, const unsigned int level, const double alarm, RTbuffer ambient_record_buffer, RTbuffer ambient_dc_buffer, RTvariable segment_var)
+#else
+static void calcAmbientValues(const RTcontext context, const unsigned int level, const double alarm, RTbuffer ambient_record_buffer)
+#endif
+{
+	AmbientRecord *ambient_record_buffer_data;
+	unsigned int record_count, i;
+#ifdef DAYSIM
+	float *ambient_dc_buffer_data;
+#endif
+
+#ifdef AMB_PARALLEL
+	unsigned int divisions = ambientDivisions(level);
+#ifdef DAYSIM
+	/* Determine how large the scratch space can be */
+	unsigned int kmeans_clusters_per_segment = cuda_kmeans_clusters;
+	size_t bytes_per_kmeans_cluster = sizeof(float) * daysimGetCoefficients() * maxdepth * 2 * divisions * divisions;
+	while (bytes_per_kmeans_cluster * kmeans_clusters_per_segment > INT_MAX) { // Limit imposed by OptiX
+		kmeans_clusters_per_segment = (kmeans_clusters_per_segment - 1) / 2 + 1;
+	}
+
+	RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * maxdepth * 2, divisions * divisions, kmeans_clusters_per_segment));
+
+	for (i = 0u; i < cuda_kmeans_clusters; i += kmeans_clusters_per_segment) {
+		RT_CHECK_ERROR(rtVariableSet1ui(segment_var, i));
+
+		/* Run */
+		runKernel3D(context, AMBIENT_SAMPLING_ENTRY, divisions, divisions, kmeans_clusters_per_segment);
+		runKernel2D(context, AMBIENT_ENTRY, CLUSTER_GRID_WIDTH, (kmeans_clusters_per_segment * thread_stride - 1) / CLUSTER_GRID_WIDTH + 1);
+	}
+#else /* DAYSIM */
+
+	/* Run */
+	runKernel3D(context, AMBIENT_SAMPLING_ENTRY, divisions, divisions, cuda_kmeans_clusters);
+	runKernel2D(context, AMBIENT_ENTRY, CLUSTER_GRID_WIDTH, (cuda_kmeans_clusters * thread_stride - 1) / CLUSTER_GRID_WIDTH + 1);
+#endif /* DAYSIM */
+#else /* AMB_PARALLEL */
+
+	/* Run */
+	//runKernel1D( context, AMBIENT_ENTRY, cuda_kmeans_clusters * thread_stride );
+	runKernel2D(context, AMBIENT_ENTRY, CLUSTER_GRID_WIDTH, (cuda_kmeans_clusters * thread_stride - 1) / CLUSTER_GRID_WIDTH + 1);
+#endif /* AMB_PARALLEL */
+
+	RT_CHECK_ERROR(rtBufferMap(ambient_record_buffer, (void**)&ambient_record_buffer_data));
+	RT_CHECK_ERROR(rtBufferUnmap(ambient_record_buffer));
+#ifdef DAYSIM
+	RT_CHECK_ERROR(rtBufferMap(ambient_dc_buffer, (void**)&ambient_dc_buffer_data));
+	RT_CHECK_ERROR(rtBufferUnmap(ambient_dc_buffer));
+#endif
+
+	/* Copy the results to allocated memory. */
+	//TODO the buffer could go directly to creating Bvh
+	record_count = 0u;
+	for (i = 0u; i < cuda_kmeans_clusters; i++) {
+#ifdef DAYSIM
+		record_count += saveAmbientRecords(&ambient_record_buffer_data[i], &ambient_dc_buffer_data[i * daysimGetCoefficients()]);
+#else
+		record_count += saveAmbientRecords(&ambient_record_buffer_data[i]);
+#endif
+	}
+#ifdef DEBUG_OPTIX
+	flushExceptionLog("ambient calculation");
+#endif
+#ifdef RAY_COUNT
+	reportProgress(100.0 * (ambounce - level) / (ambounce + 1), alarm);
+#endif
+#ifdef HIT_COUNT
+	mprintf("Hit count %u (%f per ambient value).\n", hit_total, (float)hit_total / cuda_kmeans_clusters);
+	hit_total = 0;
+#endif
+	mprintf("Retrieved %u ambient records from %u queries at level %u.\n\n", record_count, cuda_kmeans_clusters, level);
+
+	/* Copy new ambient values into buffer for Bvh. */
+	updateAmbientCache(context, level);
+
+	/* Update averages */
+	RT_CHECK_ERROR(rtVariableSet1f(avsum_var, avsum));
+	RT_CHECK_ERROR(rtVariableSet1ui(navsum_var, navsum));
 }
 
 //typedef struct {

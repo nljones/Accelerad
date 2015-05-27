@@ -94,6 +94,10 @@ extern XF  unitxf;
 static unsigned int use_ambient = 0u;
 static unsigned int calc_ambient = 0u;
 
+/* Handles to objects used in ambient calculation */
+RTvariable avsum_var = NULL;
+RTvariable navsum_var = NULL;
+
 /* Handles to objects used repeatedly in animation */
 static unsigned int frame = 0u;
 static RTcontext context_handle = NULL;
@@ -509,6 +513,7 @@ static void createContext( RTcontext* context, const int width, const int height
 static void destroyContext(const RTcontext context)
 {
 	RT_CHECK_ERROR(rtContextDestroy(context));
+	avsum_var = navsum_var = NULL;
 }
 
 #ifdef DAYSIM_COMPATIBLE
@@ -591,8 +596,8 @@ static void applyRadianceSettings(const RTcontext context, const VIEW* view, con
 	applyContextVariable1i( context, "ambssamp", ambssamp ); // -as
 	applyContextVariable1f( context, "maxarad", maxarad ); // maximum ambient radius from ambient.h, based on armbres
 	applyContextVariable1f( context, "minarad", minarad ); // minimum ambient radius from ambient.h, based on armbres
-	applyContextVariable1f( context, "avsum", avsum ); // computed ambient value sum (log) from ambient.c
-	applyContextVariable1ui( context, "navsum", navsum ); // number of values in avsum from ambient.c
+	avsum_var = applyContextVariable1f(context, "avsum", avsum); // computed ambient value sum (log) from ambient.c
+	navsum_var = applyContextVariable1ui(context, "navsum", navsum); // number of values in avsum from ambient.c
 
 	/* Set medium parameters */
 	//applyContextVariable3f( context, "cextinction", cextinction[0], cextinction[1], cextinction[2] ); // -me

@@ -401,9 +401,6 @@ checkfiles(void)			/* check for existence and modified times */
 		atos(fntemp, sizeof(fntemp), vval(PCMAP));
 		pcmapname = savqstr(fntemp);
 		pcmapdate = fdate(pcmapname);
-		if (pgmapname == NULL && !nowarn)
-			fprintf(stderr, "%s: '%s' assigned without '%s'\n",
-					progname, vnam(PCMAP), vnam(PGMAP));
 	}
 	matdate = checklast(vval(MATERIAL));
 }	
@@ -647,6 +644,8 @@ mkpmap(void)			/* run mkpmap if indicated */
 		for (cp = combuf; *cp; cp++)
 			;
 		mkpmapopts(cp);
+				/* force file overwrite */
+		cp = addarg(cp, "-fo+");
 		if (vdef(REPORT)) {
 			char	errfile[256];
 			int	n;
@@ -659,13 +658,13 @@ mkpmap(void)			/* run mkpmap if indicated */
 			else
 				badvalue(REPORT);
 		}
-		if (vdef(PGMAP)) {
+		if (pgmapname != NULL && pgmapdate < oct1date) {
 			cp = addarg(cp, "-apg");
 			addarg(cp, vval(PGMAP));
 			cp = sskip(sskip(cp));	/* remove any bandwidth */
 			*cp = '\0';
 		}
-		if (vdef(PCMAP)) {
+		if (pcmapname != NULL && pcmapdate < oct1date) {
 			cp = addarg(cp, "-apc");
 			addarg(cp, vval(PCMAP));
 			cp = sskip(sskip(cp));	/* remove any bandwidth */
@@ -675,9 +674,9 @@ mkpmap(void)			/* run mkpmap if indicated */
 		if (runcom(combuf)) {
 			fprintf(stderr, "%s: error running %s\n",
 					progname, c_mkpmap);
-			if (pgmapname != NULL)
+			if (pgmapname != NULL && pgmapdate < oct1date)
 				unlink(pgmapname);
-			if (pcmapname != NULL)
+			if (pcmapname != NULL && pcmapdate < oct1date)
 				unlink(pcmapname);
 			quit(1);
 		}
