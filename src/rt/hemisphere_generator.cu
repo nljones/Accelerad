@@ -24,20 +24,20 @@ RT_PROGRAM void hemisphere_camera()
 	prd.backup.pos = make_float3( 0.0f );
 	prd.backup.dir = make_float3( 0.0f );
 
-	PointDirection eye = cluster_buffer[launch_index.x];
+	PointDirection eye = cluster_buffer[launch_index.z];
 
 	// Check for valid input
 	if ( isfinite( eye.pos ) && isfinite( eye.dir ) && dot( eye.dir, eye.dir ) > FTINY ) { // NaN values will be false
 		// Init random state
-		rand_state state;
-		curand_init( launch_index.x + launch_dim.x * ( launch_index.y + launch_dim.y * launch_index.z ), 0, 0, &state );
+		rand_state* state;
+		init_rand(&state, launch_index.x + launch_dim.x * (launch_index.y + launch_dim.y * launch_index.z));
 
 		// Make axes
 		float3 uz = normalize(eye.dir);
-		float3 ux = getperpendicular(uz, &state);
+		float3 ux = getperpendicular(uz, state);
 		float3 uy = cross(uz, ux);
 						/* avoid coincident samples */
-		float2 spt = 0.1f + 0.8f * make_float2(curand_uniform(&state), curand_uniform(&state));
+		float2 spt = 0.1f + 0.8f * make_float2(curand_uniform(state), curand_uniform(state));
 		SDsquare2disk(spt, (launch_index.y + spt.y) / launch_dim.y, (launch_index.x + spt.x) / launch_dim.x);
 		float zd = sqrtf(1.0f - dot(spt, spt));
 		float3 rdir = normalize(spt.x * ux + spt.y * uy + zd * uz);

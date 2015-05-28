@@ -443,8 +443,8 @@ static void createAmbientSamplingCamera( const RTcontext context );
 #ifdef ITERATIVE_KMEANS_IC
 static void createHemisphereSamplingCamera( const RTcontext context );
 #endif
-static void chooseAmbientLocations(const RTcontext context, const unsigned int level, const unsigned int width, const unsigned int height, const unsigned int seeds_per_thread, RTbuffer seed_buffer, RTbuffer cluster_buffer);
-static void createKMeansClusters( const unsigned int seed_count, const unsigned int cluster_count, PointDirection* seed_buffer_data, PointDirection* cluster_buffer_data, const unsigned int level );
+static unsigned int chooseAmbientLocations(const RTcontext context, const unsigned int level, const unsigned int width, const unsigned int height, const unsigned int seeds_per_thread, RTbuffer seed_buffer, RTbuffer cluster_buffer);
+static unsigned int createKMeansClusters(const unsigned int seed_count, const unsigned int cluster_count, PointDirection* seed_buffer_data, PointDirection* cluster_buffer_data, const unsigned int level);
 #ifdef DAYSIM
 static void calcAmbientValues(const RTcontext context, const unsigned int level, const double alarm, RTbuffer ambient_record_buffer, RTbuffer ambient_dc_buffer, RTvariable segment_var);
 #else
@@ -488,12 +488,8 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 	RTbuffer       cluster_buffer;
 #endif
 
-	unsigned int grid_width, grid_height, seeds_per_thread, level;
-#ifdef ITERATIVE_KMEANS_IC
-	seeds_per_thread = 1u;
-#else
-	seeds_per_thread = optix_amb_seeds_per_thread;
-#endif
+	unsigned int grid_width, grid_height, level;
+
 	if ( view && optix_amb_grid_size ) { // if -az argument greater than zero
 		grid_width = optix_amb_grid_size / 2;
 		grid_height = optix_amb_grid_size;
@@ -515,9 +511,8 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 	createAmbientRecordCamera( context, NULL ); // Use input from kmeans to sample points instead of camera
 
 	/* Create buffer for retrieving potential seed points. */
-	createCustomBuffer3D( context, RT_BUFFER_OUTPUT, sizeof(PointDirection), grid_width, grid_height, seeds_per_thread, &seed_buffer );
+	createCustomBuffer3D( context, RT_BUFFER_OUTPUT, sizeof(PointDirection), 0, 0, 0, &seed_buffer );
 	applyContextObject( context, "seed_buffer", seed_buffer );
-	applyContextVariable1ui( context, "seeds", seeds_per_thread );
 
 	/* Create buffer for inputting seed point clusters. */
 #ifdef ITERATIVE_KMEANS_IC
@@ -557,13 +552,13 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 
 #ifdef ITERATIVE_KMEANS_IC
 	for ( level = 0u; level < ambounce; level++ ) {
-		chooseAmbientLocations(context, level, grid_width, grid_height, seeds_per_thread, seed_buffer, cluster_buffer[level]);
+		chooseAmbientLocations(context, level, grid_width, grid_height, 1u, seed_buffer, cluster_buffer[level]);
 
 		/* Set input buffer index for next iteration */
 		RT_CHECK_ERROR( rtVariableSetObject( current_cluster_buffer, cluster_buffer[level] ) );
 	}
 #else /* ITERATIVE_KMEANS_IC */
-	chooseAmbientLocations(context, 0u, grid_width, grid_height, seeds_per_thread, seed_buffer, cluster_buffer);
+	chooseAmbientLocations(context, 0u, grid_width, grid_height, optix_amb_seeds_per_thread, seed_buffer, cluster_buffer);
 	level = ambounce;
 #endif /* ITERATIVE_KMEANS_IC */
 #ifndef AMB_PARALLEL
@@ -667,22 +662,24 @@ static void createHemisphereSamplingCamera( const RTcontext context )
 }
 #endif /* ITERATIVE_KMEANS_IC */
 
-static void chooseAmbientLocations(const RTcontext context, const unsigned int level, const unsigned int width, const unsigned int height, const unsigned int seeds_per_thread, RTbuffer seed_buffer, RTbuffer cluster_buffer)
+static unsigned int chooseAmbientLocations(const RTcontext context, const unsigned int level, const unsigned int width, const unsigned int height, const unsigned int seeds_per_thread, RTbuffer seed_buffer, RTbuffer cluster_buffer)
 {
-	unsigned int seed_count, i;
+	unsigned int seed_count;
 	PointDirection *seed_buffer_data, *cluster_buffer_data;
 
 	if (level) {
 		/* Adjust output buffer size */
 		unsigned int divisions = ambientDivisions(level);
-		seed_count = cuda_kmeans_clusters * divisions * divisions;
-		RT_CHECK_ERROR(rtBufferSetSize3D(seed_buffer, cuda_kmeans_clusters, divisions, divisions));
+		seed_count = divisions * divisions * cuda_kmeans_clusters;
+		RT_CHECK_ERROR(rtBufferSetSize3D(seed_buffer, divisions, divisions, cuda_kmeans_clusters));
 
 		/* Run kernel to gerate more seed points from cluster centers */
-		runKernel3D(context, HEMISPHERE_SAMPLING_ENTRY, cuda_kmeans_clusters, divisions, divisions); // stride?
+		runKernel3D(context, HEMISPHERE_SAMPLING_ENTRY, divisions, divisions, cuda_kmeans_clusters); // stride?
 	}
 	else {
+		/* Set output buffer size */
 		seed_count = width * height * seeds_per_thread;
+		RT_CHECK_ERROR(rtBufferSetSize3D(seed_buffer, width, height, seeds_per_thread));
 
 		/* Run the kernel to get the first set of seed points. */
 		runKernel2D(context, POINT_CLOUD_ENTRY, width, height);
@@ -697,6 +694,7 @@ static void chooseAmbientLocations(const RTcontext context, const unsigned int l
 	if (!level) {
 		clock_t kernel_clock;
 		//int total = 0;
+		unsigned int i;
 		unsigned int missing = 0u;
 		unsigned int si = cuda_kmeans_clusters;
 		unsigned int ci = 0u;
@@ -737,12 +735,13 @@ static void chooseAmbientLocations(const RTcontext context, const unsigned int l
 
 	/* Group seed points into clusters and add clusters to buffer */
 	RT_CHECK_ERROR(rtBufferMap(cluster_buffer, (void**)&cluster_buffer_data));
-	createKMeansClusters(seed_count, cuda_kmeans_clusters, seed_buffer_data, cluster_buffer_data, level);
+	seed_count = createKMeansClusters(seed_count, cuda_kmeans_clusters, seed_buffer_data, cluster_buffer_data, level);
 	//sortKMeans( cuda_kmeans_clusters, cluster_buffer_data );
 	RT_CHECK_ERROR(rtBufferUnmap(cluster_buffer));
+	return seed_count;
 }
 
-static void createKMeansClusters( const unsigned int seed_count, const unsigned int cluster_count, PointDirection* seed_buffer_data, PointDirection* cluster_buffer_data, const unsigned int level )
+static unsigned int createKMeansClusters( const unsigned int seed_count, const unsigned int cluster_count, PointDirection* seed_buffer_data, PointDirection* cluster_buffer_data, const unsigned int level )
 {
 	clock_t kernel_clock; // Timer in clock cycles for short jobs
 	unsigned int good_seed_count, i, j;
@@ -780,7 +779,7 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 		for ( ; i < cluster_count; i++ )
 			cluster_buffer_data[i].dir.x = cluster_buffer_data[i].dir.y = cluster_buffer_data[i].dir.z = 0.0f; // Don't use this value
 		free(seeds);
-		return;
+		return good_seed_count;
 	}
 
 	/* Check that k-means should be used */
@@ -789,7 +788,7 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 		for ( i = 0u; i < cluster_count; i++ )
 			cluster_buffer_data[i] = *seeds[i]; //TODO should randomly choose from array
 		free(seeds);
-		return;
+		return good_seed_count;
 	}
 
 	/* Group the seeds into clusters with k-means */
@@ -841,6 +840,8 @@ static void createKMeansClusters( const unsigned int seed_count, const unsigned 
 	free(distance);
 	free(membership);
 	free(seeds);
+
+	return good_seed_count;
 }
 
 #ifdef DAYSIM

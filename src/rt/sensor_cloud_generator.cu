@@ -17,7 +17,6 @@ rtBuffer<PointDirection, 3>      seed_buffer;
 rtDeclareVariable(rtObject,      top_object, , );
 rtDeclareVariable(rtObject,      top_irrad, , );
 rtDeclareVariable(unsigned int,  point_cloud_ray_type, , );
-rtDeclareVariable(unsigned int,  seeds, , ) = 1u; /* number of seed points to discover per thread */
 rtDeclareVariable(unsigned int,  imm_irrad, , ) = 0u; /* Immediate irradiance (-I) */
 
 /* OptiX variables */
@@ -31,8 +30,8 @@ RT_PROGRAM void cloud_generator()
 	prd.backup.dir = make_float3( 0.0f );
 
 	// Init random state
-	rand_state state;
-	curand_init( launch_index.x + launch_dim.x * launch_index.y, 0, 0, &state );
+	rand_state* state;
+	init_rand(&state, launch_index.x + launch_dim.x * launch_index.y);
 
 	uint3 index = make_uint3( launch_index, 0u );
 
@@ -51,6 +50,7 @@ RT_PROGRAM void cloud_generator()
 
 	Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, point_cloud_ray_type, tmin, tmax);
 
+	unsigned int seeds = seed_buffer.size().z;
 	unsigned int loop = 2u * seeds; // Prevent infinite looping
 	while ( index.z < seeds && loop-- ) {
 		// Trace the current ray
@@ -73,12 +73,11 @@ RT_PROGRAM void cloud_generator()
 		//ray.direction = reflect( ray.direction, prd.result.dir );
 
 		float3 uz = normalize( prd.result.dir );
-		float3 uy = cross_direction( uz );
-		float3 ux = normalize( cross( uy, uz ) );
-		uy = normalize( cross( uz, ux ) );
+		float3 ux = getperpendicular(uz);
+		float3 uy = normalize(cross(uz, ux));
 
-		float zd = sqrtf( curand_uniform( &state ) );
-		float phi = 2.0f*M_PIf * curand_uniform( &state );
+		float zd = sqrtf( curand_uniform( state ) );
+		float phi = 2.0f*M_PIf * curand_uniform( state );
 		float xd = cosf(phi) * zd;
 		float yd = sinf(phi) * zd;
 		zd = sqrtf(1.0f - zd*zd);
@@ -98,7 +97,7 @@ RT_PROGRAM void exception()
 {
 	const unsigned int code = rtGetExceptionCode();
 	rtPrintf( "Caught exception 0x%X at launch index (%d,%d)\n", code, launch_index.x, launch_index.y );
-	uint3 index = make_uint3( launch_index, seeds - 1u ); // record error to last segment
+	uint3 index = make_uint3(launch_index, seed_buffer.size().z - 1u); // record error to last segment
 	seed_buffer[index].pos = exceptionToFloat3( code );
 	seed_buffer[index].dir = make_float3( 0.0f );
 }

@@ -712,10 +712,12 @@ RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& h
 		PerRayData_ambient ambient_prd;
 		ambient_prd.result = make_float3( 0.0f );
 		ambient_prd.surface_normal = normal;
-		ambient_prd.weight = prd.weight;
-		ambient_prd.wsum = 0.0f;
 		ambient_prd.ambient_depth = prd.ambient_depth;
+		ambient_prd.wsum = 0.0f;
+#ifdef OLDAMB
+		ambient_prd.weight = prd.weight;
 		ambient_prd.state = prd.state;
+#endif
 #ifdef DAYSIM_COMPATIBLE
 		ambient_prd.dc = daysimNext(prd.dc);
 		daysimSet(ambient_prd.dc, 0.0f);
