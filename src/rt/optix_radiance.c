@@ -57,7 +57,7 @@ static void applyRadianceSettings(const RTcontext context, const VIEW* view, con
 static void createCamera( const RTcontext context, const VIEW* view );
 static void updateCamera( const RTcontext context, const VIEW* view );
 static void createGeometryInstance( const RTcontext context, RTgeometryinstance* instance );
-static void addRadianceObject(const RTcontext context, const OBJREC* rec, const OBJREC* parent, const int index);
+static void addRadianceObject(const RTcontext context, const OBJREC* rec, const OBJREC* parent, const OBJECT index);
 static void createFace(const OBJREC* rec, const OBJREC* parent);
 static __inline void createTriangle(const OBJREC *material, const int a, const int b, const int c);
 #ifdef TRIANGULATE
@@ -694,7 +694,8 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	RTprogram  mesh_bounding_box_program;
 	RTbuffer   buffer;
 
-	int i;
+	unsigned int i;
+	OBJECT on;
 	OBJREC* rec, *parent;
 
 	/* Timers */
@@ -761,17 +762,17 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	}
 
 	/* Get the scene geometry as a list of triangles. */
-	for (i = 0; i < nobjects; i++) {
+	for (on = 0; on < nobjects; on++) {
 		/* By default, no buffer entry is refered to. */
-		buffer_entry_index[i] = -1;
+		buffer_entry_index[on] = -1;
 
-		rec = objptr(i);
+		rec = objptr(on);
 		if (rec->omod != OVOID)
 			parent = objptr(rec->omod);
 		else
 			parent = NULL;
 
-		addRadianceObject(context, rec, parent, i);
+		addRadianceObject(context, rec, parent, on);
 	}
 
 	free( buffer_entry_index );
@@ -793,12 +794,13 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	RT_CHECK_ERROR(rtGeometryInstanceSetMaterialCount(*instance, materials->count));
 
 	/* Apply materials to the geometry instance. */
-	for (i = 0; i < materials->count; i++)
+	for (i = 0u; i < materials->count; i++)
 		RT_CHECK_ERROR(rtGeometryInstanceSetMaterial(*instance, i, materials->array[i]));
 	freeArraym(materials);
 	free(materials);
 
 	/* Unmap and apply the geometry buffers. */
+	vprintf("Processed %llu vertices.\n", vertices->count / 3);
 	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, vertices->count / 3, &buffer);
 	copyToBufferf(context, buffer, vertices);
 	//applyGeometryInstanceObject( context, *instance, "vertex_buffer", buffer );
@@ -824,6 +826,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	freeArrayi(vertex_indices);
 	free(vertex_indices);
 
+	vprintf("Processed %llu triangles.\n", traingles->count);
 	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_INT, traingles->count, &buffer);
 	copyToBufferi(context, buffer, traingles);
 	applyGeometryInstanceObject(context, *instance, "material_buffer", buffer);
@@ -838,6 +841,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 
 	/* Unmap and apply the lighting buffers. */
 #ifdef LIGHTS
+	if (lights->count) vprintf("Processed %llu lights.\n", lights->count / 3);
 	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_INT3, lights->count / 3, &buffer);
 	copyToBufferi(context, buffer, lights);
 	applyContextObject(context, "lindex_buffer", buffer);
@@ -845,12 +849,14 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	free(lights);
 #endif
 
+	if (sources->count) vprintf("Processed %llu sources.\n", sources->count);
 	createCustomBuffer1D(context, RT_BUFFER_INPUT, sizeof(DistantLight), sources->count, &buffer);
 	copyToBufferdl(context, buffer, sources);
 	applyContextObject(context, "lights", buffer);
 	freeArraydl(sources);
 	free(sources);
 
+	if (functions->count) vprintf("Processed %llu functions.\n", functions->count);
 	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_PROGRAM_ID, functions->count, &buffer);
 	copyToBufferi(context, buffer, functions);
 	applyContextObject(context, "functions", buffer);
@@ -858,13 +864,13 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	free(functions);
 
 	geometry_clock = clock() - geometry_clock;
-	mprintf("Geometry build time: %llu milliseconds.\n", geometry_clock * 1000uLL / CLOCKS_PER_SEC);
+	mprintf("Geometry build time: %llu milliseconds for %i objects.\n", geometry_clock * 1000uLL / CLOCKS_PER_SEC, nobjects);
 	return;
 memerr:
 	error(SYSTEM, "out of memory in createGeometryInstance");
 }
 
-static void addRadianceObject(const RTcontext context, const OBJREC* rec, const OBJREC* parent, const int index)
+static void addRadianceObject(const RTcontext context, const OBJREC* rec, const OBJREC* parent, const OBJECT index)
 {
 	switch (rec->otype) {
 	case MAT_PLASTIC: // Plastic material

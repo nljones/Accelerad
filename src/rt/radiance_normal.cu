@@ -28,6 +28,22 @@ using namespace optix;
 #define  SP_RBLT	020		/* reflection below sample threshold */
 #define  SP_TBLT	040		/* transmission below threshold */
 
+typedef struct {
+	unsigned int specfl;		/* specularity flags, defined above */
+	float3 mcolor;		/* color of this material */
+	float3 scolor;		/* color of specular component */
+	//float3 vrefl;		/* vector in direction of reflected ray */
+	float3 prdir;		/* vector in transmitted direction */
+	float3 normal;
+	float3 hit;
+	float  alpha2;		/* roughness squared */
+	float  rdiff, rspec;	/* reflected specular, diffuse */
+	float  trans;		/* transmissivity */
+	float  tdiff, tspec;	/* transmitted specular, diffuse */
+	float3 pnorm;		/* perturbed surface normal */
+	float  pdot;		/* perturbed dot product */
+}  NORMDAT;		/* normal material data */
+
 /* Context variables */
 rtDeclareVariable(unsigned int, radiance_ray_type, , );
 rtDeclareVariable(unsigned int, shadow_ray_type, , );
@@ -103,24 +119,24 @@ rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );
 rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
 
 
-RT_METHOD float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const unsigned int& specfl, const float3& scolor, const float3& mcolor, const float3& normal, const float& pdot, const float& trans, const float& rspec, const float& tspec, const float& rdiff, const float& tdiff, const float& alpha2, const float& omega );
-RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mcolor, const float3& normal, const float3& hit, const float& alpha2, const float& tspec );
+RT_METHOD float3 dirnorm(Ray *shadow_ray, PerRayData_shadow *shadow_prd, const NORMDAT *nd, const float& omega);
+RT_METHOD float3 gaussamp(const NORMDAT *nd);
 #ifdef AMBIENT
-RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& hit );
+RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pnormal, const float3& hit);
 #ifndef OLDAMB
 #ifdef DAYSIM_COMPATIBLE
-RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit, DaysimCoef dc );
+RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit, DaysimCoef dc);
 #else
-RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit );
+RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit);
 #endif
 //RT_METHOD int ambsample( AMBHEMI *hp, const int& i, const int& j, const float3 normal, const float3 hit );
 #else /* OLDAMB */
 #ifdef DAYSIM_COMPATIBLE
-RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& hit, DaysimCoef dc );
-RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit, DaysimCoef dc );
+RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit, DaysimCoef dc );
+RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& normal, const float3& hit, DaysimCoef dc );
 #else
-RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& hit );
-RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit );
+RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit );
+RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& normal, const float3& hit );
 #endif
 RT_METHOD void inithemi( AMBHEMI  *hp, float3 ac, const float3& normal );
 //RT_METHOD void comperrs( AMBSAMP *da, AMBHEMI *hp );
@@ -149,88 +165,83 @@ RT_PROGRAM void any_hit_shadow()
 
 RT_PROGRAM void closest_hit_radiance()
 {
-	/* easy shadow test */
-	// if this is a shadow ray and not a trans material, return
+	NORMDAT nd;
 
 	float3 world_shading_normal   = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, shading_normal ) );
 	float3 world_geometric_normal = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, geometric_normal ) );
 
 	/* check for back side */
-	// if backvis is false, create a new ray starting from the hit point (i.e., ignore this hit)
-	float3 ffnormal = faceforward( world_shading_normal, -ray.direction, world_geometric_normal );
-	float3 snormal = faceforward( world_geometric_normal, -ray.direction, world_geometric_normal );
+	nd.pnorm = faceforward( world_shading_normal, -ray.direction, world_geometric_normal );
+	nd.normal = faceforward( world_geometric_normal, -ray.direction, world_geometric_normal );
 
 	PerRayData_radiance new_prd;
 	float3 result = make_float3( 0.0f );
-	float3 hit_point = ray.origin + t_hit * ray.direction;
-	float3 mcolor = color;
-	float3 scolor = make_float3( 0.0f );
-	float rspec = spec;
-	float alpha2 = rough * rough;
-	unsigned int specfl = 0u; /* specularity flags */
-
-	/* get modifiers */
-	// we'll skip this for now
+	nd.hit = ray.origin + t_hit * ray.direction;
+	nd.mcolor = color;
+	nd.scolor = make_float3(0.0f);
+	nd.rspec = spec;
+	nd.alpha2 = rough * rough;
+	nd.specfl = 0u; /* specularity flags */
 
 	/* get roughness */
-	if (alpha2 <= FTINY) {
-		specfl |= SP_PURE; // label this as a purely specular reflection
+	if (nd.alpha2 <= FTINY) {
+		nd.specfl |= SP_PURE; // label this as a purely specular reflection
 	}
 
 	/* perturb normal */
 	// if there's a bump map, we use that, else
-	float pdot = -dot( ray.direction, ffnormal );
-	if ((pdot > 0.0f) != (-dot(ray.direction, snormal) > 0.0)) {		/* fix orientation from raynormal in raytrace.c */
-		ffnormal += 2.0f * pdot * ray.direction;
-		pdot = -pdot;
+	nd.pdot = -dot(ray.direction, nd.pnorm);
+	if ((nd.pdot > 0.0f) != (-dot(ray.direction, nd.normal) > 0.0)) {		/* fix orientation from raynormal in raytrace.c */
+		nd.pnorm += 2.0f * nd.pdot * ray.direction;
+		nd.pdot = -nd.pdot;
 	}
-	if (pdot < 0.001f)
-		pdot = 0.001f;			/* non-zero for dirnorm() */
+	if (nd.pdot < 0.001f)
+		nd.pdot = 0.001f;			/* non-zero for dirnorm() */
 
 	// if it's a face or a ring (which it is currently) label as flat
-	specfl |= SP_FLAT; // TODO what about curvature from vertex normals?
+	nd.specfl |= SP_FLAT; // TODO what about curvature from vertex normals?
 
 	/* modify material color */
-	//mcolor *= rtTex3D(rtTextureId id, texcoord.x, texcoord.y, texcoord.z).xyz;
+	//nd.mcolor *= rtTex3D(rtTextureId id, texcoord.x, texcoord.y, texcoord.z).xyz;
 
 	/* compute Fresnel approx. */
 	float fest = 0.0f;
-	if (specfl & SP_PURE && rspec >= FRESTHRESH) {
-		fest = FRESNE( pdot );
-		rspec += fest * ( 1.0f - rspec );
+	if (nd.specfl & SP_PURE && nd.rspec >= FRESTHRESH) {
+		fest = FRESNE(nd.pdot);
+		nd.rspec += fest * (1.0f - nd.rspec);
 	}
 
 	/* compute transmission */
-	float tdiff = 0.0f, tspec = 0.0f, trans = 0.0f; // because it's opaque
+	nd.tdiff = 0.0f, nd.tspec = 0.0f, nd.trans = 0.0f; // because it's opaque
 #ifdef TRANSMISSION
 	float transtest = 0.0f, transdist = 0.0f;
-	float3 prdir = ray.direction;
+	nd.prdir = ray.direction;
 	if (transm > 0.0f) { // type == MAT_TRANS
-		trans = transm * (1.0f - rspec);
-		tspec = trans * tspecu;
-		tdiff = trans - tspec;
-		if (tspec > FTINY) {
-			specfl |= SP_TRAN;
+		nd.trans = transm * (1.0f - nd.rspec);
+		nd.tspec = nd.trans * tspecu;
+		nd.tdiff = nd.trans - nd.tspec;
+		if (nd.tspec > FTINY) {
+			nd.specfl |= SP_TRAN;
 
 			/* perturb normal */
-			float3 pert = snormal - ffnormal;
+			float3 pert = nd.normal - nd.pnorm;
 			int hastexture = dot(pert, pert) > FTINY * FTINY;
 			
 							/* check threshold */
-			if (!(specfl & SP_PURE) && specthresh >= tspec - FTINY)
-				specfl |= SP_TBLT;
+			if (!(nd.specfl & SP_PURE) && specthresh >= nd.tspec - FTINY)
+				nd.specfl |= SP_TBLT;
 			if (prd.ambient_depth || !hastexture) {
 				transtest = 2.0f;
 			} else {
-				if (dot(prdir - pert, snormal) < -FTINY)
-					prdir = normalize(prdir - pert);	/* OK */
+				if (dot(nd.prdir - pert, nd.normal) < -FTINY)
+					nd.prdir = normalize(nd.prdir - pert);	/* OK */
 			}
 		}
 	}
 
 	/* transmitted ray */
-	if ((specfl&(SP_TRAN|SP_PURE|SP_TBLT)) == (SP_TRAN|SP_PURE)) {
-		new_prd.weight = prd.weight * fmaxf(mcolor) * tspec;
+	if ((nd.specfl&(SP_TRAN | SP_PURE | SP_TBLT)) == (SP_TRAN | SP_PURE)) {
+		new_prd.weight = prd.weight * fmaxf(nd.mcolor) * nd.tspec;
 		if (new_prd.weight >= minweight) {
 			new_prd.depth = prd.depth;
 			new_prd.ambient_depth = prd.ambient_depth;
@@ -239,12 +250,12 @@ RT_PROGRAM void closest_hit_radiance()
 			new_prd.dc = daysimNext(prd.dc);
 #endif
 			setupPayload(new_prd, 0);
-			Ray trans_ray = make_Ray(hit_point, prdir, radiance_ray_type, ray_start(hit_point, prdir, ffnormal, RAY_START), RAY_END);
+			Ray trans_ray = make_Ray(nd.hit, nd.prdir, radiance_ray_type, ray_start(nd.hit, nd.prdir, nd.normal, RAY_START), RAY_END);
 			rtTrace(top_object, trans_ray, new_prd);
-			float3 rcol = new_prd.result * mcolor * tspec;
+			float3 rcol = new_prd.result * nd.mcolor * nd.tspec;
 			result += rcol;
 #ifdef DAYSIM_COMPATIBLE
-			daysimAddScaled(prd.dc, new_prd.dc, mcolor.x * tspec);
+			daysimAddScaled(prd.dc, new_prd.dc, nd.mcolor.x * nd.tspec);
 #endif
 			transtest *= bright(rcol);
 			transdist = t_hit + new_prd.distance;
@@ -256,31 +267,31 @@ RT_PROGRAM void closest_hit_radiance()
 	// return if it's a shadow ray, which it isn't
 
 	/* get specular reflection */
-	if (rspec > FTINY) {
-		specfl |= SP_REFL;
+	if (nd.rspec > FTINY) {
+		nd.specfl |= SP_REFL;
 
 		/* compute specular color */
 		if (type != metal) {
-			scolor = make_float3( rspec );
+			nd.scolor = make_float3(nd.rspec);
 		} else {
 			if (fest > FTINY) {
 				float d = spec * (1.0f - fest);
-				scolor = fest + mcolor * d;
+				nd.scolor = fest + nd.mcolor * d;
 			} else {
-				scolor = mcolor * rspec;
+				nd.scolor = nd.mcolor * nd.rspec;
 			}
 		}
 
 		/* check threshold */
-		if (!(specfl & SP_PURE) && specthresh >= rspec - FTINY) {
-			specfl |= SP_RBLT;
+		if (!(nd.specfl & SP_PURE) && specthresh >= nd.rspec - FTINY) {
+			nd.specfl |= SP_RBLT;
 		}
 	}
 
 	/* reflected ray */
 	float mirtest = 0.0f, mirdist = 0.0f;
-	if ((specfl&(SP_REFL|SP_PURE|SP_RBLT)) == (SP_REFL|SP_PURE)) {
-		new_prd.weight = prd.weight * fmaxf(scolor);
+	if ((nd.specfl&(SP_REFL | SP_PURE | SP_RBLT)) == (SP_REFL | SP_PURE)) {
+		new_prd.weight = prd.weight * fmaxf(nd.scolor);
 		new_prd.depth = prd.depth + 1;
 		if (new_prd.weight >= minweight && new_prd.depth <= abs(maxdepth)) {
 			new_prd.ambient_depth = prd.ambient_depth;
@@ -289,13 +300,13 @@ RT_PROGRAM void closest_hit_radiance()
 			new_prd.dc = daysimNext(prd.dc);
 #endif
 			setupPayload(new_prd, 0);
-			prdir = reflect(ray.direction, ffnormal);
-			Ray refl_ray = make_Ray(hit_point, prdir, radiance_ray_type, ray_start(hit_point, prdir, ffnormal, RAY_START), RAY_END);
+			float3 vrefl = reflect(ray.direction, nd.pnorm);
+			Ray refl_ray = make_Ray(nd.hit, vrefl, radiance_ray_type, ray_start(nd.hit, vrefl, nd.normal, RAY_START), RAY_END);
 			rtTrace(top_object, refl_ray, new_prd);
-			float3 rcol = new_prd.result * scolor;
+			float3 rcol = new_prd.result * nd.scolor;
 			result += rcol;
 #ifdef DAYSIM_COMPATIBLE
-			daysimAddScaled(prd.dc, new_prd.dc, scolor.x);
+			daysimAddScaled(prd.dc, new_prd.dc, nd.scolor.x);
 #endif
 			mirtest = 2.0f * bright(rcol);
 			mirdist = t_hit + new_prd.distance;
@@ -304,32 +315,32 @@ RT_PROGRAM void closest_hit_radiance()
 	}
 
 	/* diffuse reflection */
-	float rdiff = 1.0f - trans - rspec;
+	nd.rdiff = 1.0f - nd.trans - nd.rspec;
 
-	if (!(specfl & SP_PURE && rdiff <= FTINY && tdiff <= FTINY)) { /* not 100% pure specular */
+	if (!(nd.specfl & SP_PURE && nd.rdiff <= FTINY && nd.tdiff <= FTINY)) { /* not 100% pure specular */
 
 		/* checks *BLT flags */
-		if ( !(specfl & SP_PURE) )
-			result += gaussamp( specfl, scolor, mcolor, ffnormal, hit_point, alpha2, tspec );
+		if (!(nd.specfl & SP_PURE))
+			result += gaussamp(&nd);
 
 #ifdef AMBIENT
 		/* ambient from this side */
-		if (rdiff > FTINY) {
-			float3 aval = mcolor * rdiff;	/* modified by material color */
-			if (specfl & SP_RBLT)	/* add in specular as well? */
-				aval += scolor;
-			result += multambient(aval, ffnormal, hit_point);	/* add to returned color */
+		if (nd.rdiff > FTINY) {
+			float3 aval = nd.mcolor * nd.rdiff;	/* modified by material color */
+			if (nd.specfl & SP_RBLT)	/* add in specular as well? */
+				aval += nd.scolor;
+			result += multambient(aval, nd.normal, nd.pnorm, nd.hit);	/* add to returned color */
 		}
 
 #ifdef TRANSMISSION
 		/* ambient from other side */
-		if (tdiff > FTINY) {
-			float3 aval = mcolor;	/* modified by material color */
-			if (specfl & SP_TBLT)
-				aval *= trans;
+		if (nd.tdiff > FTINY) {
+			float3 aval = nd.mcolor;	/* modified by material color */
+			if (nd.specfl & SP_TBLT)
+				aval *= nd.trans;
 			else
-				aval *= tdiff;
-			result += multambient(aval, -ffnormal, hit_point);	/* add to returned color */
+				aval *= nd.tdiff;
+			result += multambient(aval, -nd.normal, -nd.pnorm, nd.hit);	/* add to returned color */
 		}
 #endif /* TRANSMISSION */
 #endif /* AMBIENT */
@@ -343,7 +354,7 @@ RT_PROGRAM void closest_hit_radiance()
 #ifdef DAYSIM_COMPATIBLE
 		shadow_prd.dc = daysimNext(prd.dc);
 #endif
-		Ray shadow_ray = make_Ray( hit_point, ffnormal, shadow_ray_type, RAY_START, RAY_END );
+		Ray shadow_ray = make_Ray(nd.hit, nd.pnorm, shadow_ray_type, RAY_START, RAY_END);
 
 		/* contributions from distant lights (mainly the sun) */
 		unsigned int num_lights = lights.size();
@@ -352,8 +363,8 @@ RT_PROGRAM void closest_hit_radiance()
 			if ( light.casts_shadow ) {
 				shadow_prd.target = i;
 				shadow_ray.direction = normalize( light.pos );
-				shadow_ray.tmin = ray_start( hit_point, shadow_ray.direction, ffnormal, RAY_START );
-				result += dirnorm( &shadow_ray, &shadow_prd, specfl, scolor, mcolor, ffnormal, pdot, trans, rspec, tspec, rdiff, tdiff, alpha2, light.solid_angle );
+				shadow_ray.tmin = ray_start(nd.hit, shadow_ray.direction, nd.normal, RAY_START);
+				result += dirnorm(&shadow_ray, &shadow_prd, &nd, light.solid_angle);
 			}
 		}
 
@@ -363,9 +374,9 @@ RT_PROGRAM void closest_hit_radiance()
 		for ( int i = 0; i < num_lights; i++ ) {
 			const int3 v_idx = lindex_buffer[i];
 
-			const float3 r0 = vertex_buffer[ v_idx.x ] - hit_point;
-			const float3 r1 = vertex_buffer[ v_idx.y ] - hit_point;
-			const float3 r2 = vertex_buffer[ v_idx.z ] - hit_point;
+			const float3 r0 = vertex_buffer[v_idx.x] - nd.hit;
+			const float3 r1 = vertex_buffer[v_idx.y] - nd.hit;
+			const float3 r2 = vertex_buffer[v_idx.z] - nd.hit;
 			float3 rdir = ( r0 + r1 + r2 ) / 3.0f;
 
 			const unsigned int divs = flatpart( rdir, r0, r1, r2 ); //TODO divisions should be smaller closer to the light source
@@ -396,9 +407,9 @@ RT_PROGRAM void closest_hit_radiance()
 
 						shadow_prd.target = -v_idx.x - 1; //TODO find a better way to identify surface
 						shadow_ray.direction = normalize( rdir );
-						shadow_ray.tmin = ray_start( hit_point, shadow_ray.direction, ffnormal, RAY_START );
+						shadow_ray.tmin = ray_start(nd.hit, shadow_ray.direction, nd.normal, RAY_START);
 						shadow_ray.tmax = length( rdir ) + FTINY;
-						result += dirnorm( &shadow_ray, &shadow_prd, specfl, scolor, mcolor, ffnormal, pdot, trans, rspec, tspec, rdiff, tdiff, alpha2, omega );
+						result += dirnorm(&shadow_ray, &shadow_prd, &nd, omega);
 					}
 				}
 		}
@@ -426,13 +437,13 @@ RT_PROGRAM void closest_hit_radiance()
 }
 
 /* compute source contribution */
-RT_METHOD float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const unsigned int& specfl, const float3& scolor, const float3& mcolor, const float3& normal, const float& pdot, const float& trans, const float& rspec, const float& tspec, const float& rdiff, const float& tdiff, const float& alpha2, const float& omega )
+RT_METHOD float3 dirnorm(Ray *shadow_ray, PerRayData_shadow *shadow_prd, const NORMDAT *nd, const float& omega)
 {
 	float3 cval = make_float3( 0.0f );
-	float ldot = dot( normal, shadow_ray->direction );
+	float ldot = dot(nd->pnorm, shadow_ray->direction);
 
 #ifdef TRANSMISSION
-	if ( ldot < 0.0f ? trans <= FTINY : trans >= 1.0f - FTINY )
+	if (ldot < 0.0f ? nd->trans <= FTINY : nd->trans >= 1.0f - FTINY)
 #else
 	if ( ldot <= FTINY )
 #endif
@@ -448,9 +459,9 @@ RT_METHOD float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const 
 		return cval;
 	
 	/* Fresnel estimate */
-	float lrdiff = rdiff;
-	float ltdiff = tdiff;
-	if (specfl & SP_PURE && rspec >= FRESTHRESH && (lrdiff > FTINY) | (ltdiff > FTINY)) {
+	float lrdiff = nd->rdiff;
+	float ltdiff = nd->tdiff;
+	if (nd->specfl & SP_PURE && nd->rspec >= FRESTHRESH && (lrdiff > FTINY) | (ltdiff > FTINY)) {
 		float dtmp = 1.0f - FRESNE(fabs(ldot));
 		lrdiff *= dtmp;
 		ltdiff *= dtmp;
@@ -463,7 +474,7 @@ RT_METHOD float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const 
 		 *  modified by the color of the material.
 		 */
 		float dtmp = ldot * omega * lrdiff * M_1_PIf;
-		cval += mcolor * dtmp;
+		cval += nd->mcolor * dtmp;
 	}
 #ifdef TRANSMISSION
 	if (ldot < -FTINY && ltdiff > FTINY) {
@@ -471,22 +482,22 @@ RT_METHOD float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const 
 		 *  Compute diffuse transmission.
 		 */
 		float dtmp = -ldot * omega * ltdiff * M_1_PIf;
-		cval += mcolor * dtmp;
+		cval += nd->mcolor * dtmp;
 	}
 #endif
-	if (ldot > FTINY && (specfl&(SP_REFL|SP_PURE)) == SP_REFL) {
+	if (ldot > FTINY && (nd->specfl&(SP_REFL | SP_PURE)) == SP_REFL) {
 		/*
 		 *  Compute specular reflection coefficient using
 		 *  Gaussian distribution model.
 		 */
 		/* roughness */
-		float dtmp = alpha2;
+		float dtmp = nd->alpha2;
 		/* + source if flat */
-		if (specfl & SP_FLAT)
+		if (nd->specfl & SP_FLAT)
 			dtmp += omega * 0.25f * M_1_PIf;
 		/* half vector */
 		float3 vtmp = shadow_ray->direction - ray.direction;
-		float d2 = dot( vtmp, normal );
+		float d2 = dot(vtmp, nd->pnorm);
 		d2 *= d2;
 		float d3 = dot( vtmp, vtmp );
 		float d4 = (d3 - d2) / d2;
@@ -495,23 +506,23 @@ RT_METHOD float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const 
 		/* worth using? */
 		if (dtmp > FTINY) {
 			dtmp *= ldot * omega;
-			cval += scolor * dtmp;
+			cval += nd->scolor * dtmp;
 		}
 	}
 #ifdef TRANSMISSION
-	if (ldot < -FTINY && (specfl&(SP_TRAN|SP_PURE)) == SP_TRAN) {
+	if (ldot < -FTINY && (nd->specfl&(SP_TRAN | SP_PURE)) == SP_TRAN) {
 		/*
 		 *  Compute specular transmission.  Specular transmission
 		 *  is always modified by material color.
 		 */
 						/* roughness + source */
-		float dtmp = alpha2 + omega * M_1_PIf;
+		float dtmp = nd->alpha2 + omega * M_1_PIf;
 						/* Gaussian */
-		dtmp = expf( ( 2.0f * dot( ray.direction, shadow_ray->direction ) - 2.0f ) / dtmp ) / ( M_PIf * dtmp ); // may need to perturb direction
+		dtmp = expf((2.0f * dot(nd->prdir, shadow_ray->direction) - 2.0f) / dtmp) / (M_PIf * dtmp); // may need to perturb direction
 						/* worth using? */
 		if (dtmp > FTINY) {
-			dtmp *= tspec * omega * sqrtf( -ldot / pdot );
-			cval += mcolor * dtmp;
+			dtmp *= nd->tspec * omega * sqrtf(-ldot / nd->pdot);
+			cval += nd->mcolor * dtmp;
 		}
 	}
 #endif
@@ -522,12 +533,12 @@ RT_METHOD float3 dirnorm( Ray *shadow_ray, PerRayData_shadow *shadow_prd, const 
 }
 
 // sample Gaussian specular
-RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mcolor, const float3& normal, const float3& hit, const float& alpha2, const float& tspec )
+RT_METHOD float3 gaussamp(const NORMDAT *nd)
 {
 	float3 rcol = make_float3( 0.0f );
 
 	/* This section is based on the gaussamp method in normal.c */
-	if ((specfl & (SP_REFL|SP_RBLT)) != SP_REFL && (specfl & (SP_TRAN|SP_TBLT)) != SP_TRAN)
+	if ((nd->specfl & (SP_REFL | SP_RBLT)) != SP_REFL && (nd->specfl & (SP_TRAN | SP_TBLT)) != SP_TRAN)
 		return rcol;
 
 	PerRayData_radiance gaus_prd;
@@ -537,19 +548,20 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 	gaus_prd.ambient_depth = prd.ambient_depth + 1; //TODO the increment is a hack to prevent the sun from affecting specular values
 	//gaus_prd.seed = prd.seed;//lcg( prd.seed );
 	gaus_prd.state = prd.state;
-	Ray gaus_ray = make_Ray( hit, normal, radiance_ray_type, RAY_START, RAY_END );
+	Ray gaus_ray = make_Ray(nd->hit, nd->pnorm, radiance_ray_type, RAY_START, RAY_END);
 
 	float d;
 
 	/* set up sample coordinates */
-	float3 u = getperpendicular(normal);
-	float3 v = normalize(cross(normal, u));
+	float3 u = getperpendicular(nd->pnorm); // prd.state?
+	float3 v = cross(nd->pnorm, u);
 
 	unsigned int nstarget, nstaken, ntrials;
 
 	/* compute reflection */
-	gaus_prd.weight = prd.weight * fmaxf(scolor);
-	if ( (specfl & (SP_REFL|SP_RBLT)) == SP_REFL && gaus_prd.weight >= minweight ) {
+	gaus_prd.weight = prd.weight * fmaxf(nd->scolor);
+	if ((nd->specfl & (SP_REFL | SP_RBLT)) == SP_REFL && gaus_prd.weight >= minweight) {
+		float3 scolor = nd->scolor;
 		nstarget = 1;
 		if (specjitter > 1.5f) {	/* multiple samples? */ // By default it's 1.0
 			nstarget = specjitter * prd.weight + 0.5f;
@@ -583,17 +595,17 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 			if ( rv.y <= FTINY )
 				d = 1.0f;
 			else
-				d = sqrtf( alpha2 * -logf( rv.y ) ); // alpha2
-			float3 h = normal + d * ( cosp * u + sinp * v ); // normal is perturbed
+				d = sqrtf(nd->alpha2 * -logf(rv.y));
+			float3 h = nd->pnorm + d * (cosp * u + sinp * v);
 			d = -2.0f * dot( h, ray.direction ) / ( 1.0f + d*d );
 			gaus_ray.direction = ray.direction + h * d;
 
 			/* sample rejection test */
-			if ( ( d = dot( gaus_ray.direction, normal ) ) <= FTINY) // this is ron, is this perturbed?
+			if ((d = dot(gaus_ray.direction, nd->normal)) <= FTINY)
 				continue;
 
 			gaus_ray.direction = normalize( gaus_ray.direction );
-			gaus_ray.tmin = ray_start( hit, gaus_ray.direction, normal, RAY_START );
+			gaus_ray.tmin = ray_start(nd->hit, gaus_ray.direction, nd->normal, RAY_START);
 			setupPayload(gaus_prd, 0);
 			//if (nstaken) // check for prd data that needs to be cleared
 			rtTrace(top_object, gaus_ray, gaus_prd);
@@ -601,7 +613,7 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 
 			/* W-G-M-D adjustment */
 			if (nstarget > 1) {	
-				d = 2.0f / ( 1.0f - dot( ray.direction, normal ) / d );
+				d = 2.0f / (1.0f - dot(ray.direction, nd->normal) / d);
 				scol += gaus_prd.result * d;
 #ifdef DAYSIM_COMPATIBLE
 				daysimAddScaled(dc, gaus_prd.dc, d);
@@ -629,10 +641,10 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 
 #ifdef TRANSMISSION
 	/* compute transmission */
-	mcolor *= tspec;	/* modified by color */
+	float3 mcolor = nd->mcolor * nd->tspec;	/* modified by color */
 	gaus_prd.weight = prd.weight * fmaxf(mcolor);
 	gaus_prd.ambient_depth = prd.ambient_depth;
-	if ( ( specfl & (SP_TRAN|SP_TBLT)) == SP_TRAN && gaus_prd.weight >= minweight ) {
+	if ((nd->specfl & (SP_TRAN | SP_TBLT)) == SP_TRAN && gaus_prd.weight >= minweight) {
 		nstarget = 1;
 		if (specjitter > 1.5f) {	/* multiple samples? */ // By default it's 1.0
 			nstarget = specjitter * prd.weight + 0.5f;
@@ -657,15 +669,15 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 			if ( rv.y <= FTINY )
 				d = 1.0f;
 			else
-				d = sqrtf( alpha2 * -logf( rv.y ) );
-			gaus_ray.direction = ray.direction + d * ( cosp * u + sinp * v ); // ray direction is perturbed
+				d = sqrtf(nd->alpha2 * -logf(rv.y));
+			gaus_ray.direction = nd->prdir + d * (cosp * u + sinp * v); // ray direction is perturbed
 
 			/* sample rejection test */
-			if ( dot( gaus_ray.direction, normal ) >= -FTINY) // this is ron, is this perturbed?
+			if (dot(gaus_ray.direction, nd->normal) >= -FTINY)
 				continue;
 
 			gaus_ray.direction = normalize( gaus_ray.direction );
-			gaus_ray.tmin = ray_start( hit, gaus_ray.direction, normal, RAY_START );
+			gaus_ray.tmin = ray_start(nd->hit, gaus_ray.direction, nd->normal, RAY_START);
 #ifdef DAYSIM_COMPATIBLE
 			gaus_prd.dc = daysimNext(prd.dc);
 #endif
@@ -688,7 +700,7 @@ RT_METHOD float3 gaussamp( const unsigned int& specfl, float3 scolor, float3 mco
 
 #ifdef AMBIENT
 // Compute the ambient component and multiply by the coefficient.
-RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& hit )
+RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pnormal, const float3& hit)
 {
 	int do_ambient = 1;
 	float 	d;
@@ -711,7 +723,7 @@ RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& h
 		//d = sumambient(acol, r, normal, rdepth, &atrunk, thescene.cuorg, thescene.cusize);
 		PerRayData_ambient ambient_prd;
 		ambient_prd.result = make_float3( 0.0f );
-		ambient_prd.surface_normal = normal;
+		ambient_prd.surface_normal = pnormal;
 		ambient_prd.ambient_depth = prd.ambient_depth;
 		ambient_prd.wsum = 0.0f;
 #ifdef OLDAMB
@@ -758,11 +770,11 @@ RT_METHOD float3 multambient( float3 aval, const float3& normal, const float3& h
 #ifdef DAYSIM_COMPATIBLE
 		DaysimCoef dc = daysimNext(prd.dc);
 		daysimSet(dc, 0.0f);
-		d = doambient(&acol, normal, hit, dc);
+		d = doambient(&acol, normal, pnormal, hit, dc);
 		if (d > FTINY)
 			daysimAdd(prd.dc, dc);
 #else
-		d = doambient(&acol, normal, hit);
+		d = doambient(&acol, normal, pnormal, hit);
 #endif
 		if (d > FTINY)
 			return acol;
@@ -794,9 +806,9 @@ dumbamb:					/* return global value */
 #ifndef OLDAMB
 /* sample indirect hemisphere, based on samp_hemi in ambcomp.c */
 #ifdef DAYSIM_COMPATIBLE
-RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit, DaysimCoef dc )
+RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit, DaysimCoef dc)
 #else
-RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit )
+RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit)
 #endif
 {
 	float	d;
@@ -836,12 +848,12 @@ RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit )
 	new_prd.dc = daysimNext(dc);
 #endif
 
-	Ray amb_ray = make_Ray( hit, normal, radiance_ray_type, RAY_START, RAY_END ); // Use normal point as temporary direction
+	Ray amb_ray = make_Ray( hit, pnormal, radiance_ray_type, RAY_START, RAY_END ); // Use normal point as temporary direction
 	/* End ambsample setup */
 
 					/* make tangent plane axes */
-	float3 ux = getperpendicular( normal, prd.state );
-	float3 uy = cross( normal, ux );
+	float3 ux = getperpendicular( pnormal, prd.state );
+	float3 uy = cross( pnormal, ux );
 					/* sample divisions */
 	for (i = n; i--; )
 	    for (j = n; j--; ) {
@@ -850,7 +862,7 @@ RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit )
 			float2 spt = 0.1f + 0.8f * make_float2( curand_uniform( prd.state ), curand_uniform( prd.state ) );
 			SDsquare2disk( spt, (j+spt.y) / n, (i+spt.x) / n );
 			float zd = sqrtf( 1.0f - dot( spt, spt ) );
-			amb_ray.direction = normalize( spt.x*ux + spt.y*uy + zd*normal );
+			amb_ray.direction = normalize( spt.x*ux + spt.y*uy + zd*pnormal );
 			amb_ray.tmin = ray_start( hit, amb_ray.direction, normal, RAY_START );
 			//dimlist[ndims++] = AI(hp,i,j) + 90171;
 
@@ -887,9 +899,9 @@ RT_METHOD int doambient( float3 *rcol, const float3& normal, const float3& hit )
 }
 #else /* OLDAMB */
 #ifdef DAYSIM_COMPATIBLE
-RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& hit, DaysimCoef dc )
+RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit, DaysimCoef dc )
 #else
-RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& hit )
+RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit )
 #endif
 {
 	float  b;//, d;
@@ -902,7 +914,7 @@ RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& hit
 	int  divcnt;
 	int  i, j;
 					/* initialize hemisphere */
-	inithemi(&hemi, *rcol, normal);
+	inithemi(&hemi, *rcol, pnormal);
 	divcnt = hemi.nt * hemi.np;
 					/* initialize */
 	//if (pg != NULL)
@@ -932,9 +944,9 @@ RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& hit
 			dp->r = 0.0f;
 			dp->n = 0;
 #ifdef DAYSIM_COMPATIBLE
-			if (divsample( dp, &hemi, hit, dc ) < 0) {
+			if (divsample( dp, &hemi, normal, hit, dc ) < 0) {
 #else
-			if (divsample( dp, &hemi, hit ) < 0) {
+			if (divsample( dp, &hemi, normal, hit ) < 0) {
 #endif
 				if (div != NULL)
 					dp++;
@@ -964,9 +976,9 @@ RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& hit
 		for (i = hemi.ns; i > 0; i--) {
 			dnew = *div;
 #ifdef DAYSIM_COMPATIBLE
-			if (divsample( &dnew, &hemi, hit, dc ) < 0) {
+			if (divsample( &dnew, &hemi, normal, hit, dc ) < 0) {
 #else
-			if (divsample( &dnew, &hemi, hit ) < 0) {
+			if (divsample( &dnew, &hemi, normal, hit ) < 0) {
 #endif
 				dp++;
 				continue;
@@ -1056,16 +1068,15 @@ RT_METHOD void inithemi( AMBHEMI  *hp, float3 ac, const float3& normal )
 	hp->acoef *= d;
 					/* make axes */
 	hp->uz = normal;
-	hp->uy = cross_direction( hp->uz );
-	hp->ux = normalize( cross(hp->uy, hp->uz) );
+	hp->ux = getperpendicular(hp->uz);
 	hp->uy = normalize( cross(hp->uz, hp->ux) );
 }
 
 /* sample a division */
 #ifdef DAYSIM_COMPATIBLE
-RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit, DaysimCoef dc )
+RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& normal, const float3& hit, DaysimCoef dc )
 #else
-RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit )
+RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& normal, const float3& hit )
 #endif
 {
 	PerRayData_radiance new_prd;
@@ -1111,7 +1122,7 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit )
 	new_prd.dc = daysimNext(dc);
 #endif
 	setupPayload(new_prd, 0);
-	Ray amb_ray = make_Ray( hit, rdir, radiance_ray_type, RAY_START, RAY_END );
+	Ray amb_ray = make_Ray( hit, rdir, radiance_ray_type, ray_start( hit, rdir, normal, RAY_START ), RAY_END );
 	rtTrace(top_object, amb_ray, new_prd);
 	resolvePayload(prd, new_prd);
 

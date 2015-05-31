@@ -76,7 +76,7 @@ void runKernel3D( const RTcontext context, const unsigned int entry, const int w
 	RT_CHECK_ERROR( rtContextCompile( context ) ); // This should happen automatically when necessary.
 	kernel_clock = clock() - kernel_clock;
 	if (kernel_clock)
-		mprintf("OptiX compile time: %llu milliseconds.\n", kernel_clock * 1000uLL / CLOCKS_PER_SEC);
+		vprintf("OptiX compile time: %llu milliseconds.\n", kernel_clock * 1000uLL / CLOCKS_PER_SEC);
 
 	/* Start timers */
 	kernel_time = time((time_t *)NULL);
@@ -233,14 +233,14 @@ RTvariable applyMaterialVariable3f(const RTcontext context, const RTmaterial mat
 	return var;
 }
 
-void createBuffer1D( const RTcontext context, const RTbuffertype type, const RTformat format, const int element_count, RTbuffer* buffer )
+void createBuffer1D(const RTcontext context, const RTbuffertype type, const RTformat format, const RTsize element_count, RTbuffer* buffer)
 {
 	RT_CHECK_ERROR( rtBufferCreate( context, type, buffer ) );
 	RT_CHECK_ERROR( rtBufferSetFormat( *buffer, format ) );
 	RT_CHECK_ERROR( rtBufferSetSize1D( *buffer, element_count ) );
 }
 
-void createCustomBuffer1D( const RTcontext context, const RTbuffertype type, const int element_size, const int element_count, RTbuffer* buffer )
+void createCustomBuffer1D(const RTcontext context, const RTbuffertype type, const RTsize element_size, const RTsize element_count, RTbuffer* buffer)
 {
 	RT_CHECK_ERROR( rtBufferCreate( context, type, buffer ) );
 	RT_CHECK_ERROR( rtBufferSetFormat( *buffer, RT_FORMAT_USER ) );
@@ -248,14 +248,14 @@ void createCustomBuffer1D( const RTcontext context, const RTbuffertype type, con
 	RT_CHECK_ERROR( rtBufferSetSize1D( *buffer, element_count ) );
 }
 
-void createBuffer2D( const RTcontext context, const RTbuffertype type, const RTformat format, const int x_count, const int y_count, RTbuffer* buffer )
+void createBuffer2D(const RTcontext context, const RTbuffertype type, const RTformat format, const RTsize x_count, const RTsize y_count, RTbuffer* buffer)
 {
 	RT_CHECK_ERROR( rtBufferCreate( context, type, buffer ) );
 	RT_CHECK_ERROR( rtBufferSetFormat( *buffer, format ) );
 	RT_CHECK_ERROR( rtBufferSetSize2D( *buffer, x_count, y_count ) );
 }
 
-void createCustomBuffer2D( const RTcontext context, const RTbuffertype type, const int element_size, const int x_count, const int y_count, RTbuffer* buffer )
+void createCustomBuffer2D(const RTcontext context, const RTbuffertype type, const RTsize element_size, const RTsize x_count, const RTsize y_count, RTbuffer* buffer)
 {
 	RT_CHECK_ERROR( rtBufferCreate( context, type, buffer ) );
 	RT_CHECK_ERROR( rtBufferSetFormat( *buffer, RT_FORMAT_USER ) );
@@ -263,14 +263,14 @@ void createCustomBuffer2D( const RTcontext context, const RTbuffertype type, con
 	RT_CHECK_ERROR( rtBufferSetSize2D( *buffer, x_count, y_count ) );
 }
 
-void createBuffer3D( const RTcontext context, const RTbuffertype type, const RTformat format, const int x_count, const int y_count, const int z_count, RTbuffer* buffer )
+void createBuffer3D(const RTcontext context, const RTbuffertype type, const RTformat format, const RTsize x_count, const RTsize y_count, const RTsize z_count, RTbuffer* buffer)
 {
 	RT_CHECK_ERROR( rtBufferCreate( context, type, buffer ) );
 	RT_CHECK_ERROR( rtBufferSetFormat( *buffer, format ) );
 	RT_CHECK_ERROR( rtBufferSetSize3D( *buffer, x_count, y_count, z_count ) );
 }
 
-void createCustomBuffer3D( const RTcontext context, const RTbuffertype type, const int element_size, const int x_count, const int y_count, const int z_count, RTbuffer* buffer )
+void createCustomBuffer3D(const RTcontext context, const RTbuffertype type, const RTsize element_size, const RTsize x_count, const RTsize y_count, const RTsize z_count, RTbuffer* buffer)
 {
 	RT_CHECK_ERROR( rtBufferCreate( context, type, buffer ) );
 	RT_CHECK_ERROR( rtBufferSetFormat( *buffer, RT_FORMAT_USER ) );

@@ -25,6 +25,7 @@
 #define DEBUG_OPTIX /* Catch unexptected OptiX exceptions */
 //#define PRINT_OPTIX /* Enable OptiX rtPrintf statements to standard out */
 //#define REPORT_GPU_STATE /* Report verbose GPU details */
+#define VERBOSE_OUTPUT /* Print extra statements */
 #define KMEANS_IC /* K-Means irradiance cache calculation */
 #ifdef KMEANS_IC
 #define ITERATIVE_KMEANS_IC /* Iterative K-Means irradiance cache calculation */
@@ -104,8 +105,15 @@ typedef enum
 #define RT_CHECK_WARN_NO_CONTEXT( func )	func
 #endif
 
+/* Print statements */
 #define mprintf(format, ...) \
 	do { if (erract[WARNING].pf) fprintf(stderr, format, ##__VA_ARGS__); } while(0)
+
+#ifdef VERBOSE_OUTPUT
+#define vprintf(format, ...)	mprintf(format, ##__VA_ARGS__)
+#else
+#define vprintf(format, ...)	/* Ignore */
+#endif
 
 /* Resizeable array structures */
 typedef struct {
@@ -162,12 +170,12 @@ RTvariable applyMaterialVariable1i(const RTcontext context, const RTmaterial mat
 RTvariable applyMaterialVariable1ui(const RTcontext context, const RTmaterial material, const char* name, const unsigned int value);
 RTvariable applyMaterialVariable1f(const RTcontext context, const RTmaterial material, const char* name, const float value);
 RTvariable applyMaterialVariable3f(const RTcontext context, const RTmaterial material, const char* name, const float x, const float y, const float z);
-void createBuffer1D( const RTcontext context, const RTbuffertype type, const RTformat format, const int element_count, RTbuffer* buffer );
-void createCustomBuffer1D( const RTcontext context, const RTbuffertype type, const int element_size, const int element_count, RTbuffer* buffer );
-void createBuffer2D( const RTcontext context, const RTbuffertype type, const RTformat format, const int x_count, const int y_count, RTbuffer* buffer );
-void createCustomBuffer2D( const RTcontext context, const RTbuffertype type, const int element_size, const int x_count, const int y_count, RTbuffer* buffer );
-void createBuffer3D( const RTcontext context, const RTbuffertype type, const RTformat format, const int x_count, const int y_count, const int z_count, RTbuffer* buffer );
-void createCustomBuffer3D( const RTcontext context, const RTbuffertype type, const int element_size, const int x_count, const int y_count, const int z_count, RTbuffer* buffer );
+void createBuffer1D(const RTcontext context, const RTbuffertype type, const RTformat format, const RTsize element_count, RTbuffer* buffer);
+void createCustomBuffer1D(const RTcontext context, const RTbuffertype type, const RTsize element_size, const RTsize element_count, RTbuffer* buffer);
+void createBuffer2D(const RTcontext context, const RTbuffertype type, const RTformat format, const RTsize x_count, const RTsize y_count, RTbuffer* buffer);
+void createCustomBuffer2D(const RTcontext context, const RTbuffertype type, const RTsize element_size, const RTsize x_count, const RTsize y_count, RTbuffer* buffer);
+void createBuffer3D(const RTcontext context, const RTbuffertype type, const RTformat format, const RTsize x_count, const RTsize y_count, const RTsize z_count, RTbuffer* buffer);
+void createCustomBuffer3D(const RTcontext context, const RTbuffertype type, const RTsize element_size, const RTsize x_count, const RTsize y_count, const RTsize z_count, RTbuffer* buffer);
 RTvariable applyContextObject(const RTcontext context, const char* name, const RTobject object);
 RTvariable applyProgramObject(const RTcontext context, const RTprogram program, const char* name, const RTobject object);
 RTvariable applyGeometryObject(const RTcontext context, const RTgeometry geometry, const char* name, const RTobject object);

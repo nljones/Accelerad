@@ -196,7 +196,7 @@ static unsigned int populateAmbientRecords( const RTcontext context, const int l
 		/* Get the ambient records from the octree structure. */
 		useful_record_count = gatherAmbientRecords( &atrunk, &ambient_records_ptr, level );
 #endif
-		mprintf("Using %u of %u ambient records\n", useful_record_count, nambvals);
+		vprintf("Using %u of %u ambient records\n", useful_record_count, nambvals);
 	}
 
 	/* Resize the buffer of ambient records. */
