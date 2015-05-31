@@ -18,7 +18,7 @@
 /* This is the maximum number of registers used by any cuda kernel in this in this file,
 found by using the flag "-Xptxas -v" to compile in nvcc. This should be updated when
 changes are made to the kernels. */
-#define REGISTERS_PER_THREAD	23
+#define REGISTERS_PER_THREAD	24
 #endif
 
 #ifdef __cplusplus
