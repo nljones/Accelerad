@@ -66,7 +66,7 @@ RT_PROGRAM void closest_hit_shadow()
 	/* perturb normal */
 	// if there's a bump map, we use that, else
 	float pdot = -dot( ray.direction, ffnormal );
-	if ((pdot > 0.0f) != (-dot(ray.direction, snormal) > 0.0)) {		/* fix orientation from raynormal in raytrace.c */
+	if (pdot < 0.0f) {		/* fix orientation from raynormal in raytrace.c */
 		ffnormal += 2.0f * pdot * ray.direction;
 		pdot = -pdot;
 	}
@@ -140,7 +140,7 @@ RT_PROGRAM void closest_hit_radiance()
 	/* perturb normal */
 	// if there's a bump map, we use that, else
 	float pdot = -dot( ray.direction, ffnormal );
-	if ((pdot > 0.0f) != (-dot(ray.direction, snormal) > 0.0)) {		/* fix orientation from raynormal in raytrace.c */
+	if (pdot < 0.0f) {		/* fix orientation from raynormal in raytrace.c */
 		ffnormal += 2.0f * pdot * ray.direction;
 		pdot = -pdot;
 	}

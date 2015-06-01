@@ -191,15 +191,15 @@ RT_PROGRAM void closest_hit_radiance()
 	/* perturb normal */
 	// if there's a bump map, we use that, else
 	nd.pdot = -dot(ray.direction, nd.pnorm);
-	if ((nd.pdot > 0.0f) != (-dot(ray.direction, nd.normal) > 0.0)) {		/* fix orientation from raynormal in raytrace.c */
+	if (nd.pdot < 0.0f) {		/* fix orientation from raynormal in raytrace.c */
 		nd.pnorm += 2.0f * nd.pdot * ray.direction;
 		nd.pdot = -nd.pdot;
 	}
 	if (nd.pdot < 0.001f)
 		nd.pdot = 0.001f;			/* non-zero for dirnorm() */
 
-	// if it's a face or a ring (which it is currently) label as flat
-	nd.specfl |= SP_FLAT; // TODO what about curvature from vertex normals?
+	// if it's a face or a ring label as flat (currently we only support triangles, so everything is flat)
+	nd.specfl |= SP_FLAT;
 
 	/* modify material color */
 	//nd.mcolor *= rtTex3D(rtTextureId id, texcoord.x, texcoord.y, texcoord.z).xyz;
@@ -212,7 +212,7 @@ RT_PROGRAM void closest_hit_radiance()
 	}
 
 	/* compute transmission */
-	nd.tdiff = 0.0f, nd.tspec = 0.0f, nd.trans = 0.0f; // because it's opaque
+	nd.tdiff = nd.tspec = nd.trans = 0.0f; // because it's opaque
 #ifdef TRANSMISSION
 	float transtest = 0.0f, transdist = 0.0f;
 	nd.prdir = ray.direction;
@@ -262,6 +262,8 @@ RT_PROGRAM void closest_hit_radiance()
 			resolvePayload(prd, new_prd);
 		}
 	}
+	else
+		transtest = 0.0f;
 #endif
 
 	// return if it's a shadow ray, which it isn't
@@ -766,6 +768,7 @@ RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pn
 #endif
 	}
 	if (do_ambient) {			/* no ambient storage */
+		rtThrow(RT_EXCEPTION_USER + 12);
 		float3 acol = aval;
 #ifdef DAYSIM_COMPATIBLE
 		DaysimCoef dc = daysimNext(prd.dc);
@@ -1069,7 +1072,7 @@ RT_METHOD void inithemi( AMBHEMI  *hp, float3 ac, const float3& normal )
 					/* make axes */
 	hp->uz = normal;
 	hp->ux = getperpendicular(hp->uz);
-	hp->uy = normalize( cross(hp->uz, hp->ux) );
+	hp->uy = cross(hp->uz, hp->ux);
 }
 
 /* sample a division */
