@@ -68,7 +68,7 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 #ifndef OLDAMB
 	/* Direction test using unperturbed normal */
 	float3 w = decodedir( record.ndir );
-	float d = dot( w, prd.surface_normal );
+	float d = dot( w, ray.direction ); // Ray direction is unperturbed surface normal
 	if ( d <= 0.0f )		/* >= 90 degrees */
 		return;
 
@@ -106,8 +106,6 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 	if ( record.corral && plugaleak( &record, w, atan2f( vv, uu ) ) )
 		return;
 
-	float t = -dot( ck0, prd.surface_normal ) / dot( ray.direction, prd.surface_normal );
-
 	/* Extrapolate value and compute final weight (hat function) */
 	/* This is extambient from ambient.c */
 	/* gradient due to translation */
@@ -122,7 +120,7 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 	if ( d <= 0.05f )
 		return;
 
-	if( rtPotentialIntersection( t ) ) {
+	if (rtPotentialIntersection(-dot(ck0, ray.direction))) {
 		float wt = ( 1.0f - sqrtf(delta_r2) / maxangle ) * ( 1.0f - sqrtf(delta_t2) / ambacc );
 		prd.wsum += wt;
 
@@ -144,7 +142,7 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 		return;
 
 	/* Direction test using closest normal. */
-	float d = dot( record.dir, prd.surface_normal );
+	float d = dot( record.dir, ray.direction ); // Ray direction is unperturbed surface normal
 	//if (rn != r->ron) {
 	//	rn_dot = DOT(av->dir, rn);
 	//	if (rn_dot > 1.0-FTINY)
@@ -161,7 +159,7 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 		return;
 
 	/* Ray behind test. */
-	d = dot( ck0, record.dir + prd.surface_normal );
+	d = dot( ck0, record.dir + ray.direction );
 	if (d * 0.5f > minarad * ambacc + 0.001f )
 		return;
 
@@ -172,9 +170,7 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 	if (wt > ambacc * ( 0.9f + 0.2f * curand_uniform( prd.state ) ) )
 		return;
 
-	float t = dot( ck0, prd.surface_normal ) / dot( ray.direction, prd.surface_normal );
-
-	if( rtPotentialIntersection( t ) ) {
+	if (rtPotentialIntersection(dot(ck0, ray.direction))) {
 		/* Recompute directional error using perturbed normal */
 		//if (rn_dot > 0.0) {
 		//	e2 = sqrtf( ( 1.0f - rn_dot ) * prd.weight);

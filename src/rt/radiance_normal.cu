@@ -768,7 +768,6 @@ RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pn
 #endif
 	}
 	if (do_ambient) {			/* no ambient storage */
-		rtThrow(RT_EXCEPTION_USER + 12);
 		float3 acol = aval;
 #ifdef DAYSIM_COMPATIBLE
 		DaysimCoef dc = daysimNext(prd.dc);
@@ -866,6 +865,8 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 			SDsquare2disk( spt, (j+spt.y) / n, (i+spt.x) / n );
 			float zd = sqrtf( 1.0f - dot( spt, spt ) );
 			amb_ray.direction = normalize( spt.x*ux + spt.y*uy + zd*pnormal );
+			if (dot(amb_ray.direction, normal) <= 0) /* Prevent ligth leaks */
+				continue;
 			amb_ray.tmin = ray_start( hit, amb_ray.direction, normal, RAY_START );
 			//dimlist[ndims++] = AI(hp,i,j) + 90171;
 
