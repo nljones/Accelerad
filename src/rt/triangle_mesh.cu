@@ -37,16 +37,16 @@ rtDeclareVariable(unsigned int, backvis, , ); /* backface visibility (bv) */
 rtBuffer<float3> vertex_buffer;
 rtBuffer<float3> normal_buffer;
 rtBuffer<float2> texcoord_buffer;
-rtBuffer<int3>   vindex_buffer;    // position indices 
-//rtBuffer<int3>   nindex_buffer;    // normal indices
-//rtBuffer<int3>   tindex_buffer;    // texcoord indices
+rtBuffer<uint3>  vindex_buffer;    // position indices 
+//rtBuffer<uint3>  nindex_buffer;    // normal indices
+//rtBuffer<uint3>  tindex_buffer;    // texcoord indices
 rtBuffer<int>    material_buffer; // per-face material index
 rtBuffer<int2>   material_alt_buffer; // per-material alternate material indices
 rtDeclareVariable(unsigned int, radiance_primary_ray_type, , );
 rtDeclareVariable(unsigned int, shadow_ray_type, , );
 
 /* OptiX variables */
-rtDeclareVariable(optix::Ray, ray, rtCurrentRay, );
+rtDeclareVariable(Ray, ray, rtCurrentRay, );
 
 /* Attributes */
 rtDeclareVariable(float3, texcoord, attribute texcoord, );
@@ -54,9 +54,9 @@ rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );
 rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
 rtDeclareVariable(int, surface_id, attribute surface_id, );
 
-RT_PROGRAM void mesh_intersect( int primIdx )
+RT_PROGRAM void mesh_intersect(unsigned int primIdx)
 {
-	int3 v_idx = vindex_buffer[primIdx];
+	uint3 v_idx = vindex_buffer[primIdx];
 
 	float3 p0 = vertex_buffer[ v_idx.x ];
 	float3 p1 = vertex_buffer[ v_idx.y ];
@@ -65,7 +65,7 @@ RT_PROGRAM void mesh_intersect( int primIdx )
 	// Intersect ray with triangle
 	float3 n;
 	float  t, beta, gamma;
-	if( intersect_triangle( ray, p0, p1, p2, n, t, beta, gamma ) && ( backvis || optix::dot( n, ray.direction ) < 0) ) {
+	if( intersect_triangle( ray, p0, p1, p2, n, t, beta, gamma ) && ( backvis || dot( n, ray.direction ) < 0) ) {
 
 		int mat = material_buffer[primIdx];
 		if ( mat < 0 || mat >= material_alt_buffer.size() ) /* Material void or missing */
@@ -109,16 +109,16 @@ RT_PROGRAM void mesh_intersect( int primIdx )
 	}
 }
 
-RT_PROGRAM void mesh_bounds (int primIdx, float result[6])
+RT_PROGRAM void mesh_bounds(unsigned int primIdx, float result[6])
 {  
-	const int3 v_idx = vindex_buffer[primIdx];
+	const uint3 v_idx = vindex_buffer[primIdx];
 
 	const float3 v0   = vertex_buffer[ v_idx.x ];
 	const float3 v1   = vertex_buffer[ v_idx.y ];
 	const float3 v2   = vertex_buffer[ v_idx.z ];
 	const float  area = length(cross(v1-v0, v2-v0));
 
-	optix::Aabb* aabb = (optix::Aabb*)result;
+	Aabb* aabb = (Aabb*)result;
   
 	if(area > 0.0f && !isinf(area)) {
 		aabb->m_min = fminf( fminf( v0, v1), v2 );

@@ -104,7 +104,7 @@ rtDeclareVariable(float,        tspecu, , ) = 0.0f;	/* The material transmitted 
 /* Geometry instance variables */
 #ifdef LIGHTS
 rtBuffer<float3> vertex_buffer;
-rtBuffer<int3>   lindex_buffer;    // position indices
+rtBuffer<uint3>  lindex_buffer;    // position indices
 #endif
 
 /* OptiX variables */
@@ -360,7 +360,7 @@ RT_PROGRAM void closest_hit_radiance()
 
 		/* contributions from distant lights (mainly the sun) */
 		unsigned int num_lights = lights.size();
-		for ( int i = 0; i < num_lights; i++ ) {
+		for (unsigned int i = 0u; i < num_lights; i++) {
 			const DistantLight light = lights[i];
 			if ( light.casts_shadow ) {
 				shadow_prd.target = i;
@@ -373,8 +373,8 @@ RT_PROGRAM void closest_hit_radiance()
 #ifdef LIGHTS
 		/* contributions from nearby lights */
 		num_lights = lindex_buffer.size();
-		for ( int i = 0; i < num_lights; i++ ) {
-			const int3 v_idx = lindex_buffer[i];
+		for (unsigned int i = 0u; i < num_lights; i++) {
+			const uint3 v_idx = lindex_buffer[i];
 
 			const float3 r0 = vertex_buffer[v_idx.x] - nd.hit;
 			const float3 r1 = vertex_buffer[v_idx.y] - nd.hit;

@@ -777,6 +777,16 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 
 	free( buffer_entry_index );
 
+	/* Check for overflow */
+	if (traingles->count > UINT_MAX) {
+		sprintf(errmsg, "Number of triangles %llu is greater than maximum %llu.", traingles->count, UINT_MAX);
+		error(USER, errmsg);
+	}
+	if (materials->count > UINT_MAX) {
+		sprintf(errmsg, "Number of materials %llu is greater than maximum %llu.", materials->count, UINT_MAX);
+		error(USER, errmsg);
+	}
+
 	/* Create the geometry reference for OptiX. */
 	RT_CHECK_ERROR(rtGeometryCreate(context, &mesh));
 	RT_CHECK_ERROR(rtGeometrySetPrimitiveCount(mesh, traingles->count));
@@ -820,7 +830,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	freeArrayf(tex_coords);
 	free(tex_coords);
 
-	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_INT3, vertex_indices->count / 3, &buffer);
+	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_UNSIGNED_INT3, vertex_indices->count / 3, &buffer);
 	copyToBufferi(context, buffer, vertex_indices);
 	applyGeometryInstanceObject(context, *instance, "vindex_buffer", buffer);
 	freeArrayi(vertex_indices);
@@ -842,7 +852,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	/* Unmap and apply the lighting buffers. */
 #ifdef LIGHTS
 	if (lights->count) vprintf("Processed %llu lights.\n", lights->count / 3);
-	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_INT3, lights->count / 3, &buffer);
+	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_UNSIGNED_INT3, lights->count / 3, &buffer);
 	copyToBufferi(context, buffer, lights);
 	applyContextObject(context, "lindex_buffer", buffer);
 	freeArrayi(lights);
