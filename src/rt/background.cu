@@ -19,6 +19,7 @@ rtBuffer<DistantLight> lights;
 rtBuffer<rtCallableProgramId<float(const float3)> > functions;
 //rtDeclareVariable(rtCallableProgramId<float(float3)>, func, , );
 //rtDeclareVariable(rtCallableProgramX<float(float3)>, func, , );
+rtDeclareVariable(int, directvis, , );		/* Boolean switch for light source visibility (dv) */
 
 /* OptiX variables */
 rtDeclareVariable(PerRayData_radiance, prd_radiance, rtPayload, );
@@ -50,6 +51,10 @@ RT_PROGRAM void miss()
 		float solid_angle = 2.0f * M_PIf * (1.0f - lDh);
 
 		if (solid_angle <= light.solid_angle) {
+			if (!directvis && light.casts_shadow) {
+				prd_radiance.result = make_float3(0.0f);
+				break;
+			}
 			float3 color = light.color;
 			if (light.function > -1) {
 				//rtPrintf( "Sending (%f, %f, %f)\n", H.x, H.y, H.z);
