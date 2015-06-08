@@ -1446,7 +1446,7 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point, con
 #endif
 	/* use rt to improve gradient calc */
 	if (new_prd.distance > FTINY && new_prd.distance < RAY_END)
-		dp->r += 1.0f/new_prd.distance; //TODO should this be sum of distances?
+		dp->r += 1.0f/new_prd.distance;
 
 					/* (re)initialize error */
 	if (dp->n++) {

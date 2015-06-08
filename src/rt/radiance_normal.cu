@@ -189,7 +189,8 @@ RT_PROGRAM void closest_hit_radiance()
 	}
 
 	/* perturb normal */
-	// if there's a bump map, we use that, else
+	float3 pert = nd.normal - nd.pnorm;
+	int hastexture = dot(pert, pert) > FTINY * FTINY;
 	nd.pdot = -dot(ray.direction, nd.pnorm);
 	if (nd.pdot < 0.0f) {		/* fix orientation from raynormal in raytrace.c */
 		nd.pnorm += 2.0f * nd.pdot * ray.direction;
@@ -214,7 +215,7 @@ RT_PROGRAM void closest_hit_radiance()
 	/* compute transmission */
 	nd.tdiff = nd.tspec = nd.trans = 0.0f; // because it's opaque
 #ifdef TRANSMISSION
-	float transtest = 0.0f, transdist = 0.0f;
+	float transtest = 0.0f, transdist = t_hit;
 	nd.prdir = ray.direction;
 	if (transm > 0.0f) { // type == MAT_TRANS
 		nd.trans = transm * (1.0f - nd.rspec);
@@ -223,10 +224,6 @@ RT_PROGRAM void closest_hit_radiance()
 		if (nd.tspec > FTINY) {
 			nd.specfl |= SP_TRAN;
 
-			/* perturb normal */
-			float3 pert = nd.normal - nd.pnorm;
-			int hastexture = dot(pert, pert) > FTINY * FTINY;
-			
 							/* check threshold */
 			if (!(nd.specfl & SP_PURE) && specthresh >= nd.tspec - FTINY)
 				nd.specfl |= SP_TBLT;
@@ -291,7 +288,7 @@ RT_PROGRAM void closest_hit_radiance()
 	}
 
 	/* reflected ray */
-	float mirtest = 0.0f, mirdist = 0.0f;
+	float mirtest = 0.0f, mirdist = t_hit;
 	if ((nd.specfl&(SP_REFL | SP_PURE | SP_RBLT)) == (SP_REFL | SP_PURE)) {
 		new_prd.weight = prd.weight * fmaxf(nd.scolor);
 		new_prd.depth = prd.depth + 1;
@@ -310,8 +307,10 @@ RT_PROGRAM void closest_hit_radiance()
 #ifdef DAYSIM_COMPATIBLE
 			daysimAddScaled(prd.dc, new_prd.dc, nd.scolor.x);
 #endif
-			mirtest = 2.0f * bright(rcol);
-			mirdist = t_hit + new_prd.distance;
+			if (nd.specfl & SP_FLAT && (prd.ambient_depth || !hastexture)) {
+				mirtest = 2.0f * bright(rcol);
+				mirdist = t_hit + new_prd.distance;
+			}
 			resolvePayload(prd, new_prd);
 		}
 	}
@@ -1140,7 +1139,7 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& normal, const 
 	dp->v += new_prd.result;
 					/* use rt to improve gradient calc */
 	if (new_prd.distance > FTINY && new_prd.distance < RAY_END)
-		dp->r += 1.0f/new_prd.distance; //TODO should this be sum of distances?
+		dp->r += 1.0f/new_prd.distance;
 
 					/* (re)initialize error */
 	if (dp->n++) {

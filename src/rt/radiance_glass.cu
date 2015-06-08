@@ -134,12 +134,13 @@ RT_PROGRAM void closest_hit_radiance()
 	/* get modifiers */
 	// we'll skip this for now
 
-	float transtest = 0.0f, transdist = 0.0f;
-	float mirtest = 0.0f, mirdist = 0.0f;
+	float transtest = 0.0f, transdist = t_hit;
+	float mirtest = 0.0f, mirdist = t_hit;
 
 	/* perturb normal */
-	// if there's a bump map, we use that, else
-	float pdot = -dot( ray.direction, ffnormal );
+	float3 pert = snormal - ffnormal;
+	int hastexture = dot(pert, pert) > FTINY * FTINY;
+	float pdot = -dot(ray.direction, ffnormal);
 	if (pdot < 0.0f) {		/* fix orientation from raynormal in raytrace.c */
 		ffnormal += 2.0f * pdot * ray.direction;
 		pdot = -pdot;
@@ -177,9 +178,6 @@ RT_PROGRAM void closest_hit_radiance()
 #endif
 			float3 R = ray.direction;
 
-			/* perturb normal */
-			float3 pert = snormal - ffnormal;
-			int hastexture = dot(pert, pert) > FTINY * FTINY;
 			if (!new_prd.ambient_depth && hastexture) {
 				R = normalize(ray.direction + pert * (2.0f * (1.0f - rindex)));
 				if (isnan(R))
@@ -223,8 +221,10 @@ RT_PROGRAM void closest_hit_radiance()
 		rtTrace(top_object, refl_ray, new_prd);
 		float3 rcol = new_prd.result * refl;
 		result += rcol;
-		mirtest = 2.0f * bright( rcol );
-		mirdist = t_hit + new_prd.distance;
+		if (prd.ambient_depth || !hastexture) {
+			mirtest = 2.0f * bright(rcol);
+			mirdist = t_hit + new_prd.distance;
+		}
 #ifdef DAYSIM_COMPATIBLE
 		daysimAddScaled(prd.dc, new_prd.dc, refl.x);
 #endif
