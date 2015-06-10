@@ -28,7 +28,7 @@ rtDeclareVariable(float, t_hit, rtIntersectionDistance, );
 
 
 #ifndef OLDAMB
-RT_METHOD int plugaleak( const AmbientRecord* record, const float3& anorm, float ang );
+RT_METHOD int plugaleak(const AmbientRecord* record, const float3& anorm, const float3& normal, float ang);
 #endif
 
 
@@ -65,10 +65,12 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 	//if ( record->weight < 0.9f * prd.weight ) //TODO no sorted list, so don't do this?
 	//	return;
 
+	const float3 normal = ray.direction;
+
 #ifndef OLDAMB
 	/* Direction test using unperturbed normal */
 	float3 w = decodedir( record.ndir );
-	float d = dot( w, ray.direction ); // Ray direction is unperturbed surface normal
+	float d = dot(w, normal); // Ray direction is unperturbed surface normal
 	if ( d <= 0.0f )		/* >= 90 degrees */
 		return;
 
@@ -103,7 +105,7 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 		return;
 	
 	/* Test for potential light leak */
-	if ( record.corral && plugaleak( &record, w, atan2f( vv, uu ) ) )
+	if (record.corral && plugaleak(&record, w, normal, atan2f(vv, uu)))
 		return;
 
 	/* Extrapolate value and compute final weight (hat function) */
@@ -120,7 +122,7 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 	if ( d <= 0.05f )
 		return;
 
-	if (rtPotentialIntersection(-dot(ck0, ray.direction))) {
+	if (rtPotentialIntersection(-dot(ck0, normal))) {
 		float wt = ( 1.0f - sqrtf(delta_r2) / maxangle ) * ( 1.0f - sqrtf(delta_t2) / ambacc );
 		prd.wsum += wt;
 
@@ -142,7 +144,7 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 		return;
 
 	/* Direction test using closest normal. */
-	float d = dot( record.dir, ray.direction ); // Ray direction is unperturbed surface normal
+	float d = dot( record.dir, normal ); // Ray direction is unperturbed surface normal
 	//if (rn != r->ron) {
 	//	rn_dot = DOT(av->dir, rn);
 	//	if (rn_dot > 1.0-FTINY)
@@ -159,7 +161,7 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 		return;
 
 	/* Ray behind test. */
-	d = dot( ck0, record.dir + ray.direction );
+	d = dot( ck0, record.dir + normal );
 	if (d * 0.5f > minarad * ambacc + 0.001f )
 		return;
 
@@ -170,7 +172,7 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 	if (wt > ambacc * ( 0.9f + 0.2f * curand_uniform( prd.state ) ) )
 		return;
 
-	if (rtPotentialIntersection(dot(ck0, ray.direction))) {
+	if (rtPotentialIntersection(dot(ck0, normal))) {
 		/* Recompute directional error using perturbed normal */
 		//if (rn_dot > 0.0) {
 		//	e2 = sqrtf( ( 1.0f - rn_dot ) * prd.weight);
@@ -236,7 +238,7 @@ RT_PROGRAM void ambient_record_bounds (int primIdx, float result[6])
 
 #ifndef OLDAMB
 /* Plug a potential leak where ambient cache value is occluded */
-RT_METHOD int plugaleak( const AmbientRecord* record, const float3& anorm, float ang )
+RT_METHOD int plugaleak(const AmbientRecord* record, const float3& anorm, const float3& normal, float ang)
 {
 	const float cost70sq = 0.1169778f;	/* cos(70deg)^2 */
 	float2 t;
@@ -250,8 +252,8 @@ RT_METHOD int plugaleak( const AmbientRecord* record, const float3& anorm, float
 	 * enough to miss local geometry we don't really care about.
 	 */
 	float3 vdif = record->pos - ray.origin;
-	float normdot = dot( anorm, prd.surface_normal );
-	float ndotd = dot( vdif, prd.surface_normal );
+	float normdot = dot(anorm, normal);
+	float ndotd = dot(vdif, normal);
 	float nadotd = dot( vdif, anorm );
 	float a = normdot * normdot - cost70sq;
 	float b = 2.0f * ( normdot * ndotd - nadotd * cost70sq );

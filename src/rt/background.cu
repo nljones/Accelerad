@@ -45,13 +45,17 @@ RT_PROGRAM void miss()
 	for (int i = 0; i < num_lights; ++i) {
 		DistantLight light = lights[i];
 
+		// no contribution to ambient calculation
+		if (prd_radiance.ambient_depth && light.casts_shadow) // badcomponent() in source.c
+			continue; // TODO also no contribution from specular
+
 		// get the angle bwetween the light direction and the view
 		float3 L = optix::normalize(light.pos);
 		float lDh = optix::dot( L, H );
 		float solid_angle = 2.0f * M_PIf * (1.0f - lDh);
 
 		if (solid_angle <= light.solid_angle) {
-			if (!directvis && light.casts_shadow) {
+			if (!directvis && light.casts_shadow) { // srcignore() in source.c
 				prd_radiance.result = make_float3(0.0f);
 				break;
 			}
@@ -60,15 +64,12 @@ RT_PROGRAM void miss()
 				//rtPrintf( "Sending (%f, %f, %f)\n", H.x, H.y, H.z);
 				color *= functions[light.function]( H );
 			}
-			if (light.function > -1 || prd_radiance.ambient_depth == 0) { //TODO need a better test, see badcomponent() in source.c
-				// no contribution to ambient calculation
-				prd_radiance.result += color;
+			prd_radiance.result += color;
 #ifdef DAYSIM_COMPATIBLE
-				if (daylightCoefficients >= 2) {
-					daysimAddCoef(prd_radiance.dc, daysimComputePatch(ray.direction), color.x);
-				}
-#endif /* DAYSIM_COMPATIBLE */
+			if (daylightCoefficients >= 2) {
+				daysimAddCoef(prd_radiance.dc, daysimComputePatch(ray.direction), color.x);
 			}
+#endif /* DAYSIM_COMPATIBLE */
 		}
 	}
 
