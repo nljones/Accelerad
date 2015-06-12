@@ -179,7 +179,12 @@ int  code;
 
 
 #ifndef NON_POSIX
+#ifdef ACCELERAD
+void
+#else
 static void
+
+#endif
 report(int dummy)		/* report progress */
 {
 	char			bcStat [128];

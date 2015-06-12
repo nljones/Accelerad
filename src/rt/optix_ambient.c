@@ -58,7 +58,7 @@ static RTacceleration ambient_record_acceleration;
 const unsigned int thread_stride = 4u;
 
 #ifdef HIT_COUNT
-static unsigned long hit_total = 0uL;
+static size_t hit_total = 0;
 #endif
 
 
@@ -706,7 +706,7 @@ static unsigned int chooseAmbientLocations(const RTcontext context, const unsign
 		kernel_clock = clock();
 		cuda_score_hits(seed_buffer_data, score, width, height, cuda_kmeans_error / (ambacc * maxarad), cuda_kmeans_clusters);
 		kernel_clock = clock() - kernel_clock;
-		mprintf("Adaptive sampling: %llu milliseconds.\n", kernel_clock * 1000uLL / CLOCKS_PER_SEC);
+		mprintf("Adaptive sampling: %" PRIu64 " milliseconds.\n", MILLISECONDS(kernel_clock));
 
 		for (i = 0u; i < seed_count; i++) {
 			if (score[i]) {
@@ -799,7 +799,7 @@ static unsigned int createKMeansClusters( const unsigned int seed_count, const u
 	kernel_clock = clock();
 	clusters = (PointDirection**)cuda_kmeans((float**)seeds, sizeof(PointDirection) / sizeof(float), good_seed_count, cluster_count, cuda_kmeans_iterations, cuda_kmeans_threshold, cuda_kmeans_error / (ambacc * maxarad), level, membership, distance, &loops);
 	kernel_clock = clock() - kernel_clock;
-	mprintf("K-means performed %u loop iterations in %llu milliseconds.\n", loops, kernel_clock * 1000uLL / CLOCKS_PER_SEC);
+	mprintf("K-means performed %u loop iterations in %" PRIu64 " milliseconds.\n", loops, MILLISECONDS(kernel_clock));
 
 	/* Populate buffer of seed point clusters. */
 	min_distance = (float*) malloc(cluster_count * sizeof(float));
@@ -956,7 +956,7 @@ static void calcAmbientValues(const RTcontext context, const unsigned int level,
 //	kernel_clock = clock();
 //	groups = (PointDirection**)cuda_kmeans((float**)clusters, sizeof(PointDirection) / sizeof(float), cluster_count, group_count, cuda_kmeans_threshold, cuda_kmeans_error / (ambacc * maxarad), random_seeds, membership, distance, &loops);
 //	kernel_clock = clock() - kernel_clock;
-//	mprintf("Kmeans performed %u loop iterations in %llu milliseconds.\n", loops, kernel_clock * 1000uLL / CLOCKS_PER_SEC);
+//	mprintf("Kmeans performed %u loop iterations in %" PRIu64 " milliseconds.\n", loops, MILLISECONDS(kernel_clock));
 //
 //	temp = (PointDirection*) malloc(cluster_count * sizeof(PointDirection));
 //	sortable = (CLUSTER*) malloc(cluster_count * sizeof(CLUSTER));
@@ -981,7 +981,7 @@ static void calcAmbientValues(const RTcontext context, const unsigned int level,
 //	free(clusters);
 //
 //	method_clock = clock() - method_clock;
-//	mprintf("Sorting took %llu milliseconds.\n", method_clock * 1000uLL / CLOCKS_PER_SEC);
+//	mprintf("Sorting took %" PRIu64 " milliseconds.\n", MILLISECONDS(method_clock));
 //}
 //
 //static int clusterComparator( const void* a, const void* b )

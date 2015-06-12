@@ -16,7 +16,7 @@ static clock_t last_callback_time;  /* time of last callback from GPU */
 #endif
 
 #ifdef CUMULTATIVE_TIME
-static unsigned long long cumulative_millis = 0uLL;  /* cumulative timing of kernel fuctions */
+static size_t cumulative_millis = 0;  /* cumulative timing of kernel fuctions */
 #endif
 
 /* from rpict.c */
@@ -39,9 +39,9 @@ void printContextInfo( const RTcontext context )
 	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_CPU_NUM_THREADS, sizeof(int), &value ) ); // This can be set
 	mprintf("OptiX host CPU threads:           %i\n", value);
 	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_USED_HOST_MEMORY, sizeof(RTsize), &size ) );
-	mprintf("OptiX host memory allocated:      %llu bytes\n", size);
+	mprintf("OptiX host memory allocated:      %" PRIu64 " bytes\n", size);
 	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_AVAILABLE_DEVICE_MEMORY, sizeof(RTsize), &size ) );
-	mprintf("OptiX free device memory:         %llu bytes\n", size);
+	mprintf("OptiX free device memory:         %" PRIu64 " bytes\n", size);
 	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_GPU_PAGING_ACTIVE, sizeof(int), &value ) );
 	mprintf("OptiX software paging:            %s\n", value ? "Yes" : "No");
 	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_GPU_PAGING_FORCED_OFF, sizeof(int), &value ) ); // This can be set
@@ -76,7 +76,7 @@ void runKernel3D( const RTcontext context, const unsigned int entry, const int w
 	RT_CHECK_ERROR( rtContextCompile( context ) ); // This should happen automatically when necessary.
 	kernel_clock = clock() - kernel_clock;
 	if (kernel_clock)
-		vprintf("OptiX compile time: %llu milliseconds.\n", kernel_clock * 1000uLL / CLOCKS_PER_SEC);
+		vprintf("OptiX compile time: %" PRIu64 " milliseconds.\n", MILLISECONDS(kernel_clock));
 
 	/* Start timers */
 	kernel_time = time((time_t *)NULL);
@@ -97,12 +97,12 @@ void runKernel3D( const RTcontext context, const unsigned int entry, const int w
 	kernel_clock = clock() - kernel_clock;
 	kernel_time = time((time_t *)NULL) - kernel_time;
 	if (llabs(kernel_clock / CLOCKS_PER_SEC - kernel_time) <= 1)
-		mprintf("OptiX kernel time: %llu milliseconds (%llu seconds).\n", kernel_clock * 1000uLL / CLOCKS_PER_SEC, kernel_time);
+		mprintf("OptiX kernel time: %" PRIu64 " milliseconds (%" PRIu64 " seconds).\n", MILLISECONDS(kernel_clock), kernel_time);
 	else
-		mprintf("OptiX kernel time: %llu seconds.\n", kernel_time);
+		mprintf("OptiX kernel time: %" PRIu64 " seconds.\n", kernel_time);
 #ifdef CUMULTATIVE_TIME
-	cumulative_millis += kernel_clock * 1000uLL / CLOCKS_PER_SEC;
-	mprintf("OptiX kernel cumulative time: %llu milliseconds.\n", cumulative_millis);
+	cumulative_millis += MILLISECONDS(kernel_clock);
+	mprintf("OptiX kernel cumulative time: %" PRIu64 " milliseconds.\n", cumulative_millis);
 #endif
 
 #ifdef REPORT_GPU_STATE
@@ -613,7 +613,7 @@ void ptxFile( char* path, const char* name )
 	sprintf( path, "cuda_compile_ptx_generated_%s.cu.ptx", name );
 	fp = getpath( path, getenv("RAYPATH"), R_OK );
 	if ( fp )
-		sprintf( path, fp );
+		sprintf(path, "%s", fp);
 	else {
 		sprintf(errmsg, "File %s not found in RAYPATH.", path );
 		error(SYSTEM, errmsg);
@@ -637,7 +637,7 @@ int timeoutCallback(void)
 	int earlyexit = 0;
 	clock_t callback_time = clock();
 	//mprintf("OptiX kernel running...\n");
-	mprintf("OptiX kernel running: %llu milliseconds since last callback.\n", (callback_time - last_callback_time) * 1000uLL / CLOCKS_PER_SEC);
+	mprintf("OptiX kernel running: %" PRIu64 " milliseconds since last callback.\n", MILLISECONDS(callback_time - last_callback_time));
 	last_callback_time = callback_time;
 	return earlyexit; 
 }

@@ -7,6 +7,7 @@
 #include <resolu.h>
 #include <view.h>
 #include <color.h>
+#include <inttypes.h>
 
 #include <optix_world.h>
 #include "optix_common.h"
@@ -113,6 +114,13 @@ typedef enum
 #define vprintf(format, ...)	mprintf(format, ##__VA_ARGS__)
 #else
 #define vprintf(format, ...)	/* Ignore */
+#endif
+
+/* TIMING */
+#ifdef _WIN32
+#define MILLISECONDS(c)	c * 1000uLL / CLOCKS_PER_SEC
+#else
+#define MILLISECONDS(c)	c * 1000uL / CLOCKS_PER_SEC
 #endif
 
 /* Resizeable array structures */

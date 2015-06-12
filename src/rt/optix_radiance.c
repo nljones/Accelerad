@@ -397,7 +397,7 @@ static void checkDevices()
 		rtDeviceGetAttribute( i, RT_DEVICE_ATTRIBUTE_EXECUTION_TIMEOUT_ENABLED, sizeof(timeout_enabled), &timeout_enabled );
 		rtDeviceGetAttribute( i, RT_DEVICE_ATTRIBUTE_TCC_DRIVER, sizeof(tcc_driver), &tcc_driver );
 		rtDeviceGetAttribute( i, RT_DEVICE_ATTRIBUTE_CUDA_DEVICE_ORDINAL, sizeof(cuda_device), &cuda_device );
-		mprintf("Device %u: %s with %u multiprocessors, %u threads per block, %u kHz, %llu bytes global memory, %u hardware textures, compute capability %u.%u, timeout %sabled, Tesla compute cluster driver %sabled, cuda device %u.\n",
+		mprintf("Device %u: %s with %u multiprocessors, %u threads per block, %u kHz, %" PRIu64 " bytes global memory, %u hardware textures, compute capability %u.%u, timeout %sabled, Tesla compute cluster driver %sabled, cuda device %u.\n",
 			i, device_name, multiprocessor_count, threads_per_block, clock_rate, memory_size, texture_count, compute_capability[0], compute_capability[1], timeout_enabled ? "en" : "dis", tcc_driver ? "en" : "dis", cuda_device);
 
 		if (compute_capability[0] < 2u) {
@@ -779,11 +779,11 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 
 	/* Check for overflow */
 	if (traingles->count > UINT_MAX) {
-		sprintf(errmsg, "Number of triangles %llu is greater than maximum %llu.", traingles->count, UINT_MAX);
+		sprintf(errmsg, "Number of triangles %" PRIu64 " is greater than maximum %u.", traingles->count, UINT_MAX);
 		error(USER, errmsg);
 	}
 	if (materials->count > UINT_MAX) {
-		sprintf(errmsg, "Number of materials %llu is greater than maximum %llu.", materials->count, UINT_MAX);
+		sprintf(errmsg, "Number of materials %" PRIu64 " is greater than maximum %u.", materials->count, UINT_MAX);
 		error(USER, errmsg);
 	}
 
@@ -810,7 +810,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	free(materials);
 
 	/* Unmap and apply the geometry buffers. */
-	vprintf("Processed %llu vertices.\n", vertices->count / 3);
+	vprintf("Processed %" PRIu64 " vertices.\n", vertices->count / 3);
 	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, vertices->count / 3, &buffer);
 	copyToBufferf(context, buffer, vertices);
 	//applyGeometryInstanceObject( context, *instance, "vertex_buffer", buffer );
@@ -836,7 +836,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	freeArrayi(vertex_indices);
 	free(vertex_indices);
 
-	vprintf("Processed %llu triangles.\n", traingles->count);
+	vprintf("Processed %" PRIu64 " triangles.\n", traingles->count);
 	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_INT, traingles->count, &buffer);
 	copyToBufferi(context, buffer, traingles);
 	applyGeometryInstanceObject(context, *instance, "material_buffer", buffer);
@@ -851,7 +851,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 
 	/* Unmap and apply the lighting buffers. */
 #ifdef LIGHTS
-	if (lights->count) vprintf("Processed %llu lights.\n", lights->count / 3);
+	if (lights->count) vprintf("Processed %" PRIu64 " lights.\n", lights->count / 3);
 	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_UNSIGNED_INT3, lights->count / 3, &buffer);
 	copyToBufferi(context, buffer, lights);
 	applyContextObject(context, "lindex_buffer", buffer);
@@ -859,14 +859,14 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	free(lights);
 #endif
 
-	if (sources->count) vprintf("Processed %llu sources.\n", sources->count);
+	if (sources->count) vprintf("Processed %" PRIu64 " sources.\n", sources->count);
 	createCustomBuffer1D(context, RT_BUFFER_INPUT, sizeof(DistantLight), sources->count, &buffer);
 	copyToBufferdl(context, buffer, sources);
 	applyContextObject(context, "lights", buffer);
 	freeArraydl(sources);
 	free(sources);
 
-	if (functions->count) vprintf("Processed %llu functions.\n", functions->count);
+	if (functions->count) vprintf("Processed %" PRIu64 " functions.\n", functions->count);
 	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_PROGRAM_ID, functions->count, &buffer);
 	copyToBufferi(context, buffer, functions);
 	applyContextObject(context, "functions", buffer);
@@ -874,7 +874,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	free(functions);
 
 	geometry_clock = clock() - geometry_clock;
-	mprintf("Geometry build time: %llu milliseconds for %i objects.\n", geometry_clock * 1000uLL / CLOCKS_PER_SEC, nobjects);
+	mprintf("Geometry build time: %" PRIu64 " milliseconds for %i objects.\n", MILLISECONDS(geometry_clock), nobjects);
 	return;
 memerr:
 	error(SYSTEM, "out of memory in createGeometryInstance");
@@ -1506,7 +1506,7 @@ static RTmaterial createGlassMaterial( const RTcontext context, const OBJREC* re
 #endif
 	applyMaterialVariable3f( context, material, "color", rec->oargs.farg[0], rec->oargs.farg[1], rec->oargs.farg[2] );
 	if (rec->oargs.nfargs > 3)
-		applyMaterialVariable1f( context, material, "rindex", rec->oargs.farg[3] );
+		applyMaterialVariable1f( context, material, "r_index", rec->oargs.farg[3] );
 
 	return material;
 }

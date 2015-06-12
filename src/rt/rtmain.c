@@ -19,6 +19,16 @@ static const char	RCSid[] = "$Id$";
 #include  "paths.h"
 #include  "pmapray.h"
 
+#ifdef ACCELERAD
+#include <inttypes.h>
+
+#ifdef _WIN32
+#define MILLISECONDS(c)	c * 1000uLL / CLOCKS_PER_SEC
+#else
+#define MILLISECONDS(c)	c * 1000uL / CLOCKS_PER_SEC
+#endif
+#endif
+
 extern char	*progname;		/* global argv[0] */
 
 extern char	*shm_boundary;		/* boundary of shared memory */
@@ -464,9 +474,9 @@ runagain:
 	rtrace_clock = clock() - rtrace_clock;
 	rtrace_time = time((time_t *)NULL) - rtrace_time;
 	if (llabs(rtrace_clock / CLOCKS_PER_SEC - rtrace_time) <= 1)
-		sprintf(errmsg, "ray tracing time: %llu milliseconds (%llu seconds).\n", rtrace_clock * 1000uLL / CLOCKS_PER_SEC, rtrace_time);
+		sprintf(errmsg, "ray tracing time: %" PRIu64 " milliseconds (%" PRIu64 " seconds).\n", MILLISECONDS(rtrace_clock), rtrace_time);
 	else
-		sprintf(errmsg, "ray tracing time: %llu seconds.\n", rtrace_time);
+		sprintf(errmsg, "ray tracing time: %" PRIu64 " seconds.\n", rtrace_time);
 	mputs(errmsg);
 #endif
 					/* flush ambient file */

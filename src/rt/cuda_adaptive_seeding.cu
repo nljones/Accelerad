@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <inttypes.h>
 
 #include "kmeans.h"
 
@@ -536,7 +537,7 @@ void __cdecl cuda_score_hits(PointDirection *hits, int *seeds, const unsigned in
 		err("Your CUDA hardware has insufficient block size %u threads (%u x %u blocks needed). Recompile with MULTI_BLOCK flag.", deviceProp.maxThreadsPerBlock, blocksX, blocksY);
 #endif
 	if (blockSharedMemorySize > deviceProp.sharedMemPerBlock)
-		err("Your CUDA hardware has insufficient block shared memory %llu (%llu needed).", deviceProp.sharedMemPerBlock, blockSharedMemorySize);
+		err("Your CUDA hardware has insufficient block shared memory %" PRIu64 " (%" PRIu64 " needed).", deviceProp.sharedMemPerBlock, blockSharedMemorySize);
 
 	const dim3 dimGrid(blocksX, blocksY);
 	const dim3 dimBlock(blockDim, blockDim);
@@ -610,17 +611,17 @@ static void printDevProp(const cudaDeviceProp *devProp)
 {
 	fprintf(stderr, "Revision number:                    %d.%d\n", devProp->major, devProp->minor);
 	fprintf(stderr, "Name:                               %s\n", devProp->name);
-	fprintf(stderr, "Total global memory:                %llu bytes\n", devProp->totalGlobalMem);
-	fprintf(stderr, "Total constant memory:              %llu bytes\n", devProp->totalConstMem);
+	fprintf(stderr, "Total global memory:                %" PRIu64 " bytes\n", devProp->totalGlobalMem);
+	fprintf(stderr, "Total constant memory:              %" PRIu64 " bytes\n", devProp->totalConstMem);
 	fprintf(stderr, "L2 cache size:                      %u bytes\n", devProp->l2CacheSize);
 	fprintf(stderr, "Maximum threads per block:          %d\n", devProp->maxThreadsPerBlock);
-	fprintf(stderr, "Shared memory per block:            %llu bytes\n", devProp->sharedMemPerBlock);
+	fprintf(stderr, "Shared memory per block:            %" PRIu64 " bytes\n", devProp->sharedMemPerBlock);
 	fprintf(stderr, "Registers per block:                %d\n", devProp->regsPerBlock);
 	fprintf(stderr, "Maximum threads per multiprocessor: %d\n", devProp->maxThreadsPerMultiProcessor);
-	fprintf(stderr, "Shared mem per multiprocessor:      %llu bytes\n", devProp->sharedMemPerMultiprocessor);
+	fprintf(stderr, "Shared mem per multiprocessor:      %" PRIu64 " bytes\n", devProp->sharedMemPerMultiprocessor);
 	fprintf(stderr, "Registers per multiprocessor:       %d\n", devProp->regsPerMultiprocessor);
 	fprintf(stderr, "Warp size:                          %d\n", devProp->warpSize);
-	fprintf(stderr, "Maximum memory pitch:               %llu bytes\n", devProp->memPitch);
+	fprintf(stderr, "Maximum memory pitch:               %" PRIu64 " bytes\n", devProp->memPitch);
 	for (int i = 0; i < 3; ++i)
 		fprintf(stderr, "Maximum dimension %d of block:       %d\n", i, devProp->maxThreadsDim[i]);
 	for (int i = 0; i < 3; ++i)
@@ -628,8 +629,8 @@ static void printDevProp(const cudaDeviceProp *devProp)
 	fprintf(stderr, "Global memory bus width:            %d bits\n", devProp->memoryBusWidth);
 	fprintf(stderr, "Peak memory clock frequency:        %d kHz\n", devProp->memoryClockRate);
 	fprintf(stderr, "Clock rate:                         %d kHz\n", devProp->clockRate);
-	fprintf(stderr, "Texture alignment:                  %u\n", devProp->textureAlignment);
-	fprintf(stderr, "Texture pitch alignment:            %u\n", devProp->texturePitchAlignment);
+	fprintf(stderr, "Texture alignment:                  %" PRIu64 "\n", devProp->textureAlignment);
+	fprintf(stderr, "Texture pitch alignment:            %" PRIu64 "\n", devProp->texturePitchAlignment);
 	fprintf(stderr, "Concurrent kernels:                 %s\n", devProp->concurrentKernels ? "Yes" : "No");
 	fprintf(stderr, "Concurrent copy and execution:      %s\n", devProp->deviceOverlap ? "Yes" : "No");
 	fprintf(stderr, "Number of async engines:            %d\n", devProp->asyncEngineCount);

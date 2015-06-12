@@ -23,7 +23,7 @@ rtDeclareVariable(int,          maxdepth, , ); /* maximum recursion depth */
 #ifdef HIT_TYPE
 rtDeclareVariable(unsigned int, type, , ); /* The material type representing "glass" or "dielectric" */
 #endif
-rtDeclareVariable(float,        rindex, , ) = 1.52f; /* Refractive index, usually 1.52 */
+rtDeclareVariable(float,        r_index, , ) = 1.52f; /* Refractive index, usually 1.52 */
 rtDeclareVariable(float3,       color, , ); /* The material color given by the rad file "glass" object */
 
 /* OptiX variables */
@@ -72,15 +72,15 @@ RT_PROGRAM void closest_hit_shadow()
 	}
 
 	/* angular transmission */
-	float cos2 = sqrtf( 1.0f + ( pdot * pdot - 1.0f ) / ( rindex * rindex ) );
+	float cos2 = sqrtf(1.0f + (pdot * pdot - 1.0f) / (r_index * r_index));
 	//if (hastrans) {
 	mcolor = make_float3( powf( mcolor.x, 1.0f / cos2 ), powf( mcolor.y, 1.0f / cos2 ), powf( mcolor.z, 1.0f / cos2 ) );
 	//}
 
 	/* compute reflection */
-	float r1e = (pdot - rindex*cos2) / (pdot + rindex*cos2);
+	float r1e = (pdot - r_index * cos2) / (pdot + r_index * cos2);
 	r1e *= r1e;
-	float r1m = (1.0f/pdot - rindex/cos2) / (1.0f/pdot + rindex/cos2);
+	float r1m = (1.0f / pdot - r_index / cos2) / (1.0f / pdot + r_index / cos2);
 	r1m *= r1m;
 
 	/* compute transmission */
@@ -147,15 +147,15 @@ RT_PROGRAM void closest_hit_radiance()
 	}
 
 	/* angular transmission */
-	float cos2 = sqrtf( 1.0f + ( pdot * pdot - 1.0f ) / ( rindex * rindex ) );
+	float cos2 = sqrtf(1.0f + (pdot * pdot - 1.0f) / (r_index * r_index));
 	if (hastrans) {
 		mcolor = make_float3( powf( mcolor.x, 1.0f / cos2 ), powf( mcolor.y, 1.0f / cos2 ), powf( mcolor.z, 1.0f / cos2 ) );
 	}
 
 	/* compute reflection */
-	float r1e = (pdot - rindex*cos2) / (pdot + rindex*cos2);
+	float r1e = (pdot - r_index * cos2) / (pdot + r_index * cos2);
 	r1e *= r1e;
-	float r1m = (1.0f/pdot - rindex/cos2) / (1.0f/pdot + rindex/cos2);
+	float r1m = (1.0f / pdot - r_index / cos2) / (1.0f / pdot + r_index / cos2);
 	r1m *= r1m;
 
 	/* compute transmission */
@@ -179,7 +179,7 @@ RT_PROGRAM void closest_hit_radiance()
 			float3 R = ray.direction;
 
 			if (!new_prd.ambient_depth && hastexture) {
-				R = normalize(ray.direction + pert * (2.0f * (1.0f - rindex)));
+				R = normalize(ray.direction + pert * (2.0f * (1.0f - r_index)));
 				if (isnan(R))
 					R = ray.direction;
 			} else {
