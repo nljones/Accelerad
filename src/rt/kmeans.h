@@ -88,9 +88,15 @@ extern "C" {
 	checkCuda(cudaGetLastError())
 #endif
 
+#ifdef __cplusplus
+#define CCALL __cdecl
+#else
+#define CCALL
+#endif
+
 //float** omp_kmeans(int, float**, int, int, int, float, int*);
 //float** seq_kmeans(float**, int, int, int, float, int*, int*);
-float** __cdecl cuda_kmeans(float**, int, int, int, int, float,
+float** CCALL cuda_kmeans(float**, int, int, int, int, float,
 #ifdef IC_WEIGHT
 	float,
 #endif
@@ -111,7 +117,7 @@ float** __cdecl cuda_kmeans(float**, int, int, int, int, float,
 //
 //extern int _debug;
 
-void __cdecl cuda_score_hits(PointDirection *hits, int *seeds, const unsigned int width, const unsigned int height, const float weight, const unsigned int seed_count);
+void CCALL cuda_score_hits(PointDirection *hits, int *seeds, const unsigned int width, const unsigned int height, const float weight, const unsigned int seed_count);
 
 #ifdef __cplusplus
 }

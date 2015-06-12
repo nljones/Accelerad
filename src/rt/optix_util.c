@@ -111,6 +111,20 @@ void runKernel3D( const RTcontext context, const unsigned int entry, const int w
 #endif
 }
 
+void printRayTracingTime(const time_t time, const clock_t clock)
+{
+	/* Check if warnings are printed */
+	if (!erract[WARNING].pf)
+		return;
+
+	/* Print the given elapsed time for ray tracing */
+	if (llabs(clock / CLOCKS_PER_SEC - time) <= 1)
+		sprintf(errmsg, "ray tracing time: %" PRIu64 " milliseconds (%" PRIu64 " seconds).\n", MILLISECONDS(clock), time);
+	else
+		sprintf(errmsg, "ray tracing time: %" PRIu64 " seconds.\n", time);
+	(*erract[WARNING].pf)(errmsg);
+}
+
 /* Helper functions */
 
 RTvariable applyContextVariable1i(const RTcontext context, const char* name, const int value)
@@ -501,14 +515,6 @@ void handleError( const RTcontext context, const RTresult code, const char* file
 	rtContextGetErrorString( context, code, &message ); // This function allows context to be null.
 	sprintf( errmsg, "%s\n(%s:%d)", message, file, line );
 	error( etype, errmsg );
-}
-
-/* Print a message if messages r */
-void mputs( const char* msg )
-{
-	/* Check if warnings are printed */
-	if (erract[WARNING].pf)
-		(*erract[WARNING].pf)(msg);
 }
 
 #ifdef DEBUG_OPTIX

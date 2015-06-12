@@ -117,7 +117,7 @@ typedef enum
 #endif
 
 /* TIMING */
-#ifdef _WIN32
+#ifdef _WIN64
 #define MILLISECONDS(c)	c * 1000uLL / CLOCKS_PER_SEC
 #else
 #define MILLISECONDS(c)	c * 1000uL / CLOCKS_PER_SEC
@@ -208,7 +208,6 @@ void initArraydl(DistantLightArray *a, const size_t initialSize);
 DistantLight insertArraydl(DistantLightArray *a, const DistantLight element);
 void freeArraydl(DistantLightArray *a);
 void handleError( const RTcontext context, const RTresult code, const char* file, const int line, const int etype );
-void mputs( const char* msg );
 #ifdef DEBUG_OPTIX
 void logException(const RTexception type);
 void flushExceptionLog(const char* location);

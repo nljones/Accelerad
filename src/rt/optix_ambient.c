@@ -3,8 +3,6 @@
  * Massachusetts Institute of Technology
  */
 
-#include <stdio.h>
-
 #include "ray.h" // required by ambient.h
 #include "ambient.h"
 

@@ -3,10 +3,6 @@
  * Massachusetts Institute of Technology
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include <standard.h> /* TODO just get the includes that are required? */
 #include <object.h>
 #include <otypes.h>

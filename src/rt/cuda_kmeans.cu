@@ -266,23 +266,23 @@ void compute_delta(unsigned int *deviceIntermediates,
 //  ----------------------------------------
 //
 /* return an array of cluster centers of size [numClusters][numCoords]       */
-float** __cdecl cuda_kmeans(float **objects,      /* in: [numObjs][numCoords] */
-							int     numCoords,    /* no. features */
-							int     numObjs,      /* no. objects */
-							int     numClusters,  /* no. clusters */
-							int     max_iterations,	/* maximum k-means iterations */
-							float   threshold,    /* % objects change membership */
+float** CCALL cuda_kmeans(float **objects,      /* in: [numObjs][numCoords] */
+						  int     numCoords,    /* no. features */
+						  int     numObjs,      /* no. objects */
+						  int     numClusters,  /* no. clusters */
+						  int     max_iterations,	/* maximum k-means iterations */
+						  float   threshold,    /* % objects change membership */
 #ifdef IC_WEIGHT
-							float   weight,       /* relative weighting of position */
+						  float   weight,       /* relative weighting of position */
 #endif
 #ifdef RANDOM_SEEDS
-							int     randomSeeds,  /* use randomly selected cluster centers (boolean) */
+						  int     randomSeeds,  /* use randomly selected cluster centers (boolean) */
 #endif
-							int    *membership,   /* out: [numObjs] */
+						  int    *membership,   /* out: [numObjs] */
 #ifdef RETURN_DISTANCE
-							float  *distance,     /* out: [numObjs] */
+						  float  *distance,     /* out: [numObjs] */
 #endif
-							int    *loop_iterations)
+						  int    *loop_iterations)
 {
 	int      i, j, index, step, loop=0;
 	int     *newClusterSize; /* [numClusters]: no. objects assigned in each

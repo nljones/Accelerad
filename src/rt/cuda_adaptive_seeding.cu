@@ -52,12 +52,12 @@ unsigned int valid_hit(const PointDirection& hit)
 	return optix::dot(hit.dir, hit.dir) > 0.0f && optix::dot(hit.pos, hit.pos) >= 0.0f;
 }
 
-static int __cdecl isPowerOfTwo(unsigned int x)
+static int CCALL isPowerOfTwo(unsigned int x)
 {
   return ((x != 0) && !(x & (x - 1)));
 }
 
-static unsigned int __cdecl calc_block_dim(const unsigned int maxThreadsPerBlock, const unsigned int levels)
+static unsigned int CCALL calc_block_dim(const unsigned int maxThreadsPerBlock, const unsigned int levels)
 {
 	unsigned int blockDim = 1u;
 	unsigned int size = maxThreadsPerBlock << 1;
@@ -423,7 +423,7 @@ void calc_score(float *error, int *seed, const unsigned int width, const unsigne
 }
 
 /* Calculate average of hits at each quad tree node */
-static void __cdecl cuda_mip_map_hits_recursive(PointDirection *deviceHits, PointDirection *deviceMipMap,
+static void CCALL cuda_mip_map_hits_recursive(PointDirection *deviceHits, PointDirection *deviceMipMap,
 	const unsigned int width, const unsigned int height, const unsigned int levels, const unsigned int maxThreadsPerBlock, dim3 dimGrid, dim3 dimBlock, size_t blockSharedMemorySize)
 {
 	/* Calculate average of hits at each quad tree node */
@@ -460,7 +460,7 @@ static void __cdecl cuda_mip_map_hits_recursive(PointDirection *deviceHits, Poin
 }
 
 /* Calculate average geometric variation for each quad tree node */
-static void __cdecl cuda_score_hits_recursive(float *deviceError, int *deviceSeeds,
+static void CCALL cuda_score_hits_recursive(float *deviceError, int *deviceSeeds,
 	const unsigned int width, const unsigned int height, unsigned int levels, const unsigned int scale, const unsigned int maxThreadsPerBlock, dim3 dimGrid, dim3 dimBlock)
 {
 	/* Perform reduction on error */
@@ -494,7 +494,7 @@ static void __cdecl cuda_score_hits_recursive(float *deviceError, int *deviceSee
 #endif /* MULTI_BLOCK */
 
 /* Score the relative need for an irradiance cache entry at each hit point */
-void __cdecl cuda_score_hits(PointDirection *hits, int *seeds, const unsigned int width, const unsigned int height, const float weight, const unsigned int seed_count)
+void CCALL cuda_score_hits(PointDirection *hits, int *seeds, const unsigned int width, const unsigned int height, const float weight, const unsigned int seed_count)
 {
 	PointDirection *deviceHits;
 #ifdef MULTI_BLOCK

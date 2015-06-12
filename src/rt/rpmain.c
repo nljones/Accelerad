@@ -20,15 +20,6 @@ static const char	RCSid[] = "$Id$";
 #include  "view.h"
 #include  "pmapray.h"
 
-#ifdef ACCELERAD
-#include <inttypes.h>
-
-#ifdef _WIN32
-#define MILLISECONDS(c)	c * 1000uLL / CLOCKS_PER_SEC
-#else
-#define MILLISECONDS(c)	c * 1000uL / CLOCKS_PER_SEC
-#endif
-#endif
 
 					/* persistent processes define */
 #ifdef  F_SETLKW
@@ -47,7 +38,7 @@ extern time_t  time();
 extern time_t  tstart;			/* start time */
 
 #ifdef ACCELERAD
-extern void mputs(const char* msg);
+extern void printRayTracingTime(const time_t time, const clock_t clock);
 
 extern double  ralrm;				/* seconds between reports */
 #else
@@ -378,11 +369,7 @@ runagain:
 #ifdef ACCELERAD
 	rpict_clock = clock() - rpict_clock;
 	rpict_time = time((time_t *)NULL) - rpict_time;
-	if (llabs(rpict_clock / CLOCKS_PER_SEC - rpict_time) <= 1)
-		sprintf(errmsg, "ray tracing time: %" PRIu64 " milliseconds (%" PRIu64 " seconds).\n", MILLISECONDS(rpict_clock), rpict_time);
-	else
-		sprintf(errmsg, "ray tracing time: %" PRIu64 " seconds.\n", rpict_time);
-	mputs(errmsg);
+	printRayTracingTime(rpict_time, rpict_clock);
 #endif
 					/* flush ambient file */
 	ambsync();

@@ -44,7 +44,11 @@ if(OptiX_USE)
   # Suggest a path to the OptiX SDK directory.
   # This line is taken from FindOptiX.cmake,
   # located in C:\ProgramData\NVIDIA Corporation\OptiX SDK 3.8.0\SDK\CMake.
-  set(OptiX_INSTALL_DIR "C:/ProgramData/NVIDIA Corporation/OptiX SDK 3.8.0" CACHE PATH "Path to OptiX installed location.")
+  if(WIN32)
+    set(OptiX_INSTALL_DIR "C:/ProgramData/NVIDIA Corporation/OptiX SDK 3.8.0" CACHE PATH "Path to OptiX installed location.")
+  else()
+    set(OptiX_INSTALL_DIR "~/NVIDIA-OptiX-SDK-3.8.0-linux64" CACHE PATH "Path to OptiX installed location.")
+  endif()
 
   # Add OptiX CMake files to the module path
   set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${OptiX_INSTALL_DIR}/SDK/CMake)
@@ -116,15 +120,16 @@ if(OptiX_USE)
     point_cloud_normal.cu hemisphere_generator.cu)
 
   # Include source wrappers for OptiX and CUDA.
+  # The empty blank.cpp file forces g++ to be used as the linker on Linux.
   set(ACCELERAD_LIBRARY accelerad)
-  add_library(${ACCELERAD_LIBRARY} optix_radiance.c optix_ambient.c optix_util.c ${generated_CUDA_files} ${generated_PTX_files})
+  add_library(${ACCELERAD_LIBRARY} optix_radiance.c optix_ambient.c optix_util.c blank.cpp ${generated_CUDA_files} ${generated_PTX_files})
 endif()
 
 add_executable(rtrace rtmain.c rtrace.c duphead.c persist.c ${generated_PTX_files_rtrace})
-target_link_libraries(rtrace raycalls radiance rtrad ${ACCELERAD_LIBRARY} ${optix_LIBRARY} ${CUDA_CUDART_LIBRARY})
+target_link_libraries(rtrace ${ACCELERAD_LIBRARY} ${optix_LIBRARY} ${CUDA_CUDART_LIBRARY} raycalls radiance rtrad)
 
 add_executable(rpict rpmain.c rpict.c srcdraw.c duphead.c persist.c ${generated_PTX_files_rpict})
-target_link_libraries(rpict radiance rtrad ${ACCELERAD_LIBRARY} ${optix_LIBRARY} ${CUDA_CUDART_LIBRARY})
+target_link_libraries(rpict ${ACCELERAD_LIBRARY} ${optix_LIBRARY} ${CUDA_CUDART_LIBRARY} radiance rtrad)
 
 add_executable(lookamb lookamb.c ambio.c)
 target_link_libraries(lookamb rtrad)
