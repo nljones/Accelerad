@@ -564,7 +564,7 @@ void printException(const RTexception type, const int count, const char* locatio
 	if (count > 1)
 		sprintf(times, " %i times", count);
 	else
-		sprintf(times, "");
+		times[0] = '\0'; // Empty string
 
 	if (type < RT_EXCEPTION_USER) {
 		char* msg;

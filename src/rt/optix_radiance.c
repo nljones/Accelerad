@@ -53,27 +53,27 @@ static void applyRadianceSettings(const RTcontext context, const VIEW* view, con
 static void createCamera( const RTcontext context, const VIEW* view );
 static void updateCamera( const RTcontext context, const VIEW* view );
 static void createGeometryInstance( const RTcontext context, RTgeometryinstance* instance );
-static void addRadianceObject(const RTcontext context, const OBJREC* rec, const OBJREC* parent, const OBJECT index);
-static void createFace(const OBJREC* rec, const OBJREC* parent);
-static __inline void createTriangle(const OBJREC *material, const int a, const int b, const int c);
+static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* parent, const OBJECT index);
+static void createFace(OBJREC* rec, OBJREC* parent);
+static __inline void createTriangle(OBJREC *material, const int a, const int b, const int c);
 #ifdef TRIANGULATE
-static int createTriangles(const FACE *face, const OBJREC* material);
+static int createTriangles(const FACE *face, OBJREC* material);
 static int addTriangle(const Vert2_list *tp, int a, int b, int c);
 #endif /* TRIANGULATE */
-static void createSphere(const OBJREC* rec, const OBJREC* parent);
-static void createCone(const OBJREC* rec, const OBJREC* parent);
-static void createMesh(const OBJREC* rec, const OBJREC* parent);
-static RTmaterial createNormalMaterial( const RTcontext context, const OBJREC* rec );
-static RTmaterial createGlassMaterial( const RTcontext context, const OBJREC* rec );
+static void createSphere(OBJREC* rec, OBJREC* parent);
+static void createCone(OBJREC* rec, OBJREC* parent);
+static void createMesh(OBJREC* rec, OBJREC* parent);
+static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec);
+static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec);
 static RTmaterial createLightMaterial( const RTcontext context, OBJREC* rec );
-static DistantLight createDistantLight( const RTcontext context, const OBJREC* rec, const OBJREC* parent );
+static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, OBJREC* parent);
 static OBJREC* findFunction(OBJREC *o);
-static int createFunction( const RTcontext context, const OBJREC* rec );
-static int createTexture( const RTcontext context, const OBJREC* rec );
+static int createFunction(const RTcontext context, OBJREC* rec);
+static int createTexture(const RTcontext context, OBJREC* rec);
 static int createTransform( XF* fxp, XF* bxp, const OBJREC* rec );
 static void createAcceleration(const RTcontext context, const RTgeometryinstance instance, const unsigned int imm_irrad);
 static void createIrradianceGeometry( const RTcontext context );
-static void printObject(const OBJREC* rec);
+static void printObject(OBJREC* rec);
 static void getRay( RayData* data, const RAY* ray );
 static void setRay( RAY* ray, const RayData* data );
 
@@ -876,7 +876,7 @@ memerr:
 	error(SYSTEM, "out of memory in createGeometryInstance");
 }
 
-static void addRadianceObject(const RTcontext context, const OBJREC* rec, const OBJREC* parent, const OBJECT index)
+static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* parent, const OBJECT index)
 {
 	switch (rec->otype) {
 	case MAT_PLASTIC: // Plastic material
@@ -959,7 +959,7 @@ static void addRadianceObject(const RTcontext context, const OBJREC* rec, const 
 	}
 }
 
-static void createFace(const OBJREC* rec, const OBJREC* parent)
+static void createFace(OBJREC* rec, OBJREC* parent)
 {
 	int j, k;
 	FACE* face = getface(rec);
@@ -1046,7 +1046,7 @@ facedone:
 	freeface(rec);
 }
 
-static __inline void createTriangle(const OBJREC *material, const int a, const int b, const int c)
+static __inline void createTriangle(OBJREC *material, const int a, const int b, const int c)
 {
 	/* Write the indices to the buffers */
 	insertArray3i(vertex_indices, a, b, c);
@@ -1060,7 +1060,7 @@ static __inline void createTriangle(const OBJREC *material, const int a, const i
 
 #ifdef TRIANGULATE
 /* Generate list of triangle vertex indices from triangulation of face */
-static int createTriangles(const FACE *face, const OBJREC *material)
+static int createTriangles(const FACE *face, OBJREC *material)
 {
 	if (face->nv == 3) {	/* simple case */
 		createTriangle(material, vertex_index_0, vertex_index_0 + 1, vertex_index_0 + 2);
@@ -1098,7 +1098,7 @@ static int addTriangle( const Vert2_list *tp, int a, int b, int c )
 }
 #endif /* TRIANGULATE */
 
-static void createSphere(const OBJREC* rec, const OBJREC* parent)
+static void createSphere(OBJREC* rec, OBJREC* parent)
 {
 	unsigned int i, j, steps;
 	int direction;
@@ -1115,13 +1115,13 @@ static void createSphere(const OBJREC* rec, const OBJREC* parent)
 	initArrayf(sph_vertices, 18u);
 
 	insertArray3i(sph_vertex_indices, 0, 2, 4);
-    insertArray3i(sph_vertex_indices, 2, 1, 4);
-    insertArray3i(sph_vertex_indices, 1, 3, 4);
-    insertArray3i(sph_vertex_indices, 3, 0, 4);
-    insertArray3i(sph_vertex_indices, 0, 5, 2);
-    insertArray3i(sph_vertex_indices, 2, 5, 1);
-    insertArray3i(sph_vertex_indices, 1, 5, 3);
-    insertArray3i(sph_vertex_indices, 3, 5, 0);
+	insertArray3i(sph_vertex_indices, 2, 1, 4);
+	insertArray3i(sph_vertex_indices, 1, 3, 4);
+	insertArray3i(sph_vertex_indices, 3, 0, 4);
+	insertArray3i(sph_vertex_indices, 0, 5, 2);
+	insertArray3i(sph_vertex_indices, 2, 5, 1);
+	insertArray3i(sph_vertex_indices, 1, 5, 3);
+	insertArray3i(sph_vertex_indices, 3, 5, 0);
 
 	insertArray3f(sph_vertices, 1.0f, 0.0f, 0.0f);
 	insertArray3f(sph_vertices,-1.0f, 0.0f, 0.0f);
@@ -1201,7 +1201,7 @@ sphmemerr:
 	error(SYSTEM, "out of memory in createSphere");
 }
 
-static void createCone(const OBJREC* rec, const OBJREC* parent)
+static void createCone(OBJREC* rec, OBJREC* parent)
 {
 	unsigned int i, j, isCone, steps;
 	int direction;
@@ -1283,7 +1283,7 @@ static void createCone(const OBJREC* rec, const OBJREC* parent)
 	freecone(rec);
 }
 
-static void createMesh(const OBJREC* rec, const OBJREC* parent)
+static void createMesh(OBJREC* rec, OBJREC* parent)
 {
 	int j, k;
 	OBJREC* material;
@@ -1360,7 +1360,7 @@ static void createMesh(const OBJREC* rec, const OBJREC* parent)
 	freemeshinst(rec);
 }
 
-static RTmaterial createNormalMaterial( const RTcontext context, const OBJREC* rec )
+static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec)
 {
 	RTmaterial material;
 
@@ -1465,7 +1465,7 @@ static RTmaterial createNormalMaterial( const RTcontext context, const OBJREC* r
 	return material;
 }
 
-static RTmaterial createGlassMaterial( const RTcontext context, const OBJREC* rec )
+static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec)
 {
 	RTmaterial material;
 
@@ -1560,7 +1560,7 @@ static RTmaterial createLightMaterial( const RTcontext context, OBJREC* rec )
 	return material;
 }
 
-static DistantLight createDistantLight( const RTcontext context, const OBJREC* rec, const OBJREC* parent )
+static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, OBJREC* parent)
 {
 	SRCREC source;
 	OBJREC* material;
@@ -1568,12 +1568,8 @@ static DistantLight createDistantLight( const RTcontext context, const OBJREC* r
 
 	ssetsrc(&source, rec);
 	material = findmaterial(parent);
-	light.color.x = material->oargs.farg[0]; // TODO these are given in RGB radiance value (watts/steradian/m2)
-	light.color.y = material->oargs.farg[1];
-	light.color.z = material->oargs.farg[2];
-	light.pos.x   = source.sloc[0];
-	light.pos.y   = source.sloc[1];
-	light.pos.z   = source.sloc[2];
+	array2cuda3(light.color, material->oargs.farg); // TODO these are given in RGB radiance value (watts/steradian/m2)
+	array2cuda3(light.pos, source.sloc);
 	light.solid_angle = source.ss2;
 	light.casts_shadow = material->otype != MAT_GLOW; // Glow cannot cast shadow infinitely far away
 
@@ -1610,7 +1606,7 @@ static OBJREC* findFunction(OBJREC *o)
 	return(o);		/* mixtures will return NULL */
 }
 
-static int createFunction( const RTcontext context, const OBJREC* rec )
+static int createFunction(const RTcontext context, OBJREC* rec)
 {
 	RTprogram program;
 	int program_id = RT_PROGRAM_ID_NULL;
@@ -1665,7 +1661,7 @@ static int createFunction( const RTcontext context, const OBJREC* rec )
 	return program_id;
 }
 
-static int createTexture( const RTcontext context, const OBJREC* rec )
+static int createTexture(const RTcontext context, OBJREC* rec)
 {
 	RTprogram        program;
 	RTtexturesampler tex_sampler;
@@ -1868,7 +1864,7 @@ static void createIrradianceGeometry( const RTcontext context )
 	RT_CHECK_ERROR( rtAccelerationMarkDirty( acceleration ) );
 }
 
-static void printObject(const OBJREC* rec)
+static void printObject(OBJREC* rec)
 {
 	unsigned int i;
 
@@ -1895,8 +1891,7 @@ static void getRay( RayData* data, const RAY* ray )
 	//array2cuda3( data->pnorm, ray->pert );
 	//array2cuda3( data->normal, ray->ron );
 
-	//data->tex.x = ray->uv[0];
-	//data->tex.y = ray->uv[1];
+	//array2cuda2(data->tex, ray->uv);
 	data->max = ray->rmax;
 	data->weight = ray->rweight;
 	data->length = ray->rt;
@@ -1914,8 +1909,7 @@ static void setRay( RAY* ray, const RayData* data )
 	//cuda2array3( ray->pert, data->pnorm );
 	//cuda2array3( ray->ron, data->normal );
 
-	//ray->uv[0] = data->tex.x;
-	//ray->uv[1] = data->tex.y;
+	//cuda2array2(ray->uv, data->tex);
 	ray->rmax = data->max;
 	ray->rweight = data->weight;
 	ray->rt = data->length;

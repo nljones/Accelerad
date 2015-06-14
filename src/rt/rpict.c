@@ -183,7 +183,6 @@ int  code;
 void
 #else
 static void
-
 #endif
 report(int dummy)		/* report progress */
 {
