@@ -57,6 +57,41 @@ free_load(MEMLOAD *mp)
 	mp->len = 0;
 }
 
+/* load memory from an input stream, starting from current position */
+static int
+load_stream(MEMLOAD *mp, FILE *fp)
+{
+	size_t	alloced = 0;
+	char	buf[8192];
+	size_t	nr;
+
+	if (mp == NULL)
+		return(-1);
+	mp->base = NULL;
+	mp->len = 0;
+	mp->mapped = 0;
+	if (fp == NULL)
+		return(-1);
+	while ((nr = fread(buf, 1, sizeof(buf), fp)) > 0) {
+		if (!alloced)
+			mp->base = malloc(alloced = nr);
+		else if (mp->len+nr > alloced)
+			mp->base = realloc(mp->base,
+				alloced = alloced*(2+(nr==sizeof(buf)))/2+nr);
+		if (mp->base == NULL)
+			return(-1);
+		memcpy((char *)mp->base + mp->len, buf, nr);
+		mp->len += nr;
+	}
+	if (ferror(fp)) {
+		free_load(mp);
+		return(-1);
+	}
+	if (alloced > mp->len*5/4)	/* don't waste too much space */
+		mp->base = realloc(mp->base, mp->len);
+	return(mp->len > 0);
+}
+
 /* load a file into memory */
 static int
 load_file(MEMLOAD *mp, FILE *fp)
@@ -64,6 +99,9 @@ load_file(MEMLOAD *mp, FILE *fp)
 	int	fd;
 	off_t	skip, flen;
 
+#ifdef _WIN32				/* too difficult to fix this */
+	return load_stream(mp, fp);
+#endif
 	if (mp == NULL)
 		return(-1);
 	mp->base = NULL;
@@ -97,41 +135,6 @@ load_file(MEMLOAD *mp, FILE *fp)
 		return(-1);
 	}
 	return(1);
-}
-
-/* load memory from an input stream, starting from current position */
-static int
-load_stream(MEMLOAD *mp, FILE *fp)
-{
-	size_t	alloced = 0;
-	char	buf[8192];
-	size_t	nr;
-
-	if (mp == NULL)
-		return(-1);
-	mp->base = NULL;
-	mp->len = 0;
-	mp->mapped = 0;
-	if (fp == NULL)
-		return(-1);
-	while ((nr = fread(buf, 1, sizeof(buf), fp)) > 0) {
-		if (!alloced)
-			mp->base = malloc(nr);
-		else if (mp->len+nr > alloced)
-			mp->base = realloc(mp->base,
-				alloced = alloced*(2+(nr==sizeof(buf)))/2+nr);
-		if (mp->base == NULL)
-			return(-1);
-		memcpy((char *)mp->base + mp->len, buf, nr);
-		mp->len += nr;
-	}
-	if (ferror(fp)) {
-		free_load(mp);
-		return(-1);
-	}
-	if (alloced > mp->len*5/4)	/* don't waste too much space */
-		mp->base = realloc(mp->base, mp->len);
-	return(mp->len > 0);
 }
 
 /* free a record index */

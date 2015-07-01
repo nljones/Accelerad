@@ -132,6 +132,10 @@ extern unsigned int cuda_kmeans_clusters;		/* Number of clusters of ambient for 
 extern unsigned int cuda_kmeans_iterations;		/* Maximum number of k-means iterations */
 extern float cuda_kmeans_threshold;				/* Fraction of seeds that must change cluster to continue k-means iteration */
 extern float cuda_kmeans_error;					/* Weighting of position in k-means error */
+
+/* For OptiX remote VCA access */
+extern unsigned int optix_remote_nodes;	/* Number of VCA nodes to request */
+extern char *optix_remote_url, *optix_remote_user, *optix_remote_password;	/* VCA device parameters */
 #endif
 
 extern double	dstrsrc;	/* square source distribution */

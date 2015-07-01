@@ -31,6 +31,12 @@ unsigned int cuda_kmeans_clusters = 4096u;		/* Number of clusters of ambient for
 unsigned int cuda_kmeans_iterations = 100u;		/* Maximum number of k-means iterations (-am) */
 float cuda_kmeans_threshold = 0.05f;			/* Fraction of seeds that must change cluster to continue k-means iteration (-at) */
 float cuda_kmeans_error = 1.0f;					/* Weighting of position in k-means error (-ax) */
+
+/* For OptiX remote VCA access */
+unsigned int optix_remote_nodes = 0u;	/* Number of VCA nodes to request */
+char *optix_remote_url = NULL;			/* URL to VCA */
+char *optix_remote_user = NULL;			/* User name for VCA access */
+char *optix_remote_password = NULL;		/* User password for VCA access */
 #endif
 
 int
@@ -72,6 +78,16 @@ getrenderopt(		/* get next render option */
 		optix_stack_size = atoi(av[1]);
 		use_optix = optix_stack_size > 0;
 		return(1);
+	case 'v':				/* Remote VCA */
+		if (av[0][2] == 'c' && av[0][3] == 'a') {
+			check(4, "s");
+			optix_remote_url = av[1];
+			optix_remote_user = av[2];
+			optix_remote_password = av[3];
+			optix_remote_nodes = atoi(av[4]);
+			return(4);
+		}
+		break;
 #endif
 	case 'd':				/* direct */
 		switch (av[0][2]) {

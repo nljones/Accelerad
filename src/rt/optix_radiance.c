@@ -17,6 +17,14 @@
 
 #include "optix_radiance.h"
 
+/* Needed for sleep while waiting for VCA */
+#ifdef _WIN32
+#include <windows.h>
+#define sleep(s) Sleep(s*1000)
+#else
+#include <unistd.h>
+#endif
+
 #define TRIANGULATE
 #ifdef TRIANGULATE
 #include "triangulate.h"
@@ -43,6 +51,7 @@ void computeOptix(const int width, const int height, const unsigned int imm_irra
 void endOptix();
 
 static void checkDevices();
+static void checkRemoteDevice(RTremotedevice remote);
 static void createContext( RTcontext* context, const int width, const int height, const double alarm );
 static void destroyContext(const RTcontext context);
 #ifdef DAYSIM_COMPATIBLE
@@ -96,6 +105,7 @@ RTvariable navsum_var = NULL;
 
 /* Handles to objects used repeatedly in animation */
 static unsigned int frame = 0u;
+static RTremotedevice remote_handle = NULL;
 static RTcontext context_handle = NULL;
 static RTbuffer buffer_handle = NULL;
 #ifdef RAY_COUNT
@@ -169,7 +179,6 @@ void renderOptix(const VIEW* view, const int width, const int height, const doub
 
 	if ( context_handle == NULL ) {
 		/* Setup state */
-		checkDevices();
 		createContext( &context, width, height, alarm );
 
 		/* Render result buffer */
@@ -244,7 +253,7 @@ void renderOptix(const VIEW* view, const int width, const int height, const doub
 #endif
 
 	/* Clean up */
-	//RT_CHECK_ERROR( rtContextDestroy( context ) );
+	//destroyContext(context);
 }
 
 /**
@@ -272,7 +281,6 @@ void computeOptix(const int width, const int height, const unsigned int imm_irra
 		error(USER, "Number of points is zero or not set.");
 
 	/* Setup state */
-	checkDevices();
 	createContext( &context, width, height, alarm );
 	
 	/* Input/output buffer */
@@ -433,8 +441,41 @@ static void checkDevices()
 	mprintf("\n");
 }
 
+static void checkRemoteDevice(RTremotedevice remote)
+{
+	char s[256];
+	int i, j;
+	RTsize size;
+
+	rtGetVersion(&i);
+	mprintf("OptiX %i logged into %s as %s\n", i, optix_remote_url, optix_remote_user);
+	rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_NAME, sizeof(char), &s);
+	mprintf("VCA Name:                 %s\n", s);
+	rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_NUM_GPUS, sizeof(int), &i);
+	mprintf("Number of GPUs:           %i\n", i);
+	rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_CLUSTER_URL, sizeof(s), &s);
+	mprintf("Cluster URL:              %s\n", s);
+	rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_HEAD_NODE_URL, sizeof(s), &s);
+	mprintf("Head node URL:            %s\n", s);
+	rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_NUM_CONFIGURATIONS, sizeof(int), &i);
+	mprintf("Number of configurations: %i\n", i);
+	for (j = 0; j < i; j++) {
+		rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_CONFIGURATIONS + j, sizeof(s), &s);
+		mprintf("Configuration %i:          %s\n", j, s);
+	}
+	rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_NUM_TOTAL_NODES, sizeof(int), &i);
+	mprintf("Number of nodes:          %i\n", i);
+	rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_NUM_FREE_NODES, sizeof(int), &i);
+	mprintf("Number of free nodes:     %i\n", i);
+	rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_NUM_RESERVED_NODES, sizeof(int), &i);
+	mprintf("Number of reserved nodes: %i\n", i);
+	rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_GPU_TOTAL_MEMORY, sizeof(RTsize), &size);
+	mprintf("Total memory size:        %" PRIu64 " bytes\n\n", size);
+}
+
 static void createContext( RTcontext* context, const int width, const int height, const double alarm )
 {
+	RTremotedevice remote;
 	//RTbuffer seed_buffer;
 
 	//unsigned int* seeds;
@@ -455,8 +496,34 @@ static void createContext( RTcontext* context, const int width, const int height
 			ray_type_count++; /* ambient ray */
 	}
 
+	/* Setup remote device */
+	if (optix_remote_nodes) {
+		RTremotedevicestatus ready;
+		int first = 1;
+
+		RT_CHECK_ERROR_NO_CONTEXT(rtRemoteDeviceCreate(optix_remote_url, optix_remote_user, optix_remote_password, &remote));
+		RT_CHECK_ERROR_NO_CONTEXT(rtRemoteDeviceReserve(remote, optix_remote_nodes, 0));
+
+		// Wait until the VCA is ready
+		mprintf("Waiting for %s", optix_remote_url);
+		do {
+			if (first)
+				first = 0;
+			else {
+				mprintf(".");
+				sleep(1); // poll once per second.
+			}
+			RT_CHECK_ERROR_NO_CONTEXT(rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_STATUS, sizeof(RTremotedevicestatus), &ready));
+		} while (ready != RT_REMOTEDEVICE_STATUS_READY);
+		mprintf("\n");
+		checkRemoteDevice(remote);
+		remote_handle = remote;
+	} else
+		checkDevices();
+
 	/* Setup context */
 	RT_CHECK_ERROR2( rtContextCreate( context ) );
+	if (optix_remote_nodes) RT_CHECK_ERROR2(rtContextSetRemoteDevice(*context, remote));
 	RT_CHECK_ERROR2( rtContextSetRayTypeCount( *context, ray_type_count ) );
 	RT_CHECK_ERROR2( rtContextSetEntryPointCount( *context, entry_point_count ) );
 
@@ -480,7 +547,7 @@ static void createContext( RTcontext* context, const int width, const int height
 	}
 
 #ifdef TIMEOUT_CALLBACK
-	if (alarm > 0)
+	if (!optix_remote_nodes && alarm > 0)
 		RT_CHECK_ERROR2( rtContextSetTimeoutCallback( *context, timeoutCallback, alarm ) );
 #endif
 
@@ -490,10 +557,12 @@ static void createContext( RTcontext* context, const int width, const int height
 #endif
 
 #ifdef PRINT_OPTIX
-	/* Enable message pringing */
-	RT_CHECK_ERROR2( rtContextSetPrintEnabled( *context, 1 ) );
-	RT_CHECK_ERROR2( rtContextSetPrintBufferSize( *context, 512 * width * height ) );
-	//RT_CHECK_ERROR2( rtContextSetPrintLaunchIndex( *context, width / 2, height / 2, -1 ) );
+	if (!optix_remote_nodes) {
+		/* Enable message pringing */
+		RT_CHECK_ERROR2( rtContextSetPrintEnabled( *context, 1 ) );
+		RT_CHECK_ERROR2( rtContextSetPrintBufferSize( *context, 512 * width * height ) );
+		//RT_CHECK_ERROR2( rtContextSetPrintLaunchIndex( *context, width / 2, height / 2, -1 ) );
+	}
 #endif
 
 #ifdef REPORT_GPU_STATE
@@ -509,6 +578,11 @@ static void createContext( RTcontext* context, const int width, const int height
 static void destroyContext(const RTcontext context)
 {
 	RT_CHECK_ERROR(rtContextDestroy(context));
+	if (remote_handle) {
+		rtRemoteDeviceRelease(remote_handle);
+		rtRemoteDeviceDestroy(remote_handle);
+		remote_handle = NULL;
+	}
 	avsum_var = navsum_var = NULL;
 }
 
