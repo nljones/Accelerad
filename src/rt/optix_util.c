@@ -27,10 +27,12 @@ extern double  pctdone;			/* percentage done */
 #ifdef REPORT_GPU_STATE
 void printContextInfo( const RTcontext context )
 {
-	int value;
+	int value, device_count, i;
 	RTsize size;
 
 	if ( !context ) return;
+
+	rtContextGetDeviceCount(context, &device_count);
 
 	//RT_CHECK_ERROR( rtContextGetRunningState( context, &value ) );
 	//mprintf("OptiX kernel running:             %s\n", value ? "Yes" : "No");
@@ -40,8 +42,10 @@ void printContextInfo( const RTcontext context )
 	mprintf("OptiX host CPU threads:           %i\n", value);
 	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_USED_HOST_MEMORY, sizeof(RTsize), &size ) );
 	mprintf("OptiX host memory allocated:      %" PRIu64 " bytes\n", size);
-	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_AVAILABLE_DEVICE_MEMORY, sizeof(RTsize), &size ) );
-	mprintf("OptiX free device memory:         %" PRIu64 " bytes\n", size);
+	for (i = 0; i < device_count; i++) {
+		RT_CHECK_ERROR(rtContextGetAttribute(context, RT_CONTEXT_ATTRIBUTE_AVAILABLE_DEVICE_MEMORY + i, sizeof(RTsize), &size));
+		mprintf("OptiX free memory on device %i:    %" PRIu64 " bytes\n", i, size);
+	}
 	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_GPU_PAGING_ACTIVE, sizeof(int), &value ) );
 	mprintf("OptiX software paging:            %s\n", value ? "Yes" : "No");
 	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_GPU_PAGING_FORCED_OFF, sizeof(int), &value ) ); // This can be set

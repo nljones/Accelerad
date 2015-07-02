@@ -80,7 +80,7 @@ getrenderopt(		/* get next render option */
 		return(1);
 	case 'v':				/* Remote VCA */
 		if (av[0][2] == 'c' && av[0][3] == 'a') {
-			check(4, "s");
+			check(4, "sssi");
 			optix_remote_url = av[1];
 			optix_remote_user = av[2];
 			optix_remote_password = av[3];

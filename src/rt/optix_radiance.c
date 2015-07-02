@@ -373,7 +373,7 @@ static void checkDevices()
 	rtGetVersion( &version );
 	rtDeviceGetDeviceCount( &device_count );
 	if (device_count) {
-		mprintf("OptiX %i found %i GPU device%s:\n", version, device_count, device_count > 1 ? "s" : "");
+		mprintf("OptiX %d.%d.%d found %i GPU device%s:\n", version / 1000, (version % 1000) / 10, version % 10, device_count, device_count > 1 ? "s" : "");
 	}
 	useable_device_count = device_count;
 #ifdef ACCELERAD_DEBUG
@@ -419,7 +419,7 @@ static void checkDevices()
 	}
 
 	if (!useable_device_count) {
-		sprintf(errmsg, "A supported GPU could not be found for OptiX %i.", version);
+		sprintf(errmsg, "A supported GPU could not be found for OptiX %d.%d.%d", version / 1000, (version % 1000) / 10, version % 10);
 		error(SYSTEM, errmsg);
 	}
 
@@ -448,7 +448,7 @@ static void checkRemoteDevice(RTremotedevice remote)
 	RTsize size;
 
 	rtGetVersion(&i);
-	mprintf("OptiX %i logged into %s as %s\n", i, optix_remote_url, optix_remote_user);
+	mprintf("OptiX %d.%d.%d logged into %s as %s\n", i / 1000, (i % 1000) / 10, i % 10, optix_remote_url, optix_remote_user);
 	rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_NAME, sizeof(char), &s);
 	mprintf("VCA Name:                 %s\n", s);
 	rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_NUM_GPUS, sizeof(int), &i);
