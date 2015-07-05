@@ -127,12 +127,6 @@ main(int  argc, char  *argv[])
 		}
 						/* rpict options */
 		switch (argv[i][1]) {
-#ifdef ACCELERAD_DEBUG
-		case 'n':				/* number of GPU devices */
-			check(2, "i");
-			optix_processors = atoi(argv[++i]);
-			break;
-#endif
 		case 'v':				/* view file */
 			if (argv[i][2] != 'f')
 				goto badopt;

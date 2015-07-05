@@ -147,9 +147,6 @@ static RTprogram point_cloud_closest_hit_program, point_cloud_any_hit_program;
 RTbuffer dc_scratch_buffer = NULL;
 #endif
 
-static unsigned int gpu_count = 0u;	/* number of discovered GPU devices */
-static int *gpus = NULL;			/* indices of discovered GPU devices */
-
 
 /**
  * Setup and run the OptiX kernel similar to RPICT.
@@ -355,7 +352,6 @@ void endOptix()
 
 /**
  * Check for supported GPU devices.
- * This should be called prior to any work with OptiX.
  */
 static void checkDevices()
 {
@@ -365,30 +361,10 @@ static void checkDevices()
 	unsigned int compute_capability[2];
 	char device_name[128];
 	RTsize memory_size;
-#ifdef PREFER_TCC
-	unsigned int tcc_count = 0u;
-	int *tcc;
-#endif
 
-	rtGetVersion( &version );
-	rtDeviceGetDeviceCount( &device_count );
-	if (device_count) {
-		mprintf("OptiX %d.%d.%d found %i GPU device%s:\n", version / 1000, (version % 1000) / 10, version % 10, device_count, device_count > 1 ? "s" : "");
-	}
-	useable_device_count = device_count;
-#ifdef ACCELERAD_DEBUG
-	allowed_device_count = (optix_processors && device_count > optix_processors) ? optix_processors : device_count;
-
-	if (allowed_device_count < device_count) {
-		gpu_count = 0u;
-		gpus = (int*)malloc(allowed_device_count * sizeof(int));
-	}
-#else
-	allowed_device_count = device_count;
-#endif
-#ifdef PREFER_TCC
-	tcc = (int*)malloc(allowed_device_count * sizeof(int));
-#endif
+	RT_CHECK_ERROR_NO_CONTEXT(rtGetVersion(&version));
+	RT_CHECK_ERROR_NO_CONTEXT(rtDeviceGetDeviceCount(&device_count)); // This will quit if no supported devices are found
+	mprintf("OptiX %d.%d.%d found %i GPU device%s:\n", version / 1000, (version % 1000) / 10, version % 10, device_count, device_count != 1 ? "s" : "");
 
 	for (i = 0; i < device_count; i++) {
 		rtDeviceGetAttribute( i, RT_DEVICE_ATTRIBUTE_NAME, sizeof(device_name), &device_name );
@@ -403,40 +379,7 @@ static void checkDevices()
 		rtDeviceGetAttribute( i, RT_DEVICE_ATTRIBUTE_CUDA_DEVICE_ORDINAL, sizeof(cuda_device), &cuda_device );
 		mprintf("Device %u: %s with %u multiprocessors, %u threads per block, %u kHz, %" PRIu64 " bytes global memory, %u hardware textures, compute capability %u.%u, timeout %sabled, Tesla compute cluster driver %sabled, cuda device %u.\n",
 			i, device_name, multiprocessor_count, threads_per_block, clock_rate, memory_size, texture_count, compute_capability[0], compute_capability[1], timeout_enabled ? "en" : "dis", tcc_driver ? "en" : "dis", cuda_device);
-
-		if (compute_capability[0] < 2u) {
-			useable_device_count--;
-			sprintf(errmsg, "Device %u has insufficient compute capability for OptiX callable programs.", i);
-			error(WARNING, errmsg);
-			continue;
-		}
-		if (gpus && gpu_count < allowed_device_count)
-			gpus[gpu_count++] = i;
-#ifdef PREFER_TCC
-		if (tcc_driver && tcc_count < allowed_device_count)
-			tcc[tcc_count++] = i;
-#endif
 	}
-
-	if (!useable_device_count) {
-		sprintf(errmsg, "A supported GPU could not be found for OptiX %d.%d.%d", version / 1000, (version % 1000) / 10, version % 10);
-		error(SYSTEM, errmsg);
-	}
-
-#ifdef PREFER_TCC
-	if (tcc_count) {
-		if (gpus) {
-			free(gpus);
-			gpus = NULL;
-		}
-		if (tcc_count < device_count) {
-			gpus = tcc;
-			gpu_count = tcc_count;
-		} else
-			free(tcc);
-	} else
-		free(tcc);
-#endif
 
 	mprintf("\n");
 }
@@ -447,7 +390,7 @@ static void checkRemoteDevice(RTremotedevice remote)
 	int i, j;
 	RTsize size;
 
-	rtGetVersion(&i);
+	RT_CHECK_ERROR_NO_CONTEXT(rtGetVersion(&i));
 	mprintf("OptiX %d.%d.%d logged into %s as %s\n", i / 1000, (i % 1000) / 10, i % 10, optix_remote_url, optix_remote_user);
 	rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_NAME, sizeof(char), &s);
 	mprintf("VCA Name:                 %s\n", s);
@@ -538,13 +481,6 @@ static void createContext( RTcontext* context, const int width, const int height
 	//	seeds[i] = rand();
 	//RT_CHECK_ERROR2( rtBufferUnmap( seed_buffer ) );
 	//applyContextObject( *context, "rnd_seeds", seed_buffer );
-
-	/* Devices to use */
-	if (gpu_count && gpus != NULL) {
-		RT_CHECK_ERROR2(rtContextSetDevices(*context, gpu_count, gpus));
-		free(gpus);
-		gpus = NULL;
-	}
 
 #ifdef TIMEOUT_CALLBACK
 	if (!optix_remote_nodes && alarm > 0)

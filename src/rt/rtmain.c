@@ -140,9 +140,6 @@ main(int  argc, char  *argv[])
 		case 'n':				/* number of cores */
 			check(2,"i");
 			nproc = atoi(argv[++i]);
-#ifdef ACCELERAD_DEBUG
-			optix_processors = nproc;
-#endif
 			if (nproc <= 0)
 				error(USER, "bad number of processes");
 			break;
