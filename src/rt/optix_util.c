@@ -27,17 +27,17 @@ extern double  pctdone;			/* percentage done */
 #ifdef REPORT_GPU_STATE
 void printContextInfo( const RTcontext context )
 {
-	int value, device_count, i;
+	int value, device_count = 0, i;
 	int* devices;
 	RTsize size;
 
 	if ( !context ) return;
 
-	RT_CHECK_ERROR(rtContextGetDeviceCount(context, &device_count));
+	RT_CHECK_WARN(rtContextGetDeviceCount(context, &device_count));
 	devices = (int*)malloc(sizeof(int) * device_count);
-	if (!devices)
+	if (device_count && !devices)
 		error(SYSTEM, "out of memory in printContextInfo");
-	RT_CHECK_ERROR(rtContextGetDevices(context, devices));
+	RT_CHECK_WARN(rtContextGetDevices(context, devices));
 
 	//RT_CHECK_ERROR( rtContextGetRunningState( context, &value ) );
 	//mprintf("OptiX kernel running:             %s\n", value ? "Yes" : "No");

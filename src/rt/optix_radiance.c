@@ -355,15 +355,15 @@ void endOptix()
  */
 static void checkDevices()
 {
-	unsigned int version, device_count, useable_device_count, allowed_device_count;
+	unsigned int version = 0, device_count = 0;
 	unsigned int i;
 	unsigned int multiprocessor_count, threads_per_block, clock_rate, texture_count, timeout_enabled, tcc_driver, cuda_device;
 	unsigned int compute_capability[2];
 	char device_name[128];
 	RTsize memory_size;
 
-	RT_CHECK_ERROR_NO_CONTEXT(rtGetVersion(&version));
-	RT_CHECK_ERROR_NO_CONTEXT(rtDeviceGetDeviceCount(&device_count)); // This will quit if no supported devices are found
+	RT_CHECK_WARN_NO_CONTEXT(rtGetVersion(&version));
+	RT_CHECK_ERROR_NO_CONTEXT(rtDeviceGetDeviceCount(&device_count)); // This will return an error if no supported devices are found
 	mprintf("OptiX %d.%d.%d found %i GPU device%s:\n", version / 1000, (version % 1000) / 10, version % 10, device_count, device_count != 1 ? "s" : "");
 
 	for (i = 0; i < device_count; i++) {
@@ -387,12 +387,12 @@ static void checkDevices()
 static void checkRemoteDevice(RTremotedevice remote)
 {
 	char s[256];
-	int i, j;
+	int i = 0, j;
 	RTsize size;
 
-	RT_CHECK_ERROR_NO_CONTEXT(rtGetVersion(&i));
+	RT_CHECK_WARN_NO_CONTEXT(rtGetVersion(&i));
 	mprintf("OptiX %d.%d.%d logged into %s as %s\n", i / 1000, (i % 1000) / 10, i % 10, optix_remote_url, optix_remote_user);
-	rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_NAME, sizeof(char), &s);
+	rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_NAME, sizeof(s), &s);
 	mprintf("VCA Name:                 %s\n", s);
 	rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_NUM_GPUS, sizeof(int), &i);
 	mprintf("Number of GPUs:           %i\n", i);
