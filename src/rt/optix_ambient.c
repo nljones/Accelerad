@@ -200,7 +200,7 @@ static unsigned int populateAmbientRecords( const RTcontext context, const int l
 	/* Resize the buffer of ambient records. */
 	RT_CHECK_ERROR( rtBufferSetSize1D( ambient_record_input_buffer, useful_record_count ) );
 #ifdef DAYSIM
-	RT_CHECK_ERROR(rtBufferSetSize2D(ambient_dc_input_buffer, useful_record_count ? daysimGetCoefficients() : 0, useful_record_count));
+	RT_CHECK_ERROR(rtBufferSetSize2D(ambient_dc_input_buffer, useful_record_count ? daysimGetCoefficients() : 0, daysimGetCoefficients() ? useful_record_count : 0));
 #endif
 
 	if ( nambvals ) {
@@ -533,9 +533,9 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 #ifdef DAYSIM
 #ifdef AMB_PARALLEL
 	/* Create variable for offset into scratch space */
-	RT_CHECK_ERROR(rtContextDeclareVariable(context, "segment_offset", &segment_var));
+	segment_var = applyContextVariable1ui(context, "segment_offset", 0u);
 #endif
-	createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT, daysimGetCoefficients(), cuda_kmeans_clusters, &ambient_dc_buffer);
+	createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT, daysimGetCoefficients(), daysimGetCoefficients() ? cuda_kmeans_clusters : 0, &ambient_dc_buffer);
 #else
 	createBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT, 0, 0, &ambient_dc_buffer);
 #endif
@@ -561,7 +561,8 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 #endif /* ITERATIVE_KMEANS_IC */
 #ifndef AMB_PARALLEL
 #ifdef DAYSIM
-	RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * maxdepth * 2, 1u, cuda_kmeans_clusters));
+	if (daysimGetCoefficients())
+		RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * maxdepth * 2, 1u, cuda_kmeans_clusters));
 #endif
 #endif /* AMB_PARALLEL */
 
@@ -864,7 +865,8 @@ static void calcAmbientValues(const RTcontext context, const unsigned int level,
 		kmeans_clusters_per_segment = (kmeans_clusters_per_segment - 1) / 2 + 1;
 	}
 
-	RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * maxdepth * 2, divisions * divisions, kmeans_clusters_per_segment));
+	if (daysimGetCoefficients())
+		RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * maxdepth * 2, divisions * divisions, kmeans_clusters_per_segment));
 
 	for (i = 0u; i < cuda_kmeans_clusters; i += kmeans_clusters_per_segment) {
 		RT_CHECK_ERROR(rtVariableSet1ui(segment_var, i));

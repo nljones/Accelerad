@@ -297,7 +297,8 @@ void computeOptix(const int width, const int height, const unsigned int imm_irra
 
 #ifdef DAYSIM
 	/* Set scratch buffer size for this OptiX kernel */
-	RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * maxdepth * 2, width, height));
+	if (daysimGetCoefficients())
+		RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * maxdepth * 2, width, height));
 #endif
 
 	/* Run the OptiX kernel */
@@ -531,7 +532,10 @@ static void setupDaysim(const RTcontext context, RTbuffer* dc_buffer, const int 
 
 	/* Output daylight coefficient buffer */
 #ifdef DAYSIM
-	createBuffer3D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT, daysimGetCoefficients(), width, height, dc_buffer);
+	if (daysimGetCoefficients())
+		createBuffer3D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT, daysimGetCoefficients(), width, height, dc_buffer);
+	else
+		createBuffer3D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT, 0, 0, 0, dc_buffer);
 #else
 	createBuffer3D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT, 0, 0, 0, dc_buffer);
 #endif
