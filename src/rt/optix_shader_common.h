@@ -428,7 +428,7 @@ RT_METHOD void daysimAddCoef(DaysimCoef& result, const unsigned int& index, cons
 RT_METHOD void daysimAddScaled(DaysimCoef& result, const DC* add, const DC& scaling);
 RT_METHOD void daysimAddScaled(DaysimCoef& result, const DaysimCoef& add, const DC& scaling);
 RT_METHOD void daysimAssignScaled(DaysimCoef& result, const DaysimCoef& source, const DC& scaling);
-RT_METHOD void daysimCheck(DaysimCoef& daylightCoef, const DC& value, const int& error);
+RT_METHOD void daysimCheck(const DaysimCoef& daylightCoef, const DC& value, const int& error);
 
 rtDeclareVariable(unsigned int, daylightCoefficients, , ) = 0; /* number of daylight coefficients */
 rtBuffer<DC, 3> dc_scratch_buffer; /* scratch space for local storage of daylight coefficients */

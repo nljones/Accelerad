@@ -541,7 +541,7 @@ direct(					/* add direct component */
 			scalecolor(scp->val, prob);
 		addcolor(r->rcol, scp->val);
 #ifdef DAYSIM
-		daysimAdd(r->daylightCoef, scp->daylightCoef);
+		daysimAddScaled(r->daylightCoef, scp->daylightCoef, min(1.0, prob));
 #endif
 	}
 }
