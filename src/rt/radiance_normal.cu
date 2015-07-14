@@ -727,8 +727,8 @@ RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pn
 		ambient_prd.surface_normal = pnormal;
 		ambient_prd.ambient_depth = prd.ambient_depth;
 		ambient_prd.wsum = 0.0f;
-#ifdef OLDAMB
 		ambient_prd.weight = prd.weight;
+#ifdef OLDAMB
 		ambient_prd.state = prd.state;
 #endif
 #ifdef DAYSIM_COMPATIBLE

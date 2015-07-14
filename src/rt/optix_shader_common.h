@@ -91,8 +91,8 @@ struct PerRayData_ambient
 	float3 surface_normal;
 	int ambient_depth;
 	float wsum;
-#ifdef OLDAMB
 	float weight;
+#ifdef OLDAMB
 	rand_state* state;
 #endif
 #ifdef DAYSIM_COMPATIBLE

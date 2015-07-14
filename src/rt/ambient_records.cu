@@ -62,8 +62,8 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 	/* Ambient level test. */
 	if ( record.lvl > prd.ambient_depth )
 		return;
-	//if ( record->weight < 0.9f * prd.weight ) //TODO no sorted list, so don't do this?
-	//	return;
+	if (record.lvl == prd.ambient_depth && record.weight < 0.9f * prd.weight)
+		return;
 
 	const float3 normal = ray.direction;
 
@@ -78,8 +78,8 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 	const float minangle = 10.0f * M_PIf / 180.0f;
 	float maxangle = minangle + ambacc;
 					/* adjust maximum angle */
-	//if (at->alist != NULL && (at->alist->lvl <= al) & ( prd.weight < 0.6f))
-	//	maxangle = (maxangle - M_PI_2f) * powf( prd.weight, 0.13f ) + M_PI_2f;
+	if (prd.weight < 0.6f)
+		maxangle = (maxangle - M_PI_2f) * powf(prd.weight, 0.13f) + M_PI_2f;
 	if ( delta_r2 >= maxangle * maxangle )
 		return;
 
