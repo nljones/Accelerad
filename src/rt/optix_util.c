@@ -60,17 +60,17 @@ void printContextInfo( const RTcontext context )
 }
 #endif
 
-void runKernel1D( const RTcontext context, const unsigned int entry, const int size )
+void runKernel1D(const RTcontext context, const unsigned int entry, const RTsize size)
 {
 	runKernel3D( context, entry, size, 0, 0 );
 }
 
-void runKernel2D( const RTcontext context, const unsigned int entry, const int width, const int height )
+void runKernel2D(const RTcontext context, const unsigned int entry, const RTsize width, const RTsize height)
 {
 	runKernel3D( context, entry, width, height, 0 );
 }
 
-void runKernel3D( const RTcontext context, const unsigned int entry, const int width, const int height, const int depth )
+void runKernel3D(const RTcontext context, const unsigned int entry, const RTsize width, const RTsize height, const RTsize depth)
 {
 	/* Timers */
 	time_t kernel_time; // Timer in seconds for long jobs

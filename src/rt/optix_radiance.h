@@ -159,9 +159,9 @@ void setupAmbientCache( const RTcontext context, const unsigned int level );
 void printContextInfo( const RTcontext context );
 extern void printCUDAProp();
 #endif
-void runKernel1D( const RTcontext context, const unsigned int entry, const int size );
-void runKernel2D( const RTcontext context, const unsigned int entry, const int width, const int height );
-void runKernel3D( const RTcontext context, const unsigned int entry, const int width, const int height, const int depth );
+void runKernel1D(const RTcontext context, const unsigned int entry, const RTsize size);
+void runKernel2D(const RTcontext context, const unsigned int entry, const RTsize width, const RTsize height);
+void runKernel3D(const RTcontext context, const unsigned int entry, const RTsize width, const RTsize height, const RTsize depth);
 RTvariable applyContextVariable1i(const RTcontext context, const char* name, const int value);
 RTvariable applyContextVariable1ui(const RTcontext context, const char* name, const unsigned int value);
 RTvariable applyContextVariable1f(const RTcontext context, const char* name, const float value);
