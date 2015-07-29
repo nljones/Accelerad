@@ -24,7 +24,7 @@ rtBuffer<AmbientRecord, 3>       ambient_record_buffer; /* output */
 //rtBuffer<unsigned int, 2>        rnd_seeds;
 rtDeclareVariable(rtObject,      top_object, , );
 rtDeclareVariable(unsigned int,  ambient_record_ray_type, , );
-rtDeclareVariable(unsigned int,  segments, , );
+rtDeclareVariable(unsigned int,  segments, , ) = 0u;
 rtDeclareVariable(unsigned int,  level, , ) = 0u;
 
 /* OptiX variables */
@@ -109,7 +109,7 @@ RT_PROGRAM void ambient_camera()
 			d.x = sinf( dd );
 		} else if ( camera == VT_ANG ) { /* angular fisheye */
 			d *= fov / 180.0f;
-			float dd = sqrtf( dot( d, d ) );
+			float dd = length(d);
 			if (dd > 1.0f) {
 				//ambient_record_buffer[launch_index] = make_float4( 0.0f );//TODO throw an exception?
 				return;
@@ -144,6 +144,9 @@ RT_PROGRAM void ambient_camera()
 		rtTrace(top_object, ray, prd);
 
 		checkFinite(prd.result.val);
+#ifndef OLDAMB
+		checkFinite(prd.result.gdir);
+#endif
 
 		index.z = segment;
 		ambient_record_buffer[index] = prd.result;

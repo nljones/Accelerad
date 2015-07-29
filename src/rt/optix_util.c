@@ -11,6 +11,16 @@
 #include "optix_radiance.h"
 
 
+/* Kernel dimension */
+typedef enum
+{
+	LAUNCH_1D,	/* Call rtContextLaunch1D */
+	LAUNCH_2D,	/* Call rtContextLaunch2D */
+	LAUNCH_3D	/* Call rtContextLaunch3D */
+} RTdimension;
+
+static void runKernelImpl(const RTcontext context, const unsigned int entry, const RTsize width, const RTsize height, const RTsize depth, const RTdimension dim);
+
 #ifdef TIMEOUT_CALLBACK
 static clock_t last_callback_time;  /* time of last callback from GPU */
 #endif
@@ -62,15 +72,20 @@ void printContextInfo( const RTcontext context )
 
 void runKernel1D(const RTcontext context, const unsigned int entry, const RTsize size)
 {
-	runKernel3D( context, entry, size, 0, 0 );
+	runKernelImpl(context, entry, size, 0, 0, LAUNCH_1D);
 }
 
 void runKernel2D(const RTcontext context, const unsigned int entry, const RTsize width, const RTsize height)
 {
-	runKernel3D( context, entry, width, height, 0 );
+	runKernelImpl(context, entry, width, height, 0, LAUNCH_2D);
 }
 
 void runKernel3D(const RTcontext context, const unsigned int entry, const RTsize width, const RTsize height, const RTsize depth)
+{
+	runKernelImpl(context, entry, width, height, depth, LAUNCH_3D);
+}
+
+static void runKernelImpl(const RTcontext context, const unsigned int entry, const RTsize width, const RTsize height, const RTsize depth, const RTdimension dim)
 {
 	/* Timers */
 	time_t kernel_time; // Timer in seconds for long jobs
@@ -86,7 +101,7 @@ void runKernel3D(const RTcontext context, const unsigned int entry, const RTsize
 	kernel_clock = clock();
 	RT_CHECK_ERROR( rtContextCompile( context ) ); // This should happen automatically when necessary.
 	kernel_clock = clock() - kernel_clock;
-	if (kernel_clock)
+	if (kernel_clock > 1)
 		vprintf("OptiX compile time: %" PRIu64 " milliseconds.\n", MILLISECONDS(kernel_clock));
 
 	/* Start timers */
@@ -97,12 +112,17 @@ void runKernel3D(const RTcontext context, const unsigned int entry, const RTsize
 #endif
 
 	/* Run */
-	if ( depth )
-		RT_CHECK_ERROR( rtContextLaunch3D( context, entry, width, height, depth ) );
-	else if ( height )
-		RT_CHECK_ERROR( rtContextLaunch2D( context, entry, width, height ) );
-	else
-		RT_CHECK_ERROR( rtContextLaunch1D( context, entry, width ) );
+	switch (dim) {
+	case LAUNCH_1D:
+		RT_CHECK_ERROR(rtContextLaunch1D(context, entry, width));
+		break;
+	case LAUNCH_2D:
+		RT_CHECK_ERROR(rtContextLaunch2D(context, entry, width, height));
+		break;
+	case LAUNCH_3D:
+		RT_CHECK_ERROR(rtContextLaunch3D(context, entry, width, height, depth));
+		break;
+	}
 
 	/* Stop timers */
 	kernel_clock = clock() - kernel_clock;

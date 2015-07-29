@@ -76,7 +76,7 @@ RT_PROGRAM void image_camera()
 		d.x = sinf( dd );
 	} else if ( camera == VT_ANG ) { /* angular fisheye */
 		d *= fov / 180.0f;
-		float dd = sqrtf( dot( d, d ) );
+		float dd = length(d);
 		if (dd > 1.0f) {
 			output_buffer[launch_index] = make_float4( 0.0f );//TODO throw an exception?
 			return;

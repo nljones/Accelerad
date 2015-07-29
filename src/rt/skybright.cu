@@ -27,7 +27,7 @@ RT_CALLABLE_PROGRAM float sky_bright( const float3 direction )
 
 	const float3 dir = transform.m * direction;
 
-	const float cosgamma = optix::dot( dir, sun ); // cosgamma = Dx*A8 + Dy*A9 + Dz*A10;
+	const float cosgamma = 0.999999f * optix::dot(dir, sun); // cosgamma = Dx*A8 + Dy*A9 + Dz*A10; // Adjusted to keep in range [-1,1]
 	const float gamma = acosf(cosgamma); // gamma = Acos(cosgamma);		{ angle from sun to this point in sky }
 	//float dz = dir.z;
 	float sky = zenith; // unifsky = A2; select(A1, sunnysky, cloudysky, unifsky, intersky)

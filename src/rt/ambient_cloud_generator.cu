@@ -82,6 +82,9 @@ RT_PROGRAM void ambient_cloud_camera()
 	}
 
 	checkFinite(prd.result.val);
+#ifndef OLDAMB
+	checkFinite(prd.result.gdir);
+#endif
 
 	ambient_record_buffer[index] = prd.result;
 #ifdef DAYSIM_COMPATIBLE

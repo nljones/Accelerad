@@ -138,9 +138,13 @@ typedef struct {
 } AMBHEMI;		/* ambient sample hemisphere */
 #endif /* OLDAMB */
 
+RT_METHOD void checkFinite( const float2& v );
 RT_METHOD void checkFinite( const float3& v );
+RT_METHOD int isnan( const float2& v );
 RT_METHOD int isnan( const float3& v );
+RT_METHOD int isinf( const float2& v );
 RT_METHOD int isinf( const float3& v );
+RT_METHOD int isfinite( const float2& v );
 RT_METHOD int isfinite( const float3& v );
 RT_METHOD float2 sqrtf( const float2& v );
 RT_METHOD float3 sqrtf( const float3& v );
@@ -153,11 +157,25 @@ RT_METHOD float3 exceptionToFloat3( const unsigned int& code );
 RT_METHOD float4 exceptionToFloat4( const unsigned int& code );
 
 /* Throw exception if any vector elements are NaN or infinte. */
+RT_METHOD void checkFinite( const float2& v )
+{
+	if (isfinite(v)) return;
+	if (isnan(v)) rtThrow(RT_EXCEPTION_NAN);
+	rtThrow(RT_EXCEPTION_INF);
+}
+
+/* Throw exception if any vector elements are NaN or infinte. */
 RT_METHOD void checkFinite( const float3& v )
 {
 	if (isfinite(v)) return;
 	if (isnan(v)) rtThrow(RT_EXCEPTION_NAN);
 	rtThrow(RT_EXCEPTION_INF);
+}
+
+/* Test if any vector elements are NaN. */
+RT_METHOD int isnan( const float2& v )
+{
+	return isnan(v.x) || isnan(v.y);
 }
 
 /* Test if any vector elements are NaN. */
@@ -167,9 +185,21 @@ RT_METHOD int isnan( const float3& v )
 }
 
 /* Test if any vector elements are infinite. */
+RT_METHOD int isinf( const float2& v )
+{
+	return isinf(v.x) || isinf(v.y);
+}
+
+/* Test if any vector elements are infinite. */
 RT_METHOD int isinf( const float3& v )
 {
 	return isinf(v.x) || isinf(v.y) || isinf(v.z);
+}
+
+/* Test if all vector elements are finite. */
+RT_METHOD int isfinite( const float2& v )
+{
+	return isfinite(v.x) && isfinite(v.y);
 }
 
 /* Test if all vector elements are finite. */
