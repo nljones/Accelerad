@@ -26,23 +26,18 @@
 //#define PRINT_OPTIX /* Enable OptiX rtPrintf statements to standard out */
 //#define REPORT_GPU_STATE /* Report verbose GPU details */
 #define VERBOSE_OUTPUT /* Print extra statements */
-#define KMEANS_IC /* K-Means irradiance cache calculation */
-#ifdef KMEANS_IC
-#define ITERATIVE_KMEANS_IC /* Iterative K-Means irradiance cache calculation */
-#endif
+#define ITERATIVE_IC /* Iterative irradiance cache calculation */
 
 /* Entry points */
 typedef enum
 {
 	RADIANCE_ENTRY = 0,			/* Generate radiance data */
 	AMBIENT_ENTRY,				/* Generate ambient records */
-#ifdef KMEANS_IC
 	POINT_CLOUD_ENTRY,			/* Generate point cloud */
-#ifdef ITERATIVE_KMEANS_IC
+#ifdef ITERATIVE_IC
 	HEMISPHERE_SAMPLING_ENTRY,	/* Generate point cloud from hemisphere */
 #ifdef AMB_PARALLEL
 	AMBIENT_SAMPLING_ENTRY,		/* Generate ambient samples for irradiance caching */
-#endif
 #endif
 #endif
 
@@ -57,9 +52,7 @@ typedef enum
 	SHADOW_RAY,			/* Shadow ray type */
 	AMBIENT_RAY,		/* Ray into ambient cache */
 	AMBIENT_RECORD_RAY,	/* Ray to create ambient record */
-#ifdef KMEANS_IC
 	POINT_CLOUD_RAY,	/* Ray to create point cloud */
-#endif
 
 	RAY_TYPE_COUNT		/* Entry point count for ambient calculation */
 } RTraytype;

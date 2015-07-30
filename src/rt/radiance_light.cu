@@ -86,12 +86,8 @@ RT_METHOD int spotout()
 		if (d <= FTINY)
 			return(1);	*/
 		d = dot( vd, vd ) - d * d;
-		if ( M_PIf * d > siz )
-			return(1);	/* out */
-		return(0);	/* OK */
+		return (M_PIf * d > siz); /* If true then out */
 	}
 					/* local source */
-	if ( siz < 2.0f * M_PIf * ( 1.0f + dot( aim, ray.direction ) ) )
-		return(1);	/* out */
-	return(0);	/* OK */
+	return (siz < 2.0f * M_PIf * (1.0f + dot(aim, ray.direction)));	/* If true then out */
 }

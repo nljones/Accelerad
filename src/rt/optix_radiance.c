@@ -138,9 +138,7 @@ static RTprogram shadow_normal_any_hit_program;
 #endif
 static RTprogram radiance_glass_closest_hit_program, shadow_glass_closest_hit_program, ambient_glass_any_hit_program;
 static RTprogram radiance_light_closest_hit_program, shadow_light_closest_hit_program;
-#ifdef KMEANS_IC
 static RTprogram point_cloud_closest_hit_program, point_cloud_any_hit_program;
-#endif
 
 #ifdef DAYSIM
 /* Handles to objects used repeatedly for daylight coefficient calulation */
@@ -1457,13 +1455,11 @@ static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec)
 		}
 		RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, AMBIENT_RECORD_RAY, ambient_normal_closest_hit_program ) );
 
-#ifdef KMEANS_IC
 		if ( !point_cloud_closest_hit_program ) {
 			ptxFile( path_to_ptx, "point_cloud_normal" );
 			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "closest_hit_point_cloud", &point_cloud_closest_hit_program ) );
 		}
 		RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, POINT_CLOUD_RAY, point_cloud_closest_hit_program ) );
-#endif
 	}
 
 	/* Set variables to be consumed by material for this geometry instance */
@@ -1501,13 +1497,11 @@ static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec)
 		}
 		RT_CHECK_ERROR( rtMaterialSetAnyHitProgram( material, AMBIENT_RECORD_RAY, ambient_glass_any_hit_program ) );
 
-#ifdef KMEANS_IC
 		if ( !point_cloud_any_hit_program ) {
 			ptxFile( path_to_ptx, "point_cloud_normal" );
 			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "any_hit_point_cloud_glass", &point_cloud_any_hit_program ) );
 		}
 		RT_CHECK_ERROR( rtMaterialSetAnyHitProgram( material, POINT_CLOUD_RAY, point_cloud_any_hit_program ) );
-#endif
 	}
 
 	/* Set variables to be consumed by material for this geometry instance */
@@ -1539,7 +1533,6 @@ static RTmaterial createLightMaterial( const RTcontext context, OBJREC* rec )
 	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, RADIANCE_RAY, radiance_light_closest_hit_program ) );
 	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, SHADOW_RAY, shadow_light_closest_hit_program ) );
 
-#ifdef KMEANS_IC
 	if ( calc_ambient ) {
 		if ( !point_cloud_any_hit_program ) {
 			ptxFile( path_to_ptx, "point_cloud_normal" );
@@ -1547,7 +1540,6 @@ static RTmaterial createLightMaterial( const RTcontext context, OBJREC* rec )
 		}
 		RT_CHECK_ERROR( rtMaterialSetAnyHitProgram( material, POINT_CLOUD_RAY, point_cloud_any_hit_program ) );
 	}
-#endif
 
 	/* Set variables to be consumed by material for this geometry instance */
 #ifdef HIT_TYPE

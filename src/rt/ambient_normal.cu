@@ -153,12 +153,7 @@ RT_PROGRAM void any_hit_ambient_glass()
 
 RT_PROGRAM void closest_hit_ambient()
 {
-	float3 world_shading_normal   = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, shading_normal ) );
-	float3 world_geometric_normal = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, geometric_normal ) );
-
-	/* check for back side */
-	// if backvis is false, create a new ray starting from the hit point (i.e., ignore this hit)
-	float3 ffnormal = faceforward( world_shading_normal, -ray.direction, world_geometric_normal );
+	float3 ffnormal = -ray.direction;
 	float3 hit_point = ray.origin + t_hit * ray.direction;
 
 	// Check that this is not covered by parent
