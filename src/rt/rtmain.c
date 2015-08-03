@@ -333,6 +333,10 @@ main(int  argc, char  *argv[])
 		}
 	}
 	if (nproc > 1) {
+#ifdef ACCELERAD
+		if (use_optix) /* Don't allow multiple processes to access the graphics card. */
+			error(USER, "multiprocessing incompatible with GPU implementation");
+#endif
 		if (persist)
 			error(USER, "multiprocessing incompatible with persist file");
 		if (!vresolu && hresolu > 0 && hresolu < nproc)
