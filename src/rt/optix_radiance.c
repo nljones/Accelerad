@@ -1396,62 +1396,14 @@ static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec)
 
 	if (calc_ambient) {
 		if (!ambient_normal_closest_hit_program) {
-			RTbuffer buffer;
-			int n, i;
-
 			ptxFile(path_to_ptx, "ambient_normal");
 			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "closest_hit_ambient", &ambient_normal_closest_hit_program ) );
 
-			/* Create GPU scratch space buffers in global GPU memory */
-#ifndef OLDAMB
-			n = sqrt(ambdiv) + 0.5;
-			i = 1 + 5 * (ambacc > FTINY);	/* minimum number of samples */
-			if (n < i)
-				n = i;
-
-			createCustomBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, 9 * sizeof(float), n - 1, cuda_kmeans_clusters, &buffer); // Size of optix::Matrix<3, 3>
-			applyProgramObject(context, ambient_normal_closest_hit_program, "hess_row_buffer", buffer);
-
-			createBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT3, n - 1, cuda_kmeans_clusters, &buffer);
-			applyProgramObject(context, ambient_normal_closest_hit_program, "grad_row_buffer", buffer);
-
-#ifdef AMB_SAVE_MEM
-			createCustomBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, sizeof(AmbientSample), n, cuda_kmeans_clusters, &buffer);
-			applyProgramObject(context, ambient_normal_closest_hit_program, "amb_samp_buffer", buffer);
-
-			createBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT2, 4 * (n - 1), cuda_kmeans_clusters, &buffer);
-			applyProgramObject(context, ambient_normal_closest_hit_program, "corral_u_buffer", buffer);
-
-			createBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT, 4 * (n - 1), cuda_kmeans_clusters, &buffer);
-			applyProgramObject(context, ambient_normal_closest_hit_program, "corral_d_buffer", buffer);
-#else /* AMB_SAVE_MEM */
-#ifdef AMB_PARALLEL
-			createCustomBuffer3D(context, RT_BUFFER_INPUT_OUTPUT, sizeof(AmbientSample), n, n, cuda_kmeans_clusters, &buffer);
-			applyContextObject(context, "amb_samp_buffer", buffer);
+#ifdef AMBIENT_CELL
+			createAmbientDynamicStorage(context, ambient_normal_closest_hit_program, 0);
 #else
-			createCustomBuffer3D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, sizeof(AmbientSample), n, n, cuda_kmeans_clusters, &buffer);
-			applyProgramObject(context, ambient_normal_closest_hit_program, "amb_samp_buffer", buffer);
+			createAmbientDynamicStorage(context, ambient_normal_closest_hit_program, cuda_kmeans_clusters);
 #endif
-#ifdef AMB_SUPER_SAMPLE
-			if (!ambssamp)
-				n = 0;
-			createBuffer3D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT, n, n, n ? cuda_kmeans_clusters : 0, &buffer);
-			applyContextObject(context, "earr_buffer", buffer);
-#endif
-#endif /* AMB_SAVE_MEM */
-#else /* OLDAMB */
-			n = sqrt(ambdiv / PI) + 0.5f;
-			i = ambacc > FTINY ? 3 : 1;	/* minimum number of samples */
-			if (n < i)
-				n = i;
-			n = PI * n + 0.5f;
-
-			createBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT, n, cuda_kmeans_clusters, &buffer);
-			applyProgramObject(context, ambient_normal_closest_hit_program, "rprevrow_buffer", buffer);
-
-			createBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT, n, cuda_kmeans_clusters, &buffer);
-			applyProgramObject(context, ambient_normal_closest_hit_program, "bprevrow_buffer", buffer);
-#endif /* OLDAMB */
 		}
 		RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, AMBIENT_RECORD_RAY, ambient_normal_closest_hit_program ) );
 

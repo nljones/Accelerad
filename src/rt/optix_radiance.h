@@ -146,6 +146,7 @@ char path_to_ptx[512];     /* The path to the PTX file. */
 /* in optix_ambient.c */
 void createAmbientRecords( const RTcontext context, const VIEW* view, const int width, const int height, const double alarm );
 void setupAmbientCache( const RTcontext context, const unsigned int level );
+void createAmbientDynamicStorage(const RTcontext context, const RTprogram program, const RTsize size);
 
 /* in optix_util.c */
 #ifdef REPORT_GPU_STATE

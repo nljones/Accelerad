@@ -23,6 +23,9 @@ RT_PROGRAM void hemisphere_camera()
 	PerRayData_point_cloud prd;
 	prd.backup.pos = make_float3( 0.0f );
 	prd.backup.dir = make_float3( 0.0f );
+#ifdef AMBIENT_CELL
+	prd.backup.cell = make_uint2(0);
+#endif
 
 	PointDirection eye = cluster_buffer[launch_index.z];
 
@@ -61,4 +64,7 @@ RT_PROGRAM void exception()
 	rtPrintf( "Caught exception 0x%X at launch index (%d,%d,%d)\n", code, launch_index.x, launch_index.y, launch_index.z );
 	seed_buffer[launch_index].pos = exceptionToFloat3( code );
 	seed_buffer[launch_index].dir = make_float3( 0.0f );
+#ifdef AMBIENT_CELL
+	seed_buffer[launch_index].cell = make_uint2(0);
+#endif
 }

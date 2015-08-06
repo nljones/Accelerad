@@ -57,6 +57,9 @@ RT_PROGRAM void point_cloud_camera()
 	PerRayData_point_cloud prd;
 	prd.backup.pos = make_float3( 0.0f );
 	prd.backup.dir = make_float3( 0.0f );
+#ifdef AMBIENT_CELL
+	prd.backup.cell = make_uint2(0);
+#endif
 
 	// Init random state
 	rand_state* state;
@@ -92,7 +95,7 @@ RT_PROGRAM void point_cloud_camera()
 			d.x = sinf( dd );
 		} else if ( camera == VT_ANG ) { /* angular fisheye */
 			d *= fov / 180.0f;
-			float dd = sqrtf( dot( d, d ) );
+			float dd = length(d);
 			if (dd > 1.0f) {
 				seed_buffer[index] = prd.backup;//TODO throw an exception?
 				return;
@@ -134,6 +137,12 @@ RT_PROGRAM void point_cloud_camera()
 		if ( isfinite( prd.result.pos ) && dot( prd.result.dir, prd.result.dir ) > FTINY ) { // NaN values will be false
 			seed_buffer[index] = prd.result; // This could contain points on glass materials
 			index.z++;
+#ifdef AMBIENT_CELL
+			if (isfinite(prd.backup.pos) && dot(prd.backup.dir, prd.backup.dir) > FTINY) // NaN values will be false
+				prd.result = prd.backup;
+			else
+				break;
+#endif /* AMBIENT_CELL */
 		} else {
 			prd.result.pos = eye;
 			prd.result.dir = ray_direction;
@@ -141,8 +150,10 @@ RT_PROGRAM void point_cloud_camera()
 
 		// Prepare for next ray
 		ray.origin = prd.result.pos;
-		//ray.direction = reflect( ray.direction, prd.result.dir );
-
+#ifdef AMBIENT_CELL
+		ray.direction = reflect(ray.direction, prd.result.dir);
+		ray.tmin = ray_start(ray.origin, ray.direction, prd.result.dir, RAY_START);
+#else /* AMBIENT_CELL */
 		float3 uz = normalize( prd.result.dir );
 		float3 ux = getperpendicular(uz);
 		float3 uy = normalize(cross(uz, ux));
@@ -155,12 +166,16 @@ RT_PROGRAM void point_cloud_camera()
 		ray.direction = normalize( xd*ux + yd*uy + zd*uz );
 
 		ray.tmin = ray_start(ray.origin, RAY_START);
+#endif /* AMBIENT_CELL */
 		ray.tmax = RAY_END;
 	}
 
 	// If outdoors, there are no bounces, but we need to prevent junk data
 	prd.backup.pos = make_float3( 0.0f );
 	prd.backup.dir = make_float3( 0.0f );
+#ifdef AMBIENT_CELL
+	prd.backup.cell = make_uint2(0);
+#endif
 	while ( index.z < seeds ) {
 		seed_buffer[index] = prd.backup;
 		index.z++;
@@ -174,4 +189,7 @@ RT_PROGRAM void exception()
 	uint3 index = make_uint3(launch_index, seed_buffer.size().z - 1u); // record error to last segment
 	seed_buffer[index].pos = exceptionToFloat3( code );
 	seed_buffer[index].dir = make_float3( 0.0f );
+#ifdef AMBIENT_CELL
+	seed_buffer[index].cell = make_uint2(0);
+#endif
 }

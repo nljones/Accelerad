@@ -28,6 +28,9 @@ RT_PROGRAM void cloud_generator()
 	PerRayData_point_cloud prd;
 	prd.backup.pos = make_float3( 0.0f );
 	prd.backup.dir = make_float3( 0.0f );
+#ifdef AMBIENT_CELL
+	prd.backup.cell = make_uint2(0);
+#endif
 
 	// Init random state
 	rand_state* state;
@@ -87,6 +90,9 @@ RT_PROGRAM void cloud_generator()
 	// If outdoors, there are no bounces, but we need to prevent junk data
 	prd.backup.pos = make_float3( 0.0f );
 	prd.backup.dir = make_float3( 0.0f );
+#ifdef AMBIENT_CELL
+	prd.backup.cell = make_uint2(0);
+#endif
 	while ( index.z < seeds ) {
 		seed_buffer[index] = prd.backup;
 		index.z++;
@@ -100,4 +106,7 @@ RT_PROGRAM void exception()
 	uint3 index = make_uint3(launch_index, seed_buffer.size().z - 1u); // record error to last segment
 	seed_buffer[index].pos = exceptionToFloat3( code );
 	seed_buffer[index].dir = make_float3( 0.0f );
+#ifdef AMBIENT_CELL
+	seed_buffer[index].cell = make_uint2(0);
+#endif
 }

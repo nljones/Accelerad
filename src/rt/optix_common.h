@@ -13,6 +13,7 @@
 //#define OLDAMB
 #define LIGHTS
 //#define DAYSIM_COMPATIBLE
+//#define AMBIENT_CELL
 
 
 /*! Additional Exceptions */
@@ -101,6 +102,9 @@ typedef struct struct_point_direction
 #endif
 	float3 pos;		/* position in space */
 	float3 dir;		/* normal direction */
+#ifdef AMBIENT_CELL
+	uint2 cell;		/* cell index represented as 4 16-bit shorts */
+#endif
 } PointDirection;
 
 /* Structure to hold ray parameters */
