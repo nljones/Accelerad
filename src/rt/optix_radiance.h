@@ -36,9 +36,9 @@ typedef enum
 	POINT_CLOUD_ENTRY,			/* Generate point cloud */
 #ifdef ITERATIVE_IC
 	HEMISPHERE_SAMPLING_ENTRY,	/* Generate point cloud from hemisphere */
+#endif
 #ifdef AMB_PARALLEL
 	AMBIENT_SAMPLING_ENTRY,		/* Generate ambient samples for irradiance caching */
-#endif
 #endif
 
 	ENTRY_POINT_COUNT			/* Entry point count for ambient calculation */

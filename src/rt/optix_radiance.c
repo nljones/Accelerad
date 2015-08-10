@@ -601,6 +601,7 @@ static void applyRadianceSettings(const RTcontext context, const VIEW* view, con
 	//applyContextVariable1i( context, "ambres", ambres ); // -ar
 	applyContextVariable1f( context, "ambacc", ambacc ); // -aa
 	applyContextVariable1i( context, "ambdiv", ambdiv ); // -ad
+	applyContextVariable1i(context, "ambdiv_final", ambacc > FTINY && optix_amb_fill != -1 ? optix_amb_fill : ambdiv); // -ag
 	applyContextVariable1i( context, "ambssamp", ambssamp ); // -as
 	applyContextVariable1f( context, "maxarad", maxarad ); // maximum ambient radius from ambient.h, based on armbres
 	applyContextVariable1f( context, "minarad", minarad ); // minimum ambient radius from ambient.h, based on armbres

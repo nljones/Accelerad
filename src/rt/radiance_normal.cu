@@ -11,7 +11,6 @@ using namespace optix;
 
 #define  AMBIENT
 #define  TRANSMISSION
-#define  FILL_GAPS_LAST_ONLY
 
 #ifndef  MAXITER
 #define  MAXITER	10		/* maximum # specular ray attempts */
@@ -72,6 +71,7 @@ rtDeclareVariable(int,          ambounce, , );	/* Ambient bounces (ab) */
 //rtDeclareVariable(int,          ambres, , );	/* Ambient resolution (ar) */
 rtDeclareVariable(float,        ambacc, , );	/* Ambient accuracy (aa). This value will approximately equal the error from indirect illuminance interpolation */
 rtDeclareVariable(int,          ambdiv, , );	/* Ambient divisions (ad) */
+rtDeclareVariable(int,          ambdiv_final, , ); /* Number of ambient divisions for final-pass fill (ag) */
 rtDeclareVariable(int,          ambssamp, , );	/* Ambient super-samples (as) */
 #ifdef OLDAMB
 rtDeclareVariable(float,        maxarad, , );	/* maximum ambient radius */
@@ -83,10 +83,6 @@ rtDeclareVariable(unsigned int, navsum, , );	/* number of values in avsum */
 
 rtDeclareVariable(float,        minweight, , );	/* minimum ray weight (lw) */
 rtDeclareVariable(int,          maxdepth, , );	/* maximum recursion depth (lr) */
-
-//#ifdef FILL_GAPS_LAST_ONLY
-//rtDeclareVariable(unsigned int, level, , ) = 0u;
-//#endif
 
 rtBuffer<DistantLight> lights;
 
@@ -759,14 +755,16 @@ RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pn
 		//}
 
 #ifdef FILL_GAPS
-		do_ambient = prd.primary;
-#elif defined FILL_GAPS_LAST_ONLY
-		do_ambient = prd.ambient_depth == 0;
+		do_ambient = prd.primary && ambdiv_final;
 #else
-		do_ambient = 0;
+		do_ambient = !prd.ambient_depth && ambdiv_final;
 #endif
 	}
 	if (do_ambient) {			/* no ambient storage */
+		/* Option to show error if nothing found */
+		if (ambdiv_final < 0)
+			rtThrow(RT_EXCEPTION_USER - ambdiv_final);
+
 		float3 acol = aval;
 #ifdef DAYSIM_COMPATIBLE
 		DaysimCoef dc = daysimNext(prd.dc);
@@ -813,13 +811,12 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 #endif
 {
 	float	d;
-	int	j;
 	float wt = prd.weight;
 
 					/* set number of divisions */
-	if (ambacc <= FTINY && wt > (d = 0.8f * fmaxf(*rcol) * wt / (ambdiv*minweight)))
+	if (ambacc <= FTINY && wt > (d = 0.8f * fmaxf(*rcol) * wt / (ambdiv_final * minweight)))
 		wt = d;			/* avoid ray termination */
-	int n = sqrtf(ambdiv * wt) + 0.5f;
+	int n = sqrtf(ambdiv_final * wt) + 0.5f;
 	int i = 1 + 8 * (ambacc > FTINY);	/* minimum number of samples */
 	if (n < i)
 		n = i;
@@ -857,7 +854,7 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 	float3 uy = cross( pnormal, ux );
 					/* sample divisions */
 	for (i = n; i--; )
-	    for (j = n; j--; ) {
+	    for (int j = n; j--; ) {
 			//hp.sampOK += ambsample( &hp, i, j, normal, hit );
 			/* ambsample in ambcomp.c */
 			float2 spt = 0.1f + 0.8f * make_float2( curand_uniform( prd.state ), curand_uniform( prd.state ) );
@@ -1056,9 +1053,9 @@ RT_METHOD void inithemi( AMBHEMI  *hp, float3 ac, const float3& normal )
 	int  i;
 	float wt = prd.weight;
 					/* set number of divisions */
-	if (ambacc <= FTINY && wt > (d = 0.8f * fmaxf(ac) * wt / (ambdiv*minweight)))
+	if (ambacc <= FTINY && wt > (d = 0.8f * fmaxf(ac) * wt / (ambdiv_final * minweight)))
 		wt = d;			/* avoid ray termination */
-	hp->nt = sqrtf(ambdiv * wt * M_1_PIf) + 0.5f;
+	hp->nt = sqrtf(ambdiv_final * wt * M_1_PIf) + 0.5f;
 	i = ambacc > FTINY ? 3 : 1;	/* minimum number of samples */
 	if (hp->nt < i)
 		hp->nt = i;

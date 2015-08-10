@@ -10,7 +10,7 @@
 #define AMB_SAVE_MEM	/* Reduce global memory usage in ambient calculation by saving one row of samples at a time */
 #endif
 #ifndef AMB_SAVE_MEM
-//#define AMB_SUPER_SAMPLE	/* Perform ambient super sampling */
+#define AMB_SUPER_SAMPLE	/* Perform ambient super sampling */
 #endif
 
 typedef struct {

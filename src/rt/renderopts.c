@@ -17,13 +17,13 @@ static const char	RCSid[] = "$Id$";
 unsigned int use_optix = 1u;			/* Flag to use OptiX for ray tracing */
 unsigned int optix_stack_size = 4096u;	/* Stack size for OptiX program in bytes (-g) */
 
-/* For OptiX iterative ambient sampling */
-unsigned int optix_amb_scale = 0u;		/* Scale to use for ambient sample spacing, zero to use all pixels (-al) */
-unsigned int optix_amb_semgents = 1u;	/* Number of segments for ambient sampling (-ag) */
-
-/* For OptiX k-means ambient sampling */
+/* For OptiX ambient sampling */
+unsigned int optix_amb_scale = 0u;				/* Scale to use for ambient sample spacing, zero to use all pixels (-al) */
+int optix_amb_fill = -1;						/* Number of ambient divisions for final-pass fill (-ag) */
 unsigned int optix_amb_grid_size = 0u;			/* Size of sphere grid to use for ambient seeding, zero for view-dependent seeding (-az) */
 unsigned int optix_amb_seeds_per_thread = 16u;	/* Number of ambient seeds per OptiX thread (-ay) */
+
+/* For OptiX k-means ambient sampling */
 unsigned int cuda_kmeans_clusters = 4096u;		/* Number of clusters of ambient for k-means (-ac) */
 unsigned int cuda_kmeans_iterations = 100u;		/* Maximum number of k-means iterations (-am) */
 float cuda_kmeans_threshold = 0.05f;			/* Fraction of seeds that must change cluster to continue k-means iteration (-at) */
@@ -184,9 +184,9 @@ getrenderopt(		/* get next render option */
 			check(3,"i");
 			optix_amb_scale = atoi(av[1]);
 			return(1);
-		case 'g':				/* Number of segments for ambient sampling */
+		case 'g':				/* Number of ambient divisions for final-pass fill */
 			check(3,"i");
-			optix_amb_semgents = atoi(av[1]);
+			optix_amb_fill = atoi(av[1]);
 			return(1);
 		case 'z':				/* Size of sphere grid to use for ambient seeding */
 			check(3,"i");
