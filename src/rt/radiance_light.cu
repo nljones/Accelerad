@@ -18,7 +18,7 @@ rtDeclareVariable(float,        maxrad, , ) = RAY_END;
 rtDeclareVariable(float,        siz, , ) = -1.0f;		/* output solid angle or area */
 rtDeclareVariable(float,        flen, , );				/* focal length (negative if distant source) */
 rtDeclareVariable(float3,       aim, , );				/* aim direction or center */
-rtDeclareVariable(rtCallableProgramId<float3(float3,float3)>, function, , );		/* function or texture modifier */
+rtDeclareVariable(rtCallableProgramId<float3(const float3, const float3)>, function, , );		/* function or texture modifier */
 
 /* Context variables */
 rtDeclareVariable(int,          directvis, , );		/* Boolean switch for light source visibility (dv) */

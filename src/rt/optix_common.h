@@ -28,11 +28,11 @@ typedef struct struct_DistantLight
 #if defined(__cplusplus)
 	typedef optix::float3 float3;
 #endif
-	float3 pos;
-	float3 color;
-	float  solid_angle;
-	int    function;     /* Reference to the OptiX buffer index of the brightness function for this light. */
-	int    casts_shadow;
+	float3 pos;				/* direction to source */
+	float3 color;			/* soruce color */
+	float  solid_angle;		/* solid angle covered by soruce */
+	int    function;		/* OptiX callable program ID */
+	int    casts_shadow;	/* true if source casts shadows (i.e., not a glow material) */
 } DistantLight;
 
 /* Structure to hold an ambient record */

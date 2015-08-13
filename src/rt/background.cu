@@ -16,7 +16,7 @@ rtDeclareVariable(unsigned int, type, , ); /* The material type representing "so
 
 /* Context variables */
 rtBuffer<DistantLight> lights;
-rtBuffer<rtCallableProgramId<float(const float3)> > functions;
+//rtBuffer<rtCallableProgramId<float(const float3)> > functions;
 //rtDeclareVariable(rtCallableProgramId<float(float3)>, func, , );
 //rtDeclareVariable(rtCallableProgramX<float(float3)>, func, , );
 rtDeclareVariable(int, directvis, , );		/* Boolean switch for light source visibility (dv) */
@@ -60,10 +60,8 @@ RT_PROGRAM void miss()
 				break;
 			}
 			float3 color = light.color;
-			if (light.function > -1) {
-				//rtPrintf( "Sending (%f, %f, %f)\n", H.x, H.y, H.z);
-				color *= functions[light.function]( H );
-			}
+			if (light.function != RT_PROGRAM_ID_NULL)
+				color *= ((rtCallableProgramId<float3(const float3, const float3)>)light.function)(H, -H);
 			prd_radiance.result += color;
 #ifdef DAYSIM_COMPATIBLE
 			if (daylightCoefficients >= 2) {
@@ -96,9 +94,8 @@ RT_PROGRAM void miss_shadow()
 
 			if (solid_angle <= light.solid_angle) {
 				float3 color = light.color;
-				if (light.function > -1) {
-					color *= functions[light.function]( H );
-				}
+				if (light.function != RT_PROGRAM_ID_NULL)
+					color *= ((rtCallableProgramId<float3(const float3, const float3)>)light.function)(H, -H);
 				result += color;
 #ifdef DAYSIM_COMPATIBLE
 				if (daylightCoefficients >= 2) {

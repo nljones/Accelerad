@@ -37,7 +37,6 @@
 #define EXPECTED_LIGHTS		8
 #endif
 #define EXPECTED_SOURCES	3
-#define EXPECTED_FUNCTIONS	8
 
 #define DEFAULT_SPHERE_STEPS	4
 #define DEFAULT_CONE_STEPS		24
@@ -758,10 +757,6 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	if (sources == NULL) goto memerr;
 	initArraydl(sources, EXPECTED_SOURCES);
 
-	functions = (IntArray *)malloc(sizeof(IntArray));
-	if (functions == NULL) goto memerr;
-	initArrayi(functions, EXPECTED_FUNCTIONS);
-
 	vertex_index_0 = 0u;
 
 	/* Material 0 is Lambertian. */
@@ -875,13 +870,6 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	freeArraydl(sources);
 	free(sources);
 
-	if (functions->count) vprintf("Processed %" PRIu64 " functions.\n", functions->count);
-	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_PROGRAM_ID, functions->count, &buffer);
-	copyToBufferi(context, buffer, functions);
-	applyContextObject(context, "functions", buffer);
-	freeArrayi(functions);
-	free(functions);
-
 	geometry_clock = clock() - geometry_clock;
 	mprintf("Geometry build time: %" PRIu64 " milliseconds for %i objects.\n", MILLISECONDS(geometry_clock), nobjects);
 	return;
@@ -941,11 +929,10 @@ static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* pare
 		insertArraydl(sources, createDistantLight(context, rec, parent));
 		break;
 	case PAT_BFUNC: // brightness function, used for sky brightness
-		buffer_entry_index[index] = functions->count;
-		insertArrayi(functions, createFunction(context, rec));
+		buffer_entry_index[index] = createFunction(context, rec);
 		break;
 	case PAT_BDATA: // brightness texture, used for IES lighting data
-		buffer_entry_index[index] = insertArrayi(functions, createTexture(context, rec));
+		buffer_entry_index[index] = createTexture(context, rec);
 		break;
 	case TEX_FUNC:
 		if (rec->oargs.nsargs == 3) {
@@ -1536,7 +1523,7 @@ static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, OBJ
 	if (material = findFunction(parent)) // TODO can there be multiple parent functions?
 		light.function = buffer_entry_index[objndx(material)];
 	else
-		light.function = -1;
+		light.function = RT_PROGRAM_ID_NULL;
 
 	return light;
 }

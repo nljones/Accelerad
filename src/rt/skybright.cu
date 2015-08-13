@@ -21,7 +21,7 @@ rtDeclareVariable(Transform,    transform, , ); /* transformation matrix */
 
 // Calculate the sky brightness function for sunny and cloudy skies.
 // This function replicates the algorithm in skybright.cal.
-RT_CALLABLE_PROGRAM float sky_bright( const float3 direction )
+RT_CALLABLE_PROGRAM float3 sky_bright(const float3 direction, const float3 ignore)
 {
 	//rtPrintf("SkyBright Recieved (%f, %f, %f)\n", direction.x, direction.y, direction.z);
 
@@ -55,5 +55,5 @@ RT_CALLABLE_PROGRAM float sky_bright( const float3 direction )
 	const float b = powf(dir.z + 1.01f, -10.0f);
 
 	const float skybr = (a * sky + b * ground) / (a + b); // wmean(a, x, b, y) = (a*x+b*y)/(a+b);
-	return skybr;
+	return make_float3(skybr);
 }
