@@ -20,7 +20,7 @@
 /* Needed for sleep while waiting for VCA */
 #ifdef _WIN32
 #include <windows.h>
-#define sleep(s) Sleep(s*1000)
+#define sleep(s) Sleep((s)*1000)
 #else
 #include <unistd.h>
 #endif
@@ -808,6 +808,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	RT_CHECK_ERROR(rtGeometryInstanceSetMaterialCount(*instance, (unsigned int)materials->count));
 
 	/* Apply materials to the geometry instance. */
+	vprintf("Processed %" PRIu64 " materials.\n", materials->count);
 	for (i = 0u; i < materials->count; i++)
 		RT_CHECK_ERROR(rtGeometryInstanceSetMaterial(*instance, i, materials->array[i]));
 	freeArraym(materials);

@@ -110,9 +110,9 @@ typedef enum
 
 /* TIMING */
 #ifdef _WIN64
-#define MILLISECONDS(c)	c * 1000uLL / CLOCKS_PER_SEC
+#define MILLISECONDS(c)	(c) * 1000uLL / CLOCKS_PER_SEC
 #else
-#define MILLISECONDS(c)	c * 1000uL / CLOCKS_PER_SEC
+#define MILLISECONDS(c)	(c) * 1000uL / CLOCKS_PER_SEC
 #endif
 
 /* Resizeable array structures */
