@@ -16,7 +16,7 @@
 
 #define  array2cuda2(c,a)	(c.x=a[0],c.y=a[1])
 #define  cuda2array2(a,c)	(a[0]=c.x,a[1]=c.y)
-#define  array2cuda3(c,a)	(c.x=a[0],c.y=a[1],c.z=a[2])
+#define  array2cuda3(c,a)	(c.x=(float)a[0],c.y=(float)a[1],c.z=(float)a[2])
 #define  cuda2array3(a,c)	(a[0]=c.x,a[1]=c.y,a[2]=c.z)
 
 /* Enable features on CPU side */

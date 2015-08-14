@@ -424,7 +424,7 @@ static void createContext( RTcontext* context, const int width, const int height
 	unsigned int ray_type_count, entry_point_count;
 
 	/* Check if irradiance cache is used */
-	use_ambient = ambacc > FTINY && ambounce > 0;
+	use_ambient = ambacc > FTINY && ambounce > 0 && ambdiv > 0;
 	calc_ambient = use_ambient && nambvals == 0u;// && (ambfile == NULL || !ambfile[0]); // TODO Should really look at ambfp in ambinet.c to check that file is readable
 
 	if ( calc_ambient ) {
@@ -438,7 +438,7 @@ static void createContext( RTcontext* context, const int width, const int height
 	}
 
 	/* Setup remote device */
-	if (optix_remote_nodes) {
+	if (optix_remote_nodes > 0) {
 		RTremotedevicestatus ready;
 		int first = 1;
 
@@ -464,7 +464,7 @@ static void createContext( RTcontext* context, const int width, const int height
 
 	/* Setup context */
 	RT_CHECK_ERROR2( rtContextCreate( context ) );
-	if (optix_remote_nodes) RT_CHECK_ERROR2(rtContextSetRemoteDevice(*context, remote));
+	if (optix_remote_nodes > 0) RT_CHECK_ERROR2(rtContextSetRemoteDevice(*context, remote));
 	RT_CHECK_ERROR2( rtContextSetRayTypeCount( *context, ray_type_count ) );
 	RT_CHECK_ERROR2( rtContextSetEntryPointCount( *context, entry_point_count ) );
 
@@ -481,7 +481,7 @@ static void createContext( RTcontext* context, const int width, const int height
 	//applyContextObject( *context, "rnd_seeds", seed_buffer );
 
 #ifdef TIMEOUT_CALLBACK
-	if (!optix_remote_nodes && alarm > 0)
+	if (optix_remote_nodes < 1 && alarm > 0)
 		RT_CHECK_ERROR2( rtContextSetTimeoutCallback( *context, timeoutCallback, alarm ) );
 #endif
 
@@ -491,7 +491,7 @@ static void createContext( RTcontext* context, const int width, const int height
 #endif
 
 #ifdef PRINT_OPTIX
-	if (!optix_remote_nodes) {
+	if (optix_remote_nodes < 1) {
 		/* Enable message pringing */
 		RT_CHECK_ERROR2( rtContextSetPrintEnabled( *context, 1 ) );
 		RT_CHECK_ERROR2( rtContextSetPrintBufferSize( *context, 512 * width * height ) );
@@ -578,11 +578,11 @@ static void applyRadianceSettings(const RTcontext context, const VIEW* view, con
 	applyContextVariable1ui( context, "shadow_ray_type", SHADOW_RAY );
 
 	/* Set hard coded parameters */
-	applyContextVariable3f( context, "CIE_rgbf", CIE_rf, CIE_gf, CIE_bf ); // from color.h
+	applyContextVariable3f(context, "CIE_rgbf", (float)CIE_rf, (float)CIE_gf, (float)CIE_bf); // from color.h
 
 	/* Set direct parameters */
-	applyContextVariable1f( context, "dstrsrc", dstrsrc ); // -dj
-	applyContextVariable1f( context, "srcsizerat", srcsizerat ); // -ds
+	applyContextVariable1f(context, "dstrsrc", (float) dstrsrc); // -dj
+	applyContextVariable1f(context, "srcsizerat", (float)srcsizerat); // -ds
 	//applyContextVariable1f( context, "shadthresh", shadthresh ); // -dt
 	//applyContextVariable1f( context, "shadcert", shadcert ); // -dc
 	//applyContextVariable1i( context, "directrelay", directrelay ); // -dr
@@ -590,21 +590,21 @@ static void applyRadianceSettings(const RTcontext context, const VIEW* view, con
 	applyContextVariable1i( context, "directvis", directvis ); // -dv
 
 	/* Set specular parameters */
-	applyContextVariable1f( context, "specthresh", specthresh ); // -st
-	applyContextVariable1f( context, "specjitter", specjitter ); // -ss
+	applyContextVariable1f(context, "specthresh", (float)specthresh); // -st
+	applyContextVariable1f(context, "specjitter", (float)specjitter); // -ss
 
 	/* Set ambient parameters */
 	applyContextVariable3f( context, "ambval", ambval[0], ambval[1], ambval[2] ); // -av
 	applyContextVariable1i( context, "ambvwt", ambvwt ); // -aw, zero by default
 	applyContextVariable1i( context, "ambounce", ambounce ); // -ab
 	//applyContextVariable1i( context, "ambres", ambres ); // -ar
-	applyContextVariable1f( context, "ambacc", ambacc ); // -aa
+	applyContextVariable1f(context, "ambacc", (float)ambacc); // -aa
 	applyContextVariable1i( context, "ambdiv", ambdiv ); // -ad
 	applyContextVariable1i(context, "ambdiv_final", ambacc > FTINY && optix_amb_fill != -1 ? optix_amb_fill : ambdiv); // -ag
 	applyContextVariable1i( context, "ambssamp", ambssamp ); // -as
-	applyContextVariable1f( context, "maxarad", maxarad ); // maximum ambient radius from ambient.h, based on armbres
-	applyContextVariable1f( context, "minarad", minarad ); // minimum ambient radius from ambient.h, based on armbres
-	avsum_var = applyContextVariable1f(context, "avsum", avsum); // computed ambient value sum (log) from ambient.c
+	applyContextVariable1f(context, "maxarad", (float)maxarad); // maximum ambient radius from ambient.h, based on armbres
+	applyContextVariable1f(context, "minarad", (float)minarad); // minimum ambient radius from ambient.h, based on armbres
+	avsum_var = applyContextVariable1f(context, "avsum", (float)avsum); // computed ambient value sum (log) from ambient.c
 	navsum_var = applyContextVariable1ui(context, "navsum", navsum); // number of values in avsum from ambient.c
 
 	/* Set medium parameters */
@@ -614,7 +614,7 @@ static void applyRadianceSettings(const RTcontext context, const VIEW* view, con
 	//applyContextVariable1f( context, "ssampdist", ssampdist ); // -ms
 
 	/* Set ray limitting parameters */
-	applyContextVariable1f( context, "minweight", minweight ); // -lw, from ray.h
+	applyContextVariable1f(context, "minweight", (float)minweight); // -lw, from ray.h
 	applyContextVariable1i( context, "maxdepth", maxdepth ); // -lr, from ray.h, negative values indicate Russian roulette
 
 	if (rand_samp)
@@ -623,17 +623,17 @@ static void applyRadianceSettings(const RTcontext context, const VIEW* view, con
 	if (view) {
 		camera_frame = applyContextVariable1ui(context, "frame", frame);
 		camera_type  = applyContextVariable1ui(context, "camera", view->type); // -vt
-		camera_eye   = applyContextVariable3f(context, "eye", view->vp[0], view->vp[1], view->vp[2]); // -vp
-		camera_u     = applyContextVariable3f(context, "U", view->hvec[0], view->hvec[1], view->hvec[2]);
-		camera_v     = applyContextVariable3f(context, "V", view->vvec[0], view->vvec[1], view->vvec[2]);
-		camera_w     = applyContextVariable3f(context, "W", view->vdir[0], view->vdir[1], view->vdir[2]); // -vd
-		camera_fov   = applyContextVariable2f(context, "fov", view->horiz, view->vert); // -vh, -vv
-		camera_shift = applyContextVariable2f(context, "shift", view->hoff, view->voff); // -vs, -vl
-		camera_clip  = applyContextVariable2f(context, "clip", view->vfore, view->vaft); // -vo, -va
-		camera_vdist = applyContextVariable1f(context, "vdist", view->vdist);
-		applyContextVariable1f(context, "dstrpix", dstrpix); // -pj
-		applyContextVariable1f(context, "mblur", mblur); // -pm
-		applyContextVariable1f(context, "dblur", dblur); // -pd
+		camera_eye   = applyContextVariable3f(context, "eye", (float)view->vp[0], (float)view->vp[1], (float)view->vp[2]); // -vp
+		camera_u     = applyContextVariable3f(context, "U", (float)view->hvec[0], (float)view->hvec[1], (float)view->hvec[2]);
+		camera_v     = applyContextVariable3f(context, "V", (float)view->vvec[0], (float)view->vvec[1], (float)view->vvec[2]);
+		camera_w     = applyContextVariable3f(context, "W", (float)view->vdir[0], (float)view->vdir[1], (float)view->vdir[2]); // -vd
+		camera_fov   = applyContextVariable2f(context, "fov", (float)view->horiz, (float)view->vert); // -vh, -vv
+		camera_shift = applyContextVariable2f(context, "shift", (float)view->hoff, (float)view->voff); // -vs, -vl
+		camera_clip  = applyContextVariable2f(context, "clip", (float)view->vfore, (float)view->vaft); // -vo, -va
+		camera_vdist = applyContextVariable1f(context, "vdist", (float)view->vdist);
+		applyContextVariable1f(context, "dstrpix", (float)dstrpix); // -pj
+		applyContextVariable1f(context, "mblur", (float)mblur); // -pm
+		applyContextVariable1f(context, "dblur", (float)dblur); // -pd
 	} else
 		applyContextVariable1ui(context, "imm_irrad", imm_irrad); // -I
 
@@ -685,14 +685,14 @@ static void updateCamera( const RTcontext context, const VIEW* view )
 
 	RT_CHECK_ERROR( rtVariableSet1ui( camera_frame, frame ) );
 	RT_CHECK_ERROR( rtVariableSet1ui( camera_type, view->type ) ); // -vt
-	RT_CHECK_ERROR( rtVariableSet3f( camera_eye, view->vp[0], view->vp[1], view->vp[2] ) ); // -vp
-	RT_CHECK_ERROR( rtVariableSet3f( camera_u, view->hvec[0], view->hvec[1], view->hvec[2] ) );
-	RT_CHECK_ERROR( rtVariableSet3f( camera_v, view->vvec[0], view->vvec[1], view->vvec[2] ) );
-	RT_CHECK_ERROR( rtVariableSet3f( camera_w, view->vdir[0], view->vdir[1], view->vdir[2] ) ); // -vd
-	RT_CHECK_ERROR( rtVariableSet2f( camera_fov, view->horiz, view->vert ) ); // -vh, -vv
-	RT_CHECK_ERROR( rtVariableSet2f( camera_shift, view->hoff, view->voff ) ); // -vs, -vl
-	RT_CHECK_ERROR( rtVariableSet2f( camera_clip, view->vfore, view->vaft ) ); // -vo, -va
-	RT_CHECK_ERROR( rtVariableSet1f( camera_vdist, view->vdist ) );
+	RT_CHECK_ERROR(rtVariableSet3f(camera_eye, (float)view->vp[0], (float)view->vp[1], (float)view->vp[2])); // -vp
+	RT_CHECK_ERROR(rtVariableSet3f(camera_u, (float)view->hvec[0], (float)view->hvec[1], (float)view->hvec[2]));
+	RT_CHECK_ERROR(rtVariableSet3f(camera_v, (float)view->vvec[0], (float)view->vvec[1], (float)view->vvec[2]));
+	RT_CHECK_ERROR(rtVariableSet3f(camera_w, (float)view->vdir[0], (float)view->vdir[1], (float)view->vdir[2])); // -vd
+	RT_CHECK_ERROR(rtVariableSet2f(camera_fov, (float)view->horiz, (float)view->vert)); // -vh, -vv
+	RT_CHECK_ERROR(rtVariableSet2f(camera_shift, (float)view->hoff, (float)view->voff)); // -vs, -vl
+	RT_CHECK_ERROR(rtVariableSet2f(camera_clip, (float)view->vfore, (float)view->vaft)); // -vo, -va
+	RT_CHECK_ERROR(rtVariableSet1f(camera_vdist, (float)view->vdist));
 }
 
 static void createGeometryInstance( const RTcontext context, RTgeometryinstance* instance )
@@ -761,7 +761,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 
 	/* Material 0 is Lambertian. */
 	if ( do_irrad ) {
-		insertArray2i(alt_materials, materials->count, materials->count);
+		insertArray2i(alt_materials, (int)materials->count, (int)materials->count);
 		insertArraym(materials, createNormalMaterial(context, &Lamb));
 	}
 
@@ -786,14 +786,14 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 		sprintf(errmsg, "Number of triangles %" PRIu64 " is greater than maximum %u.", traingles->count, UINT_MAX);
 		error(USER, errmsg);
 	}
-	if (materials->count > UINT_MAX) {
-		sprintf(errmsg, "Number of materials %" PRIu64 " is greater than maximum %u.", materials->count, UINT_MAX);
+	if (materials->count > INT_MAX) {
+		sprintf(errmsg, "Number of materials %" PRIu64 " is greater than maximum %u.", materials->count, INT_MAX);
 		error(USER, errmsg);
 	}
 
 	/* Create the geometry reference for OptiX. */
 	RT_CHECK_ERROR(rtGeometryCreate(context, &mesh));
-	RT_CHECK_ERROR(rtGeometrySetPrimitiveCount(mesh, traingles->count));
+	RT_CHECK_ERROR(rtGeometrySetPrimitiveCount(mesh, (unsigned int)traingles->count));
 
 	ptxFile(path_to_ptx, "triangle_mesh");
 	RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "mesh_bounds", &mesh_bounding_box_program));
@@ -805,7 +805,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	/* Create the geometry instance containing the geometry. */
 	RT_CHECK_ERROR(rtGeometryInstanceCreate(context, instance));
 	RT_CHECK_ERROR(rtGeometryInstanceSetGeometry(*instance, mesh));
-	RT_CHECK_ERROR(rtGeometryInstanceSetMaterialCount(*instance, materials->count));
+	RT_CHECK_ERROR(rtGeometryInstanceSetMaterialCount(*instance, (unsigned int)materials->count));
 
 	/* Apply materials to the geometry instance. */
 	for (i = 0u; i < materials->count; i++)
@@ -883,29 +883,29 @@ static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* pare
 	case MAT_PLASTIC: // Plastic material
 	case MAT_METAL: // Metal material
 	case MAT_TRANS: // Translucent material
-		buffer_entry_index[index] = insertArray2i(alt_materials, 0, materials->count);
+		buffer_entry_index[index] = insertArray2i(alt_materials, 0, (int)materials->count);
 		insertArraym(materials, createNormalMaterial(context, rec));
 		break;
 	case MAT_GLASS: // Glass material
 	case MAT_DIELECTRIC: // Dielectric material TODO handle separately, see dialectric.c
-		buffer_entry_index[index] = insertArray2i(alt_materials, -1, materials->count);
+		buffer_entry_index[index] = insertArray2i(alt_materials, -1, (int)materials->count);
 		insertArraym(materials, createGlassMaterial(context, rec));
 		break;
 	case MAT_LIGHT: // primary light source material, may modify a face or a source (solid angle)
 	case MAT_ILLUM: // secondary light source material
 	case MAT_GLOW: // Glow material
 	case MAT_SPOT: // Spotlight material
-		buffer_entry_index[index] = materials->count;
+		buffer_entry_index[index] = (int)materials->count;
 		if (rec->otype != MAT_ILLUM)
-			insertArray2i(alt_materials, materials->count, materials->count);
+			insertArray2i(alt_materials, (int)materials->count, (int)materials->count);
 		else if (rec->oargs.nsargs && strcmp(rec->oargs.sarg[0], VOIDID)) { /* modifies another material */
 			//material = objptr( lastmod( objndx(rec), rec->oargs.sarg[0] ) );
 			//alt = buffer_entry_index[objndx(material)];
 			int alt = buffer_entry_index[lastmod(objndx(rec), rec->oargs.sarg[0])];
-			insertArray2i(alt_materials, materials->count, alt);
+			insertArray2i(alt_materials, (int)materials->count, alt);
 		}
 		else
-			insertArray2i(alt_materials, materials->count, -1);
+			insertArray2i(alt_materials, (int)materials->count, -1);
 		insertArraym(materials, createLightMaterial(context, rec));
 		break;
 	case OBJ_FACE: // Typical polygons
@@ -982,7 +982,7 @@ static void createFace(OBJREC* rec, OBJREC* parent)
 	material = findFunction(parent); // TODO can there be multiple parent functions?
 	for (j = 0; j < face->nv; j++) {
 		RREAL *va = VERTEX(face, j);
-		insertArray3f(vertices, va[0], va[1], va[2]);
+		insertArray3f(vertices, (float)va[0], (float)va[1], (float)va[2]);
 
 		if (material && material->otype == TEX_FUNC && material->oargs.nsargs >= 4 && !strcmp(material->oargs.sarg[3], TCALNAME)) {
 			/* Normal calculation from tmesh.cal */
@@ -1013,14 +1013,14 @@ static void createFace(OBJREC* rec, OBJREC* parent)
 
 			if (normalize(v) == 0.0) {
 				objerror(rec, WARNING, "illegal normal perturbation");
-				insertArray3f(normals, face->norm[0], face->norm[1], face->norm[2]);
+				insertArray3f(normals, (float)face->norm[0], (float)face->norm[1], (float)face->norm[2]);
 			} else
-				insertArray3f(normals, v[0], v[1], v[2]);
+				insertArray3f(normals, (float)v[0], (float)v[1], (float)v[2]);
 		}
 		else {
 			//TODO Implement bump maps from texfunc and texdata
 			// This might be done in the Intersecion program in triangle_mesh.cu rather than here
-			insertArray3f(normals, face->norm[0], face->norm[1], face->norm[2]);
+			insertArray3f(normals, (float)face->norm[0], (float)face->norm[1], (float)face->norm[2]);
 		}
 
 		if (material && material->otype == TEX_FUNC && material->oargs.nsargs == 3 && !strcmp(material->oargs.sarg[2], TCALNAME)) {
@@ -1032,8 +1032,8 @@ static void createFace(OBJREC* rec, OBJREC* parent)
 			bv = va[(k + 2) % 3];
 
 			insertArray2f(tex_coords,
-				bu * material->oargs.farg[1] + bv * material->oargs.farg[2] + material->oargs.farg[3],
-				bu * material->oargs.farg[4] + bv * material->oargs.farg[5] + material->oargs.farg[6]);
+				(float)(bu * material->oargs.farg[1] + bv * material->oargs.farg[2] + material->oargs.farg[3]),
+				(float)(bu * material->oargs.farg[4] + bv * material->oargs.farg[5] + material->oargs.farg[6]));
 		}
 		else {
 			//TODO Implement texture maps from colorfunc, brightfunc, colordata, brightdata, and colorpict
@@ -1131,7 +1131,7 @@ static void createSphere(OBJREC* rec, OBJREC* parent)
 	insertArray3f(sph_vertices, 0.0f, 0.0f,-1.0f);
 
 	if (rec->oargs.nfargs > 4)
-		steps = rec->oargs.farg[4];
+		steps = (unsigned int)rec->oargs.farg[4];
 	else
 		steps = DEFAULT_SPHERE_STEPS;
 
@@ -1151,14 +1151,14 @@ static void createSphere(OBJREC* rec, OBJREC* parent)
 			normalize(y);
 			normalize(z);
 
-			insertArray3f(sph_vertices, x[0], x[1], x[2]);
-			insertArray3f(sph_vertices, y[0], y[1], y[2]);
-			insertArray3f(sph_vertices, z[0], z[1], z[2]);
+			insertArray3f(sph_vertices, (float)x[0], (float)x[1], (float)x[2]);
+			insertArray3f(sph_vertices, (float)y[0], (float)y[1], (float)y[2]);
+			insertArray3f(sph_vertices, (float)z[0], (float)z[1], (float)z[2]);
 
-			insertArray3i(new_vertex_indices, sph_vertex_indices->array[j], sph_vertices->count / 3 - 3, sph_vertices->count / 3 - 1);
-			insertArray3i(new_vertex_indices, sph_vertices->count / 3 - 3, sph_vertex_indices->array[j + 1], sph_vertices->count / 3 - 2);
-			insertArray3i(new_vertex_indices, sph_vertices->count / 3 - 1, sph_vertices->count / 3 - 2, sph_vertex_indices->array[j + 2]);
-			insertArray3i(new_vertex_indices, sph_vertices->count / 3 - 3, sph_vertices->count / 3 - 2, sph_vertices->count / 3 - 1);
+			insertArray3i(new_vertex_indices, (int)sph_vertex_indices->array[j], (int)sph_vertices->count / 3 - 3, (int)sph_vertices->count / 3 - 1);
+			insertArray3i(new_vertex_indices, (int)sph_vertices->count / 3 - 3, (int)sph_vertex_indices->array[j + 1], (int)sph_vertices->count / 3 - 2);
+			insertArray3i(new_vertex_indices, (int)sph_vertices->count / 3 - 1, (int)sph_vertices->count / 3 - 2, (int)sph_vertex_indices->array[j + 2]);
+			insertArray3i(new_vertex_indices, (int)sph_vertices->count / 3 - 3, (int)sph_vertices->count / 3 - 2, (int)sph_vertices->count / 3 - 1);
 		}
 
 		freeArrayi(sph_vertex_indices);
@@ -1178,9 +1178,9 @@ static void createSphere(OBJREC* rec, OBJREC* parent)
 	// Add resulting vertices
 	for (j = 0u; j < sph_vertices->count; j += 3) {
 		insertArray3f(vertices,
-			rec->oargs.farg[0] + rec->oargs.farg[3] * sph_vertices->array[j],
-			rec->oargs.farg[1] + rec->oargs.farg[3] * sph_vertices->array[j + 1],
-			rec->oargs.farg[2] + rec->oargs.farg[3] * sph_vertices->array[j + 2]);
+			(float)(rec->oargs.farg[0] + rec->oargs.farg[3] * sph_vertices->array[j]),
+			(float)(rec->oargs.farg[1] + rec->oargs.farg[3] * sph_vertices->array[j + 1]),
+			(float)(rec->oargs.farg[2] + rec->oargs.farg[3] * sph_vertices->array[j + 2]));
 		insertArray3f(normals,
 			direction * sph_vertices->array[j],
 			direction * sph_vertices->array[j + 1],
@@ -1188,7 +1188,7 @@ static void createSphere(OBJREC* rec, OBJREC* parent)
 		insertArray2f(tex_coords, 0.0f, 0.0f);
 	}
 
-	vertex_index_0 += sph_vertices->count / 3;
+	vertex_index_0 += (unsigned int)sph_vertices->count / 3;
 
 	// Free memory
 	freeArrayi(sph_vertex_indices);
@@ -1203,8 +1203,8 @@ sphmemerr:
 
 static void createCone(OBJREC* rec, OBJREC* parent)
 {
-	unsigned int i, j, isCone, steps;
-	int direction;
+	unsigned int i, j, steps;
+	int isCone, direction;
 	double theta, sphi, cphi;
 	FVECT u, v, n;
 	CONE* cone = getcone(rec, 0);
@@ -1221,7 +1221,7 @@ static void createCone(OBJREC* rec, OBJREC* parent)
 	direction = (rec->otype == OBJ_CUP || rec->otype == OBJ_TUBE) ? -1 : 1;
 
 	if (rec->oargs.nfargs > 7 + isCone) // TODO oconv won't allow extra arguments
-		steps = rec->oargs.farg[7 + isCone];
+		steps = (unsigned int)rec->oargs.farg[7 + isCone];
 	else
 		steps = DEFAULT_CONE_STEPS;
 	if (steps < 3)
@@ -1265,17 +1265,17 @@ static void createCone(OBJREC* rec, OBJREC* parent)
 		for (j = 0u; j < 3; j++)
 			n[j] = u[j] * cos(theta) + v[j] * sin(theta);
 		insertArray3f(vertices,
-			CO_P0(cone)[0] + CO_R0(cone) * n[0],
-			CO_P0(cone)[1] + CO_R0(cone) * n[1],
-			CO_P0(cone)[2] + CO_R0(cone) * n[2]);
+			(float)(CO_P0(cone)[0] + CO_R0(cone) * n[0]),
+			(float)(CO_P0(cone)[1] + CO_R0(cone) * n[1]),
+			(float)(CO_P0(cone)[2] + CO_R0(cone) * n[2]));
 		insertArray3f(vertices,
-			CO_P1(cone)[0] + CO_R1(cone) * n[0],
-			CO_P1(cone)[1] + CO_R1(cone) * n[1],
-			CO_P1(cone)[2] + CO_R1(cone) * n[2]);
+			(float)(CO_P1(cone)[0] + CO_R1(cone) * n[0]),
+			(float)(CO_P1(cone)[1] + CO_R1(cone) * n[1]),
+			(float)(CO_P1(cone)[2] + CO_R1(cone) * n[2]));
 		for (j = 0u; j < 3; j++)
 			n[j] = direction * (sphi * cone->ad[j] + cphi * n[j]);
-		insertArray3f(normals, n[0], n[1], n[2]);
-		insertArray3f(normals, n[0], n[1], n[2]);
+		insertArray3f(normals, (float)n[0], (float)n[1], (float)n[2]);
+		insertArray3f(normals, (float)n[0], (float)n[1], (float)n[2]);
 		insertArray2f(tex_coords, 0.0f, 0.0f);
 		insertArray2f(tex_coords, 0.0f, 0.0f);
 	}
@@ -1341,16 +1341,16 @@ static void createMesh(OBJREC* rec, OBJREC* parent)
 			if (!(mesh_vert.fl & MT_V))
 				objerror(rec, INTERNAL, "missing mesh vertices in createGeometryInstance");
 			multp3(transform, mesh_vert.v, meshinst->x.f.xfm);
-			insertArray3f(vertices, transform[0], transform[1], transform[2]);
+			insertArray3f(vertices, (float)transform[0], (float)transform[1], (float)transform[2]);
 
 			if (mesh_vert.fl & MT_N) { // TODO what if normal is defined by texture function
 				multv3(transform, mesh_vert.n, meshinst->x.f.xfm);
-				insertArray3f(normals, transform[0], transform[1], transform[2]);
+				insertArray3f(normals, (float)transform[0], (float)transform[1], (float)transform[2]);
 			} else
 				insertArray3f(normals, 0.0f, 0.0f, 0.0f); //TODO Can this happen?
 
 			if (mesh_vert.fl & MT_UV)
-				insertArray2f(tex_coords, mesh_vert.uv[0], mesh_vert.uv[1]);
+				insertArray2f(tex_coords, (float)mesh_vert.uv[0], (float)mesh_vert.uv[1]);
 			else
 				insertArray2f(tex_coords, 0.0f, 0.0f);
 		}
@@ -1404,12 +1404,12 @@ static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec)
 
 	/* Set variables to be consumed by material for this geometry instance */
 	applyMaterialVariable1ui( context, material, "type", rec->otype );
-	applyMaterialVariable3f( context, material, "color", rec->oargs.farg[0], rec->oargs.farg[1], rec->oargs.farg[2] );
-	applyMaterialVariable1f( context, material, "spec", rec->oargs.farg[3] );
-	applyMaterialVariable1f( context, material, "rough", rec->oargs.farg[4] );
+	applyMaterialVariable3f(context, material, "color", (float)rec->oargs.farg[0], (float)rec->oargs.farg[1], (float)rec->oargs.farg[2]);
+	applyMaterialVariable1f(context, material, "spec", (float)rec->oargs.farg[3]);
+	applyMaterialVariable1f(context, material, "rough", (float)rec->oargs.farg[4]);
 	if (rec->otype == MAT_TRANS) { // it's a translucent material
-		applyMaterialVariable1f( context, material, "transm", rec->oargs.farg[5] );
-		applyMaterialVariable1f( context, material, "tspecu", rec->oargs.farg[6] );
+		applyMaterialVariable1f(context, material, "transm", (float)rec->oargs.farg[5]);
+		applyMaterialVariable1f(context, material, "tspecu", (float)rec->oargs.farg[6]);
 	}
 
 	return material;
@@ -1448,9 +1448,9 @@ static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec)
 #ifdef HIT_TYPE
 	applyMaterialVariable1ui( context, material, "type", rec->otype );
 #endif
-	applyMaterialVariable3f( context, material, "color", rec->oargs.farg[0], rec->oargs.farg[1], rec->oargs.farg[2] );
+	applyMaterialVariable3f(context, material, "color", (float)rec->oargs.farg[0], (float)rec->oargs.farg[1], (float)rec->oargs.farg[2]);
 	if (rec->oargs.nfargs > 3)
-		applyMaterialVariable1f( context, material, "r_index", rec->oargs.farg[3] );
+		applyMaterialVariable1f(context, material, "r_index", (float)rec->oargs.farg[3]);
 
 	return material;
 }
@@ -1485,14 +1485,14 @@ static RTmaterial createLightMaterial( const RTcontext context, OBJREC* rec )
 #ifdef HIT_TYPE
 	applyMaterialVariable1ui( context, material, "type", rec->otype );
 #endif
-	applyMaterialVariable3f( context, material, "color", rec->oargs.farg[0], rec->oargs.farg[1], rec->oargs.farg[2] );
+	applyMaterialVariable3f(context, material, "color", (float)rec->oargs.farg[0], (float)rec->oargs.farg[1], (float)rec->oargs.farg[2]);
 	if (rec->otype == MAT_GLOW)
-		applyMaterialVariable1f( context, material, "maxrad", rec->oargs.farg[3] );
+		applyMaterialVariable1f(context, material, "maxrad", (float)rec->oargs.farg[3]);
 	else if (rec->otype == MAT_SPOT) {
 		SPOT* spot = makespot(rec);
 		applyMaterialVariable1f( context, material, "siz", spot->siz );
 		applyMaterialVariable1f( context, material, "flen", spot->flen );
-		applyMaterialVariable3f( context, material, "aim", spot->aim[0], spot->aim[1], spot->aim[2] );
+		applyMaterialVariable3f(context, material, "aim", (float)spot->aim[0], (float)spot->aim[1], (float)spot->aim[2]);
 		free(spot);
 		rec->os = NULL;
 	}
@@ -1564,33 +1564,33 @@ static int createFunction(const RTcontext context, OBJREC* rec)
 
 	if ( rec->oargs.nsargs >= 2 ) {
 		float transform[9] = {
-			bxp.xfm[0][0], bxp.xfm[1][0], bxp.xfm[2][0],
-			bxp.xfm[0][1], bxp.xfm[1][1], bxp.xfm[2][1],
-			bxp.xfm[0][2], bxp.xfm[1][2], bxp.xfm[2][2]
+			(float)bxp.xfm[0][0], (float)bxp.xfm[1][0], (float)bxp.xfm[2][0],
+			(float)bxp.xfm[0][1], (float)bxp.xfm[1][1], (float)bxp.xfm[2][1],
+			(float)bxp.xfm[0][2], (float)bxp.xfm[1][2], (float)bxp.xfm[2][2]
 		};
 		if ( !strcmp(rec->oargs.sarg[0], "skybr") && !strcmp(rec->oargs.sarg[1], "skybright.cal") ) {
 			ptxFile( path_to_ptx, "skybright" );
 			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "sky_bright", &program ) );
-			applyProgramVariable1ui( context, program, "type", rec->oargs.farg[0] );
-			applyProgramVariable1f( context, program, "zenith", rec->oargs.farg[1] );
-			applyProgramVariable1f( context, program, "ground", rec->oargs.farg[2] );
-			applyProgramVariable1f( context, program, "factor", rec->oargs.farg[3] );
-			applyProgramVariable3f( context, program, "sun", rec->oargs.farg[4], rec->oargs.farg[5], rec->oargs.farg[6] );
+			applyProgramVariable1ui(context, program, "type", (unsigned int)rec->oargs.farg[0]);
+			applyProgramVariable1f(context, program, "zenith", (float)rec->oargs.farg[1]);
+			applyProgramVariable1f(context, program, "ground", (float)rec->oargs.farg[2]);
+			applyProgramVariable1f(context, program, "factor", (float)rec->oargs.farg[3]);
+			applyProgramVariable3f(context, program, "sun", (float)rec->oargs.farg[4], (float)rec->oargs.farg[5], (float)rec->oargs.farg[6]);
 			applyProgramVariable( context, program, "transform", sizeof(transform), transform );
 		} else if ( !strcmp(rec->oargs.sarg[0], "skybright") && !strcmp(rec->oargs.sarg[1], "perezlum.cal") ) {
-			float coef[5] = { rec->oargs.farg[2], rec->oargs.farg[3], rec->oargs.farg[4], rec->oargs.farg[5], rec->oargs.farg[6] };
+			float coef[5] = { (float)rec->oargs.farg[2], (float)rec->oargs.farg[3], (float)rec->oargs.farg[4], (float)rec->oargs.farg[5], (float)rec->oargs.farg[6] };
 			ptxFile( path_to_ptx, "perezlum" );
 			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "perez_lum", &program ) );
-			applyProgramVariable1f( context, program, "diffuse", rec->oargs.farg[0] );
-			applyProgramVariable1f( context, program, "ground", rec->oargs.farg[1] );
+			applyProgramVariable1f(context, program, "diffuse", (float)rec->oargs.farg[0]);
+			applyProgramVariable1f(context, program, "ground", (float)rec->oargs.farg[1]);
 			applyProgramVariable( context, program, "coef", sizeof(coef), coef );
-			applyProgramVariable3f( context, program, "sun", rec->oargs.farg[7], rec->oargs.farg[8], rec->oargs.farg[9] );
+			applyProgramVariable3f(context, program, "sun", (float)rec->oargs.farg[7], (float)rec->oargs.farg[8], (float)rec->oargs.farg[9]);
 			applyProgramVariable( context, program, "transform", sizeof(transform), transform );
 		} else if (!strcmp(rec->oargs.sarg[0], "skybright") && !strcmp(rec->oargs.sarg[1], "isotrop_sky.cal")) {
 			/* Isotropic sky from daysim installation */
 			ptxFile(path_to_ptx, "isotropsky");
 			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "isotrop_sky", &program));
-			applyProgramVariable1f(context, program, "skybright", rec->oargs.farg[0]);
+			applyProgramVariable1f(context, program, "skybright", (float)rec->oargs.farg[0]);
 			applyProgramVariable(context, program, "transform", sizeof(transform), transform);
 		} else {
 			printObject(rec);
@@ -1616,7 +1616,7 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 	float*           tex_buffer_data;
 
 	int tex_id = RT_TEXTURE_ID_NULL;
-	unsigned int i, entries;
+	int i, entries;
 
 	DATARRAY *dp;
 	//COLOR color;
@@ -1683,9 +1683,9 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 	if ( rec->oargs.nsargs >= 5 ) {
 		if ( !strcmp(rec->oargs.sarg[0], "flatcorr") && !strcmp(rec->oargs.sarg[2], "source.cal") ) {
 			float transform[9] = {
-				bxp.xfm[0][0], bxp.xfm[1][0], bxp.xfm[2][0],
-				bxp.xfm[0][1], bxp.xfm[1][1], bxp.xfm[2][1],
-				bxp.xfm[0][2], bxp.xfm[1][2], bxp.xfm[2][2]
+				(float)bxp.xfm[0][0], (float)bxp.xfm[1][0], (float)bxp.xfm[2][0],
+				(float)bxp.xfm[0][1], (float)bxp.xfm[1][1], (float)bxp.xfm[2][1],
+				(float)bxp.xfm[0][2], (float)bxp.xfm[1][2], (float)bxp.xfm[2][2]
 			};
 			ptxFile( path_to_ptx, "source" );
 			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "flatcorr", &program ) );
@@ -1695,7 +1695,7 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 			applyProgramVariable3f( context, program, "maximum", dp->dim[dp->nd-1].siz, dp->nd > 1 ? dp->dim[dp->nd-2].siz : 1.0f, dp->nd > 2 ? dp->dim[dp->nd-3].siz : 1.0f );
 			applyProgramVariable( context, program, "transform", sizeof(transform), transform );
 			if (rec->oargs.nfargs > 0)
-				applyProgramVariable1f( context, program, "multiplier", rec->oargs.farg[0] ); //TODO handle per-color channel multipliers
+				applyProgramVariable1f(context, program, "multiplier", (float)rec->oargs.farg[0]); //TODO handle per-color channel multipliers
 		} else {
 			printObject(rec);
 			return RT_PROGRAM_ID_NULL;
@@ -1712,7 +1712,7 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 static int createTransform( XF* fxp, XF* bxp, const OBJREC* rec )
 {
 	/* Get transform - from getfunc in func.c */
-	unsigned int i = 0u;
+	int i = 0;
 	while (i < rec->oargs.nsargs && rec->oargs.sarg[i][0] != '-')
 		i++;
 	if (i == rec->oargs.nsargs)	{		/* no transform */
@@ -1812,14 +1812,14 @@ static void createIrradianceGeometry( const RTcontext context )
 
 static void printObject(OBJREC* rec)
 {
-	unsigned int i;
+	int i;
 
 	objerror(rec, WARNING, "no GPU support");
 	mprintf(" %s(%i) %s(%i) %s(%i)\n %i", rec->omod > OVOID ? objptr(rec->omod)->oname : VOIDID, rec->omod, ofun[rec->otype].funame, rec->otype, rec->oname, objndx(rec), rec->oargs.nsargs);
-	for (i = 0u; i < rec->oargs.nsargs; i++)
+	for (i = 0; i < rec->oargs.nsargs; i++)
 		mprintf(" %s", rec->oargs.sarg[i]);
 	mprintf("\n %i", rec->oargs.nfargs);
-	for (i = 0u; i < rec->oargs.nfargs; i++)
+	for (i = 0; i < rec->oargs.nfargs; i++)
 		mprintf(" %g", rec->oargs.farg[i]);
 	if (rec->os)
 		mprintf("\n Object structure: %s", rec->os);
@@ -1838,9 +1838,9 @@ static void getRay( RayData* data, const RAY* ray )
 	//array2cuda3( data->normal, ray->ron );
 
 	//array2cuda2(data->tex, ray->uv);
-	data->max = ray->rmax;
+	data->max = (float)ray->rmax;
 	data->weight = ray->rweight;
-	data->length = ray->rt;
+	data->length = (float)ray->rt;
 	//data->t = ray->rot;
 }
 

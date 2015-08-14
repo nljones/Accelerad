@@ -116,22 +116,22 @@ extern int	rand_samp;	/* pure Monte Carlo sampling? */
 
 #ifdef ACCELERAD
 extern unsigned int use_optix;			/* Flag to use OptiX for ray tracing */
-extern unsigned int optix_stack_size;	/* Stack size for OptiX program in bytes */
+extern int optix_stack_size;			/* Stack size for OptiX program in bytes */
 
 /* For OptiX ambient sampling */
-extern unsigned int optix_amb_scale;			/* Scale to use for ambient sample spacing */
-extern int optix_amb_fill;						/* Number of ambient divisions for final-pass fill */
-extern unsigned int optix_amb_grid_size;		/* Size of sphere grid to use for ambient seeding */
-extern unsigned int optix_amb_seeds_per_thread;	/* Number of ambient seeds per OptiX thread */
+extern int optix_amb_scale;				/* Scale to use for ambient sample spacing */
+extern int optix_amb_fill;				/* Number of ambient divisions for final-pass fill */
+extern int optix_amb_grid_size;			/* Size of sphere grid to use for ambient seeding */
+extern int optix_amb_seeds_per_thread;	/* Number of ambient seeds per OptiX thread */
 
 /* For OptiX k-means ambient sampling */
-extern unsigned int cuda_kmeans_clusters;		/* Number of clusters of ambient for k-means */
-extern unsigned int cuda_kmeans_iterations;		/* Maximum number of k-means iterations */
-extern float cuda_kmeans_threshold;				/* Fraction of seeds that must change cluster to continue k-means iteration */
-extern float cuda_kmeans_error;					/* Weighting of position in k-means error */
+extern int cuda_kmeans_clusters;		/* Number of clusters of ambient for k-means */
+extern int cuda_kmeans_iterations;		/* Maximum number of k-means iterations */
+extern float cuda_kmeans_threshold;		/* Fraction of seeds that must change cluster to continue k-means iteration */
+extern float cuda_kmeans_error;			/* Weighting of position in k-means error */
 
 /* For OptiX remote VCA access */
-extern unsigned int optix_remote_nodes;	/* Number of VCA nodes to request */
+extern int optix_remote_nodes;			/* Number of VCA nodes to request */
 extern char *optix_remote_url, *optix_remote_user, *optix_remote_password;	/* VCA device parameters */
 #endif
 

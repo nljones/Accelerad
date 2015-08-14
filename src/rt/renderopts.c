@@ -15,22 +15,22 @@ static const char	RCSid[] = "$Id$";
 
 #ifdef ACCELERAD
 unsigned int use_optix = 1u;			/* Flag to use OptiX for ray tracing */
-unsigned int optix_stack_size = 4096u;	/* Stack size for OptiX program in bytes (-g) */
+int optix_stack_size = 4096;			/* Stack size for OptiX program in bytes (-g) */
 
 /* For OptiX ambient sampling */
-unsigned int optix_amb_scale = 0u;				/* Scale to use for ambient sample spacing, zero to use all pixels (-al) */
-int optix_amb_fill = -1;						/* Number of ambient divisions for final-pass fill (-ag) */
-unsigned int optix_amb_grid_size = 0u;			/* Size of sphere grid to use for ambient seeding, zero for view-dependent seeding (-az) */
-unsigned int optix_amb_seeds_per_thread = 16u;	/* Number of ambient seeds per OptiX thread (-ay) */
+int optix_amb_scale = 0;				/* Scale to use for ambient sample spacing, zero to use all pixels (-al) */
+int optix_amb_fill = -1;				/* Number of ambient divisions for final-pass fill (-ag) */
+int optix_amb_grid_size = 0;			/* Size of sphere grid to use for ambient seeding, zero for view-dependent seeding (-az) */
+int optix_amb_seeds_per_thread = 16;	/* Number of ambient seeds per OptiX thread (-ay) */
 
 /* For OptiX k-means ambient sampling */
-unsigned int cuda_kmeans_clusters = 4096u;		/* Number of clusters of ambient for k-means (-ac) */
-unsigned int cuda_kmeans_iterations = 100u;		/* Maximum number of k-means iterations (-am) */
-float cuda_kmeans_threshold = 0.05f;			/* Fraction of seeds that must change cluster to continue k-means iteration (-at) */
-float cuda_kmeans_error = 1.0f;					/* Weighting of position in k-means error (-ax) */
+int cuda_kmeans_clusters = 4096;		/* Number of clusters of ambient for k-means (-ac) */
+int cuda_kmeans_iterations = 100;		/* Maximum number of k-means iterations (-am) */
+float cuda_kmeans_threshold = 0.05f;	/* Fraction of seeds that must change cluster to continue k-means iteration (-at) */
+float cuda_kmeans_error = 1.0f;			/* Weighting of position in k-means error (-ax) */
 
 /* For OptiX remote VCA access */
-unsigned int optix_remote_nodes = 0u;	/* Number of VCA nodes to request */
+int optix_remote_nodes = 0;				/* Number of VCA nodes to request */
 char *optix_remote_url = NULL;			/* URL to VCA */
 char *optix_remote_user = NULL;			/* User name for VCA access */
 char *optix_remote_password = NULL;		/* User password for VCA access */
@@ -199,6 +199,10 @@ getrenderopt(		/* get next render option */
 		case 'c':				/* Number of k-means clusters for ambient calculation */
 			check(3,"i");
 			cuda_kmeans_clusters = atoi(av[1]);
+			if (cuda_kmeans_clusters < 1) {
+				sprintf(errmsg, "irradiance cache size (ac) must be positive (currently %i)", cuda_kmeans_clusters);
+				error(USER, errmsg);
+			}
 			return(1);
 		case 'n':				/* Maximum number of k-means iterations */
 			check(3,"i");

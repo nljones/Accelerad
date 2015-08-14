@@ -250,13 +250,13 @@ static double ambientRadius(const double weight)
 static unsigned int ambientDivisions(const double weight)
 {
 #ifndef OLDAMB
-	unsigned int divisions = sqrt(ambdiv * weight) + 0.5;
+	unsigned int divisions = (unsigned int)(sqrt(ambdiv * weight) + 0.5);
 	unsigned int i = 1 + 5 * (ambacc > FTINY);	/* minimum number of samples */
 	if (divisions < i)
 		return i;
 	return divisions;
 #else
-	unsigned int divisions = sqrt(ambdiv * weight / PI) + 0.5;
+	unsigned int divisions = (unsigned int)(sqrt(ambdiv * weight / PI) + 0.5);
 	unsigned int i = ambacc > FTINY ? 3 : 1;	/* minimum number of samples */
 	if (divisions < i)
 		return i;
@@ -565,10 +565,10 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 			max_level--;
 
 	/* Set dimensions for first sample. */
-	if ( view && optix_amb_grid_size ) { // if -az argument greater than zero
+	if (view && optix_amb_grid_size > 0) { // if -az argument greater than zero
 		grid_width = optix_amb_grid_size / 2;
 		grid_height = optix_amb_grid_size;
-	} else if ( view && optix_amb_scale ) { // if -al argument greater than zero
+	} else if (view && optix_amb_scale > 0) { // if -al argument greater than zero
 		grid_width = width / optix_amb_scale;
 		grid_height = height / optix_amb_scale;
 	} else {
@@ -717,7 +717,7 @@ static void createPointCloudCamera( const RTcontext context, const VIEW* view )
 		ptxFile( path_to_ptx, "point_cloud_generator" );
 		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "point_cloud_camera", &program));
 
-		if (optix_amb_grid_size) // Ignore camera for bounds of sampling area
+		if (optix_amb_grid_size > 0) // Ignore camera for bounds of sampling area
 			applyProgramVariable1ui(context, program, "camera", 0u); // Hide context variable
 	} else {
 		ptxFile( path_to_ptx, "sensor_cloud_generator" );
@@ -816,7 +816,7 @@ static unsigned int chooseAmbientLocations(const RTcontext context, const unsign
 			error(SYSTEM, "out of memory in chooseAmbientLocations");
 
 		kernel_clock = clock();
-		cuda_score_hits(seed_buffer_data, score, width, height, cuda_kmeans_error / (ambacc * maxarad), cluster_count);
+		cuda_score_hits(seed_buffer_data, score, width, height, (float)(cuda_kmeans_error / (ambacc * maxarad)), cluster_count);
 		kernel_clock = clock() - kernel_clock;
 		mprintf("Adaptive sampling: %" PRIu64 " milliseconds.\n", MILLISECONDS(kernel_clock));
 
@@ -1019,7 +1019,7 @@ static unsigned int createKMeansClusters( const unsigned int seed_count, const u
 	}
 
 	/* Check that k-means should be used */
-	if ( !cuda_kmeans_iterations ) {
+	if (cuda_kmeans_iterations < 1) {
 		mprintf("Using first %u seeds at level %u.\n\n", cluster_count, level);
 		for ( i = 0u; i < cluster_count; i++ )
 			cluster_buffer_data[i] = *seeds[i]; //TODO should randomly choose from array
@@ -1033,7 +1033,7 @@ static unsigned int createKMeansClusters( const unsigned int seed_count, const u
 	if (membership == NULL || distance == NULL)
 		error(SYSTEM, "out of memory in createKMeansClusters");
 	kernel_clock = clock();
-	clusters = (PointDirection**)cuda_kmeans((float**)seeds, sizeof(PointDirection) / sizeof(float), good_seed_count, cluster_count, cuda_kmeans_iterations, cuda_kmeans_threshold, cuda_kmeans_error / (ambacc * maxarad), level, membership, distance, &loops);
+	clusters = (PointDirection**)cuda_kmeans((float**)seeds, sizeof(PointDirection) / sizeof(float), good_seed_count, cluster_count, cuda_kmeans_iterations, cuda_kmeans_threshold, (float)(cuda_kmeans_error / (ambacc * maxarad)), level, membership, distance, &loops);
 	kernel_clock = clock() - kernel_clock;
 	mprintf("K-means performed %u loop iterations in %" PRIu64 " milliseconds.\n", loops, MILLISECONDS(kernel_clock));
 
@@ -1159,7 +1159,7 @@ static void calcAmbientValues(const RTcontext context, const unsigned int level,
 	updateAmbientCache(context, level);
 
 	/* Update averages */
-	RT_CHECK_ERROR(rtVariableSet1f(avsum_var, avsum));
+	RT_CHECK_ERROR(rtVariableSet1f(avsum_var, (float)avsum));
 	RT_CHECK_ERROR(rtVariableSet1ui(navsum_var, navsum));
 }
 
