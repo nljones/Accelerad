@@ -127,10 +127,7 @@ static void runKernelImpl(const RTcontext context, const unsigned int entry, con
 	/* Stop timers */
 	kernel_clock = clock() - kernel_clock;
 	kernel_time = time((time_t *)NULL) - kernel_time;
-	if (llabs(kernel_clock / CLOCKS_PER_SEC - kernel_time) <= 1)
-		mprintf("OptiX kernel time: %" PRIu64 " milliseconds (%" PRIu64 " seconds).\n", MILLISECONDS(kernel_clock), kernel_time);
-	else
-		mprintf("OptiX kernel time: %" PRIu64 " seconds.\n", kernel_time);
+	mprintf("OptiX kernel time: %" PRIu64 " milliseconds (%" PRIu64 " seconds).\n", MILLISECONDS(kernel_clock), kernel_time);
 #ifdef CUMULTATIVE_TIME
 	cumulative_millis += MILLISECONDS(kernel_clock);
 	mprintf("OptiX kernel cumulative time: %" PRIu64 " milliseconds.\n", cumulative_millis);
@@ -149,10 +146,7 @@ void printRayTracingTime(const time_t time, const clock_t clock)
 		return;
 
 	/* Print the given elapsed time for ray tracing */
-	if (llabs(clock / CLOCKS_PER_SEC - time) <= 1)
-		sprintf(errmsg, "ray tracing time: %" PRIu64 " milliseconds (%" PRIu64 " seconds).\n", MILLISECONDS(clock), time);
-	else
-		sprintf(errmsg, "ray tracing time: %" PRIu64 " seconds.\n", time);
+	sprintf(errmsg, "ray tracing time: %" PRIu64 " milliseconds (%" PRIu64 " seconds).\n", MILLISECONDS(clock), time);
 	(*erract[WARNING].pf)(errmsg);
 }
 

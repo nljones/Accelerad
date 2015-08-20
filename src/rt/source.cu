@@ -4,7 +4,7 @@
  */
 
 #include <optix_world.h>
-//#include "optix_shader_common.h"
+#include "optix_shader_common.h"
 
 using namespace optix;
 
@@ -20,24 +20,51 @@ rtDeclareVariable(float3, minimum, , ); /* texture minimum coordinates */
 rtDeclareVariable(float3, maximum, , ); /* texture maximum coordinates */
 rtDeclareVariable(Transform, transform, , ); /* transformation matrix */
 rtDeclareVariable(float, multiplier, , ) = 1.0f; /* multiplier for light source intensity */
+rtDeclareVariable(float3, bounds, , ); /* dimensions of axis-aligned box or Z-aligned cylinder in meters */
 
-// Calculate source distribution with correction for flat sources.
-RT_CALLABLE_PROGRAM float3 flatcorr( const float3 direction, const float3 normal )
+// Calculate source distribution.
+RT_METHOD float3 source(const float3 dir)
 {
-	//rtPrintf("FlatCorr Recieved (%f, %f, %f) (%f, %f, %f)\n", direction.x, direction.y, direction.z, normal.x, normal.y, normal.z);
-
-	const float3 dir = transform.m * direction;
-
-	float phi = acosf( dir.z );
-	float theta = atan2f( -dir.y, -dir.x );
-	theta += 2.0f * M_PIf * ( theta < 0.0f );
+	float phi = acosf(dir.z);
+	float theta = atan2f(-dir.y, -dir.x);
+	theta += 2.0f * M_PIf * (theta < 0.0f);
 
 	/* Normalize to [0, 1] within range */
-	phi = ( 180.0f * M_1_PIf * phi - minimum.x ) / ( maximum.x - minimum.x );
-	theta = ( 180.0f * M_1_PIf * theta - minimum.y ) / ( maximum.y - minimum.y );
+	phi = (180.0f * M_1_PIf * phi - minimum.x) / (maximum.x - minimum.x);
+	theta = (180.0f * M_1_PIf * theta - minimum.y) / (maximum.y - minimum.y);
 
-	float rdot = dot( direction, normal );
-	if ( type )
-		return make_float3( multiplier * rtTex2D<float>( data, phi, theta ) / fabsf( rdot ) ); // this is flatcorr from source.cal
-	return multiplier * make_float3( rtTex2D<float4>( data, phi, theta ) ) / fabsf( rdot );
+	if (type)
+		return make_float3(multiplier * rtTex2D<float>(data, phi, theta)); // this is corr from source.cal
+	return multiplier * make_float3(rtTex2D<float4>(data, phi, theta));
+}
+
+// Calculate source distribution.
+RT_CALLABLE_PROGRAM float3 corr(const float3 direction, const float3 ignore)
+{
+	const float3 dir = transform.m * direction;
+	return source(dir); // this is corr from source.cal
+}
+
+// Calculate source distribution with correction for flat sources.
+RT_CALLABLE_PROGRAM float3 flatcorr(const float3 direction, const float3 normal)
+{
+	const float3 dir = transform.m * direction;
+	const float rdot = dot(direction, normal);
+	return source(dir) / fabsf(rdot); // this is flatcorr from source.cal
+}
+
+// Calculate source distribution with correction for emitting boxes.
+RT_CALLABLE_PROGRAM float3 boxcorr(const float3 direction, const float3 ignore)
+{
+	const float3 dir = transform.m * direction;
+	const float boxprojection = fabs(dir.x) * bounds.y * bounds.z + fabs(dir.y) * bounds.x * bounds.z + fabs(dir.z) * bounds.x * bounds.y;
+	return source(dir) / boxprojection; // this is boxcorr from source.cal
+}
+
+// Calculate source distribution with correction for emitting cylinders.
+RT_CALLABLE_PROGRAM float3 cylcorr(const float3 direction, const float3 ignore)
+{
+	const float3 dir = transform.m * direction;
+	const float cylprojection = bounds.x * bounds.y * sqrtf(fmaxf(1.0f - dir.z * dir.z, 0.0f)) + M_PIf / 4.0f * bounds.x * bounds.x * fabs(dir.z);
+	return source(dir) / cylprojection; // this is cylcorr from source.cal
 }

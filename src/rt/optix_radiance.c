@@ -1682,14 +1682,21 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 
 	/* Create program to access texture sampler */
 	if ( rec->oargs.nsargs >= 5 ) {
-		if ( !strcmp(rec->oargs.sarg[0], "flatcorr") && !strcmp(rec->oargs.sarg[2], "source.cal") ) {
+		if (!strcmp(rec->oargs.sarg[2], "source.cal")) {
 			float transform[9] = {
 				(float)bxp.xfm[0][0], (float)bxp.xfm[1][0], (float)bxp.xfm[2][0],
 				(float)bxp.xfm[0][1], (float)bxp.xfm[1][1], (float)bxp.xfm[2][1],
 				(float)bxp.xfm[0][2], (float)bxp.xfm[1][2], (float)bxp.xfm[2][2]
 			};
+
+			/* Check compatibility with existing implementation */
+			if ((strcmp(rec->oargs.sarg[0], "corr") && strcmp(rec->oargs.sarg[0], "flatcorr") && strcmp(rec->oargs.sarg[0], "boxcorr") && strcmp(rec->oargs.sarg[0], "cylcorr")) || strcmp(rec->oargs.sarg[3], "src_phi") || strcmp(rec->oargs.sarg[4], "src_theta")) {
+				printObject(rec);
+				return RT_PROGRAM_ID_NULL;
+			}
+
 			ptxFile( path_to_ptx, "source" );
-			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "flatcorr", &program ) );
+			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, rec->oargs.sarg[0], &program));
 			applyProgramVariable1i( context, program, "data", tex_id );
 			applyProgramVariable1i( context, program, "type", dp->type == DATATY );
 			applyProgramVariable3f( context, program, "minimum", dp->dim[dp->nd-1].org, dp->nd > 1 ? dp->dim[dp->nd-2].org : 0.0f, dp->nd > 2 ? dp->dim[dp->nd-3].org : 0.0f );
@@ -1697,6 +1704,8 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 			applyProgramVariable( context, program, "transform", sizeof(transform), transform );
 			if (rec->oargs.nfargs > 0)
 				applyProgramVariable1f(context, program, "multiplier", (float)rec->oargs.farg[0]); //TODO handle per-color channel multipliers
+			if (rec->oargs.nfargs > 2)
+				applyProgramVariable3f(context, program, "bounds", (float)rec->oargs.farg[1], (float)rec->oargs.farg[2], rec->oargs.nfargs > 3 ? (float)rec->oargs.farg[3] : 0.0f);
 		} else {
 			printObject(rec);
 			return RT_PROGRAM_ID_NULL;
