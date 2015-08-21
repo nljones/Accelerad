@@ -385,11 +385,12 @@ static void checkDevices()
 static void checkRemoteDevice(RTremotedevice remote)
 {
 	char s[256];
+	unsigned int version = 0;
 	int i = 0, j;
 	RTsize size;
 
-	RT_CHECK_WARN_NO_CONTEXT(rtGetVersion(&i));
-	mprintf("OptiX %d.%d.%d logged into %s as %s\n", i / 1000, (i % 1000) / 10, i % 10, optix_remote_url, optix_remote_user);
+	RT_CHECK_WARN_NO_CONTEXT(rtGetVersion(&version));
+	mprintf("OptiX %d.%d.%d logged into %s as %s\n", version / 1000, (version % 1000) / 10, version % 10, optix_remote_url, optix_remote_user);
 	rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_NAME, sizeof(s), &s);
 	mprintf("VCA Name:                 %s\n", s);
 	rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_NUM_GPUS, sizeof(int), &i);
@@ -1499,7 +1500,7 @@ static RTmaterial createLightMaterial( const RTcontext context, OBJREC* rec )
 	}
 
 	/* Check for a parent function. */
-	if (mat = findFunction(rec)) // TODO can there be multiple parent functions?
+	if ((mat = findFunction(rec))) // TODO can there be multiple parent functions?
 		applyMaterialVariable1i( context, material, "function", buffer_entry_index[objndx(mat)] );
 	else
 		applyMaterialVariable1i( context, material, "function", RT_PROGRAM_ID_NULL );
@@ -1521,7 +1522,7 @@ static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, OBJ
 	light.casts_shadow = material->otype != MAT_GLOW; // Glow cannot cast shadow infinitely far away
 
 	/* Check for a parent function. */
-	if (material = findFunction(parent)) // TODO can there be multiple parent functions?
+	if ((material = findFunction(parent))) // TODO can there be multiple parent functions?
 		light.function = buffer_entry_index[objndx(material)];
 	else
 		light.function = RT_PROGRAM_ID_NULL;
@@ -1651,6 +1652,7 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 	default:
 		sprintf(errmsg, "bad number of dimensions %u", dp->nd);
 		objerror(rec, USER, errmsg);
+		return RT_PROGRAM_ID_NULL;
 	}
 
 	/* Populate buffer with texture data */

@@ -405,7 +405,7 @@ RT_PROGRAM void closest_hit_radiance()
 						shadow_prd.target = -v_idx.x - 1; //TODO find a better way to identify surface
 						shadow_ray.direction = normalize( rdir );
 						shadow_ray.tmin = ray_start(nd.hit, shadow_ray.direction, nd.normal, RAY_START);
-						shadow_ray.tmax = length( rdir ) + FTINY;
+						shadow_ray.tmax = length(rdir) * 1.0001f;
 						result += dirnorm(&shadow_ray, &shadow_prd, &nd, omega);
 					}
 				}

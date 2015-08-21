@@ -72,7 +72,7 @@ RT_PROGRAM void mesh_intersect(unsigned int primIdx)
 			return;
 		if ( ray.ray_type == radiance_primary_ray_type ) /* Lambert material for irradiance calculations */
 			mat = material_alt_buffer[mat].x;
-		else if ( ray.ray_type != shadow_ray_type ) /* For materials whose type depends on ray type (such as illum and mirror) */
+		else if (ray.ray_type != shadow_ray_type || ray.tmax - t > ray.tmax * 0.0002f) /* For materials whose type depends on ray type (such as illum and mirror) */
 			mat = material_alt_buffer[mat].y;
 		if ( mat < 0 || mat >= material_alt_buffer.size() ) /* Material void or missing */
 			return;
