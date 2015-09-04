@@ -116,7 +116,7 @@ dirnorm(		/* compute source contribution */
 		scalecolor(ctmp, dtmp);
 		addcolor(cval, ctmp);
 	}
-	
+
 	if (ldot < -FTINY && ltdiff > FTINY) {
 		/*
 		 *  Compute diffuse transmission.
@@ -126,7 +126,10 @@ dirnorm(		/* compute source contribution */
 		scalecolor(ctmp, dtmp);
 		addcolor(cval, ctmp);
 	}
-	
+
+	if (ambRayInPmap(np->rp))
+		return;		/* specular already in photon map */
+
 	if (ldot > FTINY && (np->specfl&(SP_REFL|SP_PURE)) == SP_REFL) {
 		/*
 		 *  Compute specular reflection coefficient using
