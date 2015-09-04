@@ -78,7 +78,9 @@ RT_PROGRAM void miss()
 
 RT_PROGRAM void miss_shadow()
 {
-	float3 result = make_float3( 0.0f );
+	prd_shadow.result = make_float3(0.0f);
+	if (ray.tmax < RAY_END) // ray length was truncated
+		return;
 
 	const float3 H = optix::normalize(ray.direction);
 
@@ -96,7 +98,7 @@ RT_PROGRAM void miss_shadow()
 				float3 color = light.color;
 				if (light.function != RT_PROGRAM_ID_NULL)
 					color *= ((rtCallableProgramId<float3(const float3, const float3)>)light.function)(H, -H);
-				result += color;
+				prd_shadow.result = color;
 #ifdef DAYSIM_COMPATIBLE
 				if (daylightCoefficients >= 2) {
 					// TODO This assumes that all sources are sun positions in numerical order
@@ -107,7 +109,6 @@ RT_PROGRAM void miss_shadow()
 			}
 		}
 	}
-	prd_shadow.result = result;
 }
 
 #ifdef DAYSIM_COMPATIBLE
