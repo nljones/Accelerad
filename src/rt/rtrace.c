@@ -86,7 +86,7 @@ extern void computeOptix(const int width, const int height, const unsigned int i
 
 double  ralrm = 0.0;				/* seconds between reports */
 
-/* TODO This shouldn't be necessary, but the variable must exist in optix_radiance.c */
+/* TODO This shouldn't be necessary, but the variable must exist in optix_util.c */
 double	pctdone = 0.0;			/* percentage done */
 void report(int dummy) {}		/* report progress */
 #endif
