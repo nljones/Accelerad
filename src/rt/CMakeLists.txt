@@ -156,8 +156,8 @@ endif()
 if (X11_FOUND OR Qt5Widgets_DIR)
   add_executable(rvu
     rvmain.c rview.c rv2.c rv3.c devtable.c devcomm.c editline.c ${X11_SOURCES}
-    colortab.c)
-  target_link_libraries(rvu raycalls radiance rtrad ${X11_LIBRARIES})
+    colortab.c ${generated_PTX_files_rpict})
+  target_link_libraries(rvu ${ACCELERAD_LIBRARY} ${optix_LIBRARY} ${CUDA_CUDART_LIBRARY} raycalls radiance rtrad ${X11_LIBRARIES})
   list(APPEND targets_to_install rvu)
 
   # only link to rvu-qt-lib if qt is found

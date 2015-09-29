@@ -534,7 +534,11 @@ void getPhotonPorts ()
    for (i = 0; i < nobjects; i++) {
       obj = objptr(i);
       
-      if (inset(ambset, obj -> omod)) {
+      /* Check if object is a surface and NOT a light source (duh) and
+       * resolve its material via any aliases, then check for inclusion in
+       * port modifier list */
+      if (issurface(obj -> otype) && !islight(obj -> otype) &&
+          inset(ambset, objndx(findmaterial(obj)))) {
          /* Add photon port */
          photonPorts = (SRCREC*)realloc(photonPorts, 
                                         (numPhotonPorts + 1) * 

@@ -13,6 +13,13 @@ static const char	RCSid[] = "$Id$";
 #include  "rpaint.h"
 #include "color.h"
 
+#include "ray.h"
+#ifdef ACCELERAD
+/* from optix_radiance.c */
+extern void renderOptix(const VIEW* view, const int width, const int height, const double dstrpix, const double mblur, const double dblur, const double alarm, COLOR* colors, float* depths);
+extern void endOptix();
+#endif
+
 static char lastPrompt[1024];
 static const char* currentCommand =0;
 static int abort_render = 0;
@@ -226,6 +233,46 @@ void qt_process_command(const char* com)
      pointer as the command to process */
   command("");
   /* after processing a command try to do a render */
+#ifdef ACCELERAD
+	if (use_optix) {
+		int i, j;
+		COLOR *colptr = (COLOR *)malloc(sizeof(COLOR) * hresolu * vresolu);
+		float *zptr = (float *)malloc(sizeof(float) * hresolu * vresolu);
+		if (colptr == NULL || zptr == NULL)
+			error(SYSTEM, "out of memory in rview");
+
+		/* Now lets render an image on the graphics card */
+		renderOptix(&ourview, hresolu, dev->ysiz, 0.0, 0.0, 0.0, 0.0, colptr, zptr);
+
+		/* Quick output handling */
+		for (i = vresolu; i--;)
+			for (j = hresolu; j--;)
+				(*dev->paintr)(greyscale ? greyof(colptr[hresolu * i + j]) : colptr[hresolu * i + j], j, i, j + 1, i + 1);
+		qt_flush();
+
+		/* Unallocate the memory that was used to save the output transfered back from OptiX rendering. */
+		free(colptr);
+		free(zptr);
+
+		for (;;) {			/* quit in command() */
+			//fprintf(stderr, "B\n");
+			if (hresolu <= 1 << pdepth && vresolu <= 1 << pdepth)
+			{
+				qt_set_progress(100);
+				qt_comout("done");
+				return;
+			}
+			errno = 0;
+			if (dev->inpready)		/* noticed some input */
+			{
+				command(": ");
+			}
+			else				/* finished this depth */
+				pdepth++;
+		}
+	}
+	else
+#endif
   for ( ; ; )
     {
     if (hresolu <= 1<<pdepth && vresolu <= 1<<pdepth)
