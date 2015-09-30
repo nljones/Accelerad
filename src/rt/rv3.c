@@ -302,6 +302,9 @@ newimage(					/* start a new image */
 		nproc = newnp;
 	}
 	niflush = 0;				/* get first value */
+#ifdef ACCELERAD
+	if (!use_optix) /* Don't shoot rays here, since the OptiX program should handle this. */
+#endif
 	paint(&ptrunk);
 }
 

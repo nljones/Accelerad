@@ -333,6 +333,7 @@ print_rdefaults(void)		/* print default render values to stdout */
 	printf("-as %-9d\t\t\t# ambient super-samples\n", ambssamp);
 #ifdef ACCELERAD
 	printf("-al %-9d\t\t\t# ambient sample spacing (GPU only)\n", optix_amb_scale);
+	printf("-ag %-9d\t\t\t# ambient infill divisions (GPU only)\n", optix_amb_fill);
 	printf("-az %-9d\t\t\t# ambient grid density (GPU only)\n", optix_amb_grid_size);
 	printf("-ac %-9d\t\t\t# ambient k-means clusters (GPU only)\n", cuda_kmeans_clusters);
 	printf("-an %-9d\t\t\t# ambient k-means iterations (GPU only)\n", cuda_kmeans_iterations);

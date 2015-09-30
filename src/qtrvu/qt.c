@@ -18,6 +18,8 @@ static const char	RCSid[] = "$Id$";
 /* from optix_radiance.c */
 extern void renderOptix(const VIEW* view, const int width, const int height, const double dstrpix, const double mblur, const double dblur, const double alarm, COLOR* colors, float* depths);
 extern void endOptix();
+
+extern double ralrm;				/* seconds between reports */
 #endif
 
 static char lastPrompt[1024];
@@ -50,6 +52,15 @@ extern int qt_rvu_run();
 extern void qt_window_comout(const char*);
 extern void qt_set_progress(int);
 extern int qt_open_text_dialog(char* , const char*);
+
+#ifdef ACCELERAD
+double	pctdone = 0.0;			/* percentage done */
+
+void report(int dummy)		/* report progress */
+{
+	qt_set_progress((int)pctdone);
+}
+#endif
 
 extern struct driver *
 qt_init(		/* initialize driver */
@@ -242,36 +253,27 @@ void qt_process_command(const char* com)
 			error(SYSTEM, "out of memory in rview");
 
 		/* Now lets render an image on the graphics card */
-		renderOptix(&ourview, hresolu, dev->ysiz, 0.0, 0.0, 0.0, 0.0, colptr, zptr);
+		renderOptix(&ourview, hresolu, vresolu, 0.0, 0.0, 0.0, ralrm, colptr, zptr);
 
 		/* Quick output handling */
 		for (i = vresolu; i--;)
-			for (j = hresolu; j--;)
-				(*dev->paintr)(greyscale ? greyof(colptr[hresolu * i + j]) : colptr[hresolu * i + j], j, i, j + 1, i + 1);
+			for (j = hresolu; j--;) {
+				COLOR *color = colptr[hresolu * i + j];
+				scalecolor(*color, exposure);
+				(*dev->paintr)(greyscale ? greyof(color) : color, j, i, j + 1, i + 1);
+			}
 		qt_flush();
 
 		/* Unallocate the memory that was used to save the output transfered back from OptiX rendering. */
 		free(colptr);
 		free(zptr);
 
-		for (;;) {			/* quit in command() */
-			//fprintf(stderr, "B\n");
-			if (hresolu <= 1 << pdepth && vresolu <= 1 << pdepth)
-			{
-				qt_set_progress(100);
-				qt_comout("done");
-				return;
-			}
-			errno = 0;
-			if (dev->inpready)		/* noticed some input */
-			{
-				command(": ");
-			}
-			else				/* finished this depth */
-				pdepth++;
-		}
+		/* Wait for another command. */
+		errno = 0;
+		qt_set_progress(100);
+		qt_comout("done");
+		return;
 	}
-	else
 #endif
   for ( ; ; )
     {

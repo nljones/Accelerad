@@ -461,6 +461,9 @@ getexposure(				/* get new exposure */
 		else				/* multiplier */
 			e *= atof(cp);
 	}
+#ifdef ACCELERAD
+	if (!use_optix)
+#endif
 	if (p != NULL) {		/* relative setting */
 		compavg(p);
 		if (bright(p->v) < 1e-15) {
@@ -474,6 +477,9 @@ getexposure(				/* get new exposure */
 	}
 	if (e <= FTINY || fabs(1.0 - e) <= FTINY)
 		return;
+#ifdef ACCELERAD
+	if (!use_optix)
+#endif
 	scalepict(&ptrunk, e);
 	exposure *= e;
 	redraw();

@@ -1146,9 +1146,7 @@ static void calcAmbientValues(const RTcontext context, const unsigned int level,
 #ifdef DEBUG_OPTIX
 	flushExceptionLog("ambient calculation");
 #endif
-#ifdef RAY_COUNT
 	reportProgress(100.0 * (max_level - level) / (max_level + 1), alarm);
-#endif
 #ifdef HIT_COUNT
 	mprintf("Hit count %u (%f per ambient value).\n", hit_total, (float)hit_total / cluster_count);
 	hit_total = 0;

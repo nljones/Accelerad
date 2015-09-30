@@ -22,6 +22,10 @@ static const char	RCSid[] = "$Id$";
 
 extern char  *progname;			/* global argv[0] */
 
+#ifdef ACCELERAD
+extern double  ralrm;			/* seconds between reports */
+#endif
+
 VIEW  ourview = STDVIEW;		/* viewing parameters */
 int  hresolu, vresolu;			/* image resolution */
 
@@ -188,10 +192,20 @@ main(int argc, char *argv[])
 			check(2,"s");
 			strcpy(rifname, argv[++i]);
 			break;
+#ifdef ACCELERAD
+		case 't':				/* timer */
+			check(2, "f");
+			ralrm = atof(argv[++i]);
+			break;
+#endif
 		default:
 			goto badopt;
 		}
 	}
+#ifdef ACCELERAD
+	if (use_optix && nproc > 1) /* Don't allow multiple processes to access the graphics card. */
+		error(USER, "multiprocessing incompatible with GPU implementation");
+#endif
 	err = setview(&ourview);	/* set viewing parameters */
 	if (err != NULL)
 		error(USER, err);
@@ -348,5 +362,8 @@ printdefaults(void)			/* print default values to stdout */
 	printf(erract[WARNING].pf != NULL ?
 			"-w+\t\t\t\t# warning messages on\n" :
 			"-w-\t\t\t\t# warning messages off\n");
+#ifdef ACCELERAD
+	printf("-t %f\t\t\t# time between reports\n", ralrm);
+#endif
 	print_rdefaults();
 }

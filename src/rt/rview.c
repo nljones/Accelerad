@@ -22,9 +22,7 @@ static const char	RCSid[] = "$Id$";
 extern void renderOptix(const VIEW* view, const int width, const int height, const double dstrpix, const double mblur, const double dblur, const double alarm, COLOR* colors, float* depths);
 extern void endOptix();
 
-/* TODO This shouldn't be necessary, but the variable must exist in optix_util.c */
-double	pctdone = 0.0;			/* percentage done */
-void report(int dummy) {}		/* report progress */
+double ralrm = 0.0;			/* seconds between reports */
 #endif
 
 
@@ -103,34 +101,29 @@ rview(void)				/* do a view */
 			error(SYSTEM, "out of memory in rview");
 
 		/* Now lets render an image on the graphics card */
-		renderOptix(&ourview, hresolu, vresolu, 0.0, 0.0, 0.0, 0.0, colptr, zptr);
+		renderOptix(&ourview, hresolu, vresolu, 0.0, 0.0, 0.0, ralrm, colptr, zptr);
 
 		/* Quick output handling */
 		for (i = vresolu; i--;)
-			for (j = hresolu; j--;)
-				(*dev->paintr)(greyscale ? greyof(colptr[hresolu * i + j]) : colptr[hresolu * i + j], j, i, j + 1, i + 1);
+			for (j = hresolu; j--;) {
+				COLOR *color = colptr[hresolu * i + j];
+				scalecolor(*color, exposure);
+				(*dev->paintr)(greyscale ? greyof(color) : color, j, i, j + 1, i + 1);
+			}
 		dev->flush();
 
 		/* Unallocate the memory that was used to save the output transfered back from OptiX rendering. */
 		free(colptr);
 		free(zptr);
 
-		for (;;) {			/* quit in command() */
-			//fprintf(stderr, "B\n");
-			while (hresolu <= 1 << pdepth && vresolu <= 1 << pdepth)
-				command("done: ");
-			errno = 0;
-			if (dev->inpready)		/* noticed some input */
-			{
-				command(": ");
-			}
-			else				/* finished this depth */
-				pdepth++;
-		}
+		/* Wait for another command. */
+		errno = 0;
+		command("done: ");
 
 		/* Destroy the OptiX context. */
 		endOptix();
-	} else
+		return;
+	}
 #endif
 	for ( ; ; ) {			/* quit in command() */
 		while (hresolu <= 1<<pdepth && vresolu <= 1<<pdepth)
