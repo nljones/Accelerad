@@ -1341,7 +1341,7 @@ static void createMesh(OBJREC* rec, OBJREC* parent)
 			FVECT transform;
 			getmeshvert(&mesh_vert, meshinst->msh, k + (j << 8), MT_ALL);
 			if (!(mesh_vert.fl & MT_V))
-				objerror(rec, INTERNAL, "missing mesh vertices in createGeometryInstance");
+				objerror(rec, INTERNAL, "missing mesh vertices in createMesh");
 			multp3(transform, mesh_vert.v, meshinst->x.f.xfm);
 			insertArray3f(vertices, (float)transform[0], (float)transform[1], (float)transform[2]);
 
@@ -1701,8 +1701,8 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, rec->oargs.sarg[0], &program));
 			applyProgramVariable1i( context, program, "data", tex_id );
 			applyProgramVariable1i( context, program, "type", dp->type == DATATY );
-			applyProgramVariable3f( context, program, "minimum", dp->dim[dp->nd-1].org, dp->nd > 1 ? dp->dim[dp->nd-2].org : 0.0f, dp->nd > 2 ? dp->dim[dp->nd-3].org : 0.0f );
-			applyProgramVariable3f( context, program, "maximum", dp->dim[dp->nd-1].siz, dp->nd > 1 ? dp->dim[dp->nd-2].siz : 1.0f, dp->nd > 2 ? dp->dim[dp->nd-3].siz : 1.0f );
+			applyProgramVariable3f( context, program, "org", dp->dim[dp->nd-1].org, dp->nd > 1 ? dp->dim[dp->nd-2].org : 0.0f, dp->nd > 2 ? dp->dim[dp->nd-3].org : 0.0f );
+			applyProgramVariable3f( context, program, "siz", dp->dim[dp->nd-1].siz, dp->nd > 1 ? dp->dim[dp->nd-2].siz : 1.0f, dp->nd > 2 ? dp->dim[dp->nd-3].siz : 1.0f );
 			applyProgramVariable( context, program, "transform", sizeof(transform), transform );
 			if (rec->oargs.nfargs > 0)
 				applyProgramVariable1f(context, program, "multiplier", (float)rec->oargs.farg[0]); //TODO handle per-color channel multipliers
