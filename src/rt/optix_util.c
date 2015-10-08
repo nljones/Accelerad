@@ -200,6 +200,14 @@ RTvariable applyProgramVariable1i(const RTcontext context, const RTprogram progr
 	return var;
 }
 
+RTvariable applyProgramVariable3i(const RTcontext context, const RTprogram program, const char* name, const int x, const int y, const int z)
+{
+	RTvariable var;
+	RT_CHECK_ERROR(rtProgramDeclareVariable(program, name, &var));
+	RT_CHECK_ERROR(rtVariableSet3i(var, x, y, z));
+	return var;
+}
+
 RTvariable applyProgramVariable1ui(const RTcontext context, const RTprogram program, const char* name, const unsigned int value)
 {
 	RTvariable var;

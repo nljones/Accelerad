@@ -18,6 +18,7 @@ rtDeclareVariable(int, data, , ); /* texture ID */
 rtDeclareVariable(int, type, , ); /* type of data (true for float) */
 rtDeclareVariable(float3, org, , ); /* texture minimum coordinates */
 rtDeclareVariable(float3, siz, , ); /* texture coordinates extent */
+rtDeclareVariable(int3, ne, , ); /* number of elements in texture array */
 rtDeclareVariable(Transform, transform, , ); /* transformation matrix */
 rtDeclareVariable(float, multiplier, , ) = 1.0f; /* multiplier for light source intensity */
 rtDeclareVariable(float3, bounds, , ); /* dimensions of axis-aligned box or Z-aligned cylinder in meters */
@@ -32,6 +33,10 @@ RT_METHOD float3 source(const float3 dir)
 	/* Normalize to [0, 1] within range */
 	phi = (180.0f * M_1_PIf * phi - org.x) / siz.x;
 	theta = (180.0f * M_1_PIf * theta - org.y) / siz.y;
+
+	/* Renormalize to remove edges */
+	phi = (phi * (ne.x - 1) + 0.5f) / ne.x;
+	theta = (theta * (ne.y - 1) + 0.5f) / ne.y;
 
 	if (type)
 		return make_float3(multiplier * rtTex2D<float>(data, phi, theta)); // this is corr from source.cal
