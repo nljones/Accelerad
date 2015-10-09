@@ -353,16 +353,27 @@ void endOptix()
  */
 static void checkDevices()
 {
-	unsigned int version = 0, device_count = 0;
+	unsigned int driver = 0, runtime = 0, version = 0, device_count = 0;
 	unsigned int i;
 	unsigned int multiprocessor_count, threads_per_block, clock_rate, texture_count, timeout_enabled, tcc_driver, cuda_device;
 	unsigned int compute_capability[2];
 	char device_name[128];
 	RTsize memory_size;
 
+	/* Check driver version */
+	cudaDriverGetVersion(&driver);
+	cudaRuntimeGetVersion(&runtime);
+	if (driver < runtime) {
+		sprintf(errmsg, "Current graphics driver %d.%d.%d does not support runtime %d.%d.%d. Update your graphics driver.",
+			driver / 1000, (driver % 100) / 10, driver % 10, runtime / 1000, (runtime % 100) / 10, runtime % 10);
+		error(SYSTEM, errmsg);
+	}
+
 	RT_CHECK_WARN_NO_CONTEXT(rtGetVersion(&version));
 	RT_CHECK_ERROR_NO_CONTEXT(rtDeviceGetDeviceCount(&device_count)); // This will return an error if no supported devices are found
-	mprintf("OptiX %d.%d.%d found %i GPU device%s:\n", version / 1000, (version % 1000) / 10, version % 10, device_count, device_count != 1 ? "s" : "");
+	mprintf("OptiX %d.%d.%d found driver %d.%d.%d and %i GPU device%s:\n",
+		version / 1000, (version % 1000) / 10, version % 10, driver / 1000, (driver % 100) / 10, driver % 10,
+		device_count, device_count != 1 ? "s" : "");
 
 	for (i = 0; i < device_count; i++) {
 		rtDeviceGetAttribute( i, RT_DEVICE_ATTRIBUTE_NAME, sizeof(device_name), &device_name );
