@@ -16,6 +16,7 @@
 #include "random.h"
 
 #include "optix_radiance.h"
+#include <cuda_runtime_api.h>
 
 /* Needed for sleep while waiting for VCA */
 #ifdef _WIN32
@@ -131,13 +132,12 @@ static IntArray*   functions;		/* One entry per callable program */
 static unsigned int vertex_index_0;
 
 /* Handles to intersection program objects used by multiple materials */
-static RTprogram radiance_normal_closest_hit_program, ambient_normal_closest_hit_program;
+static RTprogram radiance_normal_closest_hit_program, ambient_normal_closest_hit_program, point_cloud_normal_closest_hit_program;
 #ifndef LIGHTS
 static RTprogram shadow_normal_any_hit_program;
 #endif
-static RTprogram radiance_glass_closest_hit_program, shadow_glass_closest_hit_program, ambient_glass_any_hit_program;
-static RTprogram radiance_light_closest_hit_program, shadow_light_closest_hit_program;
-static RTprogram point_cloud_closest_hit_program, point_cloud_any_hit_program;
+static RTprogram radiance_glass_closest_hit_program, shadow_glass_closest_hit_program, ambient_glass_any_hit_program, point_cloud_glass_any_hit_program;
+static RTprogram radiance_light_closest_hit_program, shadow_light_closest_hit_program, point_cloud_light_closest_hit_program;
 
 #ifdef DAYSIM
 /* Handles to objects used repeatedly for daylight coefficient calulation */
@@ -1408,11 +1408,11 @@ static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec)
 		}
 		RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, AMBIENT_RECORD_RAY, ambient_normal_closest_hit_program ) );
 
-		if ( !point_cloud_closest_hit_program ) {
+		if (!point_cloud_normal_closest_hit_program) {
 			ptxFile( path_to_ptx, "point_cloud_normal" );
-			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "closest_hit_point_cloud", &point_cloud_closest_hit_program ) );
+			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_point_cloud_normal", &point_cloud_normal_closest_hit_program));
 		}
-		RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, POINT_CLOUD_RAY, point_cloud_closest_hit_program ) );
+		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, POINT_CLOUD_RAY, point_cloud_normal_closest_hit_program));
 	}
 
 	/* Set variables to be consumed by material for this geometry instance */
@@ -1450,11 +1450,11 @@ static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec)
 		}
 		RT_CHECK_ERROR( rtMaterialSetAnyHitProgram( material, AMBIENT_RECORD_RAY, ambient_glass_any_hit_program ) );
 
-		if ( !point_cloud_any_hit_program ) {
+		if (!point_cloud_glass_any_hit_program) {
 			ptxFile( path_to_ptx, "point_cloud_normal" );
-			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "any_hit_point_cloud_glass", &point_cloud_any_hit_program ) );
+			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "any_hit_point_cloud_glass", &point_cloud_glass_any_hit_program));
 		}
-		RT_CHECK_ERROR( rtMaterialSetAnyHitProgram( material, POINT_CLOUD_RAY, point_cloud_any_hit_program ) );
+		RT_CHECK_ERROR(rtMaterialSetAnyHitProgram(material, POINT_CLOUD_RAY, point_cloud_glass_any_hit_program));
 	}
 
 	/* Set variables to be consumed by material for this geometry instance */
@@ -1487,11 +1487,11 @@ static RTmaterial createLightMaterial( const RTcontext context, OBJREC* rec )
 	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, SHADOW_RAY, shadow_light_closest_hit_program ) );
 
 	if ( calc_ambient ) {
-		if ( !point_cloud_any_hit_program ) {
+		if (!point_cloud_light_closest_hit_program) {
 			ptxFile( path_to_ptx, "point_cloud_normal" );
-			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "any_hit_point_cloud_glass", &point_cloud_any_hit_program ) );
+			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_point_cloud_light", &point_cloud_light_closest_hit_program));
 		}
-		RT_CHECK_ERROR( rtMaterialSetAnyHitProgram( material, POINT_CLOUD_RAY, point_cloud_any_hit_program ) );
+		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, POINT_CLOUD_RAY, point_cloud_light_closest_hit_program));
 	}
 
 	/* Set variables to be consumed by material for this geometry instance */

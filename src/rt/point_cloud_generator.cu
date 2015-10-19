@@ -55,11 +55,7 @@ RT_METHOD float3 uniform_solid_angle( float2 in )
 RT_PROGRAM void point_cloud_camera()
 {
 	PerRayData_point_cloud prd;
-	prd.backup.pos = make_float3( 0.0f );
-	prd.backup.dir = make_float3( 0.0f );
-#ifdef AMBIENT_CELL
-	prd.backup.cell = make_uint2(0);
-#endif
+	clear(prd.backup);
 
 	// Init random state
 	rand_state* state;
@@ -127,7 +123,7 @@ RT_PROGRAM void point_cloud_camera()
 
 	Ray ray = make_Ray(ray_origin, ray_direction, point_cloud_ray_type, 0.0f, aft);
 
-	unsigned int seeds = seed_buffer.size().z;
+	const unsigned int seeds = seed_buffer.size().z;
 	unsigned int loop = 2u * seeds; // Prevent infinite looping
 	while ( index.z < seeds && loop-- ) {
 		// Trace the current ray
@@ -137,22 +133,24 @@ RT_PROGRAM void point_cloud_camera()
 		if ( isfinite( prd.result.pos ) && dot( prd.result.dir, prd.result.dir ) > FTINY ) { // NaN values will be false
 			seed_buffer[index] = prd.result; // This could contain points on glass materials
 			index.z++;
-#ifdef AMBIENT_CELL
-			if (isfinite(prd.backup.pos) && dot(prd.backup.dir, prd.backup.dir) > FTINY) // NaN values will be false
-				prd.result = prd.backup;
-			else
-				break;
-#endif /* AMBIENT_CELL */
+#ifndef AMBIENT_CELL
 		} else {
 			prd.result.pos = eye;
 			prd.result.dir = ray_direction;
+#endif /* AMBIENT_CELL */
 		}
+#ifdef AMBIENT_CELL
+		if (isfinite(prd.backup.pos) && dot(prd.backup.dir, prd.backup.dir) > FTINY) // NaN values will be false
+			prd.result = prd.backup;
+		else
+			break;
+#endif /* AMBIENT_CELL */
 
 		// Prepare for next ray
 		ray.origin = prd.result.pos;
 #ifdef AMBIENT_CELL
 		ray.direction = reflect(ray.direction, prd.result.dir);
-		ray.tmin = ray_start(ray.origin, ray.direction, prd.result.dir, RAY_START);
+		ray.tmin = RAY_START;// ray_start(ray.origin, ray.direction, prd.result.dir, RAY_START);
 #else /* AMBIENT_CELL */
 		float3 uz = normalize( prd.result.dir );
 		float3 ux = getperpendicular(uz);
@@ -171,13 +169,8 @@ RT_PROGRAM void point_cloud_camera()
 	}
 
 	// If outdoors, there are no bounces, but we need to prevent junk data
-	prd.backup.pos = make_float3( 0.0f );
-	prd.backup.dir = make_float3( 0.0f );
-#ifdef AMBIENT_CELL
-	prd.backup.cell = make_uint2(0);
-#endif
 	while ( index.z < seeds ) {
-		seed_buffer[index] = prd.backup;
+		clear(seed_buffer[index]);
 		index.z++;
 	}
 }

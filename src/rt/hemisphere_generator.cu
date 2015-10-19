@@ -21,11 +21,7 @@ rtDeclareVariable(uint3, launch_dim,   rtLaunchDim, );
 RT_PROGRAM void hemisphere_camera()
 {
 	PerRayData_point_cloud prd;
-	prd.backup.pos = make_float3( 0.0f );
-	prd.backup.dir = make_float3( 0.0f );
-#ifdef AMBIENT_CELL
-	prd.backup.cell = make_uint2(0);
-#endif
+	clear(prd.backup);
 
 	PointDirection eye = cluster_buffer[launch_index.z];
 

@@ -97,18 +97,32 @@ RT_PROGRAM void any_hit_point_cloud_glass()
 	rtIgnoreIntersection();
 }
 
-RT_PROGRAM void closest_hit_point_cloud()
+RT_PROGRAM void closest_hit_point_cloud_normal()
 {
 	float3 world_geometric_normal = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, geometric_normal ) );
 
 	prd.result.pos = ray.origin + t_hit * ray.direction;
 	prd.result.dir = faceforward(world_geometric_normal, -ray.direction, world_geometric_normal);
+
+	/* Don't reflect of occluded surfaces */
+	if (dot(ray.direction, prd.backup.pos - prd.result.pos) > 0)
+		clear(prd.backup);
+
 #ifdef AMBIENT_CELL
 	if (occupied(prd.result.pos, prd.result.dir, world_geometric_normal))
 		prd.result = prd.backup;
 	else
 		prd.result.cell = cell_hash(prd.result.pos, prd.result.dir);
 #endif
+}
+
+RT_PROGRAM void closest_hit_point_cloud_light()
+{
+	/* Don't reflect of occluded surfaces */
+	if (dot(ray.direction, prd.backup.pos - prd.result.pos) > 0)
+		clear(prd.backup);
+
+	prd.result = prd.backup;
 }
 
 RT_PROGRAM void point_cloud_miss()

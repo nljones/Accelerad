@@ -44,7 +44,9 @@ static unsigned int gatherAmbientRecords( AMBTREE* at, AmbientRecord** records, 
 static int saveAmbientRecords( AmbientRecord* record );
 static void calcAmbientValues(const RTcontext context, const unsigned int level, const unsigned int max_level, const unsigned int cluster_count, const double alarm, RTbuffer ambient_record_buffer);
 #endif
-#ifndef AMBIENT_CELL
+#ifdef AMBIENT_CELL
+static unsigned int createClusters(const unsigned int seed_count, PointDirection* seed_buffer_data, PointDirection* cluster_buffer_data, const unsigned int level);
+#else /* AMBIENT_CELL */
 static unsigned int createKMeansClusters(const unsigned int seed_count, const unsigned int cluster_count, PointDirection* seed_buffer_data, PointDirection* cluster_buffer_data, const unsigned int level);
 //static void sortKMeans( const unsigned int cluster_count, PointDirection* cluster_buffer_data );
 //static int clusterComparator( const void* a, const void* b );
@@ -587,7 +589,7 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 
 #ifdef AMBIENT_CELL
 	/* Set up cell hash. */
-	applyContextVariable3f(context, "cuorg", thescene.cuorg[0], thescene.cuorg[1], thescene.cuorg[2]);
+	applyContextVariable3f(context, "cuorg", (float)thescene.cuorg[0], (float)thescene.cuorg[1], (float)thescene.cuorg[2]);
 	RT_CHECK_ERROR(rtContextDeclareVariable(context, "cell_size", &cell_size_var));
 #endif
 
@@ -606,7 +608,7 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 	current_cluster_buffer = applyContextObject(context, "cluster_buffer", cluster_buffer[0]);
 #ifdef AMBIENT_CELL
 	cluster_counts = (unsigned int*)malloc(max_level * sizeof(unsigned int));
-	radius_scale = 8;
+	radius_scale = cuda_kmeans_clusters;
 #endif
 #else
 	createCustomBuffer1D( context, RT_BUFFER_INPUT, sizeof(PointDirection), cuda_kmeans_clusters, &cluster_buffer );
@@ -638,10 +640,10 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 #ifdef ITERATIVE_IC
 	for (level = 0u; level < max_level; level++) {
 #ifdef AMBIENT_CELL
-		radius = ambientRadius(ambientWeightAdjusted(level)) * ambacc * cuda_kmeans_error; // TODO new variable
+		radius = ambientRadius(ambientWeightAdjusted(level)) * ambacc * cuda_kmeans_iterations; // TODO new variable
 		vprintf("Size of cell: %g\nNumber of cells: %u\n", radius, (unsigned int)(thescene.cusize / radius));
 
-		RT_CHECK_ERROR(rtVariableSet1f(cell_size_var, radius));
+		RT_CHECK_ERROR(rtVariableSet1f(cell_size_var, (float)radius));
 		cluster_counts[level] = chooseAmbientLocations(context, level, grid_width, grid_height, 2u, level ? cluster_counts[level - 1] : 0, seed_buffer, cluster_buffer[level]);
 #else
 		chooseAmbientLocations(context, level, grid_width, grid_height, 1u, cuda_kmeans_clusters, seed_buffer, cluster_buffer[level]);
@@ -672,12 +674,12 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 		calcAmbientValues(context, level, max_level, cluster_counts[level], alarm, ambient_record_buffer);
 
 		/* Second Round */
-		radius = ambientRadius(ambientWeightAdjusted(level)) * ambacc * cuda_kmeans_error; // TODO new variable
+		radius = ambientRadius(ambientWeightAdjusted(level)) * ambacc * cuda_kmeans_iterations; // TODO new variable
 		vprintf("Size of cell: %g\nNumber of cells: %u\n", radius, (unsigned int)(thescene.cusize / radius));
 
 		if (level)
 			RT_CHECK_ERROR(rtVariableSetObject(current_cluster_buffer, cluster_buffer[level - 1]));
-		RT_CHECK_ERROR(rtVariableSet1f(cell_size_var, radius));
+		RT_CHECK_ERROR(rtVariableSet1f(cell_size_var, (float)radius));
 		cluster_counts[level] = chooseAmbientLocations(context, level, grid_width, grid_height, 2u, level ? cluster_counts[level - 1] : 0, seed_buffer, cluster_buffer[level]);
 
 		if (level)
@@ -894,6 +896,9 @@ static unsigned int checkForOverlap(const PointDirection* a, const PointDirectio
 	cuda2array3(adir, a->dir);
 	cuda2array3(bdir, b->dir);
 	d = DOT(adir, bdir);
+	if (d <= 0.0)		/* >= 90 degrees */
+		return 0;
+
 	delta_r2 = 2.0 - 2.0*d;	/* approx. radians^2 */
 	if (delta_r2 >= angle * angle)
 		return 0;
@@ -930,7 +935,7 @@ static unsigned int createClusters(const unsigned int seed_count, PointDirection
 	unsigned int cell_counter = 0;
 	const double weight = ambientWeightAdjusted(level);
 	const double angle = ambientAngle(weight);
-	const double radius = ambientRadius(weight);
+	const double radius = ambientRadius(weight) * ambacc * cuda_kmeans_error; // TODO new variable
 	clock_t kernel_clock; // Timer in clock cycles for short jobs
 
 	kernel_clock = clock();
