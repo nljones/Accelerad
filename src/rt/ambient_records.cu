@@ -73,6 +73,8 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 	float d = dot(w, normal); // Ray direction is unperturbed surface normal
 	if ( d <= 0.0f )		/* >= 90 degrees */
 		return;
+	if (d > 1.0f)
+		d = 1.0f;
 
 	float delta_r2 = 2.0f - 2.0f * d;	/* approx. radians^2 */
 	const float minangle = 10.0f * M_PIf / 180.0f;

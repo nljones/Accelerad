@@ -321,7 +321,7 @@ float** CCALL cuda_kmeans(float **objects,      /* in: [numObjs][numCoords] */
 #ifdef RANDOM_SEEDS
 	if (randomSeeds)
 		for (j = 0; j < numClusters; j++) {
-			step = ( j + frandom() ) * numObjs / numClusters;
+			step = (int)((j + frandom()) * numObjs / numClusters);
 			for (i = 0; i < numCoords; i++) {
 				dimClusters[i][j] = dimObjects[i][step];
 			}

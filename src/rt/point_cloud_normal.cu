@@ -110,7 +110,7 @@ RT_PROGRAM void closest_hit_point_cloud_normal()
 
 #ifdef AMBIENT_CELL
 	if (occupied(prd.result.pos, prd.result.dir, world_geometric_normal))
-		prd.result = prd.backup;
+		clear(prd.result);
 	else
 		prd.result.cell = cell_hash(prd.result.pos, prd.result.dir);
 #endif
@@ -122,10 +122,18 @@ RT_PROGRAM void closest_hit_point_cloud_light()
 	if (dot(ray.direction, prd.backup.pos - prd.result.pos) > 0)
 		clear(prd.backup);
 
+#ifdef AMBIENT_CELL
+	clear(prd.result);
+#else
 	prd.result = prd.backup;
+#endif
 }
 
 RT_PROGRAM void point_cloud_miss()
 {
+#ifdef AMBIENT_CELL
+	clear(prd.result);
+#else
 	prd.result = prd.backup;
+#endif
 }

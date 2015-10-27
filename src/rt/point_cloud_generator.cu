@@ -55,19 +55,22 @@ RT_METHOD float3 uniform_solid_angle( float2 in )
 RT_PROGRAM void point_cloud_camera()
 {
 	PerRayData_point_cloud prd;
-	clear(prd.backup);
 
 	// Init random state
 	rand_state* state;
 	init_rand(&state, launch_index.x + launch_dim.x * launch_index.y);
 
 	uint3 index = make_uint3( launch_index, 0u );
+	const unsigned int seeds = seed_buffer.size().z;
+	unsigned int loop = 2u * seeds; // Prevent infinite looping
 
-	float3 ray_direction;
+	Ray ray;
+	ray.origin = eye;
+	ray.ray_type = point_cloud_ray_type;
+	ray.tmin = 0.0f;
+
 	float2 d = make_float2( curand_uniform( state ), curand_uniform( state ) );
 	d = 0.5f + dstrpix * ( 0.5f - d ); // this is pixjitter() from rpict.c
-	float3 ray_origin = eye;
-	float aft = RAY_END;
 
 	// Set initial ray direction
 	if ( camera ) { // using the camera viewport
@@ -76,14 +79,12 @@ RT_PROGRAM void point_cloud_camera()
 
 		// This is adapted from viewray() in image.c.
   		if( camera == VT_PAR ) { /* parallel view */
-			ray_origin += d.x*U + d.y*V;
+			ray.origin += d.x*U + d.y*V;
 			d = make_float2( 0.0f );
 		} else if ( camera == VT_HEM ) { /* hemispherical fisheye */
 			z = 1.0f - d.x*d.x * dot( U, U ) - d.y*d.y * dot( V, V );
-			if (z < 0.0f) {
-				seed_buffer[index] = prd.backup;//TODO throw an exception?
-				return;
-			}
+			if (z < 0.0f)
+				goto clearout;
 			z = sqrtf(z);
 		} else if ( camera == VT_CYL ) { /* cylindrical panorama */
 			float dd = d.x * fov.x * ( M_PIf / 180.0f );
@@ -92,10 +93,8 @@ RT_PROGRAM void point_cloud_camera()
 		} else if ( camera == VT_ANG ) { /* angular fisheye */
 			d *= fov / 180.0f;
 			float dd = length(d);
-			if (dd > 1.0f) {
-				seed_buffer[index] = prd.backup;//TODO throw an exception?
-				return;
-			}
+			if (dd > 1.0f)
+				goto clearout;
 			z = cosf( M_PIf * dd );
 			d *= sqrtf( 1.0f - z*z ) / dd;
 		} else if ( camera == VT_PLS ) { /* planispheric fisheye */
@@ -105,27 +104,26 @@ RT_PROGRAM void point_cloud_camera()
 			d *= 1.0f + z;
 		}
 
-		ray_direction = d.x*U + d.y*V + z*W;
-		ray_direction += clip.x * ray_direction;
-		ray_direction = normalize(ray_direction);
+		ray.direction = d.x*U + d.y*V + z*W;
+		ray.direction += clip.x * ray.direction;
+		ray.direction = normalize(ray.direction);
 
 		// Zero or negative aft clipping distance indicates infinity
-		aft = clip.y - clip.x;
-		if (aft <= FTINY) {
-			aft = RAY_END;
+		ray.tmax = clip.y - clip.x;
+		if (ray.tmax <= FTINY) {
+			ray.tmax = RAY_END;
 		}
 	} else { // using a sphere with equal solid angle divisions
 		d = ( make_float2( launch_index ) + d ) / make_float2( launch_dim );// - 0.5f;
 
 		// Get the position and normal of the first ray
-		ray_direction = uniform_solid_angle(d);
+		ray.direction = uniform_solid_angle(d);
+		ray.tmax = RAY_END;
 	}
 
-	Ray ray = make_Ray(ray_origin, ray_direction, point_cloud_ray_type, 0.0f, aft);
-
-	const unsigned int seeds = seed_buffer.size().z;
-	unsigned int loop = 2u * seeds; // Prevent infinite looping
 	while ( index.z < seeds && loop-- ) {
+		clear(prd.backup);
+
 		// Trace the current ray
 		rtTrace(top_object, ray, prd);
 
@@ -136,22 +134,22 @@ RT_PROGRAM void point_cloud_camera()
 #ifndef AMBIENT_CELL
 		} else {
 			prd.result.pos = eye;
-			prd.result.dir = ray_direction;
+			prd.result.dir = ray.direction;
 #endif /* AMBIENT_CELL */
 		}
+
 #ifdef AMBIENT_CELL
-		if (isfinite(prd.backup.pos) && dot(prd.backup.dir, prd.backup.dir) > FTINY) // NaN values will be false
-			prd.result = prd.backup;
-		else
+		if (!(isfinite(prd.backup.pos) && dot(prd.backup.dir, prd.backup.dir) > FTINY)) // NaN values will be false
 			break;
-#endif /* AMBIENT_CELL */
 
 		// Prepare for next ray
-		ray.origin = prd.result.pos;
-#ifdef AMBIENT_CELL
-		ray.direction = reflect(ray.direction, prd.result.dir);
-		ray.tmin = RAY_START;// ray_start(ray.origin, ray.direction, prd.result.dir, RAY_START);
+		ray.origin = prd.backup.pos;
+		ray.direction = reflect(ray.direction, prd.backup.dir);
+		ray.tmin = RAY_START;// ray_start(ray.origin, ray.direction, prd.backup.dir, RAY_START);
 #else /* AMBIENT_CELL */
+		// Prepare for next ray
+		ray.origin = prd.result.pos;
+
 		float3 uz = normalize( prd.result.dir );
 		float3 ux = getperpendicular(uz);
 		float3 uy = normalize(cross(uz, ux));
@@ -168,6 +166,7 @@ RT_PROGRAM void point_cloud_camera()
 		ray.tmax = RAY_END;
 	}
 
+clearout:
 	// If outdoors, there are no bounces, but we need to prevent junk data
 	while ( index.z < seeds ) {
 		clear(seed_buffer[index]);

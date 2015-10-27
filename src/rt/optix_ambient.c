@@ -686,9 +686,11 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 			RT_CHECK_ERROR(rtVariableSetObject(current_cluster_buffer, cluster_buffer[level]));
 		updateAmbientCache(context, level + 1);
 
-		updateAmbientDynamicStorage(context, cluster_counts[level], level);
-		RT_CHECK_ERROR(rtBufferSetSize1D(ambient_record_buffer, cluster_counts[level]));
-		calcAmbientValues(context, level, max_level, cluster_counts[level], alarm, ambient_record_buffer);
+		if (cluster_counts[level]) {
+			updateAmbientDynamicStorage(context, cluster_counts[level], level);
+			RT_CHECK_ERROR(rtBufferSetSize1D(ambient_record_buffer, cluster_counts[level]));
+			calcAmbientValues(context, level, max_level, cluster_counts[level], alarm, ambient_record_buffer);
+		}
 #else /* AMBIENT_CELL */
 #ifdef DAYSIM
 		calcAmbientValues(context, level, max_level, cuda_kmeans_clusters, alarm, ambient_record_buffer, ambient_dc_buffer, segment_var);
@@ -781,6 +783,7 @@ static unsigned int chooseAmbientLocations(const RTcontext context, const unsign
 #endif
 
 	if (level) {
+#ifdef ITERATIVE_IC
 		/* Adjust output buffer size */
 		unsigned int divisions = cluster_count ? ambientDivisions(ambientWeight(level)) : 0;
 		seed_count = divisions * divisions * cluster_count;
@@ -788,6 +791,7 @@ static unsigned int chooseAmbientLocations(const RTcontext context, const unsign
 
 		/* Run kernel to gerate more seed points from cluster centers */
 		runKernel3D(context, HEMISPHERE_SAMPLING_ENTRY, divisions, divisions, cluster_count); // stride?
+#endif /* ITERATIVE_IC */
 	}
 	else {
 		/* Set output buffer size */
@@ -803,8 +807,7 @@ static unsigned int chooseAmbientLocations(const RTcontext context, const unsign
 	RT_CHECK_ERROR(rtBufferUnmap(seed_buffer));
 
 #ifndef AMBIENT_CELL
-#ifdef ITERATIVE_IC
-#ifdef ADAPTIVE_SEED_SAMPLING
+#if defined(ITERATIVE_IC) && defined(ADAPTIVE_SEED_SAMPLING)
 	if (!level) {
 		clock_t kernel_clock;
 		//int total = 0;
@@ -844,8 +847,7 @@ static unsigned int chooseAmbientLocations(const RTcontext context, const unsign
 		free(score);
 		free(temp_list);
 	}
-#endif /* ADAPTIVE_SEED_SAMPLING */
-#endif /* ITERATIVE_IC */
+#endif /* ITERATIVE_IC && ADAPTIVE_SEED_SAMPLING */
 
 	/* Group seed points into clusters and add clusters to buffer */
 	RT_CHECK_ERROR(rtBufferMap(cluster_buffer, (void**)&cluster_buffer_data));
@@ -1038,7 +1040,11 @@ static unsigned int createKMeansClusters( const unsigned int seed_count, const u
 	if (membership == NULL || distance == NULL)
 		error(SYSTEM, "out of memory in createKMeansClusters");
 	kernel_clock = clock();
+#if defined(ITERATIVE_IC) && defined(ADAPTIVE_SEED_SAMPLING)
 	clusters = (PointDirection**)cuda_kmeans((float**)seeds, sizeof(PointDirection) / sizeof(float), good_seed_count, cluster_count, cuda_kmeans_iterations, cuda_kmeans_threshold, (float)(cuda_kmeans_error / (ambacc * maxarad)), level, membership, distance, &loops);
+#else
+	clusters = (PointDirection**)cuda_kmeans((float**)seeds, sizeof(PointDirection) / sizeof(float), good_seed_count, cluster_count, cuda_kmeans_iterations, cuda_kmeans_threshold, (float)(cuda_kmeans_error / (ambacc * maxarad)), 1u, membership, distance, &loops);
+#endif
 	kernel_clock = clock() - kernel_clock;
 	mprintf("K-means performed %u loop iterations in %" PRIu64 " milliseconds.\n", loops, MILLISECONDS(kernel_clock));
 

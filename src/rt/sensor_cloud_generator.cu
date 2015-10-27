@@ -26,7 +26,6 @@ rtDeclareVariable(uint2, launch_dim,   rtLaunchDim, );
 RT_PROGRAM void cloud_generator()
 {
 	PerRayData_point_cloud prd;
-	clear(prd.backup);
 
 	// Init random state
 	rand_state* state;
@@ -49,9 +48,11 @@ RT_PROGRAM void cloud_generator()
 
 	Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, point_cloud_ray_type, tmin, tmax);
 
-	unsigned int seeds = seed_buffer.size().z;
+	const unsigned int seeds = seed_buffer.size().z;
 	unsigned int loop = 2u * seeds; // Prevent infinite looping
 	while ( index.z < seeds && loop-- ) {
+		clear(prd.backup);
+
 		// Trace the current ray
 		if ( imm_irrad )
 			rtTrace(top_irrad, ray, prd);
@@ -62,14 +63,24 @@ RT_PROGRAM void cloud_generator()
 		if ( isfinite( prd.result.pos ) && dot( prd.result.dir, prd.result.dir ) > FTINY ) { // NaN values will be false
 			seed_buffer[index] = prd.result; // This could contain points on glass materials
 			index.z++;
+#ifndef AMBIENT_CELL
 		} else {
 			prd.result.pos = ray_buffer[launch_index].origin;
 			prd.result.dir = ray_buffer[launch_index].dir;
+#endif /* AMBIENT_CELL */
 		}
 
+#ifdef AMBIENT_CELL
+		if (!(isfinite(prd.backup.pos) && dot(prd.backup.dir, prd.backup.dir) > FTINY)) // NaN values will be false
+			break;
+
+		// Prepare for next ray
+		ray.origin = prd.backup.pos;
+		ray.direction = reflect(ray.direction, prd.backup.dir);
+		ray.tmin = RAY_START;// ray_start(ray.origin, ray.direction, prd.backup.dir, RAY_START);
+#else /* AMBIENT_CELL */
 		// Prepare for next ray
 		ray.origin = prd.result.pos;
-		//ray.direction = reflect( ray.direction, prd.result.dir );
 
 		float3 uz = normalize( prd.result.dir );
 		float3 ux = getperpendicular(uz);
@@ -81,6 +92,10 @@ RT_PROGRAM void cloud_generator()
 		float yd = sinf(phi) * zd;
 		zd = sqrtf(1.0f - zd*zd);
 		ray.direction = normalize( xd*ux + yd*uy + zd*uz );
+
+		ray.tmin = ray_start(ray.origin, RAY_START);
+#endif /* AMBIENT_CELL */
+		ray.tmax = RAY_END;
 	}
 
 	// If outdoors, there are no bounces, but we need to prevent junk data
