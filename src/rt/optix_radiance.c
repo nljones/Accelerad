@@ -59,7 +59,7 @@ static void setupDaysim(const RTcontext context, RTbuffer* dc_buffer, const int 
 #endif
 static void setupKernel(const RTcontext context, const VIEW* view, const int width, const int height, const unsigned int imm_irrad, const double dstrpix, const double mblur, const double dblur, const double alarm);
 static void applyRadianceSettings(const RTcontext context, const VIEW* view, const unsigned int imm_irrad, const double dstrpix, const double mblur, const double dblur);
-static void createCamera( const RTcontext context, const VIEW* view );
+static void createCamera(const RTcontext context, const char* ptx_name);
 static void updateCamera( const RTcontext context, const VIEW* view );
 static void createGeometryInstance( const RTcontext context, RTgeometryinstance* instance );
 static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* parent, const OBJECT index);
@@ -145,6 +145,110 @@ RTbuffer dc_scratch_buffer = NULL;
 #endif
 
 
+//#define PROGRESSIVE
+
+#ifdef PROGRESSIVE
+#include  "driver.h"
+extern struct driver  *dev;
+
+extern void qt_rvu_paint_image(int xmin, int ymin, int xmax, int ymax, const unsigned char *data);
+extern float *greyof(COLOR col);
+
+void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const int greyscale, const double exposure, const double alarm)
+{
+	/* Primary RTAPI objects */
+	RTcontext           context;
+	RTbuffer            output_buffer, lastview;
+
+	/* Parameters */
+	unsigned int i, size;
+	float* data;
+	COLOR color;
+
+#ifdef RAY_COUNT
+	RTbuffer            ray_count_buffer;
+	//unsigned int *ray_count_data;
+#endif
+#ifdef DAYSIM_COMPATIBLE
+	RTbuffer            dc_buffer;
+#endif
+
+	/* Set the size */
+	size = width * height;
+
+	if (context_handle == NULL) {
+		/* Setup state */
+		createContext(&context, width, height, alarm);
+
+		/* Render result buffer */
+		createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT4, width, height, &output_buffer);
+		applyContextObject(context, "output_buffer", output_buffer);
+
+#ifdef RAY_COUNT
+		createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_UNSIGNED_INT, width, height, &ray_count_buffer);
+		applyContextObject(context, "ray_count_buffer", ray_count_buffer);
+		ray_count_buffer_handle = ray_count_buffer;
+#endif
+#ifdef DAYSIM_COMPATIBLE
+		setupDaysim(context, &dc_buffer, width, height);
+#endif
+
+		/* Save handles to objects used in animations */
+		context_handle = context;
+		buffer_handle = output_buffer;
+
+		createCamera(context, "rvu_generator");
+		setupKernel(context, view, width, height, 0u, 0.0, 0.0, 0.0, alarm);
+
+		RT_CHECK_ERROR(rtContextValidate(context));
+		RT_CHECK_ERROR(rtContextCompile(context));
+	}
+	else {
+		/* Retrieve handles for previously created objects */
+		context = context_handle;
+		output_buffer = buffer_handle;
+#ifdef RAY_COUNT
+		ray_count_buffer = ray_count_buffer_handle;
+#endif
+
+		if (moved) {
+			vprintf("MOVED\n");
+			/* Update the camera view for the next frame */
+			frame = 0u;
+			updateCamera(context, view); // TODO means start over
+		}
+		else {
+			RT_CHECK_ERROR(rtVariableSet1ui(camera_frame, ++frame));
+		}
+	}
+
+	/* Run the OptiX kernel */
+	runKernel2D(context, RADIANCE_ENTRY, width, height);
+
+	RT_CHECK_ERROR(rtBufferMap(output_buffer, (void**)&data));
+	RT_CHECK_ERROR(rtBufferUnmap(output_buffer));
+
+	/* Copy the results to allocated memory. */
+	for (i = 0u; i < size; i++) {
+#ifdef DEBUG_OPTIX
+		if (data[3] == -1.0f)
+			logException((RTexception)((int)data[0]));
+#endif
+		copycolor(color, data);
+		scalecolor(color, (float)exposure);
+		(*dev->paintr)(greyscale ? greyof(color) : color, i % width, i / width, i % width + 1, i / width + 1);
+		data += 4;
+	}
+	dev->flush();
+#ifdef DEBUG_OPTIX
+	flushExceptionLog("camera");
+#endif
+
+	/* Clean up */
+	//destroyContext(context);
+}
+#endif /* PROGRESSIVE */
+
 /**
  * Setup and run the OptiX kernel similar to RPICT.
  * This may be called repeatedly in order to render an animation.
@@ -199,6 +303,7 @@ void renderOptix(const VIEW* view, const int width, const int height, const doub
 		context_handle = context;
 		buffer_handle = output_buffer;
 
+		createCamera(context, "camera");
 		setupKernel(context, view, width, height, 0u, dstrpix, mblur, dblur, alarm);
 	} else {
 		/* Retrieve handles for previously created objects */
@@ -290,6 +395,7 @@ void computeOptix(const int width, const int height, const unsigned int imm_irra
 	setupDaysim(context, &dc_buffer, width, height);
 #endif
 
+	createCamera(context, "sensor");
 	setupKernel(context, NULL, width, height, imm_irrad, 0.0, 0.0, 0.0, 0.0);
 
 #ifdef DAYSIM
@@ -567,7 +673,6 @@ static void setupKernel(const RTcontext context, const VIEW* view, const int wid
 
 	/* Setup state */
 	applyRadianceSettings(context, view, imm_irrad, dstrpix, mblur, dblur);
-	createCamera( context, view );
 	createGeometryInstance( context, &instance );
 	createAcceleration(context, instance, imm_irrad);
 	if ( imm_irrad )
@@ -656,39 +761,33 @@ static void applyRadianceSettings(const RTcontext context, const VIEW* view, con
 #endif
 }
 
-static void createCamera( const RTcontext context, const VIEW* view )
+static void createCamera(const RTcontext context, const char* ptx_name)
 {
-	RTprogram  ray_gen_program;
-	RTprogram  exception_program;
-	RTprogram  miss_program;
-	RTprogram  miss_shadow_program;
+	RTprogram program;
 
 	/* Ray generation program */
-	if ( view ) { // do RPICT
-		ptxFile( path_to_ptx, "camera" );
-		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "image_camera", &ray_gen_program ) );
-	} else { // do RTRACE
-		ptxFile( path_to_ptx, "sensor" );
-		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "ray_generator", &ray_gen_program ) );
-	}
-	applyProgramVariable1ui( context, ray_gen_program, "do_irrad", do_irrad ); // -i
-	RT_CHECK_ERROR( rtContextSetRayGenerationProgram( context, RADIANCE_ENTRY, ray_gen_program ) );
+	ptxFile(path_to_ptx, ptx_name);
+	RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "ray_generator", &program));
+	applyProgramVariable1ui(context, program, "do_irrad", do_irrad); // -i
+	RT_CHECK_ERROR(rtContextSetRayGenerationProgram(context, RADIANCE_ENTRY, program));
 
 	/* Exception program */
-	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "exception", &exception_program ) );
-	RT_CHECK_ERROR( rtContextSetExceptionProgram( context, RADIANCE_ENTRY, exception_program ) );
+	RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "exception", &program));
+	RT_CHECK_ERROR(rtContextSetExceptionProgram(context, RADIANCE_ENTRY, program));
 
 	/* Miss program */
 	ptxFile( path_to_ptx, "background" );
-	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "miss", &miss_program ) );
+	RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "miss", &program));
 	if ( do_irrad )
-		RT_CHECK_ERROR( rtContextSetMissProgram( context, PRIMARY_RAY, miss_program ) );
-	RT_CHECK_ERROR( rtContextSetMissProgram( context, RADIANCE_RAY, miss_program ) );
-	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "miss_shadow", &miss_shadow_program ) );
-	RT_CHECK_ERROR( rtContextSetMissProgram( context, SHADOW_RAY, miss_shadow_program ) );
+		RT_CHECK_ERROR(rtContextSetMissProgram(context, PRIMARY_RAY, program));
+	RT_CHECK_ERROR(rtContextSetMissProgram(context, RADIANCE_RAY, program));
 #ifdef HIT_TYPE
-	applyProgramVariable1ui( context, miss_program, "type", OBJ_SOURCE );
+	applyProgramVariable1ui(context, program, "type", OBJ_SOURCE);
 #endif
+
+	/* Miss program for shadow rays */
+	RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "miss_shadow", &program));
+	RT_CHECK_ERROR(rtContextSetMissProgram(context, SHADOW_RAY, program));
 }
 
 static void updateCamera( const RTcontext context, const VIEW* view )

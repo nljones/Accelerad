@@ -44,7 +44,7 @@ rtDeclareVariable(float, time_view_scale, , ) = 1e-6f;
 
 
 // Pick the ray direction based on camera type as in image.c.
-RT_PROGRAM void image_camera()
+RT_PROGRAM void ray_generator()
 {
 #ifdef TIME_VIEW
 	clock_t t0 = clock();

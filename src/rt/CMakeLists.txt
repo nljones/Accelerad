@@ -113,6 +113,7 @@ if(OptiX_USE)
   # in the directory specified by CUDA_GENERATED_OUTPUT_DIR.
   CUDA_COMPILE_PTX(generated_PTX_files_rtrace sensor.cu sensor_cloud_generator.cu irradiance_intersect.cu)
   CUDA_COMPILE_PTX(generated_PTX_files_rpict camera.cu point_cloud_generator.cu)
+  CUDA_COMPILE_PTX(generated_PTX_files_rvu rvu_generator.cu)
   CUDA_COMPILE_PTX(generated_PTX_files
     triangle_mesh.cu background.cu skybright.cu perezlum.cu isotropsky.cu
     radiance_normal.cu radiance_glass.cu radiance_light.cu source.cu
@@ -156,7 +157,7 @@ endif()
 if (X11_FOUND OR Qt5Widgets_DIR)
   add_executable(rvu
     rvmain.c rview.c rv2.c rv3.c devtable.c devcomm.c editline.c ${X11_SOURCES}
-    colortab.c ${generated_PTX_files_rpict})
+    colortab.c ${generated_PTX_files_rvu})
   target_link_libraries(rvu ${ACCELERAD_LIBRARY} ${optix_LIBRARY} ${CUDA_CUDART_LIBRARY} raycalls radiance rtrad ${X11_LIBRARIES})
   list(APPEND targets_to_install rvu)
 
@@ -176,26 +177,27 @@ install(TARGETS ${targets_to_install}
         ARCHIVE DESTINATION bin)
 install(FILES rayinit.cal DESTINATION lib)
 
-#install qt.conf & Qt plugins loaded by rvu at runtime
-get_target_property(GIF_PLUGIN Qt5::QGifPlugin LOCATION)
-get_target_property(ICO_PLUGIN Qt5::QICOPlugin LOCATION)
-get_target_property(JPEG_PLUGIN Qt5::QJpegPlugin LOCATION)
-get_target_property(MNG_PLUGIN Qt5::QMngPlugin LOCATION)
-get_target_property(TIFF_PLUGIN Qt5::QTiffPlugin LOCATION)
-install(PROGRAMS "${GIF_PLUGIN}" DESTINATION bin/plugins/imageformats)
-install(PROGRAMS "${ICO_PLUGIN}" DESTINATION bin/plugins/imageformats)
-install(PROGRAMS "${JPEG_PLUGIN}" DESTINATION bin/plugins/imageformats)
-install(PROGRAMS "${MNG_PLUGIN}" DESTINATION bin/plugins/imageformats)
-install(PROGRAMS "${TIFF_PLUGIN}" DESTINATION bin/plugins/imageformats)
-install(FILES ${CMAKE_SOURCE_DIR}/InstallRules/qt.conf DESTINATION bin)
+#install qt.conf & Qt plugins loaded by rvu at runtime. Ignore if we are building as headless
+if(NOT BUILD_HEADLESS)
+  get_target_property(GIF_PLUGIN Qt5::QGifPlugin LOCATION)
+  get_target_property(ICO_PLUGIN Qt5::QICOPlugin LOCATION)
+  get_target_property(JPEG_PLUGIN Qt5::QJpegPlugin LOCATION)
+  get_target_property(MNG_PLUGIN Qt5::QMngPlugin LOCATION)
+  get_target_property(TIFF_PLUGIN Qt5::QTiffPlugin LOCATION)
+  install(PROGRAMS "${GIF_PLUGIN}" DESTINATION bin/plugins/imageformats)
+  install(PROGRAMS "${ICO_PLUGIN}" DESTINATION bin/plugins/imageformats)
+  install(PROGRAMS "${JPEG_PLUGIN}" DESTINATION bin/plugins/imageformats)
+  install(PROGRAMS "${MNG_PLUGIN}" DESTINATION bin/plugins/imageformats)
+  install(PROGRAMS "${TIFF_PLUGIN}" DESTINATION bin/plugins/imageformats)
+  install(FILES ${CMAKE_SOURCE_DIR}/InstallRules/qt.conf DESTINATION bin)
 
-if(APPLE OR WIN32)
-  if(WIN32)
-    get_target_property(QPA_PLUGIN Qt5::QWindowsIntegrationPlugin LOCATION)
-  elseif(APPLE)
-    get_target_property(QPA_PLUGIN Qt5::QCocoaIntegrationPlugin LOCATION)
+  if(APPLE OR WIN32)
+    if(WIN32)
+      get_target_property(QPA_PLUGIN Qt5::QWindowsIntegrationPlugin LOCATION)
+    elseif(APPLE)
+      get_target_property(QPA_PLUGIN Qt5::QCocoaIntegrationPlugin LOCATION)
+    endif()
+
+    install(PROGRAMS "${QPA_PLUGIN}" DESTINATION bin/plugins/platforms)
   endif()
-
-  install(PROGRAMS "${QPA_PLUGIN}" DESTINATION bin/plugins/platforms)
 endif()
-

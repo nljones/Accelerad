@@ -19,7 +19,7 @@ static const char	RCSid[] = "$Id$";
 
 #ifdef ACCELERAD
 /* from optix_radiance.c */
-extern void renderOptix(const VIEW* view, const int width, const int height, const double dstrpix, const double mblur, const double dblur, const double alarm, COLOR* colors, float* depths);
+extern void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const int greyscale, const double exposure, const double alarm);
 extern void endOptix();
 
 double ralrm = 0.0;			/* seconds between reports */
@@ -94,31 +94,20 @@ rview(void)				/* do a view */
 
 #ifdef ACCELERAD
 	if (use_optix) {
-		int i, j;
-		COLOR *colptr = (COLOR *)malloc(sizeof(COLOR) * hresolu * vresolu);
-		float *zptr = (float *)malloc(sizeof(float) * hresolu * vresolu);
-		if (colptr == NULL || zptr == NULL)
-			error(SYSTEM, "out of memory in rview");
-
-		/* Now lets render an image on the graphics card */
-		renderOptix(&ourview, hresolu, vresolu, 0.0, 0.0, 0.0, ralrm, colptr, zptr);
-
-		/* Quick output handling */
-		for (i = vresolu; i--;)
-			for (j = hresolu; j--;) {
-				COLOR *color = colptr[hresolu * i + j];
-				scalecolor(*color, exposure);
-				(*dev->paintr)(greyscale ? greyof(color) : color, j, i, j + 1, i + 1);
-			}
 		dev->flush();
 
-		/* Unallocate the memory that was used to save the output transfered back from OptiX rendering. */
-		free(colptr);
-		free(zptr);
-
-		/* Wait for another command. */
-		errno = 0;
-		command("done: ");
+		for (;;) {			/* quit in command() */
+			while (hresolu <= 1 << pdepth && vresolu <= 1 << pdepth)
+				command("done: ");
+			errno = 0;
+			sprintf(buf, "%d pass...\n", pdepth);
+			(*dev->comout)(buf);
+			renderOptixIterative(&ourview, hresolu, vresolu, !pdepth, greyscale, exposure, ralrm);
+			if (dev->inpready)		/* noticed some input */
+				command(": ");
+			else				/* finished this depth */
+				pdepth++;
+		}
 
 		/* Destroy the OptiX context. */
 		endOptix();
