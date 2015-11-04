@@ -113,7 +113,7 @@ if(OptiX_USE)
   # in the directory specified by CUDA_GENERATED_OUTPUT_DIR.
   CUDA_COMPILE_PTX(generated_PTX_files_rtrace sensor.cu sensor_cloud_generator.cu irradiance_intersect.cu)
   CUDA_COMPILE_PTX(generated_PTX_files_rpict camera.cu point_cloud_generator.cu)
-  CUDA_COMPILE_PTX(generated_PTX_files_rvu rvu_generator.cu)
+  CUDA_COMPILE_PTX(generated_PTX_files_rvu rvu_generator.cu diffuse_normal.cu)
   CUDA_COMPILE_PTX(generated_PTX_files
     triangle_mesh.cu background.cu skybright.cu perezlum.cu isotropsky.cu
     radiance_normal.cu radiance_glass.cu radiance_light.cu source.cu

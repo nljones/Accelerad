@@ -24,6 +24,8 @@ rtDeclareVariable(unsigned int, do_irrad, , ); /* Calculate irradiance (-i) */
 
 /* Contex variables */
 rtBuffer<float4, 2>              output_buffer;
+rtBuffer<float3, 2>              direct_buffer; /* GPU storage for direct component */
+rtBuffer<float3, 2>              diffuse_buffer; /* GPU storage for diffuse component */
 #ifdef RAY_COUNT
 rtBuffer<unsigned int, 2>        ray_count_buffer;
 #endif
@@ -32,6 +34,7 @@ rtBuffer<unsigned int, 2>        ray_count_buffer;
 rtDeclareVariable(rtObject, top_object, , );
 rtDeclareVariable(unsigned int, radiance_ray_type, , );
 rtDeclareVariable(unsigned int, radiance_primary_ray_type, , );
+rtDeclareVariable(unsigned int, diffuse_ray_type, , );
 
 /* OptiX variables */
 rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
@@ -102,7 +105,7 @@ RT_PROGRAM void ray_generator()
 		aft = RAY_END;
 	}
 
-	Ray ray = make_Ray(ray_origin, ray_direction, do_irrad ? radiance_primary_ray_type : radiance_ray_type, 0.0f, aft);
+	Ray ray = make_Ray(ray_origin, ray_direction, frame ? diffuse_ray_type : do_irrad ? radiance_primary_ray_type : radiance_ray_type, 0.0f, aft);
 
 	prd.weight = 1.0f;
 	prd.depth = 0;
@@ -121,7 +124,10 @@ RT_PROGRAM void ray_generator()
 	float pixel_time = (t1 - t0) * time_view_scale * expected_fps;
 	output_buffer[launch_index] = make_float4(pixel_time);
 #else
-	output_buffer[launch_index] = (frame / (frame + 1.0f)) * output_buffer[launch_index] + (1.0f / (frame + 1)) * make_float4(prd.result, 1.0f);
+	if (frame)
+		output_buffer[launch_index] = make_float4(direct_buffer[launch_index] + (diffuse_buffer[launch_index] = ((frame - 1.0f) / frame) * diffuse_buffer[launch_index] + (1.0f / frame) * prd.result), 1.0f);
+	else
+		output_buffer[launch_index] = make_float4((direct_buffer[launch_index] = prd.result), 1.0f);
 #endif
 #ifdef RAY_COUNT
 	if (frame)

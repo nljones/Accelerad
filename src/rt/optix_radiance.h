@@ -27,6 +27,7 @@
 //#define REPORT_GPU_STATE /* Report verbose GPU details */
 #define VERBOSE_OUTPUT /* Print extra statements */
 #define ITERATIVE_IC /* Iterative irradiance cache calculation */
+//#define PROGRESSIVE /* Split calculation between direct and diffuse */
 
 /* Entry points */
 typedef enum
@@ -49,6 +50,9 @@ typedef enum
 {
 	PRIMARY_RAY = 0,	/* Radiance primary ray type for irradiance calculation */
 	RADIANCE_RAY,		/* Radiance ray type */
+#ifdef PROGRESSIVE
+	DIFFUSE_RAY,		/* Radiance ray type sampling only diffuse paths */
+#endif
 	SHADOW_RAY,			/* Shadow ray type */
 	AMBIENT_RAY,		/* Ray into ambient cache */
 	AMBIENT_RECORD_RAY,	/* Ray to create ambient record */
