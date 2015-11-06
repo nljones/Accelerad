@@ -115,6 +115,12 @@ qt_flush(void)			/* flush output */
   if(last_total_progress)
     {
     progress++;
+#ifdef ACCELERAD
+	if (use_optix)
+		p = pdepth * 100 / cuda_kmeans_iterations + // TODO new variable
+			(int)floor(10 * atan(SCALE * progress / last_total_progress) * 2.0 / 3.141593);
+	else
+#endif
     p = pdepth*10 +
       (int)floor(10 *
                  atan( SCALE * progress / last_total_progress) * 2.0/3.141593);
@@ -248,7 +254,7 @@ void qt_process_command(const char* com)
 	if (use_optix) {
 		for (;;)
 		{
-			if (hresolu <= 1 << pdepth && vresolu <= 1 << pdepth)
+			if (cuda_kmeans_iterations < pdepth) // TODO new variable
 			{
 				qt_set_progress(100);
 				qt_comout("done");

@@ -155,6 +155,9 @@ extern struct driver  *dev;
 extern void qt_rvu_paint_image(int xmin, int ymin, int xmax, int ymax, const unsigned char *data);
 extern float *greyof(COLOR col);
 
+/* Handles to objects used repeatedly in animation */
+static RTvariable camera_exposure;
+
 void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const int greyscale, const double exposure, const double alarm)
 {
 	/* Primary RTAPI objects */
@@ -164,7 +167,6 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	/* Parameters */
 	unsigned int i, size;
 	float* data;
-	COLOR color;
 
 #ifdef RAY_COUNT
 	RTbuffer            ray_count_buffer;
@@ -206,6 +208,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 
 		createCamera(context, "rvu_generator");
 		setupKernel(context, view, width, height, 0u, 0.0, 0.0, 0.0, alarm);
+		camera_exposure = applyContextVariable1f(context, "exposure", (float)exposure);
 
 		RT_CHECK_ERROR(rtContextValidate(context));
 		RT_CHECK_ERROR(rtContextCompile(context));
@@ -219,7 +222,6 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 #endif
 
 		if (moved) {
-			vprintf("MOVED\n");
 			/* Update the camera view for the next frame */
 			frame = 0u;
 			updateCamera(context, view); // TODO means start over
@@ -227,6 +229,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		else {
 			RT_CHECK_ERROR(rtVariableSet1ui(camera_frame, ++frame));
 		}
+		RT_CHECK_ERROR(rtVariableSet1f(camera_exposure, (float)exposure));
 	}
 
 	/* Run the OptiX kernel */
@@ -241,9 +244,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		if (data[3] == -1.0f)
 			logException((RTexception)((int)data[0]));
 #endif
-		copycolor(color, data);
-		scalecolor(color, (float)exposure);
-		(*dev->paintr)(greyscale ? greyof(color) : color, i % width, i / width, i % width + 1, i / width + 1);
+		(*dev->paintr)(greyscale ? greyof(data) : data, i % width, i / width, i % width + 1, i / width + 1);
 		data += 4;
 	}
 	dev->flush();

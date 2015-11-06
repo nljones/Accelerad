@@ -21,6 +21,7 @@ rtDeclareVariable(float2, clip, , ); /* Fore and aft clipping planes (-vo, -va) 
 rtDeclareVariable(float, vdist, , ); /* Focal length */
 rtDeclareVariable(float, dstrpix, , ); /* Pixel sample jitter (-pj) */
 rtDeclareVariable(unsigned int, do_irrad, , ); /* Calculate irradiance (-i) */
+rtDeclareVariable(float, exposure, , ) = 1.0f; /* Current exposure */
 
 /* Contex variables */
 rtBuffer<float4, 2>              output_buffer;
@@ -125,9 +126,9 @@ RT_PROGRAM void ray_generator()
 	output_buffer[launch_index] = make_float4(pixel_time);
 #else
 	if (frame)
-		output_buffer[launch_index] = make_float4(direct_buffer[launch_index] + (diffuse_buffer[launch_index] = ((frame - 1.0f) / frame) * diffuse_buffer[launch_index] + (1.0f / frame) * prd.result), 1.0f);
+		output_buffer[launch_index] = make_float4(exposure * (direct_buffer[launch_index] + (diffuse_buffer[launch_index] = ((frame - 1.0f) / frame) * diffuse_buffer[launch_index] + (1.0f / frame) * prd.result)), 1.0f);
 	else
-		output_buffer[launch_index] = make_float4((direct_buffer[launch_index] = prd.result), 1.0f);
+		output_buffer[launch_index] = make_float4(exposure * (direct_buffer[launch_index] = prd.result), 1.0f);
 #endif
 #ifdef RAY_COUNT
 	if (frame)

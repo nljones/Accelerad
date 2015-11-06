@@ -33,6 +33,13 @@ extern int	ray_pnprocs;
 
 static RNUMBER  niflush;		/* flushes since newimage() */
 
+#ifdef ACCELERAD
+/* from optix_radiance.c */
+extern void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const int greyscale, const double exposure, const double alarm);
+
+extern double ralrm;			/* seconds between reports */
+#endif
+
 int
 getrect(				/* get a box */
 	char  *s,
@@ -181,6 +188,12 @@ paint(			/* compute and paint a rectangle */
 	static RAY  thisray;
 	double  h, v;
 
+#ifdef ACCELERAD
+	if (use_optix) {
+		renderOptixIterative(&ourview, hresolu, vresolu, !pdepth, greyscale, exposure, ralrm);
+		return(0);
+	}
+#endif
 	if ((p->xmax <= p->xmin) | (p->ymax <= p->ymin)) {	/* empty */
 		p->x = p->xmin;
 		p->y = p->ymin;
@@ -302,9 +315,6 @@ newimage(					/* start a new image */
 		nproc = newnp;
 	}
 	niflush = 0;				/* get first value */
-#ifdef ACCELERAD
-	if (!use_optix) /* Don't shoot rays here, since the OptiX program should handle this. */
-#endif
 	paint(&ptrunk);
 }
 
@@ -314,6 +324,11 @@ redraw(void)				/* redraw the image */
 {
 	(*dev->clear)(hresolu, vresolu);
 	(*dev->comout)("redrawing...\n");
+#ifdef ACCELERAD
+	if (use_optix)
+		renderOptixIterative(&ourview, hresolu, vresolu, !pdepth, greyscale, exposure, ralrm);
+	else
+#endif
 	repaint(0, 0, hresolu, vresolu);
 	(*dev->comout)("\n");
 }
