@@ -49,8 +49,6 @@ rtDeclareVariable(unsigned int, ambient_ray_type, , );
 rtDeclareVariable(rtObject, top_object, , );
 rtDeclareVariable(rtObject, top_ambient, , );
 
-rtDeclareVariable(float3, CIE_rgbf, , );	/* This is the value [ CIE_rf, CIE_gf, CIE_bf ] from color.h */
-
 #ifdef AMBIENT
 rtDeclareVariable(float3, ambval, , );	/* This is the final value used in place of an indirect light calculation */
 rtDeclareVariable(int, ambvwt, , );	/* As new indirect irradiances are computed, they will modify the default ambient value in a moving average, with the specified weight assigned to the initial value given on the command and all other weights set to 1 */
@@ -102,7 +100,6 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 #endif
 //RT_METHOD int ambsample( AMBHEMI *hp, const int& i, const int& j, const float3 normal, const float3 hit );
 #endif /* AMBIENT */
-RT_METHOD float bright(const float3 &rgb);
 
 
 RT_PROGRAM void closest_hit_radiance()
@@ -396,9 +393,3 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 	return(1);			/* all is well */
 }
 #endif /* AMBIENT */
-
-RT_METHOD float bright(const float3 &rgb)
-{
-	return dot(rgb, CIE_rgbf);
-}
-

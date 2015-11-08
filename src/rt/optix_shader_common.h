@@ -154,6 +154,7 @@ RT_METHOD float3 getperpendicular( const float3& v );
 RT_METHOD float3 getperpendicular( const float3& v, rand_state* state );
 RT_METHOD float ray_start( const float3& hit, const float& t );
 RT_METHOD float ray_start( const float3& hit, const float3& dir, const float3& normal, const float& t );
+RT_METHOD float bright(const float3& rgb);
 RT_METHOD float3 exceptionToFloat3( const unsigned int& code );
 RT_METHOD float4 exceptionToFloat4( const unsigned int& code );
 
@@ -263,6 +264,14 @@ RT_METHOD float ray_start( const float3& hit, const float& t )
 RT_METHOD float ray_start( const float3& hit, const float3& dir, const float3& normal, const float& t )
 {
 	return t * fmaxf( 1.0f, fabsf( optix::length( hit ) / optix::dot( dir, normal ) ) );
+}
+
+rtDeclareVariable(float3, CIE_rgbf, , ); /* This is the value [ CIE_rf, CIE_gf, CIE_bf ] from color.h */
+
+/* Determine the CIE brightness of a color. */
+RT_METHOD float bright(const float3& rgb)
+{
+	return optix::dot(rgb, CIE_rgbf);
 }
 
 /* Convert exception to float3 code. */

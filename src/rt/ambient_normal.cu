@@ -53,8 +53,6 @@ rtDeclareVariable(unsigned int, shadow_ray_type, , );
 #endif /* OLDAMB */
 rtDeclareVariable(unsigned int, stride, , ) = 1u; /* Spacing between used threads in warp. */
 
-rtDeclareVariable(float3,       CIE_rgbf, , ); /* This is the value [ CIE_rf, CIE_gf, CIE_bf ] from color.h */
-
 //rtDeclareVariable(float,        specthresh, , ); /* This is the minimum fraction of reflection or transmission, under which no specular sampling is performed */
 //rtDeclareVariable(float,        specjitter, , );
 
@@ -144,7 +142,6 @@ RT_METHOD void inithemi( AMBHEMI  *hp, const float3& ac, const float3& normal );
 #endif /* OLDAMB */
 //RT_METHOD float2 multisamp2(float r);
 //RT_METHOD int ilhash(int3 d);
-RT_METHOD float bright( const float3& rgb );
 
 RT_PROGRAM void any_hit_ambient_glass()
 {
@@ -1545,9 +1542,3 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point, con
 //	hval ^= d.z * 103699;
 //	return(hval & 0x7fffffff);
 //}
-
-RT_METHOD float bright( const float3& rgb )
-{
-	return dot( rgb, CIE_rgbf );
-}
-

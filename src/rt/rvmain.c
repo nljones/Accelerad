@@ -23,7 +23,10 @@ static const char	RCSid[] = "$Id$";
 extern char  *progname;			/* global argv[0] */
 
 #ifdef ACCELERAD
-extern double  ralrm;			/* seconds between reports */
+double  scale = 0.0;			/* maximum of scale for falsecolor images, zero for regular tonemapping (-s) */
+int  decades = 0;				/* number of decades for log scale, zero for standard scale (-log) */
+double  mask = 0.0;				/* minimum value to display in falsecolor images (-m) */
+double  ralrm = 0.0;			/* seconds between reports (-t) */
 #endif
 
 VIEW  ourview = STDVIEW;		/* viewing parameters */
@@ -193,6 +196,18 @@ main(int argc, char *argv[])
 			strcpy(rifname, argv[++i]);
 			break;
 #ifdef ACCELERAD
+		case 's':				/* scale for falsecolor images */
+			check(2, "f");
+			scale = atof(argv[++i]);
+			break;
+		case 'l':				/* decades in log scale for falsecolor images */
+			check(4, "i");
+			decades = atoi(argv[++i]);
+			break;
+		case 'm':				/* minimum value for falsecolor images */
+			check(2, "f");
+			mask = atof(argv[++i]);
+			break;
 		case 't':				/* timer */
 			check(2, "f");
 			ralrm = atof(argv[++i]);
@@ -363,6 +378,9 @@ printdefaults(void)			/* print default values to stdout */
 			"-w+\t\t\t\t# warning messages on\n" :
 			"-w-\t\t\t\t# warning messages off\n");
 #ifdef ACCELERAD
+	printf("-s %f\t\t\t# scale for falsecolor images\n", scale);
+	printf("-log %-9d\t\t\t# decades in log scale for falsecolor images\n", decades);
+	printf("-m %f\t\t\t# minimum value for falsecolor images\n", mask);
 	printf("-t %f\t\t\t# time between reports\n", ralrm);
 #endif
 	print_rdefaults();

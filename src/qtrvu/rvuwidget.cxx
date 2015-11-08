@@ -38,6 +38,21 @@ void RvuWidget::drawRect(int x, int y, int width, int height,
   m_painter->fillRect(x, y, width, height, color);
 }
 
+//#ifdef ACCELERAD
+void RvuWidget::drawImage(int x, int y, int width, int height, const uchar *data)
+{
+	QTransform transf = m_painter->transform();
+	transf.reset();
+	transf.scale(1, -1);
+	transf.translate(0, 1 - height);
+	m_painter->setTransform(transf);
+
+	QImage *image = new QImage(data, width, height, QImage::Format_ARGB32_Premultiplied);
+
+	m_painter->drawImage(x, y, *image);
+}
+//#endif
+
 void RvuWidget::getPosition(int *x, int *y)
 {
   this->m_do_pick = true;

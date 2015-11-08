@@ -50,8 +50,6 @@ rtDeclareVariable(unsigned int, ambient_ray_type, , );
 rtDeclareVariable(rtObject,     top_object, , );
 rtDeclareVariable(rtObject,     top_ambient, , );
 
-rtDeclareVariable(float3,       CIE_rgbf, , );	/* This is the value [ CIE_rf, CIE_gf, CIE_bf ] from color.h */
-
 rtDeclareVariable(float,        specthresh, , );	/* This is the minimum fraction of reflection or transmission, under which no specular sampling is performed */
 rtDeclareVariable(float,        specjitter, , );	/* specular sampling (ss) */
 
@@ -146,7 +144,6 @@ RT_METHOD float3 barycentric( float2& lambda, const float3& r0, const float3& r1
 #endif /* LIGHTS */
 //RT_METHOD float2 multisamp2(float r);
 //RT_METHOD int ilhash(int3 d);
-RT_METHOD float bright( const float3 &rgb );
 
 
 #ifndef LIGHTS
@@ -1299,9 +1296,3 @@ RT_METHOD float3 barycentric( float2& lambda, const float3& r0, const float3& r1
 //	hval ^= d.z * 103699;
 //	return(hval & 0x7fffffff);
 //}
-
-RT_METHOD float bright( const float3 &rgb )
-{
-	return dot( rgb, CIE_rgbf );
-}
-

@@ -14,8 +14,6 @@ rtDeclareVariable(unsigned int, radiance_ray_type, , );
 rtDeclareVariable(unsigned int, shadow_ray_type, , );
 rtDeclareVariable(rtObject,     top_object, , );
 
-rtDeclareVariable(float3,       CIE_rgbf, , ); /* This is the value [ CIE_rf, CIE_gf, CIE_bf ] from color.h */
-
 rtDeclareVariable(float,        minweight, , ); /* minimum ray weight */
 rtDeclareVariable(int,          maxdepth, , ); /* maximum recursion depth */
 
@@ -35,9 +33,6 @@ rtDeclareVariable(PerRayData_shadow,   prd_shadow, rtPayload, );
 /* Attributes */
 rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );
 rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
-
-
-RT_METHOD float bright( const float3 &rgb );
 
 
 RT_PROGRAM void closest_hit_shadow()
@@ -246,9 +241,4 @@ RT_PROGRAM void closest_hit_radiance()
 #ifdef HIT_TYPE
 	prd.hit_type = type;
 #endif
-}
-
-RT_METHOD float bright( const float3 &rgb )
-{
-	return dot( rgb, CIE_rgbf );
 }

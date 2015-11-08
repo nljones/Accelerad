@@ -15,15 +15,11 @@ static const char	RCSid[] = "$Id$";
 #include  "ray.h"
 #include  "rpaint.h"
 
-#define	 CTRL(c)	((c)-'@')
-
 #ifdef ACCELERAD
-/* from optix_radiance.c */
-extern void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const int greyscale, const double exposure, const double alarm);
-extern void endOptix();
-
-double ralrm = 0.0;			/* seconds between reports */
+#include  "optix_rvu.h"
 #endif
+
+#define	 CTRL(c)	((c)-'@')
 
 
 void
@@ -97,12 +93,12 @@ rview(void)				/* do a view */
 		dev->flush();
 
 		for (;;) {			/* quit in command() */
-			while (cuda_kmeans_iterations < pdepth) // TODO new variable
+			while (cuda_kmeans_iterations < pdepth && cuda_kmeans_iterations > 0) // TODO new variable
 				command("done: ");
 			errno = 0;
 			sprintf(buf, "%d pass...\n", pdepth);
 			(*dev->comout)(buf);
-			renderOptixIterative(&ourview, hresolu, vresolu, !pdepth, greyscale, exposure, ralrm);
+			renderOptixIterative(&ourview, hresolu, vresolu, !pdepth, greyscale, exposure, scale, decades, mask, ralrm);
 			if (dev->inpready)		/* noticed some input */
 				command(": ");
 			else				/* finished this depth */

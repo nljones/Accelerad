@@ -6,6 +6,9 @@
 #include <optix_world.h>
 #include "optix_shader_common.h"
 
+#define GAMMA  2.2f
+#define LUMINOUS_EFFICACY 179.0f
+
 using namespace optix;
 
 /* Program variables */
@@ -21,10 +24,16 @@ rtDeclareVariable(float2, clip, , ); /* Fore and aft clipping planes (-vo, -va) 
 rtDeclareVariable(float, vdist, , ); /* Focal length */
 rtDeclareVariable(float, dstrpix, , ); /* Pixel sample jitter (-pj) */
 rtDeclareVariable(unsigned int, do_irrad, , ); /* Calculate irradiance (-i) */
+
 rtDeclareVariable(float, exposure, , ) = 1.0f; /* Current exposure */
+rtDeclareVariable(unsigned int, greyscale, , ) = 0u; /* Convert to monocrhome */
+rtDeclareVariable(int, tonemap, , ) = RT_TEXTURE_ID_NULL; /* texture ID */
+rtDeclareVariable(float, fc_scale, , ) = 1000.0f; /* Current exposure */
+rtDeclareVariable(int, fc_log, , ) = 0; /* Current exposure */
+rtDeclareVariable(float, fc_mask, , ) = 0.0f; /* Current exposure */
 
 /* Contex variables */
-rtBuffer<float4, 2>              output_buffer;
+rtBuffer<unsigned int, 2>        output_buffer;
 rtBuffer<float3, 2>              direct_buffer; /* GPU storage for direct component */
 rtBuffer<float3, 2>              diffuse_buffer; /* GPU storage for diffuse component */
 #ifdef RAY_COUNT
@@ -40,18 +49,11 @@ rtDeclareVariable(unsigned int, diffuse_ray_type, , );
 /* OptiX variables */
 rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
 rtDeclareVariable(uint2, launch_dim, rtLaunchDim, );
-rtDeclareVariable(float, time_view_scale, , ) = 1e-6f;
-
-//#define TIME_VIEW
 
 
 // Pick the ray direction based on camera type as in image.c.
 RT_PROGRAM void ray_generator()
 {
-#ifdef TIME_VIEW
-	clock_t t0 = clock();
-	output_buffer[launch_index] = make_float4(t0);
-#endif
 	PerRayData_radiance prd;
 	init_rand(&prd.state, launch_index.x + launch_dim.x * (launch_index.y + launch_dim.y * frame));
 
@@ -69,7 +71,7 @@ RT_PROGRAM void ray_generator()
 	else if (camera == VT_HEM) { /* hemispherical fisheye */
 		z = 1.0f - d.x*d.x * dot(U, U) - d.y*d.y * dot(V, V);
 		if (z < 0.0f) {
-			output_buffer[launch_index] = make_float4(0.0f);//TODO throw an exception?
+			output_buffer[launch_index] = 0xff000000;//TODO throw an exception?
 			return;
 		}
 		z = sqrtf(z);
@@ -83,7 +85,7 @@ RT_PROGRAM void ray_generator()
 		d *= fov / 180.0f;
 		float dd = length(d);
 		if (dd > 1.0f) {
-			output_buffer[launch_index] = make_float4(0.0f);//TODO throw an exception?
+			output_buffer[launch_index] = 0xff000000;//TODO throw an exception?
 			return;
 		}
 		z = cosf(M_PIf * dd);
@@ -118,18 +120,34 @@ RT_PROGRAM void ray_generator()
 
 	checkFinite(prd.result);
 
-#ifdef TIME_VIEW
-	clock_t t1 = clock();
-
-	float expected_fps = 1.0f;
-	float pixel_time = (t1 - t0) * time_view_scale * expected_fps;
-	output_buffer[launch_index] = make_float4(pixel_time);
-#else
+	float3 accum;
 	if (frame)
-		output_buffer[launch_index] = make_float4(exposure * (direct_buffer[launch_index] + (diffuse_buffer[launch_index] = ((frame - 1.0f) / frame) * diffuse_buffer[launch_index] + (1.0f / frame) * prd.result)), 1.0f);
+		accum = direct_buffer[launch_index] + (diffuse_buffer[launch_index] = ((frame - 1.0f) / frame) * diffuse_buffer[launch_index] + (1.0f / frame) * prd.result);
 	else
-		output_buffer[launch_index] = make_float4(exposure * (direct_buffer[launch_index] = prd.result), 1.0f);
-#endif
+		accum = direct_buffer[launch_index] = prd.result;
+
+	/* Tone map */
+	if (tonemap == RT_TEXTURE_ID_NULL) {
+		accum *= exposure;
+		if (greyscale)
+			accum = make_float3(bright(accum));
+	}
+	else {
+		float luminance = bright(accum) * LUMINOUS_EFFICACY;
+		if (luminance < fc_mask)
+			accum = make_float3(0.0f);
+		else if (fc_log > 0)
+			accum = make_float3(rtTex1D<float4>(tonemap, log10f(luminance / fc_scale) / fc_log + 1.0f));
+		else
+			accum = make_float3(rtTex1D<float4>(tonemap, luminance / fc_scale));
+	}
+	accum = clamp(accum * 256.0f, 0.0f, 255.0f);
+
+	output_buffer[launch_index] = 0xff000000 |
+		((int)(256.0f * powf((accum.x + 0.5f) / 256.0f, 1.0f / GAMMA)) & 0xff) << 16 |
+		((int)(256.0f * powf((accum.y + 0.5f) / 256.0f, 1.0f / GAMMA)) & 0xff) << 8 |
+		((int)(256.0f * powf((accum.z + 0.5f) / 256.0f, 1.0f / GAMMA)) & 0xff);
+
 #ifdef RAY_COUNT
 	if (frame)
 		ray_count_buffer[launch_index] += prd.ray_count;
@@ -142,13 +160,5 @@ RT_PROGRAM void exception()
 {
 	const unsigned int code = rtGetExceptionCode();
 	rtPrintf("Caught exception 0x%X at launch index (%d,%d)\n", code, launch_index.x, launch_index.y);
-#ifdef TIME_VIEW
-	clock_t t1 = clock();
-
-	float expected_fps = 1.0f;
-	float pixel_time = (t1 - output_buffer[launch_index].x) * time_view_scale * expected_fps;
-	output_buffer[launch_index] = make_float4(pixel_time);
-#else
-	output_buffer[launch_index] = exceptionToFloat4(code);
-#endif
+	output_buffer[launch_index] = code;
 }

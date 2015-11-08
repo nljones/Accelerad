@@ -13,13 +13,9 @@ static const char	RCSid[] = "$Id$";
 #include  "rpaint.h"
 #include "color.h"
 
-#include "ray.h"
+#include "ray.h" // Contains def of ACCELERAD
 #ifdef ACCELERAD
-/* from optix_radiance.c */
-extern void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const int greyscale, const double exposure, const double alarm);
-extern void endOptix();
-
-extern double ralrm;				/* seconds between reports */
+#include "optix_rvu.h"
 #endif
 
 static char lastPrompt[1024];
@@ -254,7 +250,7 @@ void qt_process_command(const char* com)
 	if (use_optix) {
 		for (;;)
 		{
-			if (cuda_kmeans_iterations < pdepth) // TODO new variable
+			if (cuda_kmeans_iterations < pdepth && cuda_kmeans_iterations > 0) // TODO new variable
 			{
 				qt_set_progress(100);
 				qt_comout("done");
@@ -265,7 +261,7 @@ void qt_process_command(const char* com)
 			qt_comout(buf);
 			last_total_progress = progress ? progress : 1;
 			progress = 0;
-			renderOptixIterative(&ourview, hresolu, vresolu, !pdepth, greyscale, exposure, ralrm);
+			renderOptixIterative(&ourview, hresolu, vresolu, !pdepth, greyscale, exposure, scale, decades, mask, ralrm);
 			if (dev->inpready)
 			{
 				qt_comout("abort");

@@ -155,10 +155,12 @@ extern struct driver  *dev;
 extern void qt_rvu_paint_image(int xmin, int ymin, int xmax, int ymax, const unsigned char *data);
 extern float *greyof(COLOR col);
 
+static int makeFalseColorMap(const RTcontext context);
+
 /* Handles to objects used repeatedly in animation */
 static RTvariable camera_exposure;
 
-void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const int greyscale, const double exposure, const double alarm)
+void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const int greyscale, const double exposure, const double scale, const int decades, const double mask, const double alarm)
 {
 	/* Primary RTAPI objects */
 	RTcontext           context;
@@ -166,7 +168,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 
 	/* Parameters */
 	unsigned int i, size;
-	float* data;
+	unsigned char* data;
 
 #ifdef RAY_COUNT
 	RTbuffer            ray_count_buffer;
@@ -175,6 +177,9 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 #ifdef DAYSIM_COMPATIBLE
 	RTbuffer            dc_buffer;
 #endif
+
+	/* Timers */
+	clock_t draw_clock;
 
 	/* Set the size */
 	size = width * height;
@@ -190,7 +195,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT3, width, height, &output_buffer);
 		applyContextObject(context, "diffuse_buffer", output_buffer);
 
-		createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT4, width, height, &output_buffer);
+		createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_UNSIGNED_INT, width, height, &output_buffer);
 		applyContextObject(context, "output_buffer", output_buffer);
 
 #ifdef RAY_COUNT
@@ -209,9 +214,12 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		createCamera(context, "rvu_generator");
 		setupKernel(context, view, width, height, 0u, 0.0, 0.0, 0.0, alarm);
 		camera_exposure = applyContextVariable1f(context, "exposure", (float)exposure);
-
-		RT_CHECK_ERROR(rtContextValidate(context));
-		RT_CHECK_ERROR(rtContextCompile(context));
+		applyContextVariable1ui(context, "greyscale", (unsigned int)greyscale);
+		if (scale > 0)
+			applyContextVariable1i(context, "tonemap", makeFalseColorMap(context));
+		applyContextVariable1f(context, "fc_scale", (float)scale);
+		applyContextVariable1i(context, "fc_log", decades);
+		applyContextVariable1f(context, "fc_mask", (float)mask);
 	}
 	else {
 		/* Retrieve handles for previously created objects */
@@ -238,15 +246,20 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	RT_CHECK_ERROR(rtBufferMap(output_buffer, (void**)&data));
 	RT_CHECK_ERROR(rtBufferUnmap(output_buffer));
 
+	draw_clock = clock();
+
 	/* Copy the results to allocated memory. */
-	for (i = 0u; i < size; i++) {
-#ifdef DEBUG_OPTIX
-		if (data[3] == -1.0f)
-			logException((RTexception)((int)data[0]));
-#endif
-		(*dev->paintr)(greyscale ? greyof(data) : data, i % width, i / width, i % width + 1, i / width + 1);
-		data += 4;
-	}
+//	for (i = 0u; i < size; i++) {
+//#ifdef DEBUG_OPTIX
+//		if (data[3] == -1.0f)
+//			logException((RTexception)((int)data[0]));
+//#endif
+//		(*dev->paintr)(greyscale ? greyof(data) : data, i % width, i / width, i % width + 1, i / width + 1);
+//		data += 4;
+//	}
+	qt_rvu_paint_image(0, 0, width, height, data);
+	draw_clock = clock() - draw_clock;
+	mprintf("Draw time: %" PRIu64 " milliseconds.\n", MILLISECONDS(draw_clock));
 	dev->flush();
 #ifdef DEBUG_OPTIX
 	flushExceptionLog("camera");
@@ -254,6 +267,68 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 
 	/* Clean up */
 	//destroyContext(context);
+}
+
+static int makeFalseColorMap(const RTcontext context)
+{
+	RTtexturesampler tex_sampler;
+	RTbuffer         tex_buffer;
+	float*           tex_buffer_data;
+
+	int tex_id = RT_TEXTURE_ID_NULL;
+
+//	DATARRAY *dp;
+
+	/* Tonemap from falsecolor2.py */
+	float tonemap[92] = {
+		0.18848f, 0.0009766f, 0.2666f, 1.0f,
+		0.05468174f, 2.35501e-05f, 0.3638662f, 1.0f,
+		0.00103547f, 0.0008966244f, 0.4770437f, 1.0f,
+		8.311144e-08f, 0.0264977f, 0.5131397f, 1.0f,
+		7.449763e-06f, 0.1256843f, 0.5363797f, 1.0f,
+		0.0004390987f, 0.2865799f, 0.5193677f, 1.0f,
+		0.001367254f, 0.4247083f, 0.4085123f, 1.0f,
+		0.003076f, 0.4739468f, 0.1702815f, 1.0f,
+		0.01376382f, 0.4402732f, 0.05314236f, 1.0f,
+		0.06170773f, 0.3671876f, 0.05194055f, 1.0f,
+		0.1739422f, 0.2629843f, 0.08564082f, 1.0f,
+		0.2881156f, 0.1725325f, 0.09881395f, 1.0f,
+		0.3299725f, 0.1206819f, 0.08324373f, 1.0f,
+		0.3552663f, 0.07316644f, 0.06072902f, 1.0f,
+		0.372552f, 0.03761026f, 0.0391076f, 1.0f,
+		0.3921184f, 0.01612362f, 0.02315354f, 1.0f,
+		0.4363976f, 0.004773749f, 0.01284458f, 1.0f,
+		0.6102754f, 6.830967e-06f, 0.005184709f, 1.0f,
+		0.7757267f, 0.00803605f, 0.001691774f, 1.0f,
+		0.9087369f, 0.1008085f, 2.432735e-05f, 1.0f,
+		1.0f, 0.3106831f, 1.212949e-05f, 1.0f,
+		1.0f, 0.6447838f, 0.006659406f, 1.0f,
+		0.9863f, 0.9707f, 0.02539f, 1.0f
+	};
+
+	/* Load texture data */
+//	dp = getdata(rec->oargs.sarg[1]); //TODO for Texdata and Colordata, use 3, 4, 5
+
+	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT4, 23, &tex_buffer);
+
+	/* Populate buffer with texture data */
+	RT_CHECK_ERROR(rtBufferMap(tex_buffer, (void**)&tex_buffer_data));
+	memcpy(tex_buffer_data, tonemap, sizeof(tonemap));
+	RT_CHECK_ERROR(rtBufferUnmap(tex_buffer));
+
+	/* Create texture sampler */
+	RT_CHECK_ERROR(rtTextureSamplerCreate(context, &tex_sampler));
+	RT_CHECK_ERROR(rtTextureSamplerSetWrapMode(tex_sampler, 0u, RT_WRAP_CLAMP_TO_EDGE));
+	RT_CHECK_ERROR(rtTextureSamplerSetFilteringModes(tex_sampler, RT_FILTER_LINEAR, RT_FILTER_LINEAR, RT_FILTER_NONE));
+	RT_CHECK_ERROR(rtTextureSamplerSetIndexingMode(tex_sampler, RT_TEXTURE_INDEX_NORMALIZED_COORDINATES));
+	RT_CHECK_ERROR(rtTextureSamplerSetReadMode(tex_sampler, RT_TEXTURE_READ_ELEMENT_TYPE));
+	RT_CHECK_ERROR(rtTextureSamplerSetMaxAnisotropy(tex_sampler, 0.0f));
+	RT_CHECK_ERROR(rtTextureSamplerSetMipLevelCount(tex_sampler, 1u)); // Currently only one mipmap level supported
+	RT_CHECK_ERROR(rtTextureSamplerSetArraySize(tex_sampler, 1u)); // Currently only one element supported
+	RT_CHECK_ERROR(rtTextureSamplerSetBuffer(tex_sampler, 0u, 0u, tex_buffer));
+	RT_CHECK_ERROR(rtTextureSamplerGetId(tex_sampler, &tex_id));
+
+	return tex_id;
 }
 #endif /* PROGRESSIVE */
 
@@ -1761,7 +1836,6 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 	int i, entries;
 
 	DATARRAY *dp;
-	//COLOR color;
 	XF bxp;
 
 	/* Load texture data */
@@ -1775,7 +1849,7 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 	if (dp->type == DATATY) // floats
 		tex_format = RT_FORMAT_FLOAT;
 	else // colors
-		tex_format = RT_FORMAT_FLOAT3;
+		tex_format = RT_FORMAT_FLOAT4;
 	switch (dp->nd) {
 	case 1:
 		createBuffer1D( context, RT_BUFFER_INPUT, tex_format, dp->dim[0].ne, &tex_buffer );
@@ -1802,9 +1876,8 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 	else // colors
 		for (i = 0u; i < entries; i++) {
 			colr_color(tex_buffer_data, dp->arr.c[i]);
-			//colr_color(color, dp->arr.c[i]);
-			//copycolor(tex_buffer_data, color);
-			tex_buffer_data += 3;
+			tex_buffer_data[3] = 1.0f; // Set alpha
+			tex_buffer_data += 4;
 		}
 	RT_CHECK_ERROR( rtBufferUnmap( tex_buffer ) );
 

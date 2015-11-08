@@ -15,6 +15,10 @@ static const char	RCSid[] = "$Id$";
 #include  "rpaint.h"
 #include  "random.h"
 
+#ifdef ACCELERAD
+#include  "optix_rvu.h"
+#endif
+
 #ifndef WFLUSH
 #define WFLUSH		64		/* flush after this many primary rays */
 #endif
@@ -33,12 +37,6 @@ extern int	ray_pnprocs;
 
 static RNUMBER  niflush;		/* flushes since newimage() */
 
-#ifdef ACCELERAD
-/* from optix_radiance.c */
-extern void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const int greyscale, const double exposure, const double alarm);
-
-extern double ralrm;			/* seconds between reports */
-#endif
 
 int
 getrect(				/* get a box */
@@ -190,7 +188,7 @@ paint(			/* compute and paint a rectangle */
 
 #ifdef ACCELERAD
 	if (use_optix) {
-		renderOptixIterative(&ourview, hresolu, vresolu, !pdepth, greyscale, exposure, ralrm);
+		renderOptixIterative(&ourview, hresolu, vresolu, !pdepth, greyscale, exposure, scale, decades, mask, ralrm);
 		return(0);
 	}
 #endif
@@ -326,7 +324,7 @@ redraw(void)				/* redraw the image */
 	(*dev->comout)("redrawing...\n");
 #ifdef ACCELERAD
 	if (use_optix)
-		renderOptixIterative(&ourview, hresolu, vresolu, !pdepth, greyscale, exposure, ralrm);
+		renderOptixIterative(&ourview, hresolu, vresolu, !pdepth, greyscale, exposure, scale, decades, mask, ralrm);
 	else
 #endif
 	repaint(0, 0, hresolu, vresolu);
