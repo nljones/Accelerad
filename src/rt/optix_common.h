@@ -13,7 +13,7 @@
 //#define OLDAMB
 #define LIGHTS
 //#define DAYSIM_COMPATIBLE
-//#define AMBIENT_CELL
+#define AMBIENT_CELL
 
 
 /*! Additional Exceptions */
@@ -118,3 +118,12 @@ typedef struct struct_ray_parameters
 	float3 direction;	/* normal direction */
 	float distance;		/* focal length */
 } RayParams;
+
+/* Structure to hold evaluation metrics */
+typedef struct struct_eval_metrics
+{
+	float omega;	/* solid angle */
+	float ev;		/* contribution to vertical eye illuminance */
+	float avlum;	/* contribution to average luminance */
+	float dgp;		/* contribution to daylight glare probability */
+} Metrics;

@@ -153,22 +153,24 @@ RTbuffer dc_scratch_buffer = NULL;
 extern struct driver  *dev;
 
 extern void qt_rvu_paint_image(int xmin, int ymin, int xmax, int ymax, const unsigned char *data);
-extern float *greyof(COLOR col);
 
 static int makeFalseColorMap(const RTcontext context);
 
 /* Handles to objects used repeatedly in animation */
 static RTvariable camera_exposure;
+static RTbuffer metrics_handle = NULL;
 
 void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const int greyscale, const double exposure, const double scale, const int decades, const double mask, const double alarm)
 {
 	/* Primary RTAPI objects */
 	RTcontext           context;
-	RTbuffer            output_buffer;
+	RTbuffer            output_buffer, metrics_buffer;
 
 	/* Parameters */
 	unsigned int i, size;
-	unsigned char* data;
+	double omega = 0.0, ev = 0.0, avlum = 0.0, dgp = 0.0;
+	unsigned char* colors;
+	Metrics *metrics;
 
 #ifdef RAY_COUNT
 	RTbuffer            ray_count_buffer;
@@ -177,9 +179,6 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 #ifdef DAYSIM_COMPATIBLE
 	RTbuffer            dc_buffer;
 #endif
-
-	/* Timers */
-	clock_t draw_clock;
 
 	/* Set the size */
 	size = width * height;
@@ -196,7 +195,10 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		applyContextObject(context, "diffuse_buffer", output_buffer);
 
 		createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_UNSIGNED_INT, width, height, &output_buffer);
-		applyContextObject(context, "output_buffer", output_buffer);
+		applyContextObject(context, "color_buffer", output_buffer);
+
+		createCustomBuffer2D(context, RT_BUFFER_OUTPUT, sizeof(Metrics), width, height, &metrics_buffer);
+		applyContextObject(context, "metrics_buffer", metrics_buffer);
 
 #ifdef RAY_COUNT
 		createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_UNSIGNED_INT, width, height, &ray_count_buffer);
@@ -210,6 +212,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		/* Save handles to objects used in animations */
 		context_handle = context;
 		buffer_handle = output_buffer;
+		metrics_handle = metrics_buffer;
 
 		createCamera(context, "rvu_generator");
 		setupKernel(context, view, width, height, 0u, 0.0, 0.0, 0.0, alarm);
@@ -225,6 +228,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		/* Retrieve handles for previously created objects */
 		context = context_handle;
 		output_buffer = buffer_handle;
+		metrics_buffer = metrics_handle;
 #ifdef RAY_COUNT
 		ray_count_buffer = ray_count_buffer_handle;
 #endif
@@ -243,27 +247,39 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	/* Run the OptiX kernel */
 	runKernel2D(context, RADIANCE_ENTRY, width, height);
 
-	RT_CHECK_ERROR(rtBufferMap(output_buffer, (void**)&data));
+	/* Retrieve the image */
+	RT_CHECK_ERROR(rtBufferMap(output_buffer, (void**)&colors));
 	RT_CHECK_ERROR(rtBufferUnmap(output_buffer));
-
-	draw_clock = clock();
-
-	/* Copy the results to allocated memory. */
-//	for (i = 0u; i < size; i++) {
-//#ifdef DEBUG_OPTIX
-//		if (data[3] == -1.0f)
-//			logException((RTexception)((int)data[0]));
-//#endif
-//		(*dev->paintr)(greyscale ? greyof(data) : data, i % width, i / width, i % width + 1, i / width + 1);
-//		data += 4;
-//	}
-	qt_rvu_paint_image(0, 0, width, height, data);
-	draw_clock = clock() - draw_clock;
-	mprintf("Draw time: %" PRIu64 " milliseconds.\n", MILLISECONDS(draw_clock));
+	qt_rvu_paint_image(0, 0, width, height, colors);
 	dev->flush();
+
+	/* Calculate the metrics */
+	RT_CHECK_ERROR(rtBufferMap(metrics_buffer, (void**)&metrics));
+	RT_CHECK_ERROR(rtBufferUnmap(metrics_buffer));
+
+	for (i = 0u; i < size; i++) {
+#ifdef DEBUG_OPTIX
+		if (metrics->omega == -1.0f)
+			logException((RTexception)((int)metrics->ev));
+#endif
+		if (metrics->omega >= 0.0f) {
+			omega += metrics->omega;
+			ev += metrics->ev;
+			avlum += metrics->avlum;
+			dgp += metrics->dgp;
+		}
+		metrics++;
+	}
+	avlum /= omega;
+	dgp = 5.87e-5 * ev + 0.0918 * log10(1 + dgp / pow(ev, 1.87)) + 0.16;
+
 #ifdef DEBUG_OPTIX
 	flushExceptionLog("camera");
 #endif
+	mprintf("Solid angle: %g\n", omega);
+	mprintf("Vertical eye illuminance: %g cd/m2\n", ev);
+	mprintf("Average luminance: %g lux\n", avlum);
+	mprintf("Daylight glare probability: %g\n", dgp);
 
 	/* Clean up */
 	//destroyContext(context);

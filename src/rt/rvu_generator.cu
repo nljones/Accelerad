@@ -33,7 +33,8 @@ rtDeclareVariable(int, fc_log, , ) = 0; /* Current exposure */
 rtDeclareVariable(float, fc_mask, , ) = 0.0f; /* Current exposure */
 
 /* Contex variables */
-rtBuffer<unsigned int, 2>        output_buffer;
+rtBuffer<unsigned int, 2>        color_buffer; /* Output RGBA colors */
+rtBuffer<Metrics, 2>             metrics_buffer; /* Output metrics */
 rtBuffer<float3, 2>              direct_buffer; /* GPU storage for direct component */
 rtBuffer<float3, 2>              diffuse_buffer; /* GPU storage for diffuse component */
 #ifdef RAY_COUNT
@@ -49,6 +50,12 @@ rtDeclareVariable(unsigned int, diffuse_ray_type, , );
 /* OptiX variables */
 rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
 rtDeclareVariable(uint2, launch_dim, rtLaunchDim, );
+
+
+RT_METHOD float3 getViewDirection(const float &x, const float &y);
+RT_METHOD int splane_normal(const float3 &e1, const float3 &e2, float3 &n);
+RT_METHOD float getSolidAngle();
+RT_METHOD float getPositionIndex(const float3 &dir);
 
 
 // Pick the ray direction based on camera type as in image.c.
@@ -71,7 +78,7 @@ RT_PROGRAM void ray_generator()
 	else if (camera == VT_HEM) { /* hemispherical fisheye */
 		z = 1.0f - d.x*d.x * dot(U, U) - d.y*d.y * dot(V, V);
 		if (z < 0.0f) {
-			output_buffer[launch_index] = 0xff000000;//TODO throw an exception?
+			color_buffer[launch_index] = 0xff000000;//TODO throw an exception?
 			return;
 		}
 		z = sqrtf(z);
@@ -85,7 +92,7 @@ RT_PROGRAM void ray_generator()
 		d *= fov / 180.0f;
 		float dd = length(d);
 		if (dd > 1.0f) {
-			output_buffer[launch_index] = 0xff000000;//TODO throw an exception?
+			color_buffer[launch_index] = 0xff000000;//TODO throw an exception?
 			return;
 		}
 		z = cosf(M_PIf * dd);
@@ -127,13 +134,13 @@ RT_PROGRAM void ray_generator()
 		accum = direct_buffer[launch_index] = prd.result;
 
 	/* Tone map */
+	const float luminance = bright(accum) * LUMINOUS_EFFICACY;
 	if (tonemap == RT_TEXTURE_ID_NULL) {
 		accum *= exposure;
 		if (greyscale)
 			accum = make_float3(bright(accum));
 	}
 	else {
-		float luminance = bright(accum) * LUMINOUS_EFFICACY;
 		if (luminance < fc_mask)
 			accum = make_float3(0.0f);
 		else if (fc_log > 0)
@@ -143,10 +150,20 @@ RT_PROGRAM void ray_generator()
 	}
 	accum = clamp(accum * 256.0f, 0.0f, 255.0f);
 
-	output_buffer[launch_index] = 0xff000000 |
+	/* Save pixel color */
+	color_buffer[launch_index] = 0xff000000 |
 		((int)(256.0f * powf((accum.x + 0.5f) / 256.0f, 1.0f / GAMMA)) & 0xff) << 16 |
 		((int)(256.0f * powf((accum.y + 0.5f) / 256.0f, 1.0f / GAMMA)) & 0xff) << 8 |
 		((int)(256.0f * powf((accum.z + 0.5f) / 256.0f, 1.0f / GAMMA)) & 0xff);
+
+	/* Calculate metrics */
+	float guth = getPositionIndex(ray.direction);
+	Metrics metrics;
+	metrics.omega = getSolidAngle(); //TODO what if negative or bad angle?
+	metrics.ev = luminance * dot(W, ray.direction * metrics.omega);
+	metrics.avlum = luminance * metrics.omega;
+	metrics.dgp = luminance * luminance * metrics.omega / (guth * guth);
+	metrics_buffer[launch_index] = metrics;
 
 #ifdef RAY_COUNT
 	if (frame)
@@ -156,9 +173,136 @@ RT_PROGRAM void ray_generator()
 #endif
 }
 
+/* From viewray() in image.c */
+RT_METHOD float3 getViewDirection(const float &x, const float &y)
+{
+	float2 d = make_float2(x, y) - 0.5f;
+	float z = 1.0f;
+
+	if (camera == VT_PAR) { /* parallel view */
+		d = make_float2(0.0f);
+	}
+	else if (camera == VT_HEM) { /* hemispherical fisheye */
+		z = 1.0f - d.x*d.x * dot(U, U) - d.y*d.y * dot(V, V);
+		if (z < 0.0f)
+			return make_float3(0.0f);
+		z = sqrtf(z);
+	}
+	else if (camera == VT_CYL) { /* cylindrical panorama */
+		float dd = d.x * fov.x * (M_PIf / 180.0f);
+		z = cosf(dd);
+		d.x = sinf(dd);
+	}
+	else if (camera == VT_ANG) { /* angular fisheye */
+		d *= fov / 180.0f;
+		float dd = length(d);
+		if (dd > 1.0f)
+			return make_float3(0.0f);
+		z = cosf(M_PIf * dd);
+		d *= sqrtf(1.0f - z*z) / dd;
+	}
+	else if (camera == VT_PLS) { /* planispheric fisheye */
+		d *= make_float2(length(U), length(V));
+		float dd = dot(d, d);
+		z = (1.0f - dd) / (1.0f + dd);
+		d *= 1.0f + z;
+	}
+
+	return d.x*U + d.y*V + z*W;
+}
+
+/* From splane_normal in pictool.c */
+RT_METHOD int splane_normal(const float3 &e1, const float3 &e2, float3 &n)
+{
+	n = cross(e1, e2 - e1);
+	if (dot(n, n) == 0.0f)
+		return 0;
+	n = normalize(n);
+	return 1;
+}
+
+/* From pict_get_sangle in pictool.c */
+RT_METHOD float getSolidAngle()
+{
+	const float2 min = make_float2(launch_index) / make_float2(launch_dim);
+	const float2 max = (make_float2(launch_index) + 1.0f) / make_float2(launch_dim);
+	const float3 minmin = getViewDirection(min.x, min.y);
+	const float3 minmax = getViewDirection(min.x, max.y);
+	const float3 maxmin = getViewDirection(max.x, min.y);
+	const float3 maxmax = getViewDirection(max.x, max.y);
+
+	float3 n[4] = { make_float3(0.0f), make_float3(0.0f), make_float3(0.0f), make_float3(0.0f) };
+
+	int i = splane_normal(minmin, minmax, n[0]);
+	i &= splane_normal(minmax, maxmax, n[1]);
+	i &= splane_normal(maxmax, maxmin, n[2]);
+	i &= splane_normal(maxmin, minmin, n[3]);
+
+	if (!i)
+		return 0.0f;
+	float ang = 0.0f;
+	for (i = 0; i < 4; i++) {
+		float a = dot(n[i], n[(i + 1) % 4]);
+		ang += M_PIf - fabsf(acosf(a));
+	}
+	ang = ang - 2.0f * M_PIf;
+	if ((ang > (2.0f * M_PIf)) || ang < 0) {
+		//fprintf(stderr, "Normal error in pict_get_sangle %f %d %d\n", ang, x, y);
+		return 0.0f;
+	}
+	return ang;
+}
+
+/* From get_posindex in evalglare.c */
+RT_METHOD float getPositionIndex(const float3 &dir)
+{
+	float3 up = normalize(V); // TODO Not necessarily
+	float3 hv = cross(W, up);
+	float phi = acosf(dot(cross(W, hv), dir)) - M_PI_2f;
+	float teta = M_PI_2f - acosf(dot(hv, dir));
+	float sigma = acosf(dot(W, dir));
+	hv = normalize(normalize(dir) / cosf(sigma) - W);
+	float tau = acosf(dot(up, hv));
+	tau *= 180.0f / M_PIf;
+	sigma *= 180.0f / M_PIf;
+
+	if (phi < FTINY)
+		phi = FTINY;
+	if (sigma <= 0)
+		sigma = -sigma;
+	if (teta < FTINY)
+		teta = FTINY;
+
+	float posindex = expf((35.2f - 0.31889f * tau - 1.22f * expf(-2.0f * tau / 9.0f)) / 1000.0f * sigma + (21.0f + 0.26667f * tau - 0.002963f * tau * tau) / 100000.0f * sigma * sigma);
+
+	/* below line of sight, using Iwata model */
+	if (phi < 0.0f) {
+		float fact = 0.8f;
+		float d = 1.0f / tanf(phi);
+		float s = tanf(teta) / tanf(phi);
+		float r = sqrtf((s * s + 1.0f) / (d * d));
+		if (r > 0.6f)
+			fact = 1.2f;
+		if (r > 3.0f)
+			r = 3.0f;
+
+		posindex = 1.0f + fact * r;
+	}
+	if (posindex > 16.0f)
+		posindex = 16.0f;
+
+	return posindex;
+}
+
 RT_PROGRAM void exception()
 {
 	const unsigned int code = rtGetExceptionCode();
 	rtPrintf("Caught exception 0x%X at launch index (%d,%d)\n", code, launch_index.x, launch_index.y);
-	output_buffer[launch_index] = code;
+	color_buffer[launch_index] = 0xffffffff;
+	Metrics metrics;
+	metrics.omega = -1.0f;
+	metrics.ev = code;
+	metrics.avlum = 0.0f;
+	metrics.dgp = 0.0f;
+	metrics_buffer[launch_index] = metrics;
 }
