@@ -4,6 +4,8 @@
 
 #include <QWidget>
 
+#include "accelerad.h"
+
 class QPixmap;
 class QColor;
 class QMouseEvent;
@@ -20,10 +22,10 @@ public:
   /** Draw a rectangle to the widget (stored in a QImage). */
   void drawRect(int x, int y, int width, int height, const QColor &color);
 
-//#ifdef ACCELERAD
+#ifdef ACCELERAD_RT
   /** Draw an image to the widget (stored in a QImage). */
   void drawImage(int x, int y, int width, int height, const uchar *data);
-//#endif
+#endif
 
   /** Resize the stored QImage to the supplied width and height. */
   void resizeImage(int width, int height);

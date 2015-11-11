@@ -38,7 +38,7 @@ void RvuWidget::drawRect(int x, int y, int width, int height,
   m_painter->fillRect(x, y, width, height, color);
 }
 
-//#ifdef ACCELERAD
+#ifdef ACCELERAD_RT
 void RvuWidget::drawImage(int x, int y, int width, int height, const uchar *data)
 {
 	QTransform transf = m_painter->transform();
@@ -51,7 +51,7 @@ void RvuWidget::drawImage(int x, int y, int width, int height, const uchar *data
 
 	m_painter->drawImage(x, y, *image);
 }
-//#endif
+#endif
 
 void RvuWidget::getPosition(int *x, int *y)
 {

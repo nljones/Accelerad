@@ -217,7 +217,7 @@ main(int argc, char *argv[])
 			goto badopt;
 		}
 	}
-#ifdef ACCELERAD
+#ifdef ACCELERAD_RT
 	if (use_optix && nproc > 1) /* Don't allow multiple processes to access the graphics card. */
 		error(USER, "multiprocessing incompatible with GPU implementation");
 #endif

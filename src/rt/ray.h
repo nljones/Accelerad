@@ -11,10 +11,7 @@
 #include  "color.h"
 #include  "pmapparm.h"
 
-#ifndef DAYSIM
-/* Compiler setting to calculate Daysim daylight coefficients. Should only be used with rtrace. */
-//#define DAYSIM
-#endif
+#include  "accelerad.h"
 
 #ifdef DAYSIM
 #include  "daysim.h"
@@ -26,13 +23,6 @@ extern "C" {
 
 #ifndef RNUMBER
 #define RNUMBER		unsigned long	/* ray counter (>= sizeof pointer) */
-#endif
-
-#ifndef ACCELERAD
-/* Compiler setting to use OptiX ray tracing */
-#define ACCELERAD
-/* Compiler setting to allow debugging of OptiX ray tracing */
-#define ACCELERAD_DEBUG
 #endif
 
 #define  MAXDIM		32	/* maximum number of dimensions */

@@ -15,7 +15,7 @@ static const char	RCSid[] = "$Id$";
 #include  "ray.h"
 #include  "rpaint.h"
 
-#ifdef ACCELERAD
+#ifdef ACCELERAD_RT
 #include  "optix_rvu.h"
 #endif
 
@@ -64,6 +64,10 @@ devopen(				/* open device driver */
 void
 devclose(void)				/* close our device */
 {
+#ifdef ACCELERAD_RT
+	/* Destroy the OptiX context. */
+	endOptix();
+#endif
 	if (dev != NULL)
 		(*dev->close)();
 	dev = NULL;
@@ -88,7 +92,7 @@ rview(void)				/* do a view */
 	devopen(dvcname);		/* open device */
 	newimage(NULL);			/* start image */
 
-#ifdef ACCELERAD
+#ifdef ACCELERAD_RT
 	if (use_optix) {
 		dev->flush();
 
@@ -104,9 +108,6 @@ rview(void)				/* do a view */
 			else				/* finished this depth */
 				pdepth++;
 		}
-
-		/* Destroy the OptiX context. */
-		endOptix();
 		return;
 	}
 #endif

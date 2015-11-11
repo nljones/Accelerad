@@ -28,12 +28,17 @@ int qt_rvu_paint(int r,int g,int b,
   return 0;
 }
 
-//#ifdef ACCELERAD
+#ifdef ACCELERAD_RT
 extern "C" void qt_rvu_paint_image(int xmin, int ymin, int xmax, int ymax, const uchar *data)
 {
 	WidgetInstance->drawImage(xmin, YSize - ymax - 1, abs(xmax - xmin), abs(ymax - ymin), data);
 }
-//#endif
+
+extern "C" void qt_rvu_update_plot(double ev, double dgp)
+{
+	MainWindowInstance->addData(ev, dgp);
+}
+#endif
 
 extern "C" void qt_set_progress(int p)
 {

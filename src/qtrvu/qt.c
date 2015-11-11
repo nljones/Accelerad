@@ -111,10 +111,14 @@ qt_flush(void)			/* flush output */
   if(last_total_progress)
     {
     progress++;
-#ifdef ACCELERAD
-	if (use_optix)
-		p = pdepth * 100 / cuda_kmeans_iterations + // TODO new variable
-			(int)floor(10 * atan(SCALE * progress / last_total_progress) * 2.0 / 3.141593);
+#ifdef ACCELERAD_RT
+	if (use_optix) {
+		if (cuda_kmeans_iterations > 0)
+			p = pdepth * 100 / cuda_kmeans_iterations + // TODO new variable
+				(int)floor(10 * atan(SCALE * progress / last_total_progress) * 2.0 / 3.141593);
+		else
+			p = (int)floor(100.0 * pdepth / (pdepth + 2));
+	}
 	else
 #endif
     p = pdepth*10 +
@@ -246,7 +250,7 @@ void qt_process_command(const char* com)
      pointer as the command to process */
   command("");
   /* after processing a command try to do a render */
-#ifdef ACCELERAD
+#ifdef ACCELERAD_RT
 	if (use_optix) {
 		for (;;)
 		{
@@ -266,7 +270,7 @@ void qt_process_command(const char* com)
 			{
 				qt_comout("abort");
 				dev->inpready = 0;
-				pdepth = 10;
+				pdepth = cuda_kmeans_iterations; // TODO new variable
 				return;
 			}
 			/* finished this depth */

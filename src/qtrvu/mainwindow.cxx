@@ -51,6 +51,12 @@ extern int  psample;    /* pixel sample size */
 extern double  maxdiff;   /* max. sample difference */
 void quit(int code);
 }
+
+#ifdef ACCELERAD_RT
+/* from rview.c */
+extern "C" void quit(int code);
+#endif
+
 MainWindow::MainWindow(int width, int height, const char* name, const char* id)
 {
   m_ui = new Ui::MainWindow;
@@ -80,6 +86,9 @@ MainWindow::MainWindow(int width, int height, const char* name, const char* id)
   setWindowTitle(tr(id));
   resize(width, height);
   updatePositionLabels();
+#ifdef ACCELERAD_RT
+	mp = new MetricsPlot();
+#endif
 }
 
 MainWindow::~MainWindow()
@@ -91,6 +100,14 @@ MainWindow::~MainWindow()
   delete m_incrementsDialog;
   delete m_commandsDialog;
 }
+
+#ifdef ACCELERAD_RT
+void MainWindow::addData(double ev, double dgp)
+{
+	if (mp)
+		mp->addData(ev, dgp);
+}
+#endif
 
 void MainWindow::setProgress(int p)
 {
@@ -110,6 +127,13 @@ void MainWindow::closeEvent(QCloseEvent *event)
   this->m_viewDialog->close();
   this->m_incrementsDialog->close();
   this->m_commandsDialog->close();
+#ifdef ACCELERAD_RT
+  /* Close the plot window. */
+  mp->close();
+
+  /* Destroy the OptiX context. */
+  quit(0);
+#endif
 }
 
 void MainWindow::createActions()

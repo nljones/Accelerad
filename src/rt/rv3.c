@@ -15,7 +15,7 @@ static const char	RCSid[] = "$Id$";
 #include  "rpaint.h"
 #include  "random.h"
 
-#ifdef ACCELERAD
+#ifdef ACCELERAD_RT
 #include  "optix_rvu.h"
 #endif
 
@@ -186,7 +186,7 @@ paint(			/* compute and paint a rectangle */
 	static RAY  thisray;
 	double  h, v;
 
-#ifdef ACCELERAD
+#ifdef ACCELERAD_RT
 	if (use_optix) {
 		renderOptixIterative(&ourview, hresolu, vresolu, !pdepth, greyscale, exposure, scale, decades, mask, ralrm);
 		return(0);
@@ -322,7 +322,7 @@ redraw(void)				/* redraw the image */
 {
 	(*dev->clear)(hresolu, vresolu);
 	(*dev->comout)("redrawing...\n");
-#ifdef ACCELERAD
+#ifdef ACCELERAD_RT
 	if (use_optix)
 		renderOptixIterative(&ourview, hresolu, vresolu, !pdepth, greyscale, exposure, scale, decades, mask, ralrm);
 	else

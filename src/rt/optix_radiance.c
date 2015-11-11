@@ -133,7 +133,7 @@ static unsigned int vertex_index_0;
 
 /* Handles to intersection program objects used by multiple materials */
 static RTprogram radiance_normal_closest_hit_program, ambient_normal_closest_hit_program, point_cloud_normal_closest_hit_program;
-#ifdef PROGRESSIVE
+#ifdef ACCELERAD_RT
 static RTprogram diffuse_normal_closest_hit_program;
 #endif
 #ifndef LIGHTS
@@ -148,11 +148,12 @@ RTbuffer dc_scratch_buffer = NULL;
 #endif
 
 
-#ifdef PROGRESSIVE
+#ifdef ACCELERAD_RT
 #include  "driver.h"
 extern struct driver  *dev;
 
 extern void qt_rvu_paint_image(int xmin, int ymin, int xmax, int ymax, const unsigned char *data);
+extern void qt_rvu_update_plot(double ev, double dgp);
 
 static int makeFalseColorMap(const RTcontext context);
 
@@ -272,6 +273,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	}
 	avlum /= omega;
 	dgp = 5.87e-5 * ev + 0.0918 * log10(1 + dgp / pow(ev, 1.87)) + 0.16;
+	qt_rvu_update_plot(ev, dgp);
 
 #ifdef DEBUG_OPTIX
 	flushExceptionLog("camera");
@@ -346,7 +348,7 @@ static int makeFalseColorMap(const RTcontext context)
 
 	return tex_id;
 }
-#endif /* PROGRESSIVE */
+#endif /* ACCELERAD_RT */
 
 /**
  * Setup and run the OptiX kernel similar to RPICT.
@@ -652,7 +654,7 @@ static void createContext( RTcontext* context, const int width, const int height
 		entry_point_count = 1u; /* Generate radiance data */
 		if ( use_ambient )
 			ray_type_count++; /* ambient ray */
-#ifdef PROGRESSIVE
+#ifdef ACCELERAD_RT
 		ray_type_count++; /* diffuse rays */
 #endif
 	}
@@ -794,7 +796,7 @@ static void applyRadianceSettings(const RTcontext context, const VIEW* view, con
 	/* Define ray types */
 	applyContextVariable1ui( context, "radiance_primary_ray_type", PRIMARY_RAY );
 	applyContextVariable1ui( context, "radiance_ray_type", RADIANCE_RAY );
-#ifdef PROGRESSIVE
+#ifdef ACCELERAD_RT
 	applyContextVariable1ui(context, "diffuse_ray_type", DIFFUSE_RAY);
 #endif
 	applyContextVariable1ui( context, "shadow_ray_type", SHADOW_RAY );
@@ -886,7 +888,7 @@ static void createCamera(const RTcontext context, const char* ptx_name)
 	if ( do_irrad )
 		RT_CHECK_ERROR(rtContextSetMissProgram(context, PRIMARY_RAY, program));
 	RT_CHECK_ERROR(rtContextSetMissProgram(context, RADIANCE_RAY, program));
-#ifdef PROGRESSIVE
+#ifdef ACCELERAD_RT
 	RT_CHECK_ERROR(rtContextSetMissProgram(context, DIFFUSE_RAY, program));
 #endif
 #ifdef HIT_TYPE
@@ -1592,7 +1594,7 @@ static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec)
 #ifndef LIGHTS
 		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "any_hit_shadow", &shadow_normal_any_hit_program ) );
 #endif
-#ifdef PROGRESSIVE
+#ifdef ACCELERAD_RT
 		ptxFile(path_to_ptx, "diffuse_normal");
 		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_radiance", &diffuse_normal_closest_hit_program));
 #endif
@@ -1602,7 +1604,7 @@ static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec)
 	if ( do_irrad )
 		RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, PRIMARY_RAY, radiance_normal_closest_hit_program ) );
 	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, RADIANCE_RAY, radiance_normal_closest_hit_program ) );
-#ifdef PROGRESSIVE
+#ifdef ACCELERAD_RT
 	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, DIFFUSE_RAY, diffuse_normal_closest_hit_program));
 #endif
 #ifndef LIGHTS
@@ -1655,7 +1657,7 @@ static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec)
 
 	RT_CHECK_ERROR( rtMaterialCreate( context, &material ) );
 	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, RADIANCE_RAY, radiance_glass_closest_hit_program ) );
-#ifdef PROGRESSIVE
+#ifdef ACCELERAD_RT
 	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, DIFFUSE_RAY, radiance_glass_closest_hit_program));
 #endif
 	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, SHADOW_RAY, shadow_glass_closest_hit_program ) );
@@ -1701,7 +1703,7 @@ static RTmaterial createLightMaterial( const RTcontext context, OBJREC* rec )
 	if ( do_irrad )
 		RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, PRIMARY_RAY, radiance_light_closest_hit_program ) );
 	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, RADIANCE_RAY, radiance_light_closest_hit_program ) );
-#ifdef PROGRESSIVE
+#ifdef ACCELERAD_RT
 	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, DIFFUSE_RAY, radiance_light_closest_hit_program));
 #endif
 	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, SHADOW_RAY, shadow_light_closest_hit_program ) );
