@@ -123,7 +123,7 @@ if(OptiX_USE)
   # Include source wrappers for OptiX and CUDA.
   # The empty blank.cpp file forces g++ to be used as the linker on Linux.
   set(ACCELERAD_LIBRARY accelerad)
-  add_library(${ACCELERAD_LIBRARY} optix_radiance.c optix_ambient.c optix_util.c blank.cpp ${generated_CUDA_files} ${generated_PTX_files})
+  add_library(${ACCELERAD_LIBRARY} optix_radiance.c optix_ambient.c optix_rvu.c optix_util.c blank.cpp ${generated_CUDA_files} ${generated_PTX_files})
 endif()
 
 add_executable(rtrace rtmain.c rtrace.c duphead.c persist.c ${generated_PTX_files_rtrace})
@@ -151,6 +151,8 @@ if(X11_FOUND)
   add_definitions("-DHAS_X11")
 endif()
 if(Qt5Widgets_DIR)
+  # set policy to link to qtmain
+  cmake_policy(SET CMP0020 OLD)
   include_directories(${Qt5Widgets_INCLUDE_DIRS})
   add_definitions("-DHAS_QT")
 endif()

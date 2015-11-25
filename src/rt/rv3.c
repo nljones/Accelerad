@@ -188,7 +188,7 @@ paint(			/* compute and paint a rectangle */
 
 #ifdef ACCELERAD_RT
 	if (use_optix) {
-		renderOptixIterative(&ourview, hresolu, vresolu, !pdepth, greyscale, exposure, scale, decades, mask, ralrm);
+		renderOptixIterative(&ourview, hresolu, vresolu, !(pdepth++), greyscale, exposure, scale, decades, mask, ralrm);
 		return(0);
 	}
 #endif
@@ -324,7 +324,7 @@ redraw(void)				/* redraw the image */
 	(*dev->comout)("redrawing...\n");
 #ifdef ACCELERAD_RT
 	if (use_optix)
-		renderOptixIterative(&ourview, hresolu, vresolu, !pdepth, greyscale, exposure, scale, decades, mask, ralrm);
+		renderOptixIterative(&ourview, hresolu, vresolu, !(pdepth++), greyscale, exposure, scale, decades, mask, ralrm);
 	else
 #endif
 	repaint(0, 0, hresolu, vresolu);

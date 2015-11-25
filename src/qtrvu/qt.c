@@ -265,7 +265,7 @@ void qt_process_command(const char* com)
 			qt_comout(buf);
 			last_total_progress = progress ? progress : 1;
 			progress = 0;
-			renderOptixIterative(&ourview, hresolu, vresolu, !pdepth, greyscale, exposure, scale, decades, mask, ralrm);
+			renderOptixIterative(&ourview, hresolu, vresolu, !(pdepth++), greyscale, exposure, scale, decades, mask, ralrm);
 			if (dev->inpready)
 			{
 				qt_comout("abort");
@@ -273,8 +273,6 @@ void qt_process_command(const char* com)
 				pdepth = cuda_kmeans_iterations; // TODO new variable
 				return;
 			}
-			/* finished this depth */
-			pdepth++;
 		}
 		return;
 	}

@@ -44,7 +44,7 @@ typedef struct {
 }  NORMDAT;		/* normal material data */
 
 /* Context variables */
-rtDeclareVariable(unsigned int, diffuse_ray_type, , );
+rtDeclareVariable(unsigned int, radiance_ray_type, , );
 rtDeclareVariable(unsigned int, ambient_ray_type, , );
 rtDeclareVariable(rtObject, top_object, , );
 rtDeclareVariable(rtObject, top_ambient, , );
@@ -341,7 +341,7 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 	new_prd.dc = daysimNext(dc);
 #endif
 
-	Ray amb_ray = make_Ray(hit, pnormal, diffuse_ray_type, RAY_START, RAY_END); // Use normal point as temporary direction
+	Ray amb_ray = make_Ray(hit, pnormal, radiance_ray_type, RAY_START, RAY_END); // Use normal point as temporary direction
 	/* End ambsample setup */
 
 	/* make tangent plane axes */
@@ -362,7 +362,7 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 			//dimlist[ndims++] = AI(hp,i,j) + 90171;
 
 			setupPayload(new_prd, 0);
-			//Ray amb_ray = make_Ray( hit, rdir, diffuse_ray_type, RAY_START, RAY_END );
+			//Ray amb_ray = make_Ray( hit, rdir, radiance_ray_type, RAY_START, RAY_END );
 			rtTrace(top_object, amb_ray, new_prd);
 			resolvePayload(prd, new_prd);
 

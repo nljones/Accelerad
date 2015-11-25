@@ -7,7 +7,7 @@
 /* Compiler setting to use OptiX ray tracing */
 #define ACCELERAD
 /* Compiler setting to allow real-time progressive OptiX ray tracing */
-//#define ACCELERAD_RT
+#define ACCELERAD_RT
 /* Compiler setting to allow debugging of OptiX ray tracing */
 #define ACCELERAD_DEBUG
 #endif

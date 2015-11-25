@@ -102,11 +102,9 @@ rview(void)				/* do a view */
 			errno = 0;
 			sprintf(buf, "%d pass...\n", pdepth);
 			(*dev->comout)(buf);
-			renderOptixIterative(&ourview, hresolu, vresolu, !pdepth, greyscale, exposure, scale, decades, mask, ralrm);
+			renderOptixIterative(&ourview, hresolu, vresolu, !(pdepth++), greyscale, exposure, scale, decades, mask, ralrm);
 			if (dev->inpready)		/* noticed some input */
 				command(": ");
-			else				/* finished this depth */
-				pdepth++;
 		}
 		return;
 	}

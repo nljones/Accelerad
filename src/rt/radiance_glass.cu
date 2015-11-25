@@ -10,8 +10,6 @@
 using namespace optix;
 
 /* Context variables */
-rtDeclareVariable(unsigned int, radiance_ray_type, , );
-rtDeclareVariable(unsigned int, shadow_ray_type, , );
 rtDeclareVariable(rtObject,     top_object, , );
 
 rtDeclareVariable(float,        minweight, , ); /* minimum ray weight */
@@ -94,7 +92,7 @@ RT_PROGRAM void closest_hit_shadow()
 		new_prd.dc = daysimNext(prd_shadow.dc);
 		daysimSet(new_prd.dc, 0.0f);
 #endif
-		Ray trans_ray = make_Ray(hit_point, ray.direction, shadow_ray_type, ray_start(hit_point, ray.direction, snormal, RAY_START), RAY_END);
+		Ray trans_ray = make_Ray(hit_point, ray.direction, ray.ray_type, ray_start(hit_point, ray.direction, snormal, RAY_START), RAY_END);
 		rtTrace(top_object, trans_ray, new_prd);
 		result += new_prd.result * trans;
 #ifdef DAYSIM_COMPATIBLE
@@ -182,7 +180,7 @@ RT_PROGRAM void closest_hit_radiance()
 			}
 
 			setupPayload(new_prd, 0);
-			Ray trans_ray = make_Ray(hit_point, R, radiance_ray_type, ray_start(hit_point, R, snormal, RAY_START), RAY_END);
+			Ray trans_ray = make_Ray(hit_point, R, ray.ray_type, ray_start(hit_point, R, snormal, RAY_START), RAY_END);
 			rtTrace(top_object, trans_ray, new_prd);
 			float3 rcol = new_prd.result * trans;
 			result += rcol;
@@ -212,7 +210,7 @@ RT_PROGRAM void closest_hit_radiance()
 #endif
 		setupPayload(new_prd, 0);
 		float3 R = reflect( ray.direction, ffnormal );
-		Ray refl_ray = make_Ray(hit_point, R, radiance_ray_type, ray_start(hit_point, R, snormal, RAY_START), RAY_END);
+		Ray refl_ray = make_Ray(hit_point, R, ray.ray_type, ray_start(hit_point, R, snormal, RAY_START), RAY_END);
 		rtTrace(top_object, refl_ray, new_prd);
 		float3 rcol = new_prd.result * refl;
 		result += rcol;
