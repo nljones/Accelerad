@@ -938,6 +938,7 @@ static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* pare
 		insertArraydl(sources, createDistantLight(context, rec, parent));
 		break;
 	case PAT_BFUNC: // brightness function, used for sky brightness
+	case PAT_CFUNC: // color function, used for sky chromaticity
 		buffer_entry_index[index] = createFunction(context, rec);
 		break;
 	case PAT_BDATA: // brightness texture, used for IES lighting data
@@ -1599,7 +1600,8 @@ static int createFunction(const RTcontext context, OBJREC* rec)
 			applyProgramVariable1f(context, program, "factor", (float)rec->oargs.farg[3]);
 			applyProgramVariable3f(context, program, "sun", (float)rec->oargs.farg[4], (float)rec->oargs.farg[5], (float)rec->oargs.farg[6]);
 			applyProgramVariable( context, program, "transform", sizeof(transform), transform );
-		} else if ( !strcmp(rec->oargs.sarg[0], "skybright") && !strcmp(rec->oargs.sarg[1], "perezlum.cal") ) {
+		}
+		else if ( !strcmp(rec->oargs.sarg[0], "skybright") && !strcmp(rec->oargs.sarg[1], "perezlum.cal") ) {
 			float coef[5] = { (float)rec->oargs.farg[2], (float)rec->oargs.farg[3], (float)rec->oargs.farg[4], (float)rec->oargs.farg[5], (float)rec->oargs.farg[6] };
 			ptxFile( path_to_ptx, "perezlum" );
 			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "perez_lum", &program ) );
@@ -1608,13 +1610,32 @@ static int createFunction(const RTcontext context, OBJREC* rec)
 			applyProgramVariable( context, program, "coef", sizeof(coef), coef );
 			applyProgramVariable3f(context, program, "sun", (float)rec->oargs.farg[7], (float)rec->oargs.farg[8], (float)rec->oargs.farg[9]);
 			applyProgramVariable( context, program, "transform", sizeof(transform), transform );
-		} else if (!strcmp(rec->oargs.sarg[0], "skybright") && !strcmp(rec->oargs.sarg[1], "isotrop_sky.cal")) {
+		}
+		else if (!strcmp(rec->oargs.sarg[0], "skybright") && !strcmp(rec->oargs.sarg[1], "isotrop_sky.cal")) {
 			/* Isotropic sky from daysim installation */
 			ptxFile(path_to_ptx, "isotropsky");
 			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "isotrop_sky", &program));
 			applyProgramVariable1f(context, program, "skybright", (float)rec->oargs.farg[0]);
 			applyProgramVariable(context, program, "transform", sizeof(transform), transform);
-		} else {
+		}
+		else if (!strcmp(rec->oargs.sarg[0], "skybr") && !strcmp(rec->oargs.sarg[1], "utah.cal")) {
+			/* Preetham sky brightness from Mark Stock */
+			ptxFile(path_to_ptx, "utah");
+			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "utah", &program));
+			applyProgramVariable1ui(context, program, "monochrome", 1u);
+			applyProgramVariable1f(context, program, "turbidity", (float)rec->oargs.farg[0]);
+			applyProgramVariable3f(context, program, "sun", (float)rec->oargs.farg[1], (float)rec->oargs.farg[2], (float)rec->oargs.farg[3]);
+			applyProgramVariable(context, program, "transform", sizeof(transform), transform);
+		}
+		else if (rec->oargs.nsargs >= 4 && !strcmp(rec->oargs.sarg[0], "skyr") && !strcmp(rec->oargs.sarg[1], "skyg") && !strcmp(rec->oargs.sarg[2], "skyb") && !strcmp(rec->oargs.sarg[3], "utah.cal")) {
+			/* Preetham sky from Mark Stock */
+			ptxFile(path_to_ptx, "utah");
+			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "utah", &program));
+			applyProgramVariable1f(context, program, "turbidity", (float)rec->oargs.farg[0]);
+			applyProgramVariable3f(context, program, "sun", (float)rec->oargs.farg[1], (float)rec->oargs.farg[2], (float)rec->oargs.farg[3]);
+			applyProgramVariable(context, program, "transform", sizeof(transform), transform);
+		}
+		else {
 			printObject(rec);
 			return RT_PROGRAM_ID_NULL;
 		}
