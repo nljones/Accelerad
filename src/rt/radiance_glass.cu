@@ -162,6 +162,7 @@ RT_PROGRAM void closest_hit_radiance()
 		/* transmitted ray */
 		new_prd.weight = prd.weight * fmaxf(trans);
 		if (new_prd.weight >= minweight) {
+			new_prd.result = make_float3(0.0f);
 			new_prd.depth = prd.depth;
 			new_prd.ambient_depth = prd.ambient_depth;
 			//new_prd.seed = prd.seed;//lcg( prd.seed );
@@ -202,6 +203,7 @@ RT_PROGRAM void closest_hit_radiance()
 	new_prd.weight = prd.weight * fmaxf(refl);
 	new_prd.depth = prd.depth + 1;
 	if (new_prd.weight >= minweight && new_prd.depth <= abs(maxdepth)) {
+		new_prd.result = make_float3(0.0f);
 		new_prd.ambient_depth = prd.ambient_depth;
 		//new_prd.seed = prd.seed;//lcg( prd.seed );
 		new_prd.state = prd.state;

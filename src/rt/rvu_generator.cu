@@ -117,6 +117,7 @@ RT_PROGRAM void ray_generator()
 
 	Ray ray = make_Ray(ray_origin, ray_direction, frame ? diffuse_ray_type : do_irrad ? radiance_primary_ray_type : radiance_ray_type, 0.0f, aft);
 
+	prd.result = make_float3(0.0f);
 	prd.weight = 1.0f;
 	prd.depth = 0;
 	prd.ambient_depth = 0;

@@ -9,7 +9,7 @@ static const char RCSid[] = "$Id$";
 
 #include <ctype.h>
 #include "rtio.h"
-#include "rtprocess.h"
+#include "paths.h"
 #include "ezxml.h"
 #include "bsdf.h"
 #include "bsdf_m.h"
@@ -81,6 +81,8 @@ struct s_dfile {
 } data_file[MAXFILES];
 
 int		ndataf = 0;		/* number of data files */
+
+int		unlink_datafiles = 0;	/* unlink data files when done */
 
 const char	*spectr_file[MAXFILES];	/* custom spectral curve input */
 
@@ -604,7 +606,18 @@ writeBSDF(const char *caller, ezxml_t fl)
 	fputs(xml+ei, stdout);			/* write trailer */
 	free(xml);				/* free string */
 	fputc('\n', stdout);
-	return (fflush(stdout) == 0);
+	if (fflush(stdout) != 0)
+		return 0;
+						/* unlink data files if req. */
+	for (i = ndataf*(unlink_datafiles != 0); i--; )
+		if (data_file[i].fname != stdin_name &&
+				data_file[i].fname[0] != '!')
+			unlink(data_file[i].fname);
+	if (unlink_datafiles > 1 && mgf_geometry != NULL &&
+			mgf_geometry != stdin_name &&
+			mgf_geometry[0] != '!')
+		unlink(mgf_geometry);
+	return 1;
 }
 
 /* Insert BSDF data into XML wrapper */
@@ -767,6 +780,9 @@ main(int argc, char *argv[])
 				return 1;
 			}
 			attr_unit = argv[i];
+			continue;
+		case 'U':		/* unlink data files when done */
+			unlink_datafiles = 1 + (argv[i][2] == 'U');
 			continue;
 		case 'a':		/* angle basis */
 			if (++i >= argc)

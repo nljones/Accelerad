@@ -95,31 +95,64 @@ est_DSFrad(const RBFNODE *rbf, const FVECT outvec)
 #undef interp_rad
 }
 
-/* Compute average BSDF peak from current DSF's */
+static int
+dbl_cmp(const void *p1, const void *p2)
+{
+	double	d1 = *(const double *)p1;
+	double	d2 = *(const double *)p2;
+
+	if (d1 > d2) return(1);
+	if (d1 < d2) return(-1);
+	return(0);
+}
+
+/* Conservative estimate of average BSDF value from current DSF's */
 static void
 comp_bsdf_spec(void)
 {
-	double		peak_sum = 0;
+	double		vmod_sum = 0;
 	double		rad_sum = 0;
 	int		n = 0;
+	double		*cost_list = NULL;
+	double		max_cost = 1.;
 	RBFNODE		*rbf;
 	FVECT		sdv;
-
-	if (dsf_list == NULL) {
-		bsdf_spec_peak = 0;
+						/* sort by incident altitude */
+	for (rbf = dsf_list; rbf != NULL; rbf = rbf->next)
+		n++;
+	if (n >= 10)
+		cost_list = (double *)malloc(sizeof(double)*n);
+	if (cost_list == NULL) {
+		bsdf_spec_val = 0;
 		bsdf_spec_rad = 0;
 		return;
 	}
+	n = 0;
+	for (rbf = dsf_list; rbf != NULL; rbf = rbf->next)
+		cost_list[n++] = rbf->invec[2]*input_orient;
+	qsort(cost_list, n, sizeof(double), dbl_cmp);
+	max_cost = cost_list[(n+3)/4];		/* accept 25% nearest grazing */
+	free(cost_list);
+	n = 0;
 	for (rbf = dsf_list; rbf != NULL; rbf = rbf->next) {
+		double	this_rad, cosfact, vest;
+		if (rbf->invec[2]*input_orient > max_cost)
+			continue;
 		sdv[0] = -rbf->invec[0];
 		sdv[1] = -rbf->invec[1];
 		sdv[2] = rbf->invec[2]*(2*(input_orient==output_orient) - 1);
-		peak_sum += eval_rbfrep(rbf, sdv);
-		rad_sum += est_DSFrad(rbf, sdv);
+		cosfact = COSF(sdv[2]);
+		this_rad = est_DSFrad(rbf, sdv);
+		vest = eval_rbfrep(rbf, sdv) * cosfact *
+				(2.*M_PI) * this_rad*this_rad;
+		if (vest > rbf->vtotal)		/* don't over-estimate energy */
+			vest = rbf->vtotal;
+		vmod_sum += vest / cosfact;	/* remove cosine factor */
+		rad_sum += this_rad;
 		++n;
 	}
-	bsdf_spec_peak = peak_sum/(double)n;
 	bsdf_spec_rad = rad_sum/(double)n;
+	bsdf_spec_val = vmod_sum/(2.*M_PI*n*bsdf_spec_rad*bsdf_spec_rad);
 }
 
 /* Create a new migration holder (sharing memory for multiprocessing) */

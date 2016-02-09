@@ -29,7 +29,8 @@ STDOBJ = fgetline.o fropen.o linregr.o xf.o mat4.o invmat4.o fvect.o urand.o \
 	unix_process.o process.o gethomedir.o getpath.o error.o savestr.o \
 	savqstr.o badarg.o fgetword.o words.o expandarg.o wordfile.o fgetval.o \
 	clip.o plocate.o eputs.o wputs.o quit.o lookup.o bmalloc.o \
-	loadvars.o tcos.o fputword.o chanvalue.o dircode.o paths.o byteswap.o
+	loadvars.o tcos.o fputword.o chanvalue.o dircode.o paths.o byteswap.o \
+	cvtcmd.o
 
 SYSOBJ = ealloc.o fdate.o portio.o myhostname.o $(COMPAT)
 
@@ -86,6 +87,9 @@ getlibpath.o:	getlibpath.c
 tmapcolrs.o:	tmapcolrs.c
 	$(CC) $(CFLAGS) -DPCOND=\"pcond\" -c tmapcolrs.c
 
+testBSDF:	testBSDF.c bsdf.h rtio.h
+	$(CC) -L../lib $(CFLAGS) -o testBSDF testBSDF.c -lrtrad -lm
+
 color.o colrops.o lamps.o spec_rgb.o:	color.h
 
 cone.o:		cone.h
@@ -124,7 +128,7 @@ clip.o plocate.o:	plocate.h
 
 font.o:	font.h
 
-fropen.o getpath.o image.o:	paths.h
+cvtcmd.o fropen.o getpath.o image.o:	paths.h
 
 lookup.o:	lookup.h
 

@@ -21,7 +21,7 @@
 /* Needed for sleep while waiting for VCA */
 #ifdef _WIN32
 #include <windows.h>
-#define sleep(s) Sleep((s)*1000)
+#define sleep(s) Sleep((DWORD)((s)*1000))
 #else
 #include <unistd.h>
 #endif
@@ -1491,9 +1491,6 @@ static RTmaterial createLightMaterial( const RTcontext context, OBJREC* rec )
 	if ( do_irrad )
 		RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, PRIMARY_RAY, radiance_light_closest_hit_program ) );
 	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, RADIANCE_RAY, radiance_light_closest_hit_program ) );
-#ifdef ACCELERAD_RT
-	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, DIFFUSE_RAY, radiance_light_closest_hit_program));
-#endif
 	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, SHADOW_RAY, shadow_light_closest_hit_program ) );
 
 	if ( calc_ambient ) {
