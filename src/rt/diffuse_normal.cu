@@ -193,86 +193,24 @@ RT_PROGRAM void closest_hit_radiance()
 // Compute the ambient component and multiply by the coefficient.
 RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pnormal, const float3& hit)
 {
-	int do_ambient = 1;
 	float 	d;
 
-	if (ambdiv <= 0)			/* no ambient calculation */
-		goto dumbamb;
-	/* check number of bounces */
-	if (prd.ambient_depth >= ambounce)
-		goto dumbamb;
-	/* check ambient list */
-	//if (ambincl != -1 && r->ro != NULL && ambincl != inset(ambset, r->ro->omod))
-	//	goto dumbamb;
-
-	if (ambacc > FTINY && navsum != 0) {			/* ambient storage */
-		//if (tracktime)				/* sort to minimize thrashing */
-		//	sortambvals(0);
-
-		/* interpolate ambient value */
-		//acol = make_float3( 0.0f );
-		//d = sumambient(acol, r, normal, rdepth, &atrunk, thescene.cuorg, thescene.cusize);
-		PerRayData_ambient ambient_prd;
-		ambient_prd.result = make_float3(0.0f);
-		ambient_prd.surface_normal = pnormal;
-		ambient_prd.ambient_depth = prd.ambient_depth;
-		ambient_prd.wsum = 0.0f;
-		ambient_prd.weight = prd.weight;
-#ifdef OLDAMB
-		ambient_prd.state = prd.state;
-#endif
-#ifdef DAYSIM_COMPATIBLE
-		ambient_prd.dc = daysimNext(prd.dc);
-		daysimSet(ambient_prd.dc, 0.0f);
-#endif
-#ifdef HIT_COUNT
-		ambient_prd.hit_count = 0;
-#endif
-		const float tmin = ray_start(hit, AMBIENT_RAY_LENGTH);
-		Ray ambient_ray = make_Ray(hit, normal, ambient_ray_type, -tmin, tmin);
-		rtTrace(top_ambient, ambient_ray, ambient_prd);
-#ifdef HIT_COUNT
-		prd.hit_count += ambient_prd.hit_count;
-#endif
-		if (ambient_prd.wsum > FTINY) { // TODO if miss program is called, set wsum = 1.0f or place this before ambacc == 0.0f
-			ambient_prd.result *= 1.0f / ambient_prd.wsum;
-#ifdef DAYSIM_COMPATIBLE
-			daysimAddScaled(prd.dc, ambient_prd.dc, aval.x / ambient_prd.wsum);
-#endif
-			return aval * ambient_prd.result;
-		}
-		//rdepth++;				/* need to cache new value */
-		//d = makeambient(acol, r, normal, rdepth-1); //TODO implement as miss program for ambient ray
-		//rdepth--;
-		//if ( dot( ambient_prd.result, ambient_prd.result) > FTINY) { // quick check to see if a value was returned by miss program
-		//	return aval * ambient_prd.result;		/* got new value */
-		//}
-
-#ifdef FILL_GAPS
-		do_ambient = prd.primary && ambdiv_final;
-#else
-		do_ambient = !prd.ambient_depth && ambdiv_final;
-#endif
-	}
-	if (do_ambient) {			/* no ambient storage */
-		/* Option to show error if nothing found */
-		if (ambdiv_final < 0)
-			rtThrow(RT_EXCEPTION_USER - ambdiv_final);
-
+	/* ambient calculation */
+	if (ambdiv > 0 && prd.ambient_depth < ambounce) {
 		float3 acol = aval;
-#ifdef DAYSIM_COMPATIBLE
+	#ifdef DAYSIM_COMPATIBLE
 		DaysimCoef dc = daysimNext(prd.dc);
 		daysimSet(dc, 0.0f);
 		d = doambient(&acol, normal, pnormal, hit, dc);
 		if (d > FTINY)
 			daysimAdd(prd.dc, dc);
-#else
+	#else
 		d = doambient(&acol, normal, pnormal, hit);
-#endif
+	#endif
 		if (d > FTINY)
 			return acol;
 	}
-dumbamb:					/* return global value */
+					/* return global value */
 	if ((ambvwt <= 0) || (navsum == 0)) {
 #ifdef DAYSIM_COMPATIBLE
 		daysimAdd(prd.dc, aval.x * ambval.x);
@@ -311,15 +249,8 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 	/* set number of divisions */
 	if (ambacc <= FTINY && wt > (d = 0.8f * fmaxf(*rcol) * wt / (ambdiv_final * minweight)))
 		wt = d;			/* avoid ray termination */
-	int n = sqrtf(ambdiv_final * wt) + 0.5f;
-	int i = 1 + 8 * (ambacc > FTINY);	/* minimum number of samples */
-	if (n < i)
-		n = i;
-	const int nn = n * n;
 	float3 acol = make_float3(0.0f);
-	unsigned int sampOK = 0u;
-	/* assign coefficient */
-	float3 acoef = *rcol / nn;
+	float3 acoef = *rcol;
 
 	/* Setup from ambsample in ambcomp.c */
 	PerRayData_radiance new_prd;
@@ -347,49 +278,30 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 	/* make tangent plane axes */
 	float3 ux = getperpendicular(pnormal, prd.state);
 	float3 uy = cross(pnormal, ux);
-	/* sample divisions */
-	for (i = n; i--;)
-		for (int j = n; j--;) {
-			//hp.sampOK += ambsample( &hp, i, j, normal, hit );
-			/* ambsample in ambcomp.c */
-			float2 spt = 0.1f + 0.8f * make_float2(curand_uniform(prd.state), curand_uniform(prd.state));
-			SDsquare2disk(spt, (j + spt.y) / n, (i + spt.x) / n);
-			float zd = sqrtf(1.0f - dot(spt, spt));
-			amb_ray.direction = normalize(spt.x*ux + spt.y*uy + zd*pnormal);
-			if (dot(amb_ray.direction, normal) <= 0) /* Prevent light leaks */
-				continue;
-			amb_ray.tmin = ray_start(hit, amb_ray.direction, normal, RAY_START);
-			//dimlist[ndims++] = AI(hp,i,j) + 90171;
 
-			setupPayload(new_prd, 0);
-			//Ray amb_ray = make_Ray( hit, rdir, radiance_ray_type, RAY_START, RAY_END );
-			rtTrace(top_object, amb_ray, new_prd);
-			resolvePayload(prd, new_prd);
-
-			//ndims--;
-			if (isnan(new_prd.result)) // TODO How does this happen?
-				continue;
-			if (new_prd.distance <= FTINY)
-				continue;		/* should never happen */
-			acol += new_prd.result * acoef;	/* add to our sum */
-#ifdef DAYSIM_COMPATIBLE
-			daysimAddScaled(dc, new_prd.dc, acoef.x);
-#endif
-			sampOK++;
-		}
-	*rcol = acol;
-	if (!sampOK) {		/* utter failure? */
+	/* ambsample in ambcomp.c */
+	float2 spt = 0.01f + 0.98f * make_float2(curand_uniform(prd.state), curand_uniform(prd.state));
+	SDsquare2disk(spt, spt.y, spt.x);
+	float zd = sqrtf(1.0f - dot(spt, spt));
+	amb_ray.direction = normalize(spt.x*ux + spt.y*uy + zd*pnormal);
+	if (dot(amb_ray.direction, normal) <= 0) /* Prevent light leaks */
 		return(0);
-	}
-	if (sampOK < nn) {
-		//hp.sampOK *= -1;	/* soft failure */
-		return(1);
-	}
-	//n = ambssamp * wt + 0.5f;
-	//if (n > 8) {			/* perform super-sampling? */
-	//	ambsupersamp(hp, n);
-	//	*rcol = hp.acol;
-	//}
+	amb_ray.tmin = ray_start(hit, amb_ray.direction, normal, RAY_START);
+
+	setupPayload(new_prd, 0);
+	//Ray amb_ray = make_Ray( hit, rdir, radiance_ray_type, RAY_START, RAY_END );
+	rtTrace(top_object, amb_ray, new_prd);
+	resolvePayload(prd, new_prd);
+
+	if (isnan(new_prd.result)) // TODO How does this happen?
+		return(0);
+	if (new_prd.distance <= FTINY)
+		return(0);		/* should never happen */
+	acol += new_prd.result * acoef;	/* add to our sum */
+#ifdef DAYSIM_COMPATIBLE
+	daysimAddScaled(dc, new_prd.dc, acoef.x);
+#endif
+	*rcol = acol;
 	return(1);			/* all is well */
 }
 #endif /* AMBIENT */
