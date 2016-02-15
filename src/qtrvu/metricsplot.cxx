@@ -27,6 +27,7 @@ MetricsPlot::MetricsPlot() : QwtPlot()
 
 	addCurve("Ev", Qt::green, 2, QwtPlot::yRight, Ev);
 	addCurve("DGP", Qt::blue, 4, QwtPlot::yLeft, DGP);
+	addCurve("RAMMG", Qt::darkYellow, 4, QwtPlot::yRight, RAMMG);
 
 	for (int i = 0; i < HISTORY; i++)
 		timeData[i] = -1 - i;
@@ -45,7 +46,7 @@ void MetricsPlot::addCurve(const QString title, const Qt::GlobalColor color, qre
 	data[metric].curve = curve;
 }
 
-void MetricsPlot::addData(double ev, double dgp)
+void MetricsPlot::addData(double ev, double dgp, double rammg)
 {
 	for (int i = dataCount; i > 0; i--)
 	{
@@ -62,6 +63,9 @@ void MetricsPlot::addData(double ev, double dgp)
 	data[DGP].data[0] = dgp;
 	if (axisInterval(QwtPlot::yLeft).maxValue() < dgp)
 		setAxisScale(QwtPlot::yLeft, 0.0, pow(10.0, ceil(log10(dgp))));
+	data[RAMMG].data[0] = rammg;
+	if (axisInterval(QwtPlot::yRight).maxValue() < rammg)
+		setAxisScale(QwtPlot::yRight, 0.0, pow(10.0, ceil(log10(rammg))));
 
 	if (dataCount < HISTORY)
 		dataCount++;

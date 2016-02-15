@@ -36,7 +36,7 @@ public:
   void setProgress(int);
   void pick( int* x, int* y);
 #ifdef ACCELERAD_RT
-  void addData(double ev, double dgp);
+  void addData(double ev, double dgp, double rammg);
 #endif
 
 protected:

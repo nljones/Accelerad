@@ -21,13 +21,14 @@ public:
 		//VCP,
 		//CGI,
 		//Lveil,
+		RAMMG,
 
 		MetricsCount
 	};
 
 	MetricsPlot();
 
-	void addData(double ev, double dgp);
+	void addData(double ev, double dgp, double rammg);
 
 protected:
 

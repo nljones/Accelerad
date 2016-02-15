@@ -285,8 +285,15 @@ newimage(					/* start a new image */
 						/* free old image */
 	freepkids(&ptrunk);
 						/* compute resolution */
+#ifdef ACCELERAD_RT
+	if (hresolu < 1 || hresolu > dev->xsiz)
+		hresolu = dev->xsiz;
+	if (vresolu < 1 || vresolu > dev->ysiz)
+		vresolu = dev->ysiz;
+#else
 	hresolu = dev->xsiz;
 	vresolu = dev->ysiz;
+#endif
 	normaspect(viewaspect(&ourview), &dev->pixaspect, &hresolu, &vresolu);
 	ptrunk.xmin = ptrunk.ymin = pframe.l = pframe.d = 0;
 	ptrunk.xmax = pframe.r = hresolu;

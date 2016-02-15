@@ -30,7 +30,11 @@ double  ralrm = 0.0;			/* seconds between reports (-t) */
 #endif
 
 VIEW  ourview = STDVIEW;		/* viewing parameters */
+#ifdef ACCELERAD_RT
+int  hresolu = 0, vresolu = 0;	/* image resolution */
+#else
 int  hresolu, vresolu;			/* image resolution */
+#endif
 
 int  psample = 8;			/* pixel sample size */
 double	maxdiff = .15;			/* max. sample difference */
@@ -177,6 +181,16 @@ main(int argc, char *argv[])
 				goto badopt;
 			}
 			break;
+#ifdef ACCELERAD_RT
+		case 'x':				/* x resolution */
+			check(2, "i");
+			hresolu = atoi(argv[++i]);
+			break;
+		case 'y':				/* y resolution */
+			check(2, "i");
+			vresolu = atoi(argv[++i]);
+			break;
+#endif
 		case 'w':				/* warnings */
 			rval = erract[WARNING].pf != NULL;
 			bool(2,rval);

@@ -16,8 +16,9 @@ extern RTvariable camera_frame;
 extern struct driver  *dev;
 
 extern void qt_rvu_paint_image(int xmin, int ymin, int xmax, int ymax, const unsigned char *data);
-extern void qt_rvu_update_plot(double ev, double dgp);
+extern void qt_rvu_update_plot(double ev, double dgp, double rammg);
 
+static double calcRAMMG(const Metrics *metrics, const int width, const int height);
 static int makeFalseColorMap(const RTcontext context);
 
 /* Handles to objects used repeatedly in animation */
@@ -32,7 +33,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 
 	/* Parameters */
 	unsigned int i, size;
-	double omega = 0.0, ev = 0.0, avlum = 0.0, dgp = 0.0;
+	double omega = 0.0, ev = 0.0, avlum = 0.0, dgp = 0.0, rammg = 0.0;
 	unsigned char* colors;
 	Metrics *metrics;
 
@@ -121,6 +122,8 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	RT_CHECK_ERROR(rtBufferMap(metrics_buffer, (void**)&metrics));
 	RT_CHECK_ERROR(rtBufferUnmap(metrics_buffer));
 
+	rammg = calcRAMMG(metrics, width, height);
+
 	for (i = 0u; i < size; i++) {
 #ifdef DEBUG_OPTIX
 		if (metrics->omega == -1.0f)
@@ -136,7 +139,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	}
 	avlum /= omega;
 	dgp = 5.87e-5 * ev + 0.0918 * log10(1 + dgp / pow(ev, 1.87)) + 0.16;
-	qt_rvu_update_plot(ev, dgp);
+	qt_rvu_update_plot(ev, dgp, rammg);
 
 #ifdef DEBUG_OPTIX
 	flushExceptionLog("camera");
@@ -145,9 +148,52 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	mprintf("Vertical eye illuminance: %g cd/m2\n", ev);
 	mprintf("Average luminance: %g lux\n", avlum);
 	mprintf("Daylight glare probability: %g\n", dgp);
+	mprintf("RAMMG: %g\n", rammg);
 
 	/* Clean up */
 	//destroyContext(context);
+}
+
+#define VAL(x, y)	values[(x) + (y) * xmax]
+
+/* RAMMG Contrast Metric from Alessandro Rizzi, Thomas Algeri, Giuseppe Medeghini, Daniele Marini (2004). "A proposal for Contrast Measure in Digital Images" */
+static double calcRAMMG(const Metrics *metrics, const int width, const int height)
+{
+	int x, y, xmax = width, ymax = height, level = 0;
+	double pixelSum, levelSum = 0.0;
+	float pixel, *values;
+
+	/* Populate initial values */
+	values = (float *)malloc(sizeof(float) * width * height);
+	if (values == NULL) error(SYSTEM, "out of memory in calcRAMMG");
+	y = width * height;
+	for (x = 0; x < y; x++)
+		values[x] = metrics[x].avlum;
+
+	while (xmax > 2 && ymax > 2) {
+		/* Calculate contrast at this level */
+		pixelSum = 0.0;
+		for (x = 1; x < xmax - 1; x++)
+			for (y = 1; y < ymax - 1; y++) {
+				pixel = VAL(x, y);
+				pixelSum += fabs(pixel - VAL(x - 1, y)) + fabs(pixel - VAL(x, y - 1)) + fabs(pixel - VAL(x + 1, y)) + fabs(pixel - VAL(x, y + 1))
+					+ (fabs(pixel - VAL(x - 1, y - 1)) + fabs(pixel - VAL(x - 1, y + 1)) + fabs(pixel - VAL(x + 1, y - 1)) + fabs(pixel - VAL(x + 1, y + 1))) / sqrt(2);
+			}
+		levelSum += pixelSum / xmax * ymax * (4 + 2 * sqrt(2));
+
+		/* Create next MIP-map level */
+		for (x = 0; x < xmax - 1; x += 2)
+			for (y = 0; y < ymax - 1; y += 2)
+				VAL(x / 2, y / 2) = (VAL(x, y) + VAL(x, y + 1) + VAL(x + 1, y) + VAL(x + 1, y + 1)) / 4;
+
+		xmax >>= 1;
+		ymax >>= 1;
+		level++;
+	}
+
+	free(values);
+
+	return levelSum / level;
 }
 
 static int makeFalseColorMap(const RTcontext context)

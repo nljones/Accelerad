@@ -244,7 +244,7 @@ RT_METHOD float getSolidAngle()
 	float ang = 0.0f;
 	for (i = 0; i < 4; i++) {
 		float a = dot(n[i], n[(i + 1) % 4]);
-		ang += M_PIf - fabsf(acosf(a));
+		ang += M_PIf - fabsf(acosf(clamp(a, -1.0f, 1.0f)));
 	}
 	ang = ang - 2.0f * M_PIf;
 	if ((ang > (2.0f * M_PIf)) || ang < 0) {

@@ -102,10 +102,10 @@ MainWindow::~MainWindow()
 }
 
 #ifdef ACCELERAD_RT
-void MainWindow::addData(double ev, double dgp)
+void MainWindow::addData(double ev, double dgp, double rammg)
 {
 	if (mp)
-		mp->addData(ev, dgp);
+		mp->addData(ev, dgp, rammg);
 }
 #endif
 

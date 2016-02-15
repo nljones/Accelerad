@@ -354,13 +354,11 @@ static unsigned int populateAmbientRecords( const RTcontext context, const int l
 	if ( nambvals ) {
 		/* Allocate memory for temporary storage of ambient records. */
 		ambient_records = (AmbientRecord*)malloc(sizeof(AmbientRecord) * nambvals);
-		if (ambient_records == NULL)
-			error(SYSTEM, "out of memory in populateAmbientRecords");
+		if (ambient_records == NULL) goto parmemerr;
 		ambient_records_ptr = ambient_records;
 #ifdef DAYSIM
 		ambient_dc = (float*)malloc(sizeof(float) * daysimGetCoefficients() * nambvals);
-		if (ambient_dc == NULL)
-			error(SYSTEM, "out of memory in populateAmbientRecords");
+		if (ambient_dc == NULL) goto parmemerr;
 		ambient_dc_ptr = ambient_dc;
 
 		/* Get the ambient records from the octree structure. */
@@ -399,6 +397,9 @@ static unsigned int populateAmbientRecords( const RTcontext context, const int l
 	}
 
 	return useful_record_count;
+parmemerr:
+	error(SYSTEM, "out of memory in populateAmbientRecords");
+	return 0;
 }
 
 #ifdef DAYSIM
@@ -600,14 +601,14 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 	/* Create buffer for inputting seed point clusters. */
 #ifdef ITERATIVE_IC
 	cluster_buffer = (RTbuffer*)malloc(max_level * sizeof(RTbuffer));
-	if (cluster_buffer == NULL)
-		error(SYSTEM, "out of memory in createAmbientRecords");
+	if (cluster_buffer == NULL) goto carmemerr;
 	for (level = 0u; level < max_level; level++) {
 		createCustomBuffer1D( context, RT_BUFFER_INPUT, sizeof(PointDirection), cuda_kmeans_clusters, &cluster_buffer[level] );
 	}
 	current_cluster_buffer = applyContextObject(context, "cluster_buffer", cluster_buffer[0]);
 #ifdef AMBIENT_CELL
 	cluster_counts = (unsigned int*)malloc(max_level * sizeof(unsigned int));
+	if (cluster_counts == NULL) goto carmemerr;
 	radius_scale = cuda_kmeans_clusters;
 #endif
 #else
@@ -710,6 +711,9 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 #ifdef AMBIENT_CELL
 	free(cluster_counts);
 #endif
+	return;
+carmemerr:
+	error(SYSTEM, "out of memory in createAmbientRecords");
 }
 
 static void createPointCloudCamera( const RTcontext context, const VIEW* view )
@@ -817,8 +821,7 @@ static unsigned int chooseAmbientLocations(const RTcontext context, const unsign
 		unsigned int ci = 0u;
 		int *score = (int*)malloc(seed_count * sizeof(int));
 		PointDirection *temp_list = (PointDirection*)malloc(seed_count * sizeof(PointDirection));
-		if (score == NULL || temp_list == NULL)
-			error(SYSTEM, "out of memory in chooseAmbientLocations");
+		if (score == NULL || temp_list == NULL) goto calmemerr;
 
 		kernel_clock = clock();
 		cuda_score_hits(seed_buffer_data, score, width, height, (float)(cuda_kmeans_error / (ambacc * maxarad)), cluster_count);
@@ -858,6 +861,7 @@ static unsigned int chooseAmbientLocations(const RTcontext context, const unsign
 
 	/* Group seed points into clusters */
 	cluster_temp_data = (PointDirection*)malloc(seed_count * sizeof(PointDirection));
+	if (cluster_temp_data == NULL) goto calmemerr;
 	seed_count = createClusters(seed_count, seed_buffer_data, cluster_temp_data, level);
 
 	/* Add clusters to buffer */
@@ -869,6 +873,9 @@ static unsigned int chooseAmbientLocations(const RTcontext context, const unsign
 	free(cluster_temp_data);
 #endif /* AMBIENT_CELL */
 	return seed_count;
+calmemerr:
+	error(SYSTEM, "out of memory in chooseAmbientLocations");
+	return 0;
 }
 
 #ifdef AMBIENT_CELL
@@ -995,8 +1002,7 @@ static unsigned int createKMeansClusters( const unsigned int seed_count, const u
 	/* Eliminate bad seeds and copy addresses to new array */
 	good_seed_count = 0u;
 	seeds = (PointDirection**) malloc(seed_count * sizeof(PointDirection*));
-	if (seeds == NULL)
-		error(SYSTEM, "out of memory in createKMeansClusters");
+	if (seeds == NULL) goto kmmemerr;
 	//TODO Is there any point in filtering out values that are not valid (length(seed_buffer_data[i].dir) == 0)?
 	for ( i = 0u; i < seed_count; i++) {
 		if ( length_squared( seed_buffer_data[i].dir ) < FTINY ) {
@@ -1037,8 +1043,7 @@ static unsigned int createKMeansClusters( const unsigned int seed_count, const u
 	/* Group the seeds into clusters with k-means */
 	membership = (int*) malloc(good_seed_count * sizeof(int));
 	distance = (float*) malloc(good_seed_count * sizeof(float));
-	if (membership == NULL || distance == NULL)
-		error(SYSTEM, "out of memory in createKMeansClusters");
+	if (membership == NULL || distance == NULL)	goto kmmemerr;
 	kernel_clock = clock();
 #if defined(ITERATIVE_IC) && defined(ADAPTIVE_SEED_SAMPLING)
 	clusters = (PointDirection**)cuda_kmeans((float**)seeds, sizeof(PointDirection) / sizeof(float), good_seed_count, cluster_count, cuda_kmeans_iterations, cuda_kmeans_threshold, (float)(cuda_kmeans_error / (ambacc * maxarad)), level, membership, distance, &loops);
@@ -1050,8 +1055,7 @@ static unsigned int createKMeansClusters( const unsigned int seed_count, const u
 
 	/* Populate buffer of seed point clusters. */
 	min_distance = (float*) malloc(cluster_count * sizeof(float));
-	if (min_distance == NULL)
-		error(SYSTEM, "out of memory in createKMeansClusters");
+	if (min_distance == NULL) goto kmmemerr;
 	for ( i = 0u; i < cluster_count; i++ )
 		min_distance[i] = FHUGE;
 	for ( i = 0u; i < good_seed_count; i++ ) {
@@ -1089,6 +1093,8 @@ static unsigned int createKMeansClusters( const unsigned int seed_count, const u
 	free(seeds);
 
 	return good_seed_count;
+kmmemerr:
+	error(SYSTEM, "out of memory in createKMeansClusters");
 }
 #endif /* AMBIENT_CELL */
 
