@@ -4,6 +4,12 @@
 #ifdef ACCELERAD_RT
 #include  "driver.h"
 
+#define SAVE_METRICS
+#ifdef SAVE_METRICS
+FILE *csv;		/* metrics output */
+clock_t start;	/* start for elapsed time */
+#endif /* SAVE_METRICS */
+
 /* Handles to objects used repeatedly in animation */
 extern unsigned int frame;
 extern RTcontext context_handle;
@@ -88,6 +94,11 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		applyContextVariable1f(context, "fc_scale", (float)scale);
 		applyContextVariable1i(context, "fc_log", decades);
 		applyContextVariable1f(context, "fc_mask", (float)mask);
+#ifdef SAVE_METRICS
+		csv = fopen("metrics.csv", "w");
+		fprintf(csv, "Time,Frame,AvLum,Ev,DGP,RAMMG\n");
+		start = clock();
+#endif /* SAVE_METRICS */
 	}
 	else {
 		/* Retrieve handles for previously created objects */
@@ -137,18 +148,29 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		}
 		metrics++;
 	}
-	avlum /= omega;
-	dgp = 5.87e-5 * ev + 0.0918 * log10(1 + dgp / pow(ev, 1.87)) + 0.16;
+	if (do_irrad)
+		avlum /= size;
+	else {
+		avlum /= omega;
+		dgp = 5.87e-5 * ev + 0.0918 * log10(1 + dgp / pow(ev, 1.87)) + 0.16;
+	}
 	qt_rvu_update_plot(ev, dgp, rammg);
 
 #ifdef DEBUG_OPTIX
 	flushExceptionLog("camera");
 #endif
-	mprintf("Solid angle: %g\n", omega);
-	mprintf("Vertical eye illuminance: %g cd/m2\n", ev);
-	mprintf("Average luminance: %g lux\n", avlum);
-	mprintf("Daylight glare probability: %g\n", dgp);
-	mprintf("RAMMG: %g\n", rammg);
+	vprintf("Solid angle: %g\n", omega);
+	if (do_irrad)
+		vprintf("Average illuminance: %g cd/m2\n", avlum);
+	else {
+		vprintf("Vertical eye illuminance: %g cd/m2\n", ev);
+		vprintf("Average luminance: %g lux\n", avlum);
+		vprintf("Daylight glare probability: %g\n", dgp);
+	}
+	vprintf("RAMMG: %g\n", rammg);
+#ifdef SAVE_METRICS
+	fprintf(csv, "%" PRIu64 ",%u,%g,%g,%g,%g\n", MILLISECONDS(clock() - start), frame, avlum, ev, dgp, rammg);
+#endif /* SAVE_METRICS */
 
 	/* Clean up */
 	//destroyContext(context);

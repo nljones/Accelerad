@@ -46,6 +46,7 @@ rtDeclareVariable(rtObject, top_object, , );
 rtDeclareVariable(unsigned int, radiance_ray_type, , );
 rtDeclareVariable(unsigned int, radiance_primary_ray_type, , );
 rtDeclareVariable(unsigned int, diffuse_ray_type, , );
+rtDeclareVariable(unsigned int, diffuse_primary_ray_type, , );
 
 /* OptiX variables */
 rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
@@ -96,7 +97,7 @@ RT_PROGRAM void ray_generator()
 			return;
 		}
 		z = cosf(M_PIf * dd);
-		d *= sqrtf(1.0f - z*z) / dd;
+		d *= dd < FTINY ? M_PIf : sqrtf(1.0f - z*z) / dd;
 	}
 	else if (camera == VT_PLS) { /* planispheric fisheye */
 		d *= make_float2(length(U), length(V));
@@ -115,7 +116,7 @@ RT_PROGRAM void ray_generator()
 		aft = RAY_END;
 	}
 
-	Ray ray = make_Ray(ray_origin, ray_direction, frame ? diffuse_ray_type : do_irrad ? radiance_primary_ray_type : radiance_ray_type, 0.0f, aft);
+	Ray ray = make_Ray(ray_origin, ray_direction, frame ? (do_irrad ? diffuse_primary_ray_type : diffuse_ray_type) : (do_irrad ? radiance_primary_ray_type : radiance_ray_type), 0.0f, aft);
 
 	prd.result = make_float3(0.0f);
 	prd.weight = 1.0f;
@@ -158,12 +159,18 @@ RT_PROGRAM void ray_generator()
 		((int)(256.0f * powf((accum.z + 0.5f) / 256.0f, 1.0f / GAMMA)) & 0xff);
 
 	/* Calculate metrics */
-	float guth = getPositionIndex(ray.direction);
 	Metrics metrics;
 	metrics.omega = getSolidAngle(); //TODO what if negative or bad angle?
-	metrics.ev = luminance * dot(W, ray.direction * metrics.omega);
-	metrics.avlum = luminance * metrics.omega;
-	metrics.dgp = luminance * luminance * metrics.omega / (guth * guth);
+	if (do_irrad) {
+		metrics.avlum = luminance; /* In this case it is illuminance. */
+		metrics.ev = metrics.dgp = 0.0f;
+	}
+	else {
+		float guth = getPositionIndex(ray.direction);
+		metrics.ev = luminance * dot(W, ray.direction * metrics.omega);
+		metrics.avlum = luminance * metrics.omega;
+		metrics.dgp = luminance * luminance * metrics.omega / (guth * guth);
+	}
 	metrics_buffer[launch_index] = metrics;
 
 #ifdef RAY_COUNT
@@ -200,7 +207,7 @@ RT_METHOD float3 getViewDirection(const float &x, const float &y)
 		if (dd > 1.0f)
 			return make_float3(0.0f);
 		z = cosf(M_PIf * dd);
-		d *= sqrtf(1.0f - z*z) / dd;
+		d *= dd < FTINY ? M_PIf : sqrtf(1.0f - z*z) / dd;
 	}
 	else if (camera == VT_PLS) { /* planispheric fisheye */
 		d *= make_float2(length(U), length(V));

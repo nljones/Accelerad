@@ -440,13 +440,8 @@ void createContext( RTcontext* context, const int width, const int height, const
 		ray_type_count = RAY_TYPE_COUNT;
 		entry_point_count = ENTRY_POINT_COUNT;
 	} else {
-		ray_type_count = 3u; /* shadow, radiance, and primary radiance */
+		ray_type_count = RAY_TYPE_COUNT - (use_ambient ? 2 : 3); /* leave out ambient record and point cloud ray types */
 		entry_point_count = 1u; /* Generate radiance data */
-		if ( use_ambient )
-			ray_type_count++; /* ambient ray */
-#ifdef ACCELERAD_RT
-		ray_type_count++; /* diffuse rays */
-#endif
 	}
 
 	/* Setup remote device */
@@ -587,6 +582,7 @@ static void applyRadianceSettings(const RTcontext context, const VIEW* view, con
 	applyContextVariable1ui( context, "radiance_primary_ray_type", PRIMARY_RAY );
 	applyContextVariable1ui( context, "radiance_ray_type", RADIANCE_RAY );
 #ifdef ACCELERAD_RT
+	applyContextVariable1ui(context, "diffuse_primary_ray_type", DIFFUSE_PRIMARY_RAY);
 	applyContextVariable1ui(context, "diffuse_ray_type", DIFFUSE_RAY);
 #endif
 	applyContextVariable1ui( context, "shadow_ray_type", SHADOW_RAY );
@@ -1393,6 +1389,7 @@ static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec)
 		RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, PRIMARY_RAY, radiance_normal_closest_hit_program ) );
 	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, RADIANCE_RAY, radiance_normal_closest_hit_program ) );
 #ifdef ACCELERAD_RT
+	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, DIFFUSE_PRIMARY_RAY, diffuse_normal_closest_hit_program));
 	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, DIFFUSE_RAY, diffuse_normal_closest_hit_program));
 #endif
 #ifndef LIGHTS

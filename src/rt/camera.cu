@@ -82,7 +82,7 @@ RT_PROGRAM void ray_generator()
 			return;
 		}
 		z = cosf( M_PIf * dd );
-		d *= sqrtf( 1.0f - z*z ) / dd;
+		d *= dd < FTINY ? M_PIf : sqrtf(1.0f - z*z) / dd;
 	} else if ( camera == VT_PLS ) { /* planispheric fisheye */
 		d *= make_float2(length(U), length(V));
 		float dd = dot( d, d );

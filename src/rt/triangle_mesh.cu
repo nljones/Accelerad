@@ -43,6 +43,7 @@ rtBuffer<uint3>  vindex_buffer;    // position indices
 rtBuffer<int>    material_buffer; // per-face material index
 rtBuffer<int2>   material_alt_buffer; // per-material alternate material indices
 rtDeclareVariable(unsigned int, radiance_primary_ray_type, , );
+rtDeclareVariable(unsigned int, diffuse_primary_ray_type, , ) = ~0;	/* Not always defined */
 rtDeclareVariable(unsigned int, shadow_ray_type, , );
 
 /* OptiX variables */
@@ -70,7 +71,7 @@ RT_PROGRAM void mesh_intersect(unsigned int primIdx)
 		int mat = material_buffer[primIdx];
 		if ( mat < 0 || mat >= material_alt_buffer.size() ) /* Material void or missing */
 			return;
-		if ( ray.ray_type == radiance_primary_ray_type ) /* Lambert material for irradiance calculations */
+		if (ray.ray_type == radiance_primary_ray_type || ray.ray_type == diffuse_primary_ray_type) /* Lambert material for irradiance calculations */
 			mat = material_alt_buffer[mat].x;
 		else if (ray.ray_type != shadow_ray_type || ray.tmax - t > ray.tmax * 0.0002f) /* For materials whose type depends on ray type (such as illum and mirror) */
 			mat = material_alt_buffer[mat].y;

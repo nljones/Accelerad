@@ -50,6 +50,7 @@ typedef enum
 	PRIMARY_RAY = 0,	/* Radiance primary ray type for irradiance calculation */
 	RADIANCE_RAY,		/* Radiance ray type */
 #ifdef ACCELERAD_RT
+	DIFFUSE_PRIMARY_RAY,/* Radiance primary ray type for irradiance calculation sampling only diffuse paths */
 	DIFFUSE_RAY,		/* Radiance ray type sampling only diffuse paths */
 #endif
 	SHADOW_RAY,			/* Shadow ray type */
