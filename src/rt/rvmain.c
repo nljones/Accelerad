@@ -23,6 +23,12 @@ static const char	RCSid[] = "$Id$";
 extern char  *progname;			/* global argv[0] */
 
 #ifdef ACCELERAD
+int  xt = 0, yt = 0;			/* position of task area (-T) */
+double  omegat = 0.0;			/* opening angle of task area in radians (-T) */
+int  xh = 0, yh = 0;			/* position of contrast high luminance area (-C) */
+double  omegah = 0.0;			/* opening angle of contrast high luminance area (-C) */
+int  xl = 0, yl = 0;			/* position of contrast high luminance area (-C) */
+double  omegal = 0.0;			/* opening angle of contrast high luminance area (-C) */
 double  scale = 0.0;			/* maximum of scale for falsecolor images, zero for regular tonemapping (-s) */
 int  decades = 0;				/* number of decades for log scale, zero for standard scale (-log) */
 double  mask = 0.0;				/* minimum value to display in falsecolor images (-m) */
@@ -30,7 +36,7 @@ double  ralrm = 0.0;			/* seconds between reports (-t) */
 #endif
 
 VIEW  ourview = STDVIEW;		/* viewing parameters */
-#ifdef ACCELERAD_RT
+#ifdef ACCELERAD
 int  hresolu = 0, vresolu = 0;	/* image resolution */
 #else
 int  hresolu, vresolu;			/* image resolution */
@@ -181,16 +187,6 @@ main(int argc, char *argv[])
 				goto badopt;
 			}
 			break;
-#ifdef ACCELERAD_RT
-		case 'x':				/* x resolution */
-			check(2, "i");
-			hresolu = atoi(argv[++i]);
-			break;
-		case 'y':				/* y resolution */
-			check(2, "i");
-			vresolu = atoi(argv[++i]);
-			break;
-#endif
 		case 'w':				/* warnings */
 			rval = erract[WARNING].pf != NULL;
 			bool(2,rval);
@@ -210,6 +206,29 @@ main(int argc, char *argv[])
 			strcpy(rifname, argv[++i]);
 			break;
 #ifdef ACCELERAD
+		case 'x':				/* x resolution */
+			check(2, "i");
+			hresolu = atoi(argv[++i]);
+			break;
+		case 'y':				/* y resolution */
+			check(2, "i");
+			vresolu = atoi(argv[++i]);
+			break;
+		case 'T':				/* task area luminance */
+			check(2, "iif");
+			xt = atoi(argv[++i]);
+			yt = atoi(argv[++i]);
+			omegat = atof(argv[++i]);
+			break;
+		case 'C':				/* contrast area luminance */
+			check(2, "iifiif");
+			xh = atoi(argv[++i]);
+			yh = atoi(argv[++i]);
+			omegah = atof(argv[++i]);
+			xl = atoi(argv[++i]);
+			yl = atoi(argv[++i]);
+			omegal = atof(argv[++i]);
+			break;
 		case 's':				/* scale for falsecolor images */
 			check(2, "f");
 			scale = atof(argv[++i]);
@@ -392,6 +411,10 @@ printdefaults(void)			/* print default values to stdout */
 			"-w+\t\t\t\t# warning messages on\n" :
 			"-w-\t\t\t\t# warning messages off\n");
 #ifdef ACCELERAD
+	printf("-x %-9d\t\t\t# x resolution\n", hresolu);
+	printf("-y %-9d\t\t\t# y resolution\n", vresolu);
+	printf("-T %-9d %-9d %f\t# position and opening angle of task area\n", xt, yt, omegat);
+	printf("-C %-9d %-9d %f %-9d %-9d %f\t# position and opening angle of high and low contrast areas\n", xh, yh, omegah, xl, yl, omegal);
 	printf("-s %f\t\t\t# scale for falsecolor images\n", scale);
 	printf("-log %-9d\t\t\t# decades in log scale for falsecolor images\n", decades);
 	printf("-m %f\t\t\t# minimum value for falsecolor images\n", mask);

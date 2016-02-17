@@ -25,12 +25,19 @@ rtDeclareVariable(float, vdist, , ); /* Focal length */
 rtDeclareVariable(float, dstrpix, , ); /* Pixel sample jitter (-pj) */
 rtDeclareVariable(unsigned int, do_irrad, , ); /* Calculate irradiance (-i) */
 
-rtDeclareVariable(float, exposure, , ) = 1.0f; /* Current exposure */
-rtDeclareVariable(unsigned int, greyscale, , ) = 0u; /* Convert to monocrhome */
+rtDeclareVariable(int2, task_position, , ); /* Position of task area (-T) */
+rtDeclareVariable(float, task_angle, , ) = 0.0f; /* Opening angle of task area in radians (-T) */
+rtDeclareVariable(int2, high_position, , ); /* Position of contrast high luminance area (-C) */
+rtDeclareVariable(float, high_angle, , ) = 0.0f; /* Opening angle of contrast high luminance area (-C) */
+rtDeclareVariable(int2, low_position, , ); /* Position of contrast high luminance area (-C) */
+rtDeclareVariable(float, low_angle, , ) = 0.0f; /* Opening angle of contrast high luminance area (-C) */
+
+rtDeclareVariable(float, exposure, , ) = 1.0f; /* Current exposure (-pe) */
+rtDeclareVariable(unsigned int, greyscale, , ) = 0u; /* Convert to monocrhome (-b) */
 rtDeclareVariable(int, tonemap, , ) = RT_TEXTURE_ID_NULL; /* texture ID */
-rtDeclareVariable(float, fc_scale, , ) = 1000.0f; /* Current exposure */
-rtDeclareVariable(int, fc_log, , ) = 0; /* Current exposure */
-rtDeclareVariable(float, fc_mask, , ) = 0.0f; /* Current exposure */
+rtDeclareVariable(float, fc_scale, , ) = 1000.0f; /* Maximum of scale for falsecolor images, zero for regular tonemapping (-s) */
+rtDeclareVariable(int, fc_log, , ) = 0; /* Number of decades for log scale, zero for standard scale (-log) */
+rtDeclareVariable(float, fc_mask, , ) = 0.0f; /* Minimum value to display in falsecolor images (-m) */
 
 /* Contex variables */
 rtBuffer<unsigned int, 2>        color_buffer; /* Output RGBA colors */
@@ -53,10 +60,11 @@ rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
 rtDeclareVariable(uint2, launch_dim, rtLaunchDim, );
 
 
-RT_METHOD float3 getViewDirection(const float &x, const float &y);
+RT_METHOD float3 getViewDirection(float2 d);
 RT_METHOD int splane_normal(const float3 &e1, const float3 &e2, float3 &n);
 RT_METHOD float getSolidAngle();
 RT_METHOD float getPositionIndex(const float3 &dir);
+RT_METHOD int inTask(const int2 &position, const float &angle, const float3 &ray_direction);
 
 
 // Pick the ray direction based on camera type as in image.c.
@@ -69,65 +77,35 @@ RT_PROGRAM void ray_generator()
 	d = 0.5f + dstrpix * (0.5f - d); // this is pixjitter() from rpict.c
 	d = shift + (make_float2(launch_index) + d) / make_float2(launch_dim) - 0.5f;
 	float3 ray_origin = eye;
-	float z = 1.0f;
-
-	// This is adapted from viewray() in image.c.
-	if (camera == VT_PAR) { /* parallel view */
+	if (camera == VT_PAR) /* parallel view */
 		ray_origin += d.x*U + d.y*V;
-		d = make_float2(0.0f);
-	}
-	else if (camera == VT_HEM) { /* hemispherical fisheye */
-		z = 1.0f - d.x*d.x * dot(U, U) - d.y*d.y * dot(V, V);
-		if (z < 0.0f) {
-			color_buffer[launch_index] = 0xff000000;//TODO throw an exception?
-			return;
+	float3 ray_direction = getViewDirection(d);
+
+	if (dot(ray_direction, ray_direction) > 0) {
+		ray_origin += clip.x * ray_direction;
+		ray_direction = normalize(ray_direction);
+
+		// Zero or negative aft clipping distance indicates infinity
+		float aft = clip.y - clip.x;
+		if (aft <= FTINY) {
+			aft = RAY_END;
 		}
-		z = sqrtf(z);
+
+		Ray ray = make_Ray(ray_origin, ray_direction, frame ? (do_irrad ? diffuse_primary_ray_type : diffuse_ray_type) : (do_irrad ? radiance_primary_ray_type : radiance_ray_type), 0.0f, aft);
+
+		prd.result = make_float3(0.0f);
+		prd.weight = 1.0f;
+		prd.depth = 0;
+		prd.ambient_depth = 0;
+		//prd.seed = rnd_seeds[launch_index];
+		setupPayload(prd, 1);
+
+		rtTrace(top_object, ray, prd);
+
+		checkFinite(prd.result);
 	}
-	else if (camera == VT_CYL) { /* cylindrical panorama */
-		float dd = d.x * fov.x * (M_PIf / 180.0f);
-		z = cosf(dd);
-		d.x = sinf(dd);
-	}
-	else if (camera == VT_ANG) { /* angular fisheye */
-		d *= fov / 180.0f;
-		float dd = length(d);
-		if (dd > 1.0f) {
-			color_buffer[launch_index] = 0xff000000;//TODO throw an exception?
-			return;
-		}
-		z = cosf(M_PIf * dd);
-		d *= dd < FTINY ? M_PIf : sqrtf(1.0f - z*z) / dd;
-	}
-	else if (camera == VT_PLS) { /* planispheric fisheye */
-		d *= make_float2(length(U), length(V));
-		float dd = dot(d, d);
-		z = (1.0f - dd) / (1.0f + dd);
-		d *= 1.0f + z;
-	}
-
-	float3 ray_direction = d.x*U + d.y*V + z*W;
-	ray_origin += clip.x * ray_direction;
-	ray_direction = normalize(ray_direction);
-
-	// Zero or negative aft clipping distance indicates infinity
-	float aft = clip.y - clip.x;
-	if (aft <= FTINY) {
-		aft = RAY_END;
-	}
-
-	Ray ray = make_Ray(ray_origin, ray_direction, frame ? (do_irrad ? diffuse_primary_ray_type : diffuse_ray_type) : (do_irrad ? radiance_primary_ray_type : radiance_ray_type), 0.0f, aft);
-
-	prd.result = make_float3(0.0f);
-	prd.weight = 1.0f;
-	prd.depth = 0;
-	prd.ambient_depth = 0;
-	//prd.seed = rnd_seeds[launch_index];
-	setupPayload(prd, 1);
-
-	rtTrace(top_object, ray, prd);
-
-	checkFinite(prd.result);
+	else
+		prd.result = make_float3(0.0f);
 
 	float3 accum;
 	if (frame)
@@ -166,11 +144,29 @@ RT_PROGRAM void ray_generator()
 		metrics.ev = metrics.dgp = 0.0f;
 	}
 	else {
-		float guth = getPositionIndex(ray.direction);
-		metrics.ev = luminance * dot(W, ray.direction * metrics.omega);
 		metrics.avlum = luminance * metrics.omega;
-		metrics.dgp = luminance * luminance * metrics.omega / (guth * guth);
+		if (dot(W, ray_direction) > 0) {
+			float guth = getPositionIndex(ray_direction);
+			metrics.ev = luminance * dot(W, ray_direction * metrics.omega);
+			metrics.dgp = luminance * luminance * metrics.omega / (guth * guth);
+		}
+		else
+			metrics.ev = metrics.dgp = 0.0f;
 	}
+
+	/* Calculate contributions to task areas */
+	metrics.flags = 0;
+	if (task_angle > 0.0f)
+		metrics.flags |= inTask(task_position, task_angle, ray_direction) & 0x1;
+	if (high_angle > 0.0f)
+		metrics.flags |= (inTask(high_position, high_angle, ray_direction) & 0x1) << 1;
+	if (low_angle > 0.0f)
+		metrics.flags |= (inTask(low_position, low_angle, ray_direction) & 0x1) << 2;
+
+	//if (metrics.flags & 0x1) color_buffer[launch_index] = 0xff0000ff;
+	//if (metrics.flags & 0x2) color_buffer[launch_index] = 0xff00ff00;
+	//if (metrics.flags & 0x4) color_buffer[launch_index] = 0xffff0000;
+
 	metrics_buffer[launch_index] = metrics;
 
 #ifdef RAY_COUNT
@@ -182,9 +178,8 @@ RT_PROGRAM void ray_generator()
 }
 
 /* From viewray() in image.c */
-RT_METHOD float3 getViewDirection(const float &x, const float &y)
+RT_METHOD float3 getViewDirection(float2 d)
 {
-	float2 d = make_float2(x, y) - 0.5f;
 	float z = 1.0f;
 
 	if (camera == VT_PAR) { /* parallel view */
@@ -232,12 +227,12 @@ RT_METHOD int splane_normal(const float3 &e1, const float3 &e2, float3 &n)
 /* From pict_get_sangle in pictool.c */
 RT_METHOD float getSolidAngle()
 {
-	const float2 min = make_float2(launch_index) / make_float2(launch_dim);
-	const float2 max = (make_float2(launch_index) + 1.0f) / make_float2(launch_dim);
-	const float3 minmin = getViewDirection(min.x, min.y);
-	const float3 minmax = getViewDirection(min.x, max.y);
-	const float3 maxmin = getViewDirection(max.x, min.y);
-	const float3 maxmax = getViewDirection(max.x, max.y);
+	const float2 min = shift + make_float2(launch_index) / make_float2(launch_dim) - 0.5f;
+	const float2 max = shift + (make_float2(launch_index) + 1.0f) / make_float2(launch_dim) - 0.5f;
+	const float3 minmin = getViewDirection(min);
+	const float3 minmax = getViewDirection(make_float2(min.x, max.y));
+	const float3 maxmin = getViewDirection(make_float2(max.x, min.y));
+	const float3 maxmax = getViewDirection(max);
 
 	float3 n[4] = { make_float3(0.0f), make_float3(0.0f), make_float3(0.0f), make_float3(0.0f) };
 
@@ -300,6 +295,15 @@ RT_METHOD float getPositionIndex(const float3 &dir)
 		posindex = 16.0f;
 
 	return posindex;
+}
+
+/* From get_task_lum() in evalglare.c */
+RT_METHOD int inTask(const int2 &position, const float &angle, const float3 &ray_direction)
+{
+	float2 d = shift + make_float2(position) / make_float2(launch_dim) - 0.5f;
+	float3 task_dir = getViewDirection(d);
+	float r_actual = acosf(dot(task_dir, ray_direction));
+	return r_actual <= angle;
 }
 
 RT_PROGRAM void exception()

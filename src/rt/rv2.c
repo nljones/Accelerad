@@ -21,6 +21,10 @@ static const char	RCSid[] = "$Id$";
 #include  "otypes.h"
 #include  "rpaint.h"
 
+#ifdef ACCELERAD
+#include "optix_rvu.h"
+#endif
+
 extern int  psample;			/* pixel sample size */
 extern double  maxdiff;			/* max. sample difference */
 
@@ -878,6 +882,11 @@ writepict(				/* write the picture to a file */
 	putc('\n', fp);
 	fprtresolu(hresolu, vresolu, fp);
 
+#ifdef ACCELERAD_RT
+	if (use_optix)
+		scanline = (COLR *)malloc(hresolu * vresolu * sizeof(COLR));
+	else
+#endif /* ACCELERAD_RT */
 	scanline = (COLR *)malloc(hresolu*sizeof(COLR));
 	if (scanline == NULL) {
 		error(COMMAND, "not enough memory!");
@@ -885,6 +894,14 @@ writepict(				/* write the picture to a file */
 		unlink(fname);
 		return;
 	}
+#ifdef ACCELERAD_RT
+	if (use_optix) {
+		retreiveOptixImage(hresolu, vresolu, scanline);
+		for (y = vresolu; y--;)
+			if (fwritecolrs(scanline + hresolu * y, hresolu, fp) < 0)
+				break;
+	} else
+#endif /* ACCELERAD_RT */
 	for (y = vresolu-1; y >= 0; y--) {
 		getpictcolrs(y, scanline, &ptrunk, hresolu, vresolu);
 		if (fwritecolrs(scanline, hresolu, fp) < 0)

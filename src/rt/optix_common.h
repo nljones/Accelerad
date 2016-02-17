@@ -126,4 +126,5 @@ typedef struct struct_eval_metrics
 	float ev;		/* contribution to vertical eye illuminance */
 	float avlum;	/* contribution to average luminance */
 	float dgp;		/* contribution to daylight glare probability */
+	int flags;		/* flags for task regions */
 } Metrics;

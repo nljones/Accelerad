@@ -21,6 +21,10 @@ extern RTvariable camera_frame;
 
 extern struct driver  *dev;
 
+/* Regions */
+extern int xt, yt, xh, yh, xl, yl;
+extern double omegat, omegah, omegal;
+
 extern void qt_rvu_paint_image(int xmin, int ymin, int xmax, int ymax, const unsigned char *data);
 extern void qt_rvu_update_plot(double ev, double dgp, double rammg);
 
@@ -29,17 +33,19 @@ static int makeFalseColorMap(const RTcontext context);
 
 /* Handles to objects used repeatedly in animation */
 static RTvariable camera_exposure;
-static RTbuffer metrics_handle = NULL;
+static RTbuffer metrics_buffer = NULL, direct_buffer = NULL, diffuse_buffer = NULL;
 
 void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const int greyscale, const double exposure, const double scale, const int decades, const double mask, const double alarm)
 {
 	/* Primary RTAPI objects */
 	RTcontext           context;
-	RTbuffer            output_buffer, metrics_buffer;
+	RTbuffer            output_buffer;
 
 	/* Parameters */
 	unsigned int i, size;
 	double omega = 0.0, ev = 0.0, avlum = 0.0, dgp = 0.0, rammg = 0.0;
+	double lumT = 0.0, omegaT = 0.0, lumH = 0.0, omegaH = 0.0, lumL = 0.0, omegaL = 0.0, cr = 0.0;
+	int nt = 0, nh = 0, nl = 0;
 	unsigned char* colors;
 	Metrics *metrics;
 
@@ -59,11 +65,11 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		createContext(&context, width, height, alarm);
 
 		/* Render result buffer */
-		createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT3, width, height, &output_buffer);
-		applyContextObject(context, "direct_buffer", output_buffer);
+		createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT3, width, height, &direct_buffer);
+		applyContextObject(context, "direct_buffer", direct_buffer);
 
-		createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT3, width, height, &output_buffer);
-		applyContextObject(context, "diffuse_buffer", output_buffer);
+		createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT3, width, height, &diffuse_buffer);
+		applyContextObject(context, "diffuse_buffer", diffuse_buffer);
 
 		createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_UNSIGNED_INT, width, height, &output_buffer);
 		applyContextObject(context, "color_buffer", output_buffer);
@@ -83,11 +89,16 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		/* Save handles to objects used in animations */
 		context_handle = context;
 		buffer_handle = output_buffer;
-		metrics_handle = metrics_buffer;
 
 		createCamera(context, "rvu_generator");
 		setupKernel(context, view, width, height, 0u, 0.0, 0.0, 0.0, alarm);
 		camera_exposure = applyContextVariable1f(context, "exposure", (float)exposure);
+		applyContextVariable2i(context, "task_position", xt, yt);
+		applyContextVariable1f(context, "task_angle", (float)omegat);
+		applyContextVariable2i(context, "high_position", xh, yh);
+		applyContextVariable1f(context, "high_angle", (float)omegah);
+		applyContextVariable2i(context, "low_position", xl, yl);
+		applyContextVariable1f(context, "low_angle", (float)omegal);
 		applyContextVariable1ui(context, "greyscale", (unsigned int)greyscale);
 		if (scale > 0)
 			applyContextVariable1i(context, "tonemap", makeFalseColorMap(context));
@@ -96,7 +107,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		applyContextVariable1f(context, "fc_mask", (float)mask);
 #ifdef SAVE_METRICS
 		csv = fopen("metrics.csv", "w");
-		fprintf(csv, "Time,Frame,AvLum,Ev,DGP,RAMMG\n");
+		fprintf(csv, "Time,Frame,AvLum,Ev,DGP,RAMMG,TaskLum,HighLum,LowLum,CR\n");
 		start = clock();
 #endif /* SAVE_METRICS */
 	}
@@ -104,7 +115,6 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		/* Retrieve handles for previously created objects */
 		context = context_handle;
 		output_buffer = buffer_handle;
-		metrics_buffer = metrics_handle;
 #ifdef RAY_COUNT
 		ray_count_buffer = ray_count_buffer_handle;
 #endif
@@ -145,31 +155,58 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 			ev += metrics->ev;
 			avlum += metrics->avlum;
 			dgp += metrics->dgp;
+			if (metrics->flags & 0x1) {
+				lumT += metrics->avlum;
+				omegaT += metrics->omega;
+				nt++;
+			}
+			if (metrics->flags & 0x2) {
+				lumH += metrics->avlum;
+				omegaH += metrics->omega;
+				nh++;
+			}
+			if (metrics->flags & 0x4) {
+				lumL += metrics->avlum;
+				omegaL += metrics->omega;
+				nl++;
+			}
 		}
 		metrics++;
 	}
-	if (do_irrad)
+	if (do_irrad) {
 		avlum /= size;
+		if (nt) lumT /= nt;
+		if (nh) lumH /= nh;
+		if (nl) lumL /= nl;
+	}
 	else {
 		avlum /= omega;
 		dgp = 5.87e-5 * ev + 0.0918 * log10(1 + dgp / pow(ev, 1.87)) + 0.16;
+		if (nt) lumT /= omegaT;
+		if (nh) lumH /= omegaH;
+		if (nl) lumL /= omegaL;
 	}
+	cr = lumH / lumL;
 	qt_rvu_update_plot(ev, dgp, rammg);
 
 #ifdef DEBUG_OPTIX
 	flushExceptionLog("camera");
 #endif
-	vprintf("Solid angle: %g\n", omega);
-	if (do_irrad)
-		vprintf("Average illuminance: %g cd/m2\n", avlum);
-	else {
-		vprintf("Vertical eye illuminance: %g cd/m2\n", ev);
-		vprintf("Average luminance: %g lux\n", avlum);
-		vprintf("Daylight glare probability: %g\n", dgp);
+	vprintf("Solid angle:                %g\n", omega);
+	if (do_irrad) {
+		vprintf("Average illuminance:        %g cd/m2\n", avlum);
+		if (nt) vprintf("Average task illuminance:   %g cd/m2\n", lumT);
 	}
-	vprintf("RAMMG: %g\n", rammg);
+	else {
+		vprintf("Vertical eye illuminance:   %g cd/m2\n", ev);
+		vprintf("Average luminance:          %g lux\n", avlum);
+		vprintf("Daylight glare probability: %g\n", dgp);
+		if (nt) vprintf("Average task luminance:     %g lux\n", lumT);
+		if (nh && nl) vprintf("Contrast ratio:             %g\n", cr);
+	}
+	vprintf("RAMMG:                      %g\n", rammg);
 #ifdef SAVE_METRICS
-	fprintf(csv, "%" PRIu64 ",%u,%g,%g,%g,%g\n", MILLISECONDS(clock() - start), frame, avlum, ev, dgp, rammg);
+	fprintf(csv, "%" PRIu64 ",%u,%g,%g,%g,%g,%g,%g,%g,%g\n", MILLISECONDS(clock() - start), frame, avlum, ev, dgp, rammg, lumT, lumH, lumL, cr);
 #endif /* SAVE_METRICS */
 
 	/* Clean up */
@@ -274,5 +311,33 @@ static int makeFalseColorMap(const RTcontext context)
 	RT_CHECK_ERROR(rtTextureSamplerGetId(tex_sampler, &tex_id));
 
 	return tex_id;
+}
+
+void retreiveOptixImage(const int width, const int height, COLR* colrs)
+{
+	unsigned int i, size;
+	float *direct_data, *diffuse_data;
+	RTcontext context = context_handle;
+	COLOR color;
+
+	size = width * height;
+
+	RT_CHECK_ERROR(rtBufferMap(direct_buffer, (void**)&direct_data));
+	RT_CHECK_ERROR(rtBufferUnmap(direct_buffer));
+
+#ifdef RAY_COUNT
+	RT_CHECK_ERROR(rtBufferMap(diffuse_buffer, (void**)&diffuse_data));
+	RT_CHECK_ERROR(rtBufferUnmap(diffuse_buffer));
+#endif
+
+	/* Copy the results to allocated memory. */
+	for (i = 0u; i < size; i++) {
+		setcolr(colrs[i],
+			direct_data[RED] + diffuse_data[RED],
+			direct_data[GRN] + diffuse_data[GRN],
+			direct_data[BLU] + diffuse_data[BLU]);
+		direct_data += 3;
+		diffuse_data += 3;
+	}
 }
 #endif /* ACCELERAD_RT */

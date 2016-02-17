@@ -160,6 +160,14 @@ RTvariable applyContextVariable1i(const RTcontext context, const char* name, con
 	return var;
 }
 
+RTvariable applyContextVariable2i(const RTcontext context, const char* name, const int x, const int y)
+{
+	RTvariable var;
+	RT_CHECK_ERROR(rtContextDeclareVariable(context, name, &var));
+	RT_CHECK_ERROR(rtVariableSet2i(var, x, y));
+	return var;
+}
+
 RTvariable applyContextVariable1ui(const RTcontext context, const char* name, const unsigned int value)
 {
 	RTvariable var;

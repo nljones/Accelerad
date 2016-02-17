@@ -171,6 +171,7 @@ void runKernel1D(const RTcontext context, const unsigned int entry, const RTsize
 void runKernel2D(const RTcontext context, const unsigned int entry, const RTsize width, const RTsize height);
 void runKernel3D(const RTcontext context, const unsigned int entry, const RTsize width, const RTsize height, const RTsize depth);
 RTvariable applyContextVariable1i(const RTcontext context, const char* name, const int value);
+RTvariable applyContextVariable2i(const RTcontext context, const char* name, const int x, const int y);
 RTvariable applyContextVariable1ui(const RTcontext context, const char* name, const unsigned int value);
 RTvariable applyContextVariable1f(const RTcontext context, const char* name, const float value);
 RTvariable applyContextVariable2f(const RTcontext context, const char* name, const float x, const float y);
