@@ -2,7 +2,7 @@
 #include <qwt_plot_curve.h>
 #include "accelerad.h"
 
-#define HISTORY 60 // seconds
+#define HISTORY 50 // frames
 
 #ifdef ACCELERAD_RT
 class MetricsPlot : public QwtPlot
@@ -11,7 +11,7 @@ class MetricsPlot : public QwtPlot
 public:
 	enum Metrics
 	{
-		//AvLum,
+		AvLum,
 		//LumBackg,
 		Ev,
 		//EvDir,
@@ -21,6 +21,8 @@ public:
 		//VCP,
 		//CGI,
 		//Lveil,
+		TaskLum,
+		CR,
 		RAMMG,
 
 		MetricsCount
@@ -28,7 +30,7 @@ public:
 
 	MetricsPlot();
 
-	void addData(double ev, double dgp, double rammg);
+	void addData(double *values);
 
 protected:
 
@@ -36,10 +38,13 @@ private:
 	struct
 	{
 		QwtPlotCurve *curve;
+		Axis axis;
 		double data[HISTORY];
 	} data[MetricsCount];
 
 	void addCurve(const QString title, const Qt::GlobalColor color, qreal width, Axis axis, Metrics metric);
+
+	void addPoint(Metrics metric, double value);
 
 	double timeData[HISTORY];
 

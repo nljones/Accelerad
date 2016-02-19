@@ -254,7 +254,7 @@ void qt_process_command(const char* com)
 	if (use_optix) {
 		for (;;)
 		{
-			if (cuda_kmeans_iterations < pdepth && cuda_kmeans_iterations > 0) // TODO new variable
+			if (cuda_kmeans_iterations < pdepth && cuda_kmeans_iterations > -1) // TODO new variable
 			{
 				qt_set_progress(100);
 				qt_comout("done");

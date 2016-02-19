@@ -97,7 +97,7 @@ rview(void)				/* do a view */
 		dev->flush();
 
 		for (;;) {			/* quit in command() */
-			while (cuda_kmeans_iterations < pdepth && cuda_kmeans_iterations > 0) // TODO new variable
+			while (cuda_kmeans_iterations < pdepth && cuda_kmeans_iterations > -1) // TODO new variable
 				command("done: ");
 			errno = 0;
 			sprintf(buf, "%d pass...\n", pdepth);

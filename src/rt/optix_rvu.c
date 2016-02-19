@@ -6,9 +6,12 @@
 
 #define SAVE_METRICS
 #ifdef SAVE_METRICS
+extern char	*octname;			/* octree name we are given */
 FILE *csv;		/* metrics output */
 clock_t start;	/* start for elapsed time */
 #endif /* SAVE_METRICS */
+
+#define METRICS_COUNT	6
 
 /* Handles to objects used repeatedly in animation */
 extern unsigned int frame;
@@ -26,7 +29,7 @@ extern int xt, yt, xh, yh, xl, yl;
 extern double omegat, omegah, omegal;
 
 extern void qt_rvu_paint_image(int xmin, int ymin, int xmax, int ymax, const unsigned char *data);
-extern void qt_rvu_update_plot(double ev, double dgp, double rammg);
+extern void qt_rvu_update_plot(double *values);
 
 static double calcRAMMG(const Metrics *metrics, const int width, const int height);
 static int makeFalseColorMap(const RTcontext context);
@@ -48,6 +51,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	int nt = 0, nh = 0, nl = 0;
 	unsigned char* colors;
 	Metrics *metrics;
+	double *plotValues;
 
 #ifdef RAY_COUNT
 	RTbuffer            ray_count_buffer;
@@ -106,7 +110,8 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		applyContextVariable1i(context, "fc_log", decades);
 		applyContextVariable1f(context, "fc_mask", (float)mask);
 #ifdef SAVE_METRICS
-		csv = fopen("metrics.csv", "w");
+		sprintf(errmsg, "%s.csv", octname);
+		csv = fopen(errmsg, "w");
 		fprintf(csv, "Time,Frame,AvLum,Ev,DGP,RAMMG,TaskLum,HighLum,LowLum,CR\n");
 		start = clock();
 #endif /* SAVE_METRICS */
@@ -182,12 +187,25 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	else {
 		avlum /= omega;
 		dgp = 5.87e-5 * ev + 0.0918 * log10(1 + dgp / pow(ev, 1.87)) + 0.16;
+		if (dgp > 1.0) dgp = 1.0;
 		if (nt) lumT /= omegaT;
 		if (nh) lumH /= omegaH;
 		if (nl) lumL /= omegaL;
 	}
-	cr = lumH / lumL;
-	qt_rvu_update_plot(ev, dgp, rammg);
+	if (nh && nl) cr = lumH / lumL;
+
+	/* Plot results */
+	plotValues = (double *)malloc(METRICS_COUNT * sizeof(double));
+	if (plotValues) {
+		plotValues[0] = avlum;
+		plotValues[1] = ev;
+		plotValues[2] = dgp;
+		plotValues[3] = lumT;
+		plotValues[4] = cr;
+		plotValues[5] = rammg;
+		qt_rvu_update_plot(plotValues);
+		free(plotValues);
+	}
 
 #ifdef DEBUG_OPTIX
 	flushExceptionLog("camera");
@@ -226,8 +244,12 @@ static double calcRAMMG(const Metrics *metrics, const int width, const int heigh
 	values = (float *)malloc(sizeof(float) * width * height);
 	if (values == NULL) error(SYSTEM, "out of memory in calcRAMMG");
 	y = width * height;
-	for (x = 0; x < y; x++)
-		values[x] = metrics[x].avlum;
+	if (do_irrad)
+		for (x = 0; x < y; x++)
+			values[x] = metrics[x].avlum;
+	else
+		for (x = 0; x < y; x++)
+			values[x] = metrics[x].avlum / metrics[x].omega;
 
 	while (xmax > 2 && ymax > 2) {
 		/* Calculate contrast at this level */
@@ -238,7 +260,7 @@ static double calcRAMMG(const Metrics *metrics, const int width, const int heigh
 				pixelSum += fabs(pixel - VAL(x - 1, y)) + fabs(pixel - VAL(x, y - 1)) + fabs(pixel - VAL(x + 1, y)) + fabs(pixel - VAL(x, y + 1))
 					+ (fabs(pixel - VAL(x - 1, y - 1)) + fabs(pixel - VAL(x - 1, y + 1)) + fabs(pixel - VAL(x + 1, y - 1)) + fabs(pixel - VAL(x + 1, y + 1))) / sqrt(2);
 			}
-		levelSum += pixelSum / xmax * ymax * (4 + 2 * sqrt(2));
+		levelSum += pixelSum / (xmax * ymax * (4 + 2 * sqrt(2)));
 
 		/* Create next MIP-map level */
 		for (x = 0; x < xmax - 1; x += 2)

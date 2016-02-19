@@ -5,6 +5,7 @@
 #include <qwt_scale_draw.h>
 
 #include "metricsplot.h"
+#include "ray.h"
 
 #ifdef ACCELERAD_RT
 MetricsPlot::MetricsPlot() : QwtPlot()
@@ -18,16 +19,22 @@ MetricsPlot::MetricsPlot() : QwtPlot()
 	setAxisTitle(QwtPlot::yLeft, "Daylight Glare Probability");
 	setAxisScale(QwtPlot::yLeft, 0.0, 1.0);
 	enableAxis(QwtPlot::yRight);
-	setAxisTitle(QwtPlot::yRight, "Illuminance [lux]");
+	setAxisTitle(QwtPlot::yRight, do_irrad ? "Illuminance [lux]" : "Luminance [cd/m2]");
 	setAxisScale(QwtPlot::yRight, 0.0, 1.0);
 	insertLegend(new QwtLegend());
 
 	QwtPlotGrid *grid = new QwtPlotGrid();
+	grid->setPen(QColor::fromRgb(192, 192, 192), 1.0);
 	grid->attach(this);
 
+	addCurve("Mean", Qt::darkYellow, 2, QwtPlot::yRight, AvLum);
 	addCurve("Ev", Qt::green, 2, QwtPlot::yRight, Ev);
 	addCurve("DGP", Qt::blue, 4, QwtPlot::yLeft, DGP);
-	addCurve("RAMMG", Qt::darkYellow, 4, QwtPlot::yRight, RAMMG);
+	addCurve("Task", Qt::red, 2, QwtPlot::yRight, TaskLum);
+	addCurve("CR", Qt::cyan, 4, QwtPlot::yLeft, CR);
+	addCurve("RAMMG", Qt::magenta, 2, QwtPlot::yRight, RAMMG);
+
+	data[Ev].curve->hide();
 
 	for (int i = 0; i < HISTORY; i++)
 		timeData[i] = -1 - i;
@@ -44,28 +51,36 @@ void MetricsPlot::addCurve(const QString title, const Qt::GlobalColor color, qre
 	curve->setYAxis(axis);
 	curve->attach(this);
 	data[metric].curve = curve;
+	data[metric].axis = axis;
 }
 
-void MetricsPlot::addData(double ev, double dgp, double rammg)
+/* Add a point to a curve and choose the upper bounds for its axis. */
+void MetricsPlot::addPoint(MetricsPlot::Metrics metric, double value)
+{
+	data[metric].data[0] = value;
+	if (data[metric].curve->isVisible() && axisInterval(data[metric].axis).maxValue() < value) {
+		double upper = pow(10.0, ceil(log10(value)));
+		if (upper / 5 > value)
+			upper /= 5;
+		else if (upper / 2 > value)
+			upper /= 2;
+		setAxisScale(data[metric].axis, 0.0, upper);
+	}
+}
+
+void MetricsPlot::addData(double *values)
 {
 	for (int i = dataCount; i > 0; i--)
-	{
-		for (int c = 0; c < MetricsCount; c++)
-		{
-			if (i < HISTORY)
+		if (i < HISTORY)
+			for (int c = 0; c < MetricsCount; c++)
 				data[c].data[i] = data[c].data[i - 1];
-		}
-	}
 
-	data[Ev].data[0] = ev;
-	if (axisInterval(QwtPlot::yRight).maxValue() < ev)
-		setAxisScale(QwtPlot::yRight, 0.0, pow(10.0, ceil(log10(ev))));
-	data[DGP].data[0] = dgp;
-	if (axisInterval(QwtPlot::yLeft).maxValue() < dgp)
-		setAxisScale(QwtPlot::yLeft, 0.0, pow(10.0, ceil(log10(dgp))));
-	data[RAMMG].data[0] = rammg;
-	if (axisInterval(QwtPlot::yRight).maxValue() < rammg)
-		setAxisScale(QwtPlot::yRight, 0.0, pow(10.0, ceil(log10(rammg))));
+	addPoint(AvLum, values[AvLum]);
+	addPoint(Ev, values[Ev]);
+	addPoint(DGP, values[DGP]);
+	addPoint(TaskLum, values[TaskLum] > 0.0 ? values[TaskLum] : -1.0);
+	addPoint(CR, values[CR] > 0.0 ? 1.0 / values[CR] : -1.0f);
+	addPoint(RAMMG, values[RAMMG]);
 
 	if (dataCount < HISTORY)
 		dataCount++;
@@ -73,7 +88,7 @@ void MetricsPlot::addData(double ev, double dgp, double rammg)
 	for (int j = 0; j < HISTORY; j++)
 		timeData[j]++;
 
-	setAxisScale(QwtPlot::xBottom, std::max(0.0, timeData[HISTORY - 1]), std::max(1.0, timeData[0]), dataCount > 15 ? 0.0 : 1.0);
+	setAxisScale(QwtPlot::xBottom, std::max(0.0, timeData[HISTORY - 1]), std::max(HISTORY * 1.0, timeData[0]));
 
 	for (int c = 0; c < MetricsCount; c++)
 		data[c].curve->setRawSamples(timeData, data[c].data, dataCount);
