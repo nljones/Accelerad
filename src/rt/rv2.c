@@ -896,7 +896,7 @@ writepict(				/* write the picture to a file */
 	}
 #ifdef ACCELERAD_RT
 	if (use_optix) {
-		retreiveOptixImage(hresolu, vresolu, scanline);
+		retreiveOptixImage(hresolu, vresolu, exposure, scanline);
 		for (y = vresolu; y--;)
 			if (fwritecolrs(scanline + hresolu * y, hresolu, fp) < 0)
 				break;

@@ -4,7 +4,7 @@
 #ifdef ACCELERAD_RT
 #include  "driver.h"
 
-#define SAVE_METRICS
+//#define SAVE_METRICS
 #ifdef SAVE_METRICS
 extern char	*octname;			/* octree name we are given */
 FILE *csv;		/* metrics output */
@@ -219,8 +219,8 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		vprintf("Vertical eye illuminance:   %g cd/m2\n", ev);
 		vprintf("Average luminance:          %g lux\n", avlum);
 		vprintf("Daylight glare probability: %g\n", dgp);
-		if (nt) vprintf("Average task luminance:     %g lux\n", lumT);
-		if (nh && nl) vprintf("Contrast ratio:             %g\n", cr);
+		if (nt) vprintf("Average task luminance:     %g lux over %i pixels\n", lumT, nt);
+		if (nh && nl) vprintf("Contrast ratio:             %g over %i high and %i low pixels\n", cr, nh, nl);
 	}
 	vprintf("RAMMG:                      %g\n", rammg);
 #ifdef SAVE_METRICS
@@ -335,29 +335,26 @@ static int makeFalseColorMap(const RTcontext context)
 	return tex_id;
 }
 
-void retreiveOptixImage(const int width, const int height, COLR* colrs)
+void retreiveOptixImage(const int width, const int height, const double exposure, COLR* colrs)
 {
 	unsigned int i, size;
 	float *direct_data, *diffuse_data;
 	RTcontext context = context_handle;
-	COLOR color;
 
 	size = width * height;
 
 	RT_CHECK_ERROR(rtBufferMap(direct_buffer, (void**)&direct_data));
 	RT_CHECK_ERROR(rtBufferUnmap(direct_buffer));
 
-#ifdef RAY_COUNT
 	RT_CHECK_ERROR(rtBufferMap(diffuse_buffer, (void**)&diffuse_data));
 	RT_CHECK_ERROR(rtBufferUnmap(diffuse_buffer));
-#endif
 
 	/* Copy the results to allocated memory. */
 	for (i = 0u; i < size; i++) {
 		setcolr(colrs[i],
-			direct_data[RED] + diffuse_data[RED],
-			direct_data[GRN] + diffuse_data[GRN],
-			direct_data[BLU] + diffuse_data[BLU]);
+			(direct_data[RED] + diffuse_data[RED]) * exposure,
+			(direct_data[GRN] + diffuse_data[GRN]) * exposure,
+			(direct_data[BLU] + diffuse_data[BLU]) * exposure);
 		direct_data += 3;
 		diffuse_data += 3;
 	}
