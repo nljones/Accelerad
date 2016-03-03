@@ -78,6 +78,7 @@ rtDeclareVariable(float,        spec, , ); /* The material specularity given by 
 rtDeclareVariable(float,        rough, , ); /* The material roughness given by the rad file "plastic", "metal", or "trans" object */
 rtDeclareVariable(float,        trans, , ) = 0.0f; /* The material transmissivity given by the rad file "trans" object */
 rtDeclareVariable(float,        tspec, , ) = 0.0f; /* The material transmitted specular component given by the rad file "trans" object */
+rtDeclareVariable(unsigned int, ambincl, , ) = 1u; /* Flag to skip ambient calculation and use default (ae, aE, ai, aI) */
 
 /* Program variables */
 #ifndef OLDAMB
@@ -150,6 +151,10 @@ RT_PROGRAM void any_hit_ambient_glass()
 
 RT_PROGRAM void closest_hit_ambient()
 {
+	// Check that this material is included
+	if (!ambincl)
+		return;
+
 	float3 ffnormal = -ray.direction;
 	float3 hit_point = ray.origin + t_hit * ray.direction;
 

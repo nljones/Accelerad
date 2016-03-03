@@ -9,7 +9,6 @@
 
 using namespace optix;
 
-#define  AMBIENT
 #define  TRANSMISSION
 
 #ifndef  MAXITER
@@ -49,7 +48,6 @@ rtDeclareVariable(unsigned int, ambient_ray_type, , );
 rtDeclareVariable(rtObject, top_object, , );
 rtDeclareVariable(rtObject, top_ambient, , );
 
-#ifdef AMBIENT
 rtDeclareVariable(float3, ambval, , );	/* This is the final value used in place of an indirect light calculation */
 rtDeclareVariable(int, ambvwt, , );	/* As new indirect irradiances are computed, they will modify the default ambient value in a moving average, with the specified weight assigned to the initial value given on the command and all other weights set to 1 */
 rtDeclareVariable(int, ambounce, , );	/* Ambient bounces (ab) */
@@ -64,7 +62,6 @@ rtDeclareVariable(float, minarad, , );	/* minimum ambient radius */
 #endif /* OLDAMB */
 rtDeclareVariable(float, avsum, , );		/* computed ambient value sum (log) */
 rtDeclareVariable(unsigned int, navsum, , );	/* number of values in avsum */
-#endif /* AMBIENT */
 
 rtDeclareVariable(float, minweight, , );	/* minimum ray weight (lw) */
 rtDeclareVariable(int, maxdepth, , );	/* maximum recursion depth (lr) */
@@ -76,6 +73,7 @@ rtDeclareVariable(unsigned int, type, , );	/* The material type representing "pl
 rtDeclareVariable(float3, color, , );	/* The material color given by the rad file "plastic", "metal", or "trans" object */
 rtDeclareVariable(float, spec, , );	/* The material specularity given by the rad file "plastic", "metal", or "trans" object */
 rtDeclareVariable(float, rough, , );	/* The material roughness given by the rad file "plastic", "metal", or "trans" object */
+rtDeclareVariable(unsigned int, ambincl, , ) = 1u;	/* Flag to skip ambient calculation and use default (ae, aE, ai, aI) */
 
 /* OptiX variables */
 rtDeclareVariable(Ray, ray, rtCurrentRay, );
@@ -92,17 +90,12 @@ rtDeclareVariable(int, mat_id, attribute mat_id, );
 #endif
 
 
-//RT_METHOD float3 dirnorm(Ray *shadow_ray, PerRayData_shadow *shadow_prd, const NORMDAT *nd, const float& omega);
-//RT_METHOD float3 gaussamp(const NORMDAT *nd);
-#ifdef AMBIENT
 RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pnormal, const float3& hit);
 #ifdef DAYSIM_COMPATIBLE
 RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit, DaysimCoef dc);
 #else
 RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit);
 #endif
-//RT_METHOD int ambsample( AMBHEMI *hp, const int& i, const int& j, const float3 normal, const float3 hit );
-#endif /* AMBIENT */
 
 
 RT_PROGRAM void closest_hit_radiance()
@@ -203,14 +196,13 @@ RT_PROGRAM void closest_hit_radiance()
 }
 
 
-#ifdef AMBIENT
 // Compute the ambient component and multiply by the coefficient.
 RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pnormal, const float3& hit)
 {
 	float 	d;
 
 	/* ambient calculation */
-	if (ambdiv > 0 && prd.ambient_depth < ambounce) {
+	if (ambdiv > 0 && prd.ambient_depth < ambounce && ambincl) {
 		float3 acol = aval;
 	#ifdef DAYSIM_COMPATIBLE
 		DaysimCoef dc = daysimNext(prd.dc);
@@ -322,4 +314,3 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 	*rcol = acol;
 	return(1);			/* all is well */
 }
-#endif /* AMBIENT */

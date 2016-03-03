@@ -1395,6 +1395,18 @@ static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec)
 		applyMaterialVariable1f(context, material, "tspecu", (float)rec->oargs.farg[6]);
 	}
 
+	/* Check ambient include/exclude list */
+	if (ambincl != -1) {
+		char **amblp;
+		int in_set = 0;
+		for (amblp = amblist; *amblp != NULL; amblp++)
+			if (!strcmp(rec->oname, *amblp)) {
+				in_set = 1;
+				break;
+			}
+		applyMaterialVariable1ui(context, material, "ambincl", in_set == ambincl);
+	}
+
 	/* Create our hit programs to be shared among all normal materials */
 	if (!radiance_normal_closest_hit_program) {
 		ptxFile(path_to_ptx, "radiance_normal");

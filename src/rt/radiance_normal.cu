@@ -95,6 +95,9 @@ rtDeclareVariable(float,        spec, , );	/* The material specularity given by 
 rtDeclareVariable(float,        rough, , );	/* The material roughness given by the rad file "plastic", "metal", or "trans" object */
 rtDeclareVariable(float,        transm, , ) = 0.0f;	/* The material transmissivity given by the rad file "trans" object */
 rtDeclareVariable(float,        tspecu, , ) = 0.0f;	/* The material transmitted specular component given by the rad file "trans" object */
+#ifdef AMBIENT
+rtDeclareVariable(unsigned int, ambincl, , ) = 1u;	/* Flag to skip ambient calculation and use default (ae, aE, ai, aI) */
+#endif
 
 /* Geometry instance variables */
 #ifdef LIGHTS
@@ -741,8 +744,8 @@ RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pn
 	if (prd.ambient_depth >= ambounce)
 		goto dumbamb;
 						/* check ambient list */
-	//if (ambincl != -1 && r->ro != NULL && ambincl != inset(ambset, r->ro->omod))
-	//	goto dumbamb;
+	if (!ambincl)
+		goto dumbamb;
 
 #ifdef ITERATIVE
 	if (!prd.ambient_depth)
