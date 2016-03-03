@@ -54,6 +54,9 @@ rtDeclareVariable(float3, texcoord, attribute texcoord, );
 rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );
 rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
 rtDeclareVariable(int, surface_id, attribute surface_id, );
+#ifdef ANTIMATTER
+rtDeclareVariable(int, mat_id, attribute mat_id, );
+#endif
 
 RT_PROGRAM void mesh_intersect(unsigned int primIdx)
 {
@@ -104,6 +107,9 @@ RT_PROGRAM void mesh_intersect(unsigned int primIdx)
 			}
 
 			surface_id = v_idx.x; // Not necessarily unique per triangle, but different for each surface
+#ifdef ANTIMATTER
+			mat_id = mat;
+#endif
 
 			rtReportIntersection( mat );
 		}

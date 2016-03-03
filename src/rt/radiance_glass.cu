@@ -31,6 +31,9 @@ rtDeclareVariable(PerRayData_shadow,   prd_shadow, rtPayload, );
 /* Attributes */
 rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );
 rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
+#ifdef ANTIMATTER
+rtDeclareVariable(int, mat_id, attribute mat_id, );
+#endif
 
 
 RT_PROGRAM void closest_hit_shadow()
@@ -45,6 +48,17 @@ RT_PROGRAM void closest_hit_shadow()
 	float3 result = make_float3( 0.0f );
 	float3 hit_point = ray.origin + t_hit * ray.direction;
 	float3 mcolor = color;
+
+#ifdef ANTIMATTER
+	if (prd.mask & (1 << mat_id)) {
+		prd.inside += dot(world_geometric_normal, ray.direction) < 0.0f ? 1 : -1;
+
+		/* Continue the ray */
+		Ray new_ray = make_Ray(ray.origin, ray.direction, ray.ray_type, ray_start(hit_point, ray.direction, snormal, RAY_START) + t_hit, RAY_END);
+		rtTrace(top_object, new_ray, prd_shadow);
+		return;
+	}
+#endif /* ANTIMATTER */
 
 	/* check transmission */
 	bool hastrans = fmaxf( mcolor ) > 1e-15f;
@@ -88,6 +102,10 @@ RT_PROGRAM void closest_hit_shadow()
 		//new_prd.depth = prd.depth + 1;
 		new_prd.target = prd_shadow.target;
 		new_prd.result = make_float3( 0.0f );
+#ifdef ANTIMATTER
+		new_prd.mask = prd_shadow.mask;
+		new_prd.inside = prd_shadow.inside;
+#endif
 #ifdef DAYSIM_COMPATIBLE
 		new_prd.dc = daysimNext(prd_shadow.dc);
 		daysimSet(new_prd.dc, 0.0f);
@@ -117,6 +135,17 @@ RT_PROGRAM void closest_hit_radiance()
 	float3 result = make_float3( 0.0f );
 	float3 hit_point = ray.origin + t_hit * ray.direction;
 	float3 mcolor = color;
+
+#ifdef ANTIMATTER
+	if (prd.mask & (1 << mat_id)) {
+		prd.inside += dot(world_geometric_normal, ray.direction) < 0.0f ? 1 : -1;
+
+		/* Continue the ray */
+		Ray new_ray = make_Ray(ray.origin, ray.direction, ray.ray_type, ray_start(hit_point, ray.direction, snormal, RAY_START) + t_hit, RAY_END);
+		rtTrace(top_object, new_ray, prd);
+		return;
+	}
+#endif /* ANTIMATTER */
 
 	/* check transmission */
 	bool hastrans = fmaxf( mcolor ) > 1e-15f;
@@ -167,6 +196,10 @@ RT_PROGRAM void closest_hit_radiance()
 			new_prd.ambient_depth = prd.ambient_depth;
 			//new_prd.seed = prd.seed;//lcg( prd.seed );
 			new_prd.state = prd.state;
+#ifdef ANTIMATTER
+			new_prd.mask = prd.mask;
+			new_prd.inside = prd.inside;
+#endif
 #ifdef DAYSIM_COMPATIBLE
 			new_prd.dc = daysimNext(prd.dc);
 #endif
@@ -180,7 +213,7 @@ RT_PROGRAM void closest_hit_radiance()
 				transtest = 2;
 			}
 
-			setupPayload(new_prd, 0);
+			setupPayload(new_prd);
 			Ray trans_ray = make_Ray(hit_point, R, ray.ray_type, ray_start(hit_point, R, snormal, RAY_START), RAY_END);
 			rtTrace(top_object, trans_ray, new_prd);
 			float3 rcol = new_prd.result * trans;
@@ -207,10 +240,14 @@ RT_PROGRAM void closest_hit_radiance()
 		new_prd.ambient_depth = prd.ambient_depth;
 		//new_prd.seed = prd.seed;//lcg( prd.seed );
 		new_prd.state = prd.state;
+#ifdef ANTIMATTER
+		new_prd.mask = prd.mask;
+		new_prd.inside = prd.inside;
+#endif
 #ifdef DAYSIM_COMPATIBLE
 		new_prd.dc = daysimNext(prd.dc);
 #endif
-		setupPayload(new_prd, 0);
+		setupPayload(new_prd);
 		float3 R = reflect( ray.direction, ffnormal );
 		Ray refl_ray = make_Ray(hit_point, R, ray.ray_type, ray_start(hit_point, R, snormal, RAY_START), RAY_END);
 		rtTrace(top_object, refl_ray, new_prd);

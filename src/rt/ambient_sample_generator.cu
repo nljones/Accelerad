@@ -71,12 +71,16 @@ RT_PROGRAM void ambient_sample_camera()
 
 	prd.depth = level + 1;//prd.depth + 1;
 	prd.ambient_depth = level + 1;//prd.ambient_depth + 1;
+#ifdef ANTIMATTER
+	prd.mask = 0u; //TODO this assumes we are not inside an antimatter volume
+	prd.inside = 0;
+#endif
 #ifdef DAYSIM_COMPATIBLE
 	prd.dc = make_uint3(0, launch_index.x + launch_dim.x * launch_index.y, launch_index.z);
 	prd.dc = daysimNext(prd.dc); // Skip ahead one
 	daysimSet(prd.dc, 0.0f);
 #endif
-	setupPayload(prd, 1);
+	setupPayload(prd);
 	Ray ray = make_Ray(cluster.pos, rdir, radiance_ray_type, ray_start(cluster.pos, rdir, cluster.dir, RAY_START), RAY_END);
 	rtTrace(top_object, ray, prd);
 #ifdef RAY_COUNT

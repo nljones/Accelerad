@@ -12,6 +12,7 @@
 //#define HIT_TYPE
 //#define OLDAMB
 #define LIGHTS
+#define ANTIMATTER
 //#define DAYSIM_COMPATIBLE
 #define AMBIENT_CELL
 

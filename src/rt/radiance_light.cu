@@ -22,6 +22,9 @@ rtDeclareVariable(rtCallableProgramId<float3(const float3, const float3)>, funct
 
 /* Context variables */
 rtDeclareVariable(int,          directvis, , );		/* Boolean switch for light source visibility (dv) */
+#ifdef ANTIMATTER
+rtDeclareVariable(rtObject, top_object, , );
+#endif
 
 /* OptiX variables */
 rtDeclareVariable(Ray, ray, rtCurrentRay, );
@@ -33,7 +36,9 @@ rtDeclareVariable(PerRayData_shadow, prd_shadow, rtPayload, );
 rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, ); 
 rtDeclareVariable(float3, shading_normal, attribute shading_normal, ); 
 rtDeclareVariable(int, surface_id, attribute surface_id, );
-
+#ifdef ANTIMATTER
+rtDeclareVariable(int, mat_id, attribute mat_id, );
+#endif
 
 
 RT_METHOD int spotout();
@@ -41,10 +46,14 @@ RT_METHOD int spotout();
 
 RT_PROGRAM void closest_hit_shadow()
 {
-	float3 world_shading_normal   = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, shading_normal ) );
-	//float3 world_geometric_normal = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, geometric_normal ) );
+#ifdef ANTIMATTER
+	if (prd.mask & (1 << mat_id)) {
+		prd_shadow.result = make_float3(0.0f);
+		return;
+	}
+#endif /* ANTIMATTER */
 
-	//float3 ffnormal = faceforward( world_shading_normal, -ray.direction, world_geometric_normal );
+	float3 world_shading_normal = normalize(rtTransformNormal(RT_OBJECT_TO_WORLD, shading_normal));
 
 	if ( t_hit > maxrad || spotout() || dot( world_shading_normal, ray.direction ) > 0.0f || surface_id != -prd_shadow.target - 1 )
 		prd_shadow.result = make_float3( 0.0f );
@@ -56,10 +65,20 @@ RT_PROGRAM void closest_hit_shadow()
 
 RT_PROGRAM void closest_hit_radiance()
 {
-	float3 world_shading_normal   = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, shading_normal ) );
-	//float3 world_geometric_normal = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, geometric_normal ) );
+#ifdef ANTIMATTER
+	if (prd.mask & (1 << mat_id)) {
+		float3 world_geometric_normal = normalize(rtTransformNormal(RT_OBJECT_TO_WORLD, geometric_normal));
+		prd.inside += dot(world_geometric_normal, ray.direction) < 0.0f ? 1 : -1;
 
-	//float3 ffnormal = faceforward( world_shading_normal, -ray.direction, world_geometric_normal );
+		/* Continue the ray */
+		float3 snormal = faceforward(world_geometric_normal, -ray.direction, world_geometric_normal);
+		Ray new_ray = make_Ray(ray.origin, ray.direction, ray.ray_type, ray_start(ray.origin + t_hit * ray.direction, ray.direction, snormal, RAY_START) + t_hit, RAY_END);
+		rtTrace(top_object, new_ray, prd);
+		return;
+	}
+#endif /* ANTIMATTER */
+
+	float3 world_shading_normal = normalize(rtTransformNormal(RT_OBJECT_TO_WORLD, shading_normal));
 
 	// no contribution to ambient calculation
 	if ( !directvis || 0.0f > maxrad && prd.depth > 0 || prd.ambient_depth > 0 || spotout() || dot( world_shading_normal, ray.direction ) > 0.0f ) //TODO need a better ambient test

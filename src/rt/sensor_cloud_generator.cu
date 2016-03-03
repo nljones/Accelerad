@@ -52,6 +52,10 @@ RT_PROGRAM void cloud_generator()
 	unsigned int loop = 2u * seeds; // Prevent infinite looping
 	while ( index.z < seeds && loop-- ) {
 		clear(prd.backup);
+#ifdef ANTIMATTER
+		prd.mask = 0u;
+		prd.inside = 0;
+#endif
 
 		// Trace the current ray
 		if ( imm_irrad )

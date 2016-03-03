@@ -17,6 +17,12 @@ rtDeclareVariable(PerRayData_point_cloud, prd, rtPayload, );
 /* Attributes */
 rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );
 rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
+#ifdef ANTIMATTER
+rtDeclareVariable(int, mat_id, attribute mat_id, );
+
+/* Context variables */
+rtDeclareVariable(rtObject, top_object, , );
+#endif
 
 #ifdef AMBIENT_CELL
 /* Context variables */
@@ -85,6 +91,13 @@ RT_METHOD int occupied(const float3& pos, const float3& dir, const float3& world
 
 RT_PROGRAM void any_hit_point_cloud_glass()
 {
+#ifdef ANTIMATTER
+	if (prd.mask & (1 << mat_id)) {
+		rtIgnoreIntersection();
+		return;
+	}
+#endif /* ANTIMATTER */
+
 	float3 world_geometric_normal = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, geometric_normal ) );
 
 	prd.backup.pos = ray.origin + t_hit * ray.direction;
@@ -101,10 +114,22 @@ RT_PROGRAM void closest_hit_point_cloud_normal()
 {
 	float3 world_geometric_normal = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, geometric_normal ) );
 
+#ifdef ANTIMATTER
+	if (prd.mask & (1 << mat_id)) {
+		prd.inside += dot(world_geometric_normal, ray.direction) < 0.0f ? 1 : -1;
+
+		/* Continue the ray */
+		float3 snormal = faceforward(world_geometric_normal, -ray.direction, world_geometric_normal);
+		Ray new_ray = make_Ray(ray.origin, ray.direction, ray.ray_type, ray_start(ray.origin + t_hit * ray.direction, ray.direction, snormal, RAY_START) + t_hit, RAY_END);
+		rtTrace(top_object, new_ray, prd);
+		return;
+	}
+#endif /* ANTIMATTER */
+
 	prd.result.pos = ray.origin + t_hit * ray.direction;
 	prd.result.dir = faceforward(world_geometric_normal, -ray.direction, world_geometric_normal);
 
-	/* Don't reflect of occluded surfaces */
+	/* Don't reflect off occluded surfaces */
 	if (dot(ray.direction, prd.backup.pos - prd.result.pos) > 0)
 		clear(prd.backup);
 
@@ -118,7 +143,20 @@ RT_PROGRAM void closest_hit_point_cloud_normal()
 
 RT_PROGRAM void closest_hit_point_cloud_light()
 {
-	/* Don't reflect of occluded surfaces */
+#ifdef ANTIMATTER
+	if (prd.mask & (1 << mat_id)) {
+		float3 world_geometric_normal = normalize(rtTransformNormal(RT_OBJECT_TO_WORLD, geometric_normal));
+		prd.inside += dot(world_geometric_normal, ray.direction) < 0.0f ? 1 : -1;
+
+		/* Continue the ray */
+		float3 snormal = faceforward(world_geometric_normal, -ray.direction, world_geometric_normal);
+		Ray new_ray = make_Ray(ray.origin, ray.direction, ray.ray_type, ray_start(ray.origin + t_hit * ray.direction, ray.direction, snormal, RAY_START) + t_hit, RAY_END);
+		rtTrace(top_object, new_ray, prd);
+		return;
+	}
+#endif /* ANTIMATTER */
+
+	/* Don't reflect off occluded surfaces */
 	if (dot(ray.direction, prd.backup.pos - prd.result.pos) > 0)
 		clear(prd.backup);
 

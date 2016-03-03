@@ -123,6 +123,10 @@ RT_PROGRAM void point_cloud_camera()
 
 	while ( index.z < seeds && loop-- ) {
 		clear(prd.backup);
+#ifdef ANTIMATTER
+		prd.mask = 0u;
+		prd.inside = 0;
+#endif
 
 		// Trace the current ray
 		rtTrace(top_object, ray, prd);

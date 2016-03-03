@@ -9,8 +9,6 @@
 #endif
 #include "optix_common.h"
 
-//#define FILL_GAPS
-
 /* OptiX method declaration in the style of RT_PROGRAM */
 #define RT_METHOD	static __inline__ __device__
 
@@ -59,11 +57,12 @@ struct PerRayData_radiance
 	int depth;
 	int ambient_depth;
 	rand_state* state;
+#ifdef ANTIMATTER
+	int inside;			/* counter for number of volumes traversed */
+	unsigned int mask;	/* mask for materials to skip */
+#endif
 #ifdef DAYSIM_COMPATIBLE
 	DaysimCoef dc;	/* daylight coefficients */
-#endif
-#ifdef FILL_GAPS
-	int primary;
 #endif
 #ifdef RAY_COUNT
 	int ray_count;
@@ -80,6 +79,10 @@ struct PerRayData_shadow
 {
 	float3 result;
 	int target;
+#ifdef ANTIMATTER
+	int inside;			/* counter for number of volumes traversed */
+	unsigned int mask;	/* mask for materials to skip */
+#endif
 #ifdef DAYSIM_COMPATIBLE
 	DaysimCoef dc;	/* daylight coefficients */
 #endif
@@ -118,6 +121,10 @@ struct PerRayData_point_cloud
 	PointDirection result;
 	PointDirection backup;
 	//rand_state* state;
+#ifdef ANTIMATTER
+	int inside;			/* counter for number of volumes traversed */
+	unsigned int mask;	/* mask for materials to skip */
+#endif
 };
 
 /* Ambient data structures */
@@ -642,13 +649,10 @@ RT_METHOD void daysimCheck(const DaysimCoef& daylightCoef, const DC& value, cons
 RT_METHOD void setupPayload(PerRayData_radiance& prd, const int& primary);
 RT_METHOD void resolvePayload(PerRayData_radiance& parent, PerRayData_radiance& prd);
 
-RT_METHOD void setupPayload(PerRayData_radiance& prd, const int& primary)
+RT_METHOD void setupPayload(PerRayData_radiance& prd)
 {
 #ifdef DAYSIM_COMPATIBLE
 	daysimSet(prd.dc, 0.0f);
-#endif
-#ifdef FILL_GAPS
-	prd.primary = primary;
 #endif
 #ifdef RAY_COUNT
 	prd.ray_count = 1;

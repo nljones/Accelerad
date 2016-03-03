@@ -43,10 +43,14 @@ RT_PROGRAM void ray_generator()
 	prd.depth = 0;
 	prd.ambient_depth = 0;
 	//prd.seed = rnd_seeds[launch_index];
+#ifdef ANTIMATTER
+	prd.mask = 0u;
+	prd.inside = 0;
+#endif
 #ifdef DAYSIM_COMPATIBLE
 	prd.dc = make_uint3(0, launch_index.x, launch_index.y);
 #endif
-	setupPayload(prd, 1);
+	setupPayload(prd);
 
 	const float tmin = ray_start( ray_buffer[launch_index].origin, RAY_START );
 	if ( imm_irrad ) {

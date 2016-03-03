@@ -41,6 +41,11 @@ RT_PROGRAM void hemisphere_camera()
 		float zd = sqrtf(1.0f - dot(spt, spt));
 		float3 rdir = normalize(spt.x * ux + spt.y * uy + zd * uz);
 
+#ifdef ANTIMATTER
+		prd.mask = 0u;
+		prd.inside = 0;
+#endif
+
 		// Trace the current ray
 		Ray ray = make_Ray(eye.pos, rdir, point_cloud_ray_type, ray_start( eye.pos, rdir, uz, RAY_START ), RAY_END);
 		rtTrace(top_object, ray, prd);

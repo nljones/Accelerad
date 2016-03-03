@@ -112,6 +112,9 @@ rtDeclareVariable(PerRayData_shadow,   prd_shadow, rtPayload, );
 //rtDeclareVariable(float3, texcoord, attribute texcoord, );
 rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );
 rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
+#ifdef ANTIMATTER
+rtDeclareVariable(int, mat_id, attribute mat_id, );
+#endif
 
 
 RT_METHOD float3 dirnorm(Ray *shadow_ray, PerRayData_shadow *shadow_prd, const NORMDAT *nd, const float& omega);
@@ -177,6 +180,17 @@ RT_PROGRAM void closest_hit_radiance()
 	nd.alpha2 = rough * rough;
 	nd.specfl = 0u; /* specularity flags */
 
+#ifdef ANTIMATTER
+	if (prd.mask & (1 << mat_id)) {
+		prd.inside += dot(world_geometric_normal, ray.direction) < 0.0f ? 1 : -1;
+
+		/* Continue the ray */
+		Ray new_ray = make_Ray(ray.origin, ray.direction, ray.ray_type, ray_start(nd.hit, ray.direction, nd.normal, RAY_START) + t_hit, RAY_END);
+		rtTrace(top_object, new_ray, prd);
+		return;
+	}
+#endif /* ANTIMATTER */
+
 	/* get roughness */
 	if (nd.alpha2 <= FTINY) {
 		nd.specfl |= SP_PURE; // label this as a purely specular reflection
@@ -237,10 +251,14 @@ RT_PROGRAM void closest_hit_radiance()
 			new_prd.depth = prd.depth;
 			new_prd.ambient_depth = prd.ambient_depth;
 			new_prd.state = prd.state;
+#ifdef ANTIMATTER
+			new_prd.mask = prd.mask;
+			new_prd.inside = prd.inside;
+#endif
 #ifdef DAYSIM_COMPATIBLE
 			new_prd.dc = daysimNext(prd.dc);
 #endif
-			setupPayload(new_prd, 0);
+			setupPayload(new_prd);
 			Ray trans_ray = make_Ray(nd.hit, nd.prdir, radiance_ray_type, ray_start(nd.hit, nd.prdir, nd.normal, RAY_START), RAY_END);
 			rtTrace(top_object, trans_ray, new_prd);
 			float3 rcol = new_prd.result * nd.mcolor * nd.tspec;
@@ -289,10 +307,14 @@ RT_PROGRAM void closest_hit_radiance()
 		if (new_prd.weight >= minweight && new_prd.depth <= abs(maxdepth)) {
 			new_prd.ambient_depth = prd.ambient_depth;
 			new_prd.state = prd.state;
+#ifdef ANTIMATTER
+			new_prd.mask = prd.mask;
+			new_prd.inside = prd.inside;
+#endif
 #ifdef DAYSIM_COMPATIBLE
 			new_prd.dc = daysimNext(prd.dc);
 #endif
-			setupPayload(new_prd, 0);
+			setupPayload(new_prd);
 			float3 vrefl = reflect(ray.direction, nd.pnorm);
 			Ray refl_ray = make_Ray(nd.hit, vrefl, radiance_ray_type, ray_start(nd.hit, vrefl, nd.normal, RAY_START), RAY_END);
 			rtTrace(top_object, refl_ray, new_prd);
@@ -447,6 +469,10 @@ RT_METHOD float3 dirnorm(Ray *shadow_ray, PerRayData_shadow *shadow_prd, const N
 
 	// cast shadow ray
 	shadow_prd->result = make_float3( 0.0f );
+#ifdef ANTIMATTER
+	shadow_prd->mask = prd.mask;
+	shadow_prd->inside = prd.inside;
+#endif
 #ifdef DAYSIM_COMPATIBLE
 	daysimSet(shadow_prd->dc, 0.0f);
 #endif
@@ -602,7 +628,11 @@ RT_METHOD float3 gaussamp(const NORMDAT *nd)
 
 			gaus_ray.direction = normalize( gaus_ray.direction );
 			gaus_ray.tmin = ray_start(nd->hit, gaus_ray.direction, nd->normal, RAY_START);
-			setupPayload(gaus_prd, 0);
+#ifdef ANTIMATTER
+			gaus_prd.mask = prd.mask;
+			gaus_prd.inside = prd.inside;
+#endif
+			setupPayload(gaus_prd);
 			//if (nstaken) // check for prd data that needs to be cleared
 			rtTrace(top_object, gaus_ray, gaus_prd);
 			resolvePayload(prd, gaus_prd);
@@ -674,10 +704,14 @@ RT_METHOD float3 gaussamp(const NORMDAT *nd)
 
 			gaus_ray.direction = normalize( gaus_ray.direction );
 			gaus_ray.tmin = ray_start(nd->hit, gaus_ray.direction, nd->normal, RAY_START);
+#ifdef ANTIMATTER
+			gaus_prd.mask = prd.mask;
+			gaus_prd.inside = prd.inside;
+#endif
 #ifdef DAYSIM_COMPATIBLE
 			gaus_prd.dc = daysimNext(prd.dc);
 #endif
-			setupPayload(gaus_prd, 0);
+			setupPayload(gaus_prd);
 			//if (nstaken) // check for prd data that needs to be cleared
 			rtTrace(top_object, gaus_ray, gaus_prd);
 			resolvePayload(prd, gaus_prd);
@@ -757,11 +791,7 @@ RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pn
 		//	return aval * ambient_prd.result;		/* got new value */
 		//}
 
-#ifdef FILL_GAPS
-		do_ambient = prd.primary && ambdiv_final;
-#else
 		do_ambient = !prd.ambient_depth && ambdiv_final;
-#endif
 	}
 #endif /* ITERATIVE */
 	if (do_ambient) {			/* no ambient storage */
@@ -878,7 +908,11 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 			amb_ray.tmin = ray_start( hit, amb_ray.direction, normal, RAY_START );
 			//dimlist[ndims++] = AI(hp,i,j) + 90171;
 
-			setupPayload(new_prd, 0);
+#ifdef ANTIMATTER
+			new_prd.mask = prd.mask;
+			new_prd.inside = prd.inside;
+#endif
+			setupPayload(new_prd);
 			//Ray amb_ray = make_Ray( hit, rdir, radiance_ray_type, RAY_START, RAY_END );
 			rtTrace(top_object, amb_ray, new_prd);
 			resolvePayload(prd, new_prd);
@@ -1130,10 +1164,14 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& normal, const 
 	new_prd.ambient_depth = prd.ambient_depth + 1;
 	//new_prd.seed = prd.seed;//lcg( prd.seed );
 	new_prd.state = prd.state;
+#ifdef ANTIMATTER
+	new_prd.mask = prd.mask;
+	new_prd.inside = prd.inside;
+#endif
 #ifdef DAYSIM_COMPATIBLE
 	new_prd.dc = daysimNext(dc);
 #endif
-	setupPayload(new_prd, 0);
+	setupPayload(new_prd);
 	Ray amb_ray = make_Ray( hit, rdir, radiance_ray_type, ray_start( hit, rdir, normal, RAY_START ), RAY_END );
 	rtTrace(top_object, amb_ray, new_prd);
 	resolvePayload(prd, new_prd);

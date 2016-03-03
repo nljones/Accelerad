@@ -152,7 +152,11 @@ RT_PROGRAM void ray_generator()
 	prd.depth = 0;
 	prd.ambient_depth = 0;
 	//prd.seed = rnd_seeds[launch_index];
-	setupPayload(prd, 1);
+#ifdef ANTIMATTER
+	prd.mask = 0u;
+	prd.inside = 0;
+#endif
+	setupPayload(prd);
 
 	rtTrace(top_object, ray, prd);
 

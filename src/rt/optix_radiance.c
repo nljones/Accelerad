@@ -67,6 +67,9 @@ static void createMesh(OBJREC* rec, OBJREC* parent);
 static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec);
 static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec);
 static RTmaterial createLightMaterial( const RTcontext context, OBJREC* rec );
+#ifdef ANTIMATTER
+static RTmaterial createClipMaterial(const RTcontext context, OBJREC* rec);
+#endif
 static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, OBJREC* parent);
 static OBJREC* findFunction(OBJREC *o);
 static int createFunction(const RTcontext context, OBJREC* rec);
@@ -133,6 +136,9 @@ static RTprogram shadow_normal_any_hit_program;
 #endif
 static RTprogram radiance_glass_closest_hit_program, shadow_glass_closest_hit_program, ambient_glass_any_hit_program, point_cloud_glass_any_hit_program;
 static RTprogram radiance_light_closest_hit_program, shadow_light_closest_hit_program, point_cloud_light_closest_hit_program;
+#ifdef ANTIMATTER
+static RTprogram radiance_clip_closest_hit_program, shadow_clip_closest_hit_program, point_cloud_clip_closest_hit_program;
+#endif
 
 #ifdef DAYSIM
 /* Handles to objects used repeatedly for daylight coefficient calulation */
@@ -884,6 +890,8 @@ memerr:
 
 static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* parent, const OBJECT index)
 {
+	int alternate = -1;
+
 	switch (rec->otype) {
 	case MAT_PLASTIC: // Plastic material
 	case MAT_METAL: // Metal material
@@ -902,17 +910,21 @@ static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* pare
 	case MAT_SPOT: // Spotlight material
 		buffer_entry_index[index] = (int)materials->count;
 		if (rec->otype != MAT_ILLUM)
-			insertArray2i(alt_materials, (int)materials->count, (int)materials->count);
+			alternate = (int)materials->count;
 		else if (rec->oargs.nsargs && strcmp(rec->oargs.sarg[0], VOIDID)) { /* modifies another material */
 			//material = objptr( lastmod( objndx(rec), rec->oargs.sarg[0] ) );
-			//alt = buffer_entry_index[objndx(material)];
-			int alt = buffer_entry_index[lastmod(objndx(rec), rec->oargs.sarg[0])];
-			insertArray2i(alt_materials, (int)materials->count, alt);
+			//alternate = buffer_entry_index[objndx(material)];
+			alternate = buffer_entry_index[lastmod(objndx(rec), rec->oargs.sarg[0])];
 		}
-		else
-			insertArray2i(alt_materials, (int)materials->count, -1);
+		insertArray2i(alt_materials, (int)materials->count, alternate);
 		insertArraym(materials, createLightMaterial(context, rec));
 		break;
+#ifdef ANTIMATTER
+	case MAT_CLIP: // Antimatter
+		buffer_entry_index[index] = insertArray2i(alt_materials, (int)materials->count, (int)materials->count);
+		insertArraym(materials, createClipMaterial(context, rec));
+		break;
+#endif
 	case OBJ_FACE: // Typical polygons
 		createFace(rec, parent);
 		break;
@@ -1370,30 +1382,43 @@ static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec)
 {
 	RTmaterial material;
 
-	/* Create our hit programs to be shared among all materials */
-	if ( !radiance_normal_closest_hit_program ) {
-		ptxFile( path_to_ptx, "radiance_normal" );
-		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "closest_hit_radiance", &radiance_normal_closest_hit_program ) );
-		applyProgramVariable1ui( context, radiance_normal_closest_hit_program, "metal", MAT_METAL );
-#ifndef LIGHTS
-		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "any_hit_shadow", &shadow_normal_any_hit_program ) );
-#endif
-#ifdef ACCELERAD_RT
-		ptxFile(path_to_ptx, "diffuse_normal");
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_radiance", &diffuse_normal_closest_hit_program));
-#endif
+	/* Create our material */
+	RT_CHECK_ERROR(rtMaterialCreate(context, &material));
+
+	/* Set variables to be consumed by material for this geometry instance */
+	applyMaterialVariable1ui(context, material, "type", rec->otype);
+	applyMaterialVariable3f(context, material, "color", (float)rec->oargs.farg[0], (float)rec->oargs.farg[1], (float)rec->oargs.farg[2]);
+	applyMaterialVariable1f(context, material, "spec", (float)rec->oargs.farg[3]);
+	applyMaterialVariable1f(context, material, "rough", (float)rec->oargs.farg[4]);
+	if (rec->otype == MAT_TRANS) { // it's a translucent material
+		applyMaterialVariable1f(context, material, "transm", (float)rec->oargs.farg[5]);
+		applyMaterialVariable1f(context, material, "tspecu", (float)rec->oargs.farg[6]);
 	}
 
-	RT_CHECK_ERROR( rtMaterialCreate( context, &material ) );
-	if ( do_irrad )
-		RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, PRIMARY_RAY, radiance_normal_closest_hit_program ) );
-	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, RADIANCE_RAY, radiance_normal_closest_hit_program ) );
-#ifdef ACCELERAD_RT
-	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, DIFFUSE_PRIMARY_RAY, diffuse_normal_closest_hit_program));
-	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, DIFFUSE_RAY, diffuse_normal_closest_hit_program));
-#endif
+	/* Create our hit programs to be shared among all normal materials */
+	if (!radiance_normal_closest_hit_program) {
+		ptxFile(path_to_ptx, "radiance_normal");
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_radiance", &radiance_normal_closest_hit_program));
+		applyProgramVariable1ui( context, radiance_normal_closest_hit_program, "metal", MAT_METAL );
+	}
+	if (do_irrad)
+		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, PRIMARY_RAY, radiance_normal_closest_hit_program));
+	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, RADIANCE_RAY, radiance_normal_closest_hit_program));
+
 #ifndef LIGHTS
-	RT_CHECK_ERROR( rtMaterialSetAnyHitProgram( material, SHADOW_RAY, shadow_normal_any_hit_program ) ); // Cannot use any hit program because closest might be light source
+	if (!shadow_normal_any_hit_program)
+		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "any_hit_shadow", &shadow_normal_any_hit_program ) );
+	RT_CHECK_ERROR(rtMaterialSetAnyHitProgram(material, SHADOW_RAY, shadow_normal_any_hit_program)); // Cannot use any hit program because closest might be light source
+#endif
+
+#ifdef ACCELERAD_RT
+	if (!diffuse_normal_closest_hit_program) {
+		ptxFile(path_to_ptx, "diffuse_normal");
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_radiance", &diffuse_normal_closest_hit_program));
+	}
+	if (do_irrad)
+		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, DIFFUSE_PRIMARY_RAY, diffuse_normal_closest_hit_program));
+	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, DIFFUSE_RAY, diffuse_normal_closest_hit_program));
 #endif
 
 	if (calc_ambient) {
@@ -1416,16 +1441,6 @@ static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec)
 		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, POINT_CLOUD_RAY, point_cloud_normal_closest_hit_program));
 	}
 
-	/* Set variables to be consumed by material for this geometry instance */
-	applyMaterialVariable1ui( context, material, "type", rec->otype );
-	applyMaterialVariable3f(context, material, "color", (float)rec->oargs.farg[0], (float)rec->oargs.farg[1], (float)rec->oargs.farg[2]);
-	applyMaterialVariable1f(context, material, "spec", (float)rec->oargs.farg[3]);
-	applyMaterialVariable1f(context, material, "rough", (float)rec->oargs.farg[4]);
-	if (rec->otype == MAT_TRANS) { // it's a translucent material
-		applyMaterialVariable1f(context, material, "transm", (float)rec->oargs.farg[5]);
-		applyMaterialVariable1f(context, material, "tspecu", (float)rec->oargs.farg[6]);
-	}
-
 	return material;
 }
 
@@ -1433,18 +1448,30 @@ static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec)
 {
 	RTmaterial material;
 
-	/* Create our hit programs to be shared among all materials */
-	if ( !radiance_glass_closest_hit_program || !shadow_glass_closest_hit_program ) {
-		ptxFile( path_to_ptx, "radiance_glass" );
-		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "closest_hit_radiance", &radiance_glass_closest_hit_program ) );
-		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "closest_hit_shadow", &shadow_glass_closest_hit_program ) );
-	}
+	/* Create our material */
+	RT_CHECK_ERROR(rtMaterialCreate(context, &material));
 
-	RT_CHECK_ERROR( rtMaterialCreate( context, &material ) );
-	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, RADIANCE_RAY, radiance_glass_closest_hit_program ) );
+	/* Set variables to be consumed by material for this geometry instance */
+#ifdef HIT_TYPE
+	applyMaterialVariable1ui(context, material, "type", rec->otype);
+#endif
+	applyMaterialVariable3f(context, material, "color", (float)rec->oargs.farg[0], (float)rec->oargs.farg[1], (float)rec->oargs.farg[2]);
+	if (rec->oargs.nfargs > 3)
+		applyMaterialVariable1f(context, material, "r_index", (float)rec->oargs.farg[3]);
+
+	/* Create our hit programs to be shared among all glass materials */
+	if (!radiance_glass_closest_hit_program || !shadow_glass_closest_hit_program)
+		ptxFile(path_to_ptx, "radiance_glass");
+
+	if (!radiance_glass_closest_hit_program)
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_radiance", &radiance_glass_closest_hit_program));
+	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, RADIANCE_RAY, radiance_glass_closest_hit_program));
 #ifdef ACCELERAD_RT
 	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, DIFFUSE_RAY, radiance_glass_closest_hit_program));
 #endif
+
+	if (!shadow_glass_closest_hit_program)
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_shadow", &shadow_glass_closest_hit_program));
 	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, SHADOW_RAY, shadow_glass_closest_hit_program ) );
 
 	if ( calc_ambient ) {
@@ -1461,54 +1488,28 @@ static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec)
 		RT_CHECK_ERROR(rtMaterialSetAnyHitProgram(material, POINT_CLOUD_RAY, point_cloud_glass_any_hit_program));
 	}
 
-	/* Set variables to be consumed by material for this geometry instance */
-#ifdef HIT_TYPE
-	applyMaterialVariable1ui( context, material, "type", rec->otype );
-#endif
-	applyMaterialVariable3f(context, material, "color", (float)rec->oargs.farg[0], (float)rec->oargs.farg[1], (float)rec->oargs.farg[2]);
-	if (rec->oargs.nfargs > 3)
-		applyMaterialVariable1f(context, material, "r_index", (float)rec->oargs.farg[3]);
-
 	return material;
 }
 
-static RTmaterial createLightMaterial( const RTcontext context, OBJREC* rec )
+static RTmaterial createLightMaterial(const RTcontext context, OBJREC* rec)
 {
 	RTmaterial material;
 	OBJREC* mat;
 
-	/* Create our hit programs to be shared among all materials */
-	if ( !radiance_light_closest_hit_program || !shadow_light_closest_hit_program ) {
-		ptxFile( path_to_ptx, "radiance_light" );
-		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "closest_hit_radiance", &radiance_light_closest_hit_program ) );
-		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "closest_hit_shadow", &shadow_light_closest_hit_program ) );
-	}
-
-	RT_CHECK_ERROR( rtMaterialCreate( context, &material ) );
-	if ( do_irrad )
-		RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, PRIMARY_RAY, radiance_light_closest_hit_program ) );
-	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, RADIANCE_RAY, radiance_light_closest_hit_program ) );
-	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, SHADOW_RAY, shadow_light_closest_hit_program ) );
-
-	if ( calc_ambient ) {
-		if (!point_cloud_light_closest_hit_program) {
-			ptxFile( path_to_ptx, "point_cloud_normal" );
-			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_point_cloud_light", &point_cloud_light_closest_hit_program));
-		}
-		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, POINT_CLOUD_RAY, point_cloud_light_closest_hit_program));
-	}
+	/* Create our material */
+	RT_CHECK_ERROR(rtMaterialCreate(context, &material));
 
 	/* Set variables to be consumed by material for this geometry instance */
 #ifdef HIT_TYPE
-	applyMaterialVariable1ui( context, material, "type", rec->otype );
+	applyMaterialVariable1ui(context, material, "type", rec->otype);
 #endif
 	applyMaterialVariable3f(context, material, "color", (float)rec->oargs.farg[0], (float)rec->oargs.farg[1], (float)rec->oargs.farg[2]);
 	if (rec->otype == MAT_GLOW)
 		applyMaterialVariable1f(context, material, "maxrad", (float)rec->oargs.farg[3]);
 	else if (rec->otype == MAT_SPOT) {
 		SPOT* spot = makespot(rec);
-		applyMaterialVariable1f( context, material, "siz", spot->siz );
-		applyMaterialVariable1f( context, material, "flen", spot->flen );
+		applyMaterialVariable1f(context, material, "siz", spot->siz);
+		applyMaterialVariable1f(context, material, "flen", spot->flen);
 		applyMaterialVariable3f(context, material, "aim", (float)spot->aim[0], (float)spot->aim[1], (float)spot->aim[2]);
 		free(spot);
 		rec->os = NULL;
@@ -1516,12 +1517,103 @@ static RTmaterial createLightMaterial( const RTcontext context, OBJREC* rec )
 
 	/* Check for a parent function. */
 	if ((mat = findFunction(rec))) // TODO can there be multiple parent functions?
-		applyMaterialVariable1i( context, material, "function", buffer_entry_index[objndx(mat)] );
+		applyMaterialVariable1i(context, material, "function", buffer_entry_index[objndx(mat)]);
 	else
-		applyMaterialVariable1i( context, material, "function", RT_PROGRAM_ID_NULL );
+		applyMaterialVariable1i(context, material, "function", RT_PROGRAM_ID_NULL);
+
+	/* Create our hit programs to be shared among all light materials */
+	if (!radiance_light_closest_hit_program || !shadow_light_closest_hit_program)
+		ptxFile(path_to_ptx, "radiance_light");
+
+	if (!radiance_light_closest_hit_program)
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_radiance", &radiance_light_closest_hit_program));
+	if (do_irrad)
+		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, PRIMARY_RAY, radiance_light_closest_hit_program));
+	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, RADIANCE_RAY, radiance_light_closest_hit_program));
+
+	if (!shadow_light_closest_hit_program)
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_shadow", &shadow_light_closest_hit_program));
+	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, SHADOW_RAY, shadow_light_closest_hit_program));
+
+	if (calc_ambient) {
+		if (!point_cloud_light_closest_hit_program) {
+			ptxFile(path_to_ptx, "point_cloud_normal");
+			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_point_cloud_light", &point_cloud_light_closest_hit_program));
+		}
+		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, POINT_CLOUD_RAY, point_cloud_light_closest_hit_program));
+	}
 
 	return material;
 }
+
+#ifdef ANTIMATTER
+static RTmaterial createClipMaterial(const RTcontext context, OBJREC* rec)
+{
+	RTmaterial material;
+	OBJECT mod;
+	unsigned int mask = 0u;
+	int i, index;
+
+	/* Determine the material mask */
+	for (i = 0; i < rec->oargs.nsargs; i++) {
+		if (!strcmp(rec->oargs.sarg[i], VOIDID))
+			continue;
+		if ((mod = lastmod(objndx(rec), rec->oargs.sarg[i])) == OVOID) {
+			sprintf(errmsg, "unknown modifier \"%s\"", rec->oargs.sarg[i]);
+			objerror(rec, WARNING, errmsg);
+			continue;
+		}
+		if ((index = buffer_entry_index[mod]) > 32) {
+			sprintf(errmsg, "out of range modifier \"%s\"", rec->oargs.sarg[i]);
+			objerror(rec, WARNING, errmsg);
+			continue;
+		}
+		if (mask & (1 << index)) {
+			objerror(rec, WARNING, "duplicate modifier");
+			continue;
+		}
+		mask |= 1 << index;
+	}
+	if (!mask)
+		objerror(rec, USER, "no modifiers clipped");
+
+	/* Create our material */
+	RT_CHECK_ERROR(rtMaterialCreate(context, &material));
+
+	/* Set variables to be consumed by material for this geometry instance */
+#ifdef HIT_TYPE
+	applyMaterialVariable1ui(context, material, "type", rec->otype);
+#endif
+	applyMaterialVariable1ui(context, material, "mask", mask);
+
+	/* Create our hit programs to be shared among all materials */
+	if (!radiance_clip_closest_hit_program || !shadow_clip_closest_hit_program)
+		ptxFile(path_to_ptx, "clip");
+
+	if (!radiance_clip_closest_hit_program)
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_radiance", &radiance_clip_closest_hit_program));
+	if (do_irrad)
+		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, PRIMARY_RAY, radiance_clip_closest_hit_program));
+	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, RADIANCE_RAY, radiance_clip_closest_hit_program));
+#ifdef ACCELERAD_RT
+	if (do_irrad)
+		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, DIFFUSE_PRIMARY_RAY, radiance_clip_closest_hit_program));
+	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, DIFFUSE_RAY, radiance_clip_closest_hit_program));
+#endif
+
+	if (!shadow_clip_closest_hit_program)
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_shadow", &shadow_clip_closest_hit_program));
+	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, SHADOW_RAY, shadow_clip_closest_hit_program));
+
+	if (calc_ambient) {
+		if (!point_cloud_clip_closest_hit_program)
+			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_point_cloud", &point_cloud_clip_closest_hit_program));
+		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, POINT_CLOUD_RAY, point_cloud_clip_closest_hit_program));
+	}
+
+	return material;
+}
+#endif
 
 static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, OBJREC* parent)
 {

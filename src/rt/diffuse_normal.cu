@@ -87,6 +87,9 @@ rtDeclareVariable(PerRayData_shadow, prd_shadow, rtPayload, );
 //rtDeclareVariable(float3, texcoord, attribute texcoord, );
 rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );
 rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
+#ifdef ANTIMATTER
+rtDeclareVariable(int, mat_id, attribute mat_id, );
+#endif
 
 
 //RT_METHOD float3 dirnorm(Ray *shadow_ray, PerRayData_shadow *shadow_prd, const NORMDAT *nd, const float& omega);
@@ -120,6 +123,17 @@ RT_PROGRAM void closest_hit_radiance()
 	nd.rspec = spec;
 	nd.alpha2 = rough * rough;
 	nd.specfl = 0u; /* specularity flags */
+
+#ifdef ANTIMATTER
+	if (prd.mask & (1 << mat_id)) {
+		prd.inside += dot(world_geometric_normal, ray.direction) < 0.0f ? 1 : -1;
+
+		/* Continue the ray */
+		Ray new_ray = make_Ray(ray.origin, ray.direction, ray.ray_type, ray_start(nd.hit, ray.direction, nd.normal, RAY_START) + t_hit, RAY_END);
+		rtTrace(top_object, new_ray, prd);
+		return;
+	}
+#endif /* ANTIMATTER */
 
 	/* get roughness */
 	if (nd.alpha2 <= FTINY) {
@@ -268,6 +282,10 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 	new_prd.ambient_depth = prd.ambient_depth + 1;
 	//new_prd.seed = prd.seed;//lcg( prd.seed );
 	new_prd.state = prd.state;
+#ifdef ANTIMATTER
+	new_prd.mask = prd.mask;
+	new_prd.inside = prd.inside;
+#endif
 #ifdef DAYSIM_COMPATIBLE
 	new_prd.dc = daysimNext(dc);
 #endif
@@ -288,7 +306,7 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 		return(0);
 	amb_ray.tmin = ray_start(hit, amb_ray.direction, normal, RAY_START);
 
-	setupPayload(new_prd, 0);
+	setupPayload(new_prd);
 	//Ray amb_ray = make_Ray( hit, rdir, radiance_ray_type, RAY_START, RAY_END );
 	rtTrace(top_object, amb_ray, new_prd);
 	resolvePayload(prd, new_prd);
