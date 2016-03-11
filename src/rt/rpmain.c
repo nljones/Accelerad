@@ -70,7 +70,7 @@ main(int  argc, char  *argv[])
 #define	 check(ol,al)		if (argv[i][ol] || \
 				badarg(argc-i-1,argv+i+1,al)) \
 				goto badopt
-#define	 bool(olen,var)		switch (argv[i][olen]) { \
+#define	 check_bool(olen,var)		switch (argv[i][olen]) { \
 				case '\0': var = !var; break; \
 				case 'y': case 'Y': case 't': case 'T': \
 				case '+': case '1': var = 1; break; \
@@ -225,7 +225,7 @@ main(int  argc, char  *argv[])
 #endif
 		case 'w':				/* warnings */
 			rval = erract[WARNING].pf != NULL;
-			bool(2,rval);
+			check_bool(2,rval);
 			if (rval) erract[WARNING].pf = wputs;
 			else erract[WARNING].pf = NULL;
 			break;
@@ -302,7 +302,7 @@ main(int  argc, char  *argv[])
 #endif
 	if (outfile != NULL)
 		openheader();
-#ifdef	_WIN32
+#if defined(_WIN32) || defined(_WIN64)
 	SET_FILE_BINARY(stdout);
 	if (octname == NULL)
 		SET_FILE_BINARY(stdin);
@@ -399,7 +399,7 @@ badopt:
 	return 1; /* pro forma return */
 
 #undef	check
-#undef	bool
+#undef	check_bool
 }
 
 

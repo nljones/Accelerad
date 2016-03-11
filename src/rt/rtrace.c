@@ -511,12 +511,12 @@ getvec(		/* get a vector from fp */
 		}
 		break;
 	case 'f':					/* binary float */
-		if (fread((char *)vf, sizeof(float), 3, fp) != 3)
+		if (getbinary((char *)vf, sizeof(float), 3, fp) != 3)
 			return(-1);
 		VCOPY(vec, vf);
 		break;
 	case 'd':					/* binary double */
-		if (fread((char *)vd, sizeof(double), 3, fp) != 3)
+		if (getbinary((char *)vd, sizeof(double), 3, fp) != 3)
 			return(-1);
 		VCOPY(vec, vd);
 		break;
@@ -620,7 +620,7 @@ oputv(				/* print value */
 		setcolr(cout,	colval(r->rcol,RED),
 				colval(r->rcol,GRN),
 				colval(r->rcol,BLU));
-		fwrite(cout, sizeof(cout), 1, stdout);
+		putbinary(cout, sizeof(cout), 1, stdout);
 		return;
 	}
 	cval[0] = colval(r->rcol,RED);
@@ -821,9 +821,9 @@ putd(RREAL *v, int n)		/* print binary double(s) */
 		error(INTERNAL, "code error in putd()");
 	for (i = n; i--; )
 		da[i] = v[i];
-	fwrite(da, sizeof(double), n, stdout);
+	putbinary(da, sizeof(double), n, stdout);
 #else
-	fwrite(v, sizeof(RREAL), n, stdout);
+	putbinary(v, sizeof(RREAL), n, stdout);
 #endif
 }
 
@@ -839,9 +839,9 @@ putf(RREAL *v, int n)		/* print binary float(s) */
 		error(INTERNAL, "code error in putf()");
 	for (i = n; i--; )
 		fa[i] = v[i];
-	fwrite(fa, sizeof(float), n, stdout);
+	putbinary(fa, sizeof(float), n, stdout);
 #else
-	fwrite(v, sizeof(RREAL), n, stdout);
+	putbinary(v, sizeof(RREAL), n, stdout);
 #endif
 }
 

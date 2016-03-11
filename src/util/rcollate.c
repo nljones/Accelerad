@@ -11,20 +11,13 @@ static const char RCSid[] = "$Id$";
 #include "platform.h"
 #include "rtio.h"
 #include "resolu.h"
-#ifdef _WIN32
-#undef ftello
-#define	ftello	ftell
-#undef ssize_t
-#define ssize_t	size_t
+#if defined(_WIN32) || defined(_WIN64)
+  #undef ftello
+  #define	ftello	ftell
+  #undef ssize_t
+  #define ssize_t	size_t
 #else
-#include <sys/mman.h>
-#endif
-
-#ifdef getc_unlocked            /* avoid horrendous overhead of flockfile */
-#undef getc
-#undef putc
-#define getc    getc_unlocked
-#define putc    putc_unlocked
+  #include <sys/mman.h>
 #endif
 
 typedef struct {
@@ -99,7 +92,8 @@ load_file(MEMLOAD *mp, FILE *fp)
 	int	fd;
 	off_t	skip, flen;
 
-#ifdef _WIN32				/* too difficult to fix this */
+#if defined(_WIN32) || defined(_WIN64)
+				/* too difficult to fix this */
 	return load_stream(mp, fp);
 #endif
 	if (mp == NULL)

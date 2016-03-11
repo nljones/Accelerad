@@ -44,7 +44,7 @@ double	tthresh;		/* acceptance threshold (TBD) */
 static void
 new_kids(TNODE *pn)
 {
-	pn->kid = (TNODE *)calloc(1<<ttrank, sizeof(TNODE));
+	pn->kid = (TNODE *)calloc((size_t)1<<ttrank, sizeof(TNODE));
 	if (pn->kid == NULL)
 		error(SYSTEM, "out of memory in new_kids");
 }
@@ -276,7 +276,7 @@ load_data(void)
 		error(COMMAND, "unsupported input format");
 		break;
 	}
-	datarr = (float *)calloc(1<<(log2g*ttrank), sizeof(float));
+	datarr = (float *)calloc((size_t)1<<(log2g*ttrank), sizeof(float));
 	if (datarr == NULL)
 		error(SYSTEM, "out of memory in load_data");
 	if (ttrank == 3) {

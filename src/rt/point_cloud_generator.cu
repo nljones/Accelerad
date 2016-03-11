@@ -97,6 +97,7 @@ RT_PROGRAM void point_cloud_camera()
 				goto clearout;
 			z = cosf( M_PIf * dd );
 			d *= sqrtf( 1.0f - z*z ) / dd;
+			d *= dd < FTINY ? M_PIf : sqrtf(1.0f - z*z) / dd;
 		} else if ( camera == VT_PLS ) { /* planispheric fisheye */
 			d *= make_float2(length(U), length(V));
 			float dd = dot( d, d );

@@ -198,9 +198,7 @@ setambient(void)				/* initialize calculation */
 					(flen - lastpos)/AMBVALSIZ);
 			error(WARNING, errmsg);
 			fseek(ambfp, lastpos, SEEK_SET);
-#ifndef _WIN32 /* XXX we need a replacement for that one */
 			ftruncate(fileno(ambfp), (off_t)lastpos);
-#endif
 		}
 	} else if ((ambfp = fopen(ambfile, "w+")) != NULL) {
 		initambfile(1);			/* else create new file */
@@ -230,7 +228,7 @@ ambdone(void)			/* close ambient file and free memory */
 		lastpos = -1;
 	}
 					/* free ambient tree */
-	unloadatree(&atrunk, &avfree);
+	unloadatree(&atrunk, avfree);
 					/* reset state variables */
 	avsum = 0.;
 	navsum = 0;
@@ -1421,7 +1419,7 @@ sortambvals(			/* resort ambient values */
 			oldatrunk = atrunk;
 			atrunk.alist = NULL;
 			atrunk.kid = NULL;
-			unloadatree(&oldatrunk, &avinsert);
+			unloadatree(&oldatrunk, avinsert);
 		}
 	} else {			/* sort memory by last access time */
 		/*
@@ -1438,7 +1436,7 @@ sortambvals(			/* resort ambient values */
 		eputs(errmsg);
 #endif
 		i_avlist = 0;
-		unloadatree(&atrunk, &av2list);	/* empty current tree */
+		unloadatree(&atrunk, av2list);	/* empty current tree */
 #ifdef DEBUG
 		if (i_avlist < nambvals)
 			error(CONSISTENCY, "missing ambient values in sortambvals");

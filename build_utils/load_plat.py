@@ -1,6 +1,9 @@
+from __future__ import print_function
 
 import os
 import sys
+import re
+import platform
 import ConfigParser
 
 
@@ -8,7 +11,13 @@ _platdir = 'platform'
 
 
 def read_plat(env, args, fn):
-	cfig = ConfigParser.ConfigParser(env.Dictionary())
+	envdict = env.Dictionary().copy()
+	# can't feed ConfigParser the original dict, because it also
+	# contains non-string values.
+	for k,v in envdict.items():
+		if not isinstance(v, str):
+			del envdict[k]
+	cfig = ConfigParser.ConfigParser(envdict)
 	cfig.read(fn)
 	buildvars = [['CC',
 			'TIFFINCLUDE', # where to find preinstalled tifflib headers
@@ -36,18 +45,27 @@ def read_plat(env, args, fn):
 			'RAD_PCALLS',     # more custom process abstraction
 			]],
 	]
-	if args.get('RAD_DEBUG',0):
+	if env.get('RAD_DEBUG',0) not in(0,'0','','n','no','false',None):
 		vars.insert(0, ['debug'] + buildvars)
-	else: vars.insert(0, ['build'] + buildvars)
+		print('Processing DEBUG version')
+	else:
+		vars.insert(0, ['build'] + buildvars)
+		print('Processing RELEASE version')
 	for section in vars:
 		if cfig.has_section(section[0]):
 			for p in section[1]: # single items to replace
 				try: v = cfig.get(section[0], p)
 				except ConfigParser.NoOptionError: continue
+				if section[0] in ('install','build','debug') and '{' in v:
+					v = subst_osenvvars(v)
 				env[p] = v
-				#print '%s: %s' % (p, env[p])
+				#print('%s: %s' % (p, env[p]))
 			for p in section[2]: # multiple items to append
-				try: v = cfig.get(section[0], p)
+				try:
+					v = cfig.get(section[0], p)
+					if section[0] in ('build','debug') and '{' in v:
+						v = subst_sconsvars(v, env)
+					#print('%s: %s - %s' % (section[0], p, v))
 				except ConfigParser.NoOptionError: continue
 				apply(env.Append,[],{p:env.Split(v)})
 	# XXX Check that basedir exists.
@@ -56,36 +74,57 @@ def read_plat(env, args, fn):
 				and not os.path.isabs(env[k])):
 			env[k] = os.path.join(env['RAD_BASEDIR'],env[k])
 
+def subst_osenvvars(s):
+	try: return s.format(**os.environ)
+	except KeyError: return s
 
-def load_plat(env, args, platform=None):
-	if platform == None: # override
-		p = sys.platform
-	else: p = platform
-	if p == 'win32' and 'gcc' in env['TOOLS']:
-		# we don't really want to know this here...
-		p = 'mingw'
-	pl = []
-	print 'Detected platform "%s" (%s).' % (sys.platform, os.name)
-	for i in [len(p), -1, -2]:
-		pfn = os.path.join(_platdir, p[:i] + '_custom.cfg')
-		if os.path.isfile(pfn):
-			print 'Reading configuration "%s"' % pfn
-			read_plat(env, args, pfn)
-			return 1
-		pfn = os.path.join(_platdir, p[:i] + '.cfg')
-		if os.path.isfile(pfn):
-			print 'Reading configuration "%s"' % pfn
-			read_plat(env, args, pfn)
-			return 1
-		
+def subst_sconsvars(s, env,
+		pat=re.compile('({[a-z0-9_]+})', re.I)):
+	l = pat.split(s)
+	nl = []
+	for ss in l:
+		if ss.startswith('{') and ss.endswith('}'):
+			v = env.get(ss[1:-1])
+			#print(ss, v)
+			if v:
+				if v.startswith('#'):
+					v = str(env.Dir(v))
+				nl.append(v)
+				continue
+		nl.append(ss)
+	return ''.join(nl)
+
+def load_plat(env, args, arch=None):
+	memmodel, binformat = platform.architecture()
+	platsys = platform.system()
+	print('Detected platform "%s" (%s).' % (platsys, memmodel))
+	cfgname = platsys + '_' + memmodel[:2]
+
+	env['RAD_BUILDBIN'] = os.path.join('#scbuild', cfgname, 'bin')
+	env['RAD_BUILDLIB']  = os.path.join('#scbuild', cfgname, 'lib')
+	env['RAD_BUILDOBJ']  = os.path.join('#scbuild', cfgname, 'obj')
+
+	cust_pfn = os.path.join(_platdir, cfgname + '_custom.cfg')
+	if os.path.isfile(cust_pfn):
+		print('Reading configuration "%s"' % cust_pfn)
+		read_plat(env, args, cust_pfn)
+		return 1
+	pfn = os.path.join(_platdir, cfgname + '.cfg')
+	if os.path.isfile(pfn):
+		print('Reading configuration "%s"' % pfn)
+		read_plat(env, args, pfn)
+		return 1
+
 	if os.name == 'posix':
 		pfn = os.path.join(_platdir, 'posix.cfg')
 		if os.path.isfile(pfn):
-			print 'Reading generic configuration "%s".' % pfn
+			print('No platform specific configuration found.\n')
+			print('Reading generic configuration "%s".' % pfn)
 			read_plat(env, args, pfn)
 			return 1
 
-	print 'Platform "%s/%s" not supported yet' % (os.name, sys.platform)
+	print('Platform "%s", system "%s" not supported yet'
+			% (os.name, sys.platform))
 	sys.exit(2)
 
 	

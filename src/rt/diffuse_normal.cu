@@ -79,7 +79,6 @@ rtDeclareVariable(unsigned int, ambincl, , ) = 1u;	/* Flag to skip ambient calcu
 rtDeclareVariable(Ray, ray, rtCurrentRay, );
 rtDeclareVariable(float, t_hit, rtIntersectionDistance, );
 rtDeclareVariable(PerRayData_radiance, prd, rtPayload, );
-rtDeclareVariable(PerRayData_shadow, prd_shadow, rtPayload, );
 
 /* Attributes */
 //rtDeclareVariable(float3, texcoord, attribute texcoord, );

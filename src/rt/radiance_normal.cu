@@ -153,14 +153,93 @@ RT_METHOD float3 barycentric( float2& lambda, const float3& r0, const float3& r1
 //RT_METHOD int ilhash(int3 d);
 
 
-#ifndef LIGHTS
-RT_PROGRAM void any_hit_shadow()
+RT_PROGRAM void closest_hit_shadow()
 {
-	// this material is opaque, so it fully attenuates all shadow rays
-	prd_shadow.result = make_float3(0.0f);
-	rtTerminateRay();
-}
+	NORMDAT nd;
+
+	float3 world_shading_normal = normalize(rtTransformNormal(RT_OBJECT_TO_WORLD, shading_normal));
+	float3 world_geometric_normal = normalize(rtTransformNormal(RT_OBJECT_TO_WORLD, geometric_normal));
+
+	/* check for back side */
+	nd.pnorm = faceforward(world_shading_normal, -ray.direction, world_geometric_normal);
+	nd.normal = faceforward(world_geometric_normal, -ray.direction, world_geometric_normal);
+
+	nd.hit = ray.origin + t_hit * ray.direction;
+	nd.mcolor = color;
+	nd.rspec = spec;
+	nd.alpha2 = rough * rough;
+	nd.specfl = 0u; /* specularity flags */
+
+#ifdef ANTIMATTER
+	if (prd_shadow.mask & (1 << mat_id)) {
+		prd_shadow.inside += dot(world_geometric_normal, ray.direction) < 0.0f ? 1 : -1;
+
+		/* Continue the ray */
+		Ray new_ray = make_Ray(ray.origin, ray.direction, ray.ray_type, ray_start(nd.hit, ray.direction, nd.normal, RAY_START) + t_hit, RAY_END);
+		rtTrace(top_object, new_ray, prd_shadow);
+		return;
+	}
+#endif /* ANTIMATTER */
+
+#ifdef TRANSMISSION
+	if (transm > 0.0f) { // type == MAT_TRANS
+		/* get roughness */
+		if (nd.alpha2 <= FTINY) {
+			nd.specfl |= SP_PURE; // label this as a purely specular reflection
+		}
+
+		/* perturb normal */
+		float3 pert = nd.normal - nd.pnorm;
+		int hastexture = dot(pert, pert) > FTINY * FTINY;
+		nd.pdot = -dot(ray.direction, nd.pnorm);
+		if (nd.pdot < 0.0f) {		/* fix orientation from raynormal in raytrace.c */
+			nd.pnorm += 2.0f * nd.pdot * ray.direction;
+			nd.pdot = -nd.pdot;
+		}
+		if (nd.pdot < 0.001f)
+			nd.pdot = 0.001f;			/* non-zero for dirnorm() */
+
+		// if it's a face or a ring label as flat (currently we only support triangles, so everything is flat)
+		nd.specfl |= SP_FLAT;
+
+		/* modify material color */
+		//nd.mcolor *= rtTex3D(rtTextureId id, texcoord.x, texcoord.y, texcoord.z).xyz;
+
+		/* compute Fresnel approx. */
+		float fest = 0.0f;
+		if (nd.specfl & SP_PURE && nd.rspec >= FRESTHRESH) {
+			fest = FRESNE(nd.pdot);
+			nd.rspec += fest * (1.0f - nd.rspec);
+		}
+
+		/* compute transmission */
+		nd.prdir = ray.direction;
+		nd.trans = transm * (1.0f - nd.rspec);
+		nd.tspec = nd.trans * tspecu;
+		if (nd.tspec > FTINY) {
+			nd.specfl |= SP_TRAN;
+
+			/* check threshold */
+			if (!(nd.specfl & SP_PURE) && specthresh >= nd.tspec - FTINY)
+				nd.specfl |= SP_TBLT;
+			if (!prd.ambient_depth && hastexture) {
+				if (dot(nd.prdir - pert, nd.normal) < -FTINY)
+					nd.prdir = normalize(nd.prdir - pert);	/* OK */
+			}
+		}
+	}
+
+	/* transmitted ray */
+	if ((nd.specfl&(SP_TRAN | SP_PURE | SP_TBLT)) == (SP_TRAN | SP_PURE)) {
+		Ray trans_ray = make_Ray(nd.hit, nd.prdir, ray.ray_type, ray_start(nd.hit, nd.prdir, nd.normal, RAY_START), RAY_END);
+		rtTrace(top_object, trans_ray, prd_shadow);
+		prd_shadow.result *= nd.mcolor * nd.tspec;
+#ifdef DAYSIM_COMPATIBLE
+		daysimScale(prd_shadow.dc, nd.mcolor.x * nd.tspec);
 #endif
+	}
+#endif /* TRANSMISSION */
+}
 
 
 RT_PROGRAM void closest_hit_radiance()

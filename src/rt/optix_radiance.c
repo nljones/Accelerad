@@ -127,12 +127,9 @@ static IntArray*   functions;		/* One entry per callable program */
 static unsigned int vertex_index_0;
 
 /* Handles to intersection program objects used by multiple materials */
-static RTprogram radiance_normal_closest_hit_program, ambient_normal_closest_hit_program, point_cloud_normal_closest_hit_program;
+static RTprogram radiance_normal_closest_hit_program, shadow_normal_closest_hit_program, ambient_normal_closest_hit_program, point_cloud_normal_closest_hit_program;
 #ifdef ACCELERAD_RT
 static RTprogram diffuse_normal_closest_hit_program;
-#endif
-#ifndef LIGHTS
-static RTprogram shadow_normal_any_hit_program;
 #endif
 static RTprogram radiance_glass_closest_hit_program, shadow_glass_closest_hit_program, ambient_glass_any_hit_program, point_cloud_glass_any_hit_program;
 static RTprogram radiance_light_closest_hit_program, shadow_light_closest_hit_program, point_cloud_light_closest_hit_program;
@@ -1408,8 +1405,10 @@ static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec)
 	}
 
 	/* Create our hit programs to be shared among all normal materials */
-	if (!radiance_normal_closest_hit_program) {
+	if (!radiance_normal_closest_hit_program || !shadow_normal_closest_hit_program)
 		ptxFile(path_to_ptx, "radiance_normal");
+
+	if (!radiance_normal_closest_hit_program) {
 		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_radiance", &radiance_normal_closest_hit_program));
 		applyProgramVariable1ui( context, radiance_normal_closest_hit_program, "metal", MAT_METAL );
 	}
@@ -1417,11 +1416,9 @@ static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec)
 		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, PRIMARY_RAY, radiance_normal_closest_hit_program));
 	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, RADIANCE_RAY, radiance_normal_closest_hit_program));
 
-#ifndef LIGHTS
-	if (!shadow_normal_any_hit_program)
-		RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "any_hit_shadow", &shadow_normal_any_hit_program ) );
-	RT_CHECK_ERROR(rtMaterialSetAnyHitProgram(material, SHADOW_RAY, shadow_normal_any_hit_program)); // Cannot use any hit program because closest might be light source
-#endif
+	if (!shadow_normal_closest_hit_program)
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_shadow", &shadow_normal_closest_hit_program));
+	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, SHADOW_RAY, shadow_normal_closest_hit_program));
 
 #ifdef ACCELERAD_RT
 	if (!diffuse_normal_closest_hit_program) {

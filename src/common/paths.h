@@ -12,13 +12,18 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
   #include <io.h>
   #include <direct.h> /* getcwd(), chdir(), _mkdir(), etc. */
+  #define getcwd _getcwd
+  #define chdir _chdir
 
   #define access		_access
   #define mkdir(dirname,perms)	_mkdir(dirname)
-  #ifdef _MSC_VER
+  /* The windows _popen with the native shell breaks '\\\n' escapes.
+   * RT_WINPROC (used by SCons) enables our replacement functions to fix that.
+   * XXX This should really not depend on the compiler used! */
+  #if defined(_MSC_VER) && !defined(RT_WINPROC)
     #define popen(cmd,mode)	_popen(cmd,mode)
     #define pclose(p)		_pclose(p)
   #else
@@ -125,7 +130,7 @@
 extern "C" {
 #endif
 
-#if _WIN32
+#if defined(_WIN32) || defined(_WIN64)
   extern FILE *win_popen(char *command, char *type);
   extern int win_pclose(FILE *p);
   extern char  *fixargv0();
