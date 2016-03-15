@@ -8,7 +8,7 @@
 
 using namespace optix;
 
-/* Program variables */
+/* Contex variables */
 rtDeclareVariable(unsigned int,  frame, , ); /* Current frame number, starting from zero */
 rtDeclareVariable(unsigned int,  camera, , ); /* Camera type (-vt) */
 rtDeclareVariable(float3,        eye, , ); /* Eye position (-vp) */
@@ -24,7 +24,6 @@ rtDeclareVariable(float,         mblur, , ); /* Motion blur (-pm) */
 rtDeclareVariable(float,         dblur, , ); /* Depth-of-field blur (-pd) */
 rtDeclareVariable(unsigned int,  do_irrad, , ); /* Calculate irradiance (-i) */
 
-/* Contex variables */
 rtBuffer<float4, 2>              output_buffer;
 #ifdef RAY_COUNT
 rtBuffer<unsigned int, 2>        ray_count_buffer;
@@ -51,6 +50,18 @@ RT_PROGRAM void ray_generator()
 	output_buffer[launch_index] = make_float4( t0 );
 #endif
 	PerRayData_radiance prd;
+	prd.result = make_float3(0.0f);
+	prd.weight = 1.0f;
+	prd.distance = 0.0f;
+	prd.depth = 0;
+	prd.ambient_depth = 0;
+	//prd.seed = rnd_seeds[launch_index];
+#ifdef ANTIMATTER
+	prd.mask = 0u;
+	prd.inside = 0;
+#endif
+	setupPayload(prd);
+
 	init_rand(&prd.state, launch_index.x + launch_dim.x * launch_index.y);
 
 	float2 d = make_float2( curand_uniform( prd.state ), curand_uniform( prd.state ) );
@@ -65,10 +76,8 @@ RT_PROGRAM void ray_generator()
 		d = make_float2( 0.0f );
 	} else if ( camera == VT_HEM ) { /* hemispherical fisheye */
 		z = 1.0f - d.x*d.x * dot( U, U ) - d.y*d.y * dot( V, V );
-		if (z < 0.0f) {
-			output_buffer[launch_index] = make_float4( 0.0f );//TODO throw an exception?
-			return;
-		}
+		if (z < 0.0f)
+			goto done;
 		z = sqrtf(z);
 	} else if ( camera == VT_CYL ) { /* cylindrical panorama */
 		float dd = d.x * fov.x * ( M_PIf / 180.0f );
@@ -77,10 +86,8 @@ RT_PROGRAM void ray_generator()
 	} else if ( camera == VT_ANG ) { /* angular fisheye */
 		d *= fov / 180.0f;
 		float dd = length(d);
-		if (dd > 1.0f) {
-			output_buffer[launch_index] = make_float4( 0.0f );//TODO throw an exception?
-			return;
-		}
+		if (dd > 1.0f)
+			goto done;
 		z = cosf( M_PIf * dd );
 		d *= dd < FTINY ? M_PIf : sqrtf(1.0f - z*z) / dd;
 	} else if ( camera == VT_PLS ) { /* planispheric fisheye */
@@ -90,78 +97,71 @@ RT_PROGRAM void ray_generator()
 		d *= 1.0f + z;
 	}
 
-	float3 ray_direction = d.x*U + d.y*V + z*W;
-	ray_origin += clip.x * ray_direction;
-	ray_direction = normalize(ray_direction);
+	do { // do-while for variable scoping
+		float3 ray_direction = d.x*U + d.y*V + z*W;
+		ray_origin += clip.x * ray_direction;
+		ray_direction = normalize(ray_direction);
 
-	// Zero or negative aft clipping distance indicates infinity
-	float aft = clip.y - clip.x;
-	if (aft <= FTINY) {
-		aft = RAY_END;
-	}
-	float distance = vdist;
+		// Zero or negative aft clipping distance indicates infinity
+		float aft = clip.y - clip.x;
+		if (aft <= FTINY) {
+			aft = RAY_END;
+		}
+		float distance = vdist;
 
-	/* optional motion blur */
-	if (mblur > FTINY) {
-		RayParams next;
-		next.aft = aft;
-		next.origin = ray_origin;
-		next.direction = ray_direction;
-		next.distance = distance;
+		/* optional motion blur */
+		if (mblur > FTINY) {
+			RayParams next;
+			next.aft = aft;
+			next.origin = ray_origin;
+			next.direction = ray_direction;
+			next.distance = distance;
 
-		if (frame) {
-			RayParams prev = last_view_buffer[launch_index];
-			z = mblur * (0.5f - curand_uniform(prd.state));
+			if (frame) {
+				RayParams prev = last_view_buffer[launch_index];
+				z = mblur * (0.5f - curand_uniform(prd.state));
 
-			aft = lerp(aft, prev.aft, z);
-			ray_origin = lerp(ray_origin, prev.origin, z);
-			ray_direction = normalize(lerp(ray_direction, prev.direction, z));
-			distance = lerp(distance, prev.distance, z);
+				aft = lerp(aft, prev.aft, z);
+				ray_origin = lerp(ray_origin, prev.origin, z);
+				ray_direction = normalize(lerp(ray_direction, prev.direction, z));
+				distance = lerp(distance, prev.distance, z);
+			}
+
+			last_view_buffer[launch_index] = next;
 		}
 
-		last_view_buffer[launch_index] = next;
-	}
+		/* optional depth-of-field */
+		if (dblur > FTINY) {
+			float adj = 1.0f;
+			z = 0.0f;
 
-	/* optional depth-of-field */
-	if (dblur > FTINY) {
-		float adj = 1.0f;
-		z = 0.0f;
-
-		/* random point on disk */
-		SDsquare2disk(d, curand_uniform(prd.state), curand_uniform(prd.state));
-		d *= 0.5f * dblur;
-		if ((camera == VT_PER) | (camera == VT_PAR)) {
-			if (camera == VT_PER)
-				adj /= dot(ray_direction, W);
+			/* random point on disk */
+			SDsquare2disk(d, curand_uniform(prd.state), curand_uniform(prd.state));
+			d *= 0.5f * dblur;
+			if ((camera == VT_PER) | (camera == VT_PAR)) {
+				if (camera == VT_PER)
+					adj /= dot(ray_direction, W);
+			}
+			else {			/* non-standard view case */
+				z = M_PI_4f * dblur * (0.5f - curand_uniform(prd.state));
+			}
+			if ((camera != VT_ANG) & (camera != VT_PLS)) {
+				if (camera != VT_CYL)
+					d.x /= length(U);
+				d.y /= length(V);
+			}
+			ray_origin += d.x * U + d.y * V + z * W;
+			ray_direction = normalize(eye + adj * distance * ray_direction - ray_origin);
 		}
-		else {			/* non-standard view case */
-			z = M_PI_4f * dblur * (0.5f - curand_uniform(prd.state));
-		}
-		if ((camera != VT_ANG) & (camera != VT_PLS)) {
-			if (camera != VT_CYL)
-				d.x /= length(U);
-			d.y /= length(V);
-		}
-		ray_origin += d.x * U + d.y * V + z * W;
-		ray_direction = normalize(eye + adj * distance * ray_direction - ray_origin);
-	}
 
-	Ray ray = make_Ray(ray_origin, ray_direction, do_irrad ? radiance_primary_ray_type : radiance_ray_type, 0.0f, aft);
+		Ray ray = make_Ray(ray_origin, ray_direction, do_irrad ? radiance_primary_ray_type : radiance_ray_type, 0.0f, aft);
 
-	prd.weight = 1.0f;
-	prd.depth = 0;
-	prd.ambient_depth = 0;
-	//prd.seed = rnd_seeds[launch_index];
-#ifdef ANTIMATTER
-	prd.mask = 0u;
-	prd.inside = 0;
-#endif
-	setupPayload(prd);
+		rtTrace(top_object, ray, prd);
 
-	rtTrace(top_object, ray, prd);
+		checkFinite(prd.result);
+	} while (0);
 
-	checkFinite(prd.result);
-
+done:
 #ifdef TIME_VIEW
 	clock_t t1 = clock();
  

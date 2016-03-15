@@ -8,7 +8,7 @@
 
 using namespace optix;
 
-/* Program variables */
+/* Contex variables */
 rtDeclareVariable(unsigned int,  camera, , ); /* Camera type (-vt) */
 rtDeclareVariable(float3,        eye, , ); /* Eye position (-vp) */
 rtDeclareVariable(float3,        U, , ); /* view.hvec */
@@ -19,7 +19,6 @@ rtDeclareVariable(float2,        shift, , ); /* Camera shift (-vs, -vl) */
 rtDeclareVariable(float2,        clip, , ); /* Fore and aft clipping planes (-vo, -va) */
 rtDeclareVariable(float,         dstrpix, , ); /* Pixel sample jitter (-pj) */
 
-/* Contex variables */
 rtBuffer<PointDirection, 3>      seed_buffer;
 rtDeclareVariable(rtObject,      top_object, , );
 rtDeclareVariable(unsigned int,  point_cloud_ray_type, , );
@@ -96,7 +95,6 @@ RT_PROGRAM void point_cloud_camera()
 			if (dd > 1.0f)
 				goto clearout;
 			z = cosf( M_PIf * dd );
-			d *= sqrtf( 1.0f - z*z ) / dd;
 			d *= dd < FTINY ? M_PIf : sqrtf(1.0f - z*z) / dd;
 		} else if ( camera == VT_PLS ) { /* planispheric fisheye */
 			d *= make_float2(length(U), length(V));

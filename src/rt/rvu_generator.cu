@@ -11,7 +11,7 @@
 
 using namespace optix;
 
-/* Program variables */
+/* Contex variables */
 rtDeclareVariable(unsigned int, frame, , ); /* Current frame number, starting from zero */
 rtDeclareVariable(unsigned int, camera, , ); /* Camera type (-vt) */
 rtDeclareVariable(float3, eye, , ); /* Eye position (-vp) */
@@ -39,7 +39,6 @@ rtDeclareVariable(float, fc_scale, , ) = 1000.0f; /* Maximum of scale for falsec
 rtDeclareVariable(int, fc_log, , ) = 0; /* Number of decades for log scale, zero for standard scale (-log) */
 rtDeclareVariable(float, fc_mask, , ) = 0.0f; /* Minimum value to display in falsecolor images (-m) */
 
-/* Contex variables */
 rtBuffer<unsigned int, 2>        color_buffer; /* Output RGBA colors */
 rtBuffer<Metrics, 2>             metrics_buffer; /* Output metrics */
 rtBuffer<float3, 2>              direct_buffer; /* GPU storage for direct component */

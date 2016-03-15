@@ -16,7 +16,6 @@ rtDeclareVariable(unsigned int, monochrome, , ) = 0u; /* output brightness only 
 rtDeclareVariable(float, turbidity, , ); /* turbidity */
 rtDeclareVariable(float3, sun, , ); /* sun direction */
 rtDeclareVariable(Transform, transform, , ); /* transformation matrix */
-rtDeclareVariable(Transform, xyz2rgb, , ); /* CIE M^-1 matrix */
 
 
 RT_METHOD float perez(const float& theta, const float& gamma, const float& a, const float& b, const float& c, const float& d, const float& e)
