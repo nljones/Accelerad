@@ -299,12 +299,35 @@ void MainWindow::buttonPressed()
     }
 }
 
+#ifdef ACCELERAD_RT
+int getPaddedWidth(const QWidget *widget)
+{
+	return widget->size().width() + widget->contentsMargins().left() + widget->contentsMargins().right();
+}
+
+int getPaddedHeight(const QWidget *widget)
+{
+	return widget->size().height() + widget->contentsMargins().top() + widget->contentsMargins().bottom();
+}
+#endif
+
 void MainWindow::resizeImage(int width, int height)
 {
+#ifdef ACCELERAD_RT
+	int padW = m_ui->centralwidget->contentsMargins().left() + m_ui->centralwidget->contentsMargins().right() + m_ui->centralwidget->layout()->margin() * 2;
+	padW += getPaddedWidth(m_ui->xWidget) + m_ui->centralwidget->layout()->spacing();
+	int padH = m_ui->centralwidget->contentsMargins().top() + m_ui->centralwidget->contentsMargins().bottom() + m_ui->centralwidget->layout()->margin();
+	padH += getPaddedHeight(m_ui->menubar);
+	padH += getPaddedHeight(m_ui->toolBar);
+	padH += getPaddedHeight(m_ui->lineEdit) + m_ui->centralwidget->layout()->spacing();
+	padH += getPaddedHeight(m_ui->messageBox) + m_ui->centralwidget->layout()->spacing();
+	this->resize(width + padW, height + padH);
+#else
   int pad = m_ui->lineEdit->size().height();
   pad += m_ui->menubar->size().height();
   pad += m_ui->messageBox->size().height();
   this->resize(width+4, height+pad+4);
+#endif
   this->m_ui->rvuWidget->resizeImage(width, height);
 }
 
