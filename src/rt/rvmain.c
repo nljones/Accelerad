@@ -251,8 +251,18 @@ main(int argc, char *argv[])
 		}
 	}
 #ifdef ACCELERAD_RT
-	if (use_optix && nproc > 1) /* Don't allow multiple processes to access the graphics card. */
-		error(USER, "multiprocessing incompatible with GPU implementation");
+	if (use_optix) {
+		if (nproc > 1) /* Don't allow multiple processes to access the graphics card. */
+			error(USER, "multiprocessing incompatible with GPU implementation");
+		if (ambacc > FTINY) {
+			ambacc = 0.0;
+			error(WARNING, "ambient accuracy set to zero for progressive path tracing");
+		}
+		if (ambdiv > 1 || optix_amb_fill > 1) {
+			ambdiv = optix_amb_fill = 1;
+			error(WARNING, "ambient divisions set to one for progressive path tracing");
+		}
+	}
 #endif
 	err = setview(&ourview);	/* set viewing parameters */
 	if (err != NULL)

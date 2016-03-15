@@ -11,7 +11,6 @@ using namespace optix;
 
 #define  AMBIENT
 #define  TRANSMISSION
-//#define  ITERATIVE
 
 #ifndef  MAXITER
 #define  MAXITER	10		/* maximum # specular ray attempts */
@@ -82,6 +81,8 @@ rtDeclareVariable(unsigned int, navsum, , );	/* number of values in avsum */
 
 rtDeclareVariable(float,        minweight, , );	/* minimum ray weight (lw) */
 rtDeclareVariable(int,          maxdepth, , );	/* maximum recursion depth (lr) */
+
+rtDeclareVariable(float,        exposure, , ) = 0.0f; /* Current exposure (-pe), zero unless called from rvu */
 
 rtBuffer<DistantLight> lights;
 
@@ -814,6 +815,9 @@ RT_METHOD float3 gaussamp(const NORMDAT *nd)
 // Compute the ambient component and multiply by the coefficient.
 RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pnormal, const float3& hit)
 {
+	if (exposure && !prd.ambient_depth) // TODO exposure is hack to check if we are running rvu
+		return make_float3(0.0f);
+
 	int do_ambient = 1;
 	float 	d;
 
@@ -826,10 +830,6 @@ RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pn
 	if (!ambincl)
 		goto dumbamb;
 
-#ifdef ITERATIVE
-	if (!prd.ambient_depth)
-		return make_float3(0.0f);
-#else /* ITERATIVE */
 	if (ambacc > FTINY && navsum != 0) {			/* ambient storage */
 		//if (tracktime)				/* sort to minimize thrashing */
 		//	sortambvals(0);
@@ -875,7 +875,6 @@ RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pn
 
 		do_ambient = !prd.ambient_depth && ambdiv_final;
 	}
-#endif /* ITERATIVE */
 	if (do_ambient) {			/* no ambient storage */
 		/* Option to show error if nothing found */
 		if (ambdiv_final < 0)
@@ -932,14 +931,10 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 					/* set number of divisions */
 	if (ambacc <= FTINY && wt > (d = 0.8f * fmaxf(*rcol) * wt / (ambdiv_final * minweight)))
 		wt = d;			/* avoid ray termination */
-#ifdef ITERATIVE
-	int i, n = 1;
-#else /* ITERATIVE */
 	int n = sqrtf(ambdiv_final * wt) + 0.5f;
 	int i = 1 + 8 * (ambacc > FTINY);	/* minimum number of samples */
 	if (n < i)
 		n = i;
-#endif /* ITERATIVE */
 	const int nn = n * n;
 	float3 acol = make_float3( 0.0f );
 	unsigned int sampOK = 0u;
@@ -977,11 +972,9 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 	    for (int j = n; j--; ) {
 			//hp.sampOK += ambsample( &hp, i, j, normal, hit );
 			/* ambsample in ambcomp.c */
-#ifdef ITERATIVE
-			float2 spt = 0.01f + 0.98f * make_float2(curand_uniform(prd.state), curand_uniform(prd.state));
-#else /* ITERATIVE */
-			float2 spt = 0.1f + 0.8f * make_float2( curand_uniform( prd.state ), curand_uniform( prd.state ) );
-#endif /* ITERATIVE */
+			float2 spt = make_float2(curand_uniform(prd.state), curand_uniform(prd.state));
+			if (n > 1) /* avoid coincident samples */
+				spt = 0.1f + 0.8f * spt;
 			SDsquare2disk( spt, (j+spt.y) / n, (i+spt.x) / n );
 			float zd = sqrtf( 1.0f - dot( spt, spt ) );
 			amb_ray.direction = normalize( spt.x*ux + spt.y*uy + zd*pnormal );

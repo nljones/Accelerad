@@ -289,7 +289,7 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 	float3 uy = cross(pnormal, ux);
 
 	/* ambsample in ambcomp.c */
-	float2 spt = 0.01f + 0.98f * make_float2(curand_uniform(prd.state), curand_uniform(prd.state));
+	float2 spt = make_float2(curand_uniform(prd.state), curand_uniform(prd.state));
 	SDsquare2disk(spt, spt.y, spt.x);
 	float zd = sqrtf(1.0f - dot(spt, spt));
 	amb_ray.direction = normalize(spt.x*ux + spt.y*uy + zd*pnormal);
