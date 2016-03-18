@@ -642,7 +642,7 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 	for (level = 0u; level < max_level; level++) {
 #ifdef AMBIENT_CELL
 		radius = ambientRadius(ambientWeightAdjusted(level)) * ambacc * cuda_kmeans_iterations; // TODO new variable
-		vprintf("Size of cell: %g\nNumber of cells: %u\n", radius, (unsigned int)(thescene.cusize / radius));
+		vprintf("Size of cell: %g\nNumber of cells: %u\n", radius, (unsigned int)ceil(thescene.cusize / radius));
 
 		RT_CHECK_ERROR(rtVariableSet1f(cell_size_var, (float)radius));
 		cluster_counts[level] = chooseAmbientLocations(context, level, grid_width, grid_height, 2u, level ? cluster_counts[level - 1] : 0, seed_buffer, cluster_buffer[level]);
@@ -672,11 +672,16 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 #ifdef AMBIENT_CELL
 		updateAmbientDynamicStorage(context, cluster_counts[level], level);
 		RT_CHECK_ERROR(rtBufferSetSize1D(ambient_record_buffer, cluster_counts[level]));
+#ifdef DAYSIM
+		RT_CHECK_ERROR(rtBufferSetSize2D(ambient_dc_buffer, daysimGetCoefficients(), daysimGetCoefficients() ? cluster_counts[level] : 0));
+		calcAmbientValues(context, level, max_level, cluster_counts[level], alarm, ambient_record_buffer, ambient_dc_buffer, segment_var);
+#else
 		calcAmbientValues(context, level, max_level, cluster_counts[level], alarm, ambient_record_buffer);
+#endif
 
 		/* Second Round */
 		radius = ambientRadius(ambientWeightAdjusted(level)) * ambacc * cuda_kmeans_iterations; // TODO new variable
-		vprintf("Size of cell: %g\nNumber of cells: %u\n", radius, (unsigned int)(thescene.cusize / radius));
+		vprintf("Size of cell: %g\nNumber of cells: %u\n", radius, (unsigned int)ceil(thescene.cusize / radius));
 
 		if (level)
 			RT_CHECK_ERROR(rtVariableSetObject(current_cluster_buffer, cluster_buffer[level - 1]));
@@ -690,7 +695,12 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 		if (cluster_counts[level]) {
 			updateAmbientDynamicStorage(context, cluster_counts[level], level);
 			RT_CHECK_ERROR(rtBufferSetSize1D(ambient_record_buffer, cluster_counts[level]));
+#ifdef DAYSIM
+			RT_CHECK_ERROR(rtBufferSetSize2D(ambient_dc_buffer, daysimGetCoefficients(), daysimGetCoefficients() ? cluster_counts[level] : 0));
+			calcAmbientValues(context, level, max_level, cluster_counts[level], alarm, ambient_record_buffer, ambient_dc_buffer, segment_var);
+#else
 			calcAmbientValues(context, level, max_level, cluster_counts[level], alarm, ambient_record_buffer);
+#endif
 		}
 #else /* AMBIENT_CELL */
 #ifdef DAYSIM
@@ -1115,20 +1125,24 @@ static void calcAmbientValues(const RTcontext context, const unsigned int level,
 #ifdef DAYSIM
 	/* Determine how large the scratch space can be */
 	unsigned int kmeans_clusters_per_segment = cluster_count;
-	size_t bytes_per_kmeans_cluster = sizeof(float) * daysimGetCoefficients() * maxdepth * 2 * divisions * divisions;
+	const size_t bytes_per_kmeans_cluster = sizeof(float) * daysimGetCoefficients() * maxdepth * 2 * divisions * divisions;
 	while (bytes_per_kmeans_cluster * kmeans_clusters_per_segment > INT_MAX) { // Limit imposed by OptiX
 		kmeans_clusters_per_segment = (kmeans_clusters_per_segment - 1) / 2 + 1;
 	}
+	if ((cluster_count - 1) / kmeans_clusters_per_segment)
+		mprintf("Processing ambient records in %u segments of %u.\n", (cluster_count - 1) / kmeans_clusters_per_segment + 1, kmeans_clusters_per_segment);
 
 	if (daysimGetCoefficients())
 		RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * maxdepth * 2, divisions * divisions, kmeans_clusters_per_segment));
 
 	for (i = 0u; i < cluster_count; i += kmeans_clusters_per_segment) {
+		unsigned int current_count = min(cluster_count - i, kmeans_clusters_per_segment);
+
 		RT_CHECK_ERROR(rtVariableSet1ui(segment_var, i));
 
 		/* Run */
-		runKernel3D(context, AMBIENT_SAMPLING_ENTRY, divisions, divisions, kmeans_clusters_per_segment);
-		runKernel2D(context, AMBIENT_ENTRY, CLUSTER_GRID_WIDTH, (kmeans_clusters_per_segment * thread_stride - 1) / CLUSTER_GRID_WIDTH + 1);
+		runKernel3D(context, AMBIENT_SAMPLING_ENTRY, divisions, divisions, current_count);
+		runKernel2D(context, AMBIENT_ENTRY, CLUSTER_GRID_WIDTH, (current_count * thread_stride - 1) / CLUSTER_GRID_WIDTH + 1);
 	}
 #else /* DAYSIM */
 

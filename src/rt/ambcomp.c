@@ -633,7 +633,7 @@ ambcorral(AMBHEMI *hp, FVECT uv[2], const double r0, const double r1)
 	double		ang, a1;
 	int		i, j;
 					/* don't bother for a few samples */
-	if (hp->ns < 12)
+	if (hp->ns < 8)
 		return(0);
 					/* check distances overhead */
 	for (i = hp->ns*3/4; i-- > hp->ns>>2; )
@@ -764,7 +764,7 @@ doambient(				/* compute ambient component */
 				ra[0] = maxarad;
 		}
 					/* flag encroached directions */
-		if ((wt >= 0.89*AVGREFL) & (crlp != NULL))
+		if (crlp != NULL)
 			*crlp = ambcorral(hp, uv, ra[0]*ambacc, ra[1]*ambacc);
 		if (pg != NULL) {	/* cap gradient if necessary */
 			d = pg[0]*pg[0]*ra[0]*ra[0] + pg[1]*pg[1]*ra[1]*ra[1];

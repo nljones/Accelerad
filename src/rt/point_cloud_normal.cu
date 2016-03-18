@@ -73,8 +73,7 @@ RT_METHOD int occupied(const float3& pos, const float3& dir, const float3& world
 	ambient_prd.state = prd.state; // TODO make available here
 #endif
 #ifdef DAYSIM_COMPATIBLE
-	ambient_prd.dc = daysimNext(prd.dc);
-	daysimSet(ambient_prd.dc, 0.0f);
+	ambient_prd.dc = make_uint3(0u); // Mark as null (TODO check this)
 #endif
 #ifdef HIT_COUNT
 	ambient_prd.hit_count = 0;

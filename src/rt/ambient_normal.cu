@@ -22,7 +22,11 @@ using namespace optix;
 #define corral_u(i)	corral_u_buffer[make_uint2(i, threadIndex())]
 #define corral_d(i)	corral_d_buffer[make_uint2(i, threadIndex())]
 #else /* AMB_SAVE_MEM */
+#ifdef DAYSIM_COMPATIBLE
+#define ambsam(i,j)	amb_samp_buffer[make_uint3(i, j, threadIndex() + segment_offset)]
+#else /* DAYSIM_COMPATIBLE */
 #define ambsam(i,j)	amb_samp_buffer[make_uint3(i, j, threadIndex())]
+#endif /* DAYSIM_COMPATIBLE */
 #ifdef AMB_SUPER_SAMPLE
 #define earr(i,j)	earr_buffer[make_uint3(i, j, threadIndex())]
 #endif
@@ -52,6 +56,9 @@ rtDeclareVariable(rtObject,     top_object, , );
 rtDeclareVariable(unsigned int, shadow_ray_type, , );
 #endif /* OLDAMB */
 rtDeclareVariable(unsigned int, stride, , ) = 1u; /* Spacing between used threads in warp. */
+#ifdef DAYSIM_COMPATIBLE
+rtDeclareVariable(unsigned int, segment_offset, , ) = 0u; /* Offset into data if computed with multiple segments */
+#endif /* DAYSIM_COMPATIBLE */
 
 //rtDeclareVariable(float,        specthresh, , ); /* This is the minimum fraction of reflection or transmission, under which no specular sampling is performed */
 //rtDeclareVariable(float,        specjitter, , );
@@ -415,7 +422,7 @@ RT_METHOD int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *ra, float
 		}
 #ifdef CORRAL
 					/* flag encroached directions */
-		if ( (wt >= 0.89f * AVGREFL) & (crlp != NULL) )
+		if (crlp != NULL)
 			*crlp = ambcorral( &hp, uv, *ra * ambacc, normal, hit );
 #endif /* CORRAL */
 		if (pg != NULL) {	/* cap gradient if necessary */
@@ -726,6 +733,7 @@ RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const int& i, const int&
 		hp->acol += ap->v;	/* add to our sum */
 #ifdef DAYSIM_COMPATIBLE
 		DaysimCoef sample_dc = make_uint3(0, i + hp->ns * j, prd.dc.z);
+		sample_dc = daysimNext(sample_dc); // Skip ahead one
 		daysimAddScaled(prd.dc, sample_dc, hp->acoef.x);
 #endif
 #ifdef RAY_COUNT
@@ -1123,7 +1131,7 @@ RT_METHOD unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, const flo
 	unsigned int flgs = 0u;
 	int i, j;
 					/* don't bother for a few samples */
-	if ( hp->ns < 12 )
+	if (hp->ns < 8)
 		return(0u);
 					/* check distances overhead */
 	for ( i = hp->ns * 3 / 4; i-- > hp->ns>>2; )
