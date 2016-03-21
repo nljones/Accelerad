@@ -13,6 +13,7 @@ rtBuffer<PointDirection, 1>      cluster_buffer; /* input */
 rtBuffer<PointDirection, 3>      seed_buffer; /* output */
 rtDeclareVariable(rtObject,      top_object, , );
 rtDeclareVariable(unsigned int,  point_cloud_ray_type, , );
+rtDeclareVariable(unsigned int,  segment_offset, , ) = 0u;
 
 /* OptiX variables */
 rtDeclareVariable(uint3, launch_index, rtLaunchIndex, );
@@ -23,7 +24,7 @@ RT_PROGRAM void hemisphere_camera()
 	PerRayData_point_cloud prd;
 	clear(prd.backup);
 
-	PointDirection eye = cluster_buffer[launch_index.z];
+	PointDirection eye = cluster_buffer[launch_index.z + segment_offset];
 
 	// Check for valid input
 	if ( isfinite( eye.pos ) && isfinite( eye.dir ) && dot( eye.dir, eye.dir ) > FTINY ) { // NaN values will be false
