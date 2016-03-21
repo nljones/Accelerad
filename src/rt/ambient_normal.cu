@@ -783,7 +783,10 @@ RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const int& i, const int&
 #endif
 #ifdef DAYSIM_COMPATIBLE
 	new_prd.dc = daysimNext(prd.dc);
-#endif
+#if defined AMB_PARALLEL && defined AMB_SUPER_SAMPLE
+	new_prd.dc = daysimNext(new_prd.dc); // Skip ahead one
+#endif /* AMB_PARALLEL && AMB_SUPER_SAMPLE */
+#endif /* DAYSIM_COMPATIBLE */
 	setupPayload(new_prd);
 	Ray amb_ray = make_Ray( hit, rdir, radiance_ray_type, ray_start( hit, rdir, normal, RAY_START ), RAY_END );
 	rtTrace(top_object, amb_ray, new_prd);
@@ -814,12 +817,19 @@ RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const int& i, const int&
 	} else {			/* else update recorded value */
 		hp->acol -= ap->v;
 		zd = 1.0f / (n+1);
-		new_prd.result *= zd;
-		zd *= n;
-		ap->v *= zd;
-		ap->v += new_prd.result;
-		// TODO daysim compatibility
-#endif
+		ap->v *= n * zd;
+		ap->v += new_prd.result * zd;
+#ifdef DAYSIM_COMPATIBLE
+#ifdef AMB_PARALLEL
+		DaysimCoef sample_dc = make_uint3(0, i + hp->ns * j, prd.dc.z);
+		sample_dc = daysimNext(sample_dc); // Skip ahead one
+		daysimAddScaled(prd.dc, sample_dc, -hp->acoef.x);
+		daysimRunningAverage(sample_dc, new_prd.dc, n);
+		daysimAddScaled(prd.dc, sample_dc, hp->acoef.x);
+#endif /* AMB_PARALLEL */
+		// TODO Daysim compatible solution if not parallel ambient calculation
+#endif /* DAYSIM_COMPATIBLE */
+#endif /* AMB_SUPER_SAMPLE */
 	}
 	hp->acol += ap->v;	/* add to our sum */
 #endif /* AMB_SUPER_SAMPLE || !AMB_PARALLEL */

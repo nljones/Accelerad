@@ -484,6 +484,7 @@ RT_METHOD void daysimAddCoef(DaysimCoef& result, const unsigned int& index, cons
 RT_METHOD void daysimAddScaled(DaysimCoef& result, const DC* add, const DC& scaling);
 RT_METHOD void daysimAddScaled(DaysimCoef& result, const DaysimCoef& add, const DC& scaling);
 RT_METHOD void daysimAssignScaled(DaysimCoef& result, const DaysimCoef& source, const DC& scaling);
+RT_METHOD void daysimRunningAverage(DaysimCoef& result, const DaysimCoef& source, const int& count);
 RT_METHOD void daysimCheck(const DaysimCoef& daylightCoef, const DC& value, const int& error);
 
 rtDeclareVariable(unsigned int, daylightCoefficients, , ) = 0; /* number of daylight coefficients */
@@ -610,7 +611,7 @@ RT_METHOD void daysimAddScaled(DaysimCoef& result, const DaysimCoef& add, const 
 	}
 }
 
-/* Assign the coefficients of 'source' scaled by 'scaling' to result */
+/* Assign the coefficients of 'source' scaled by 'scaling' to 'result' */
 RT_METHOD void daysimAssignScaled(DaysimCoef& result, const DaysimCoef& source, const DC& scaling)
 {
 	if (daylightCoefficients) {
@@ -619,6 +620,20 @@ RT_METHOD void daysimAssignScaled(DaysimCoef& result, const DaysimCoef& source, 
 
 		for (unsigned int i = 0u; i < daylightCoefficients; i++)
 			result_prt[i] = source_ptr[i] * scaling;
+	}
+}
+
+/* Perform a running average by roling in 'source' to an average of 'count' elements already in 'result' */
+RT_METHOD void daysimRunningAverage(DaysimCoef& result, const DaysimCoef& source, const int& count)
+{
+	if (daylightCoefficients) {
+		DC* result_prt = DC_ptr(result);
+		const DC* source_ptr = DC_ptr(source);
+		const DC b = 1.0f / (count + 1);
+		const DC a = count * b;
+
+		for (unsigned int i = 0u; i < daylightCoefficients; i++)
+			result_prt[i] = result_prt[i] * a + source_ptr[i] * b;
 	}
 }
 
