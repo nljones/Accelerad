@@ -8,7 +8,11 @@
 
 using namespace optix;
 
-#define threadIndex()	(launch_index.x + launch_dim.x * launch_index.y) / stride
+#ifdef DAYSIM_COMPATIBLE
+#define threadIndex()	((launch_index.x + launch_dim.x * launch_index.y) / stride + segment_offset)
+#else
+#define threadIndex()	((launch_index.x + launch_dim.x * launch_index.y) / stride)
+#endif
 
 /* Program variables */
 rtDeclareVariable(unsigned int,  stride, , ) = 1u; /* Spacing between used threads in warp. */
@@ -23,7 +27,9 @@ rtDeclareVariable(rtObject,      top_object, , );
 rtDeclareVariable(rtObject,      top_irrad, , );
 rtDeclareVariable(unsigned int,  ambient_record_ray_type, , );
 rtDeclareVariable(unsigned int,  level, , ) = 0u;
-rtDeclareVariable(unsigned int,  segment_offset, , ) = 0u;
+#ifdef DAYSIM_COMPATIBLE
+rtDeclareVariable(unsigned int,  segment_offset, , ) = 0u; /* Offset into data if computed with multiple segments */
+#endif /* DAYSIM_COMPATIBLE */
 rtDeclareVariable(unsigned int,  imm_irrad, , ) = 0u; /* Immediate irradiance (-I) */
 
 /* OptiX variables */
@@ -38,7 +44,7 @@ RT_PROGRAM void ambient_cloud_camera()
 	// Check stride
 	if ((launch_index.x + launch_dim.x * launch_index.y) % stride)
 		return;
-	const unsigned int index = threadIndex() + segment_offset;
+	const unsigned int index = threadIndex();
 	if (index >= cluster_buffer.size())
 		return;
 
@@ -98,7 +104,7 @@ RT_PROGRAM void exception()
 	// Check stride
 	if ((launch_index.x + launch_dim.x * launch_index.y) % stride)
 		return;
-	const unsigned int index = threadIndex() + segment_offset;
+	const unsigned int index = threadIndex();
 	if (index >= ambient_record_buffer.size())
 		return;
 

@@ -11,8 +11,8 @@
 
 using namespace optix;
 
-#define threadIndex()	launch_index.y / stride
-//#define threadIndex()	(launch_index.x + launch_dim.x * launch_index.y) / stride
+#define threadIndex()	(launch_index.y / stride)
+//#define threadIndex()	((launch_index.x + launch_dim.x * launch_index.y) / stride)
 #ifndef OLDAMB
 #define CORRAL
 #define hessrow(i)	hess_row_buffer[make_uint2(i, threadIndex())]

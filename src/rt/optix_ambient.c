@@ -798,7 +798,6 @@ static unsigned int chooseAmbientLocations(const RTcontext context, const unsign
 		unsigned int clusters_per_segment = cluster_count;
 		unsigned int divisions = cluster_count ? ambientDivisions(ambientWeight(level)) : 0;
 		const size_t bytes_per_cluster = sizeof(PointDirection) * divisions * divisions;
-		PointDirection *segment_data = NULL;
 		seed_count = divisions * divisions * cluster_count;
 
 		while (bytes_per_cluster * clusters_per_segment > INT_MAX) { // Limit imposed by OptiX
@@ -821,9 +820,10 @@ static unsigned int chooseAmbientLocations(const RTcontext context, const unsign
 
 			/* Retrieve potential seed points. */
 			if (multi_pass) {
+				PointDirection *segment_data;
 				RT_CHECK_ERROR(rtBufferMap(seed_buffer, (void**)&segment_data));
-				RT_CHECK_ERROR(rtBufferUnmap(seed_buffer));
 				memcpy(seed_buffer_data + i * divisions * divisions, segment_data, current_count * bytes_per_cluster);
+				RT_CHECK_ERROR(rtBufferUnmap(seed_buffer));
 			}
 		}
 #endif /* ITERATIVE_IC */
@@ -838,10 +838,8 @@ static unsigned int chooseAmbientLocations(const RTcontext context, const unsign
 	}
 
 	/* Retrieve potential seed points. */
-	if (!multi_pass) {
+	if (!multi_pass)
 		RT_CHECK_ERROR(rtBufferMap(seed_buffer, (void**)&seed_buffer_data));
-		RT_CHECK_ERROR(rtBufferUnmap(seed_buffer));
-	}
 
 #ifndef AMBIENT_CELL
 #if defined(ITERATIVE_IC) && defined(ADAPTIVE_SEED_SAMPLING)
@@ -907,6 +905,8 @@ static unsigned int chooseAmbientLocations(const RTcontext context, const unsign
 #endif /* AMBIENT_CELL */
 	if (multi_pass)
 		free(seed_buffer_data);
+	else
+		RT_CHECK_ERROR(rtBufferUnmap(seed_buffer));
 	return seed_count;
 calmemerr:
 	error(SYSTEM, "out of memory in chooseAmbientLocations");
@@ -1183,10 +1183,8 @@ static void calcAmbientValues(const RTcontext context, const unsigned int level,
 #endif /* AMB_PARALLEL */
 
 	RT_CHECK_ERROR(rtBufferMap(ambient_record_buffer, (void**)&ambient_record_buffer_data));
-	RT_CHECK_ERROR(rtBufferUnmap(ambient_record_buffer));
 #ifdef DAYSIM
 	RT_CHECK_ERROR(rtBufferMap(ambient_dc_buffer, (void**)&ambient_dc_buffer_data));
-	RT_CHECK_ERROR(rtBufferUnmap(ambient_dc_buffer));
 #endif
 
 	/* Copy the results to allocated memory. */
@@ -1199,6 +1197,12 @@ static void calcAmbientValues(const RTcontext context, const unsigned int level,
 		record_count += saveAmbientRecords(&ambient_record_buffer_data[i]);
 #endif
 	}
+
+	RT_CHECK_ERROR(rtBufferUnmap(ambient_record_buffer));
+#ifdef DAYSIM
+	RT_CHECK_ERROR(rtBufferUnmap(ambient_dc_buffer));
+#endif
+
 #ifdef DEBUG_OPTIX
 	flushExceptionLog("ambient calculation");
 #endif

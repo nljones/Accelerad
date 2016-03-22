@@ -140,13 +140,12 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 
 	/* Retrieve the image */
 	RT_CHECK_ERROR(rtBufferMap(output_buffer, (void**)&colors));
-	RT_CHECK_ERROR(rtBufferUnmap(output_buffer));
 	qt_rvu_paint_image(0, 0, width, height, colors);
+	RT_CHECK_ERROR(rtBufferUnmap(output_buffer));
 	dev->flush();
 
 	/* Calculate the metrics */
 	RT_CHECK_ERROR(rtBufferMap(metrics_buffer, (void**)&metrics));
-	RT_CHECK_ERROR(rtBufferUnmap(metrics_buffer));
 
 	rammg = calcRAMMG(metrics, width, height);
 
@@ -178,6 +177,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		}
 		metrics++;
 	}
+	RT_CHECK_ERROR(rtBufferUnmap(metrics_buffer));
 	if (do_irrad) {
 		avlum /= size;
 		if (nt) lumT /= nt;
@@ -344,10 +344,7 @@ void retreiveOptixImage(const int width, const int height, const double exposure
 	size = width * height;
 
 	RT_CHECK_ERROR(rtBufferMap(direct_buffer, (void**)&direct_data));
-	RT_CHECK_ERROR(rtBufferUnmap(direct_buffer));
-
 	RT_CHECK_ERROR(rtBufferMap(diffuse_buffer, (void**)&diffuse_data));
-	RT_CHECK_ERROR(rtBufferUnmap(diffuse_buffer));
 
 	/* Copy the results to allocated memory. */
 	for (i = 0u; i < size; i++) {
@@ -358,5 +355,8 @@ void retreiveOptixImage(const int width, const int height, const double exposure
 		direct_data += 3;
 		diffuse_data += 3;
 	}
+
+	RT_CHECK_ERROR(rtBufferUnmap(direct_buffer));
+	RT_CHECK_ERROR(rtBufferUnmap(diffuse_buffer));
 }
 #endif /* ACCELERAD_RT */

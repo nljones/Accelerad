@@ -216,11 +216,8 @@ void renderOptix(const VIEW* view, const int width, const int height, const doub
 	runKernel2D( context, RADIANCE_ENTRY, width, height );
 
 	RT_CHECK_ERROR( rtBufferMap( output_buffer, (void**)&data ) );
-	RT_CHECK_ERROR( rtBufferUnmap( output_buffer ) );
-
 #ifdef RAY_COUNT
 	RT_CHECK_ERROR(rtBufferMap(ray_count_buffer, (void**)&ray_count_data));
-	RT_CHECK_ERROR(rtBufferUnmap(ray_count_buffer));
 #endif
 
 	/* Copy the results to allocated memory. */
@@ -236,6 +233,12 @@ void renderOptix(const VIEW* view, const int width, const int height, const doub
 		nrays += ray_count_data[i];
 #endif
 	}
+
+	RT_CHECK_ERROR(rtBufferUnmap(output_buffer));
+#ifdef RAY_COUNT
+	RT_CHECK_ERROR(rtBufferUnmap(ray_count_buffer));
+#endif
+
 #ifdef DEBUG_OPTIX
 	flushExceptionLog("camera");
 #endif
@@ -302,10 +305,8 @@ void computeOptix(const int width, const int height, const unsigned int imm_irra
 	runKernel2D( context, RADIANCE_ENTRY, width, height );
 
 	RT_CHECK_ERROR( rtBufferMap( ray_buffer, (void**)&data ) );
-	RT_CHECK_ERROR( rtBufferUnmap( ray_buffer ) );
 #ifdef DAYSIM
 	RT_CHECK_ERROR(rtBufferMap(dc_buffer, (void**)&dc_data));
-	RT_CHECK_ERROR(rtBufferUnmap(dc_buffer));
 #endif
 
 	/* Copy the results to allocated memory. */
@@ -323,6 +324,12 @@ void computeOptix(const int width, const int height, const unsigned int imm_irra
 		dc_data += daysimGetCoefficients();
 #endif
 	}
+
+	RT_CHECK_ERROR(rtBufferUnmap(ray_buffer));
+#ifdef DAYSIM
+	RT_CHECK_ERROR(rtBufferUnmap(dc_buffer));
+#endif
+
 #ifdef DEBUG_OPTIX
 	flushExceptionLog("sensor");
 #endif

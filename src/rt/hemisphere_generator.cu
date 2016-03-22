@@ -13,7 +13,7 @@ rtBuffer<PointDirection, 1>      cluster_buffer; /* input */
 rtBuffer<PointDirection, 3>      seed_buffer; /* output */
 rtDeclareVariable(rtObject,      top_object, , );
 rtDeclareVariable(unsigned int,  point_cloud_ray_type, , );
-rtDeclareVariable(unsigned int,  segment_offset, , ) = 0u;
+rtDeclareVariable(unsigned int,  segment_offset, , ) = 0u; /* Offset into data if computed with multiple segments */
 
 /* OptiX variables */
 rtDeclareVariable(uint3, launch_index, rtLaunchIndex, );

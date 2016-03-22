@@ -17,7 +17,9 @@ rtBuffer<AmbientSample, 3>      amb_samp_buffer; /* ambient sample output */
 rtDeclareVariable(rtObject,     top_object, , );
 rtDeclareVariable(unsigned int, radiance_ray_type, , );
 rtDeclareVariable(unsigned int, level, , ) = 0u;
-rtDeclareVariable(unsigned int, segment_offset, , ) = 0u;
+#ifdef DAYSIM_COMPATIBLE
+rtDeclareVariable(unsigned int, segment_offset, , ) = 0u; /* Offset into data if computed with multiple segments */
+#endif /* DAYSIM_COMPATIBLE */
 
 rtDeclareVariable(float,        ambacc, , ); /* Ambient accuracy (aa). This value will approximately equal the error from indirect illuminance interpolation */
 rtDeclareVariable(float,        maxarad, , ); /* maximum ambient radius */
@@ -31,7 +33,9 @@ rtDeclareVariable(uint3, launch_dim,   rtLaunchDim, );
 RT_PROGRAM void ambient_sample_camera()
 {
 	uint3 index = launch_index;
+#ifdef DAYSIM_COMPATIBLE
 	index.z += segment_offset;
+#endif /* DAYSIM_COMPATIBLE */
 	PointDirection cluster = cluster_buffer[index.z];
 
 	PerRayData_radiance prd;
@@ -119,7 +123,9 @@ RT_PROGRAM void exception()
 	const unsigned int code = rtGetExceptionCode();
 	rtPrintf("Caught exception 0x%X at launch index (%d,%d,%d)\n", code, launch_index.x, launch_index.y, launch_index.z);
 	uint3 index = launch_index;
+#ifdef DAYSIM_COMPATIBLE
 	index.z += segment_offset;
+#endif /* DAYSIM_COMPATIBLE */
 	amb_samp_buffer[index].d = -1.0f;
 	amb_samp_buffer[index].v = exceptionToFloat3( code );
 	amb_samp_buffer[index].p = exceptionToFloat3( code );
