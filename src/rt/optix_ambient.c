@@ -795,16 +795,13 @@ static unsigned int chooseAmbientLocations(const RTcontext context, const unsign
 	if (level) {
 #ifdef ITERATIVE_IC
 		/* Adjust output buffer size */
-		unsigned int clusters_per_segment = cluster_count;
 		unsigned int divisions = cluster_count ? ambientDivisions(ambientWeight(level)) : 0;
 		const size_t bytes_per_cluster = sizeof(PointDirection) * divisions * divisions;
+		unsigned int clusters_per_segment = min(cluster_count, INT_MAX / (unsigned int)bytes_per_cluster); // Limit imposed by OptiX
 		seed_count = divisions * divisions * cluster_count;
 
-		while (bytes_per_cluster * clusters_per_segment > INT_MAX) { // Limit imposed by OptiX
-			clusters_per_segment = (clusters_per_segment - 1) / 2 + 1;
-		}
 		if (multi_pass = (cluster_count - 1) / clusters_per_segment) {
-			mprintf("Processing seeds in %u segments of %u. Bad parameter combination?\n", multi_pass + 1, clusters_per_segment);
+			mprintf("Processing seeds in %u segments of %u.\n", multi_pass + 1, clusters_per_segment);
 			seed_buffer_data = (PointDirection *)malloc(seed_count * sizeof(PointDirection));
 		}
 
@@ -982,31 +979,29 @@ static unsigned int createClusters(const unsigned int seed_count, PointDirection
 	const double radius = ambientRadius(weight) * ambacc * cuda_kmeans_error; // TODO new variable
 	clock_t kernel_clock; // Timer in clock cycles for short jobs
 
+	if (seed_count > 1e6)
+		mprintf("Retrieved %u samples at level %u. This could take a%s long time. Bad parameter combination?\n", seed_count, level, seed_count > 1e8 ? " really really" : seed_count > 1e7 ? " really" : "");
+
 	kernel_clock = clock();
 
 	/* Sort seeds into bins by 4D index */
 	qsort(seed_buffer_data, seed_count, sizeof(PointDirection), compare_point_directions);
 
 	/* Pick important seeds from each bin */
-	for (i = j = cluster_bin_start = 0u; i < seed_count; i++) {
+	for (i = j = 0u; i < seed_count; i++) {
 		if (length_squared(seed_buffer_data[i].dir) < FTINY) {
 #ifdef DEBUG_OPTIX
-			if (length_squared(seed_buffer_data[i].pos) > FTINY)
-				logException((RTexception)seed_buffer_data[i].pos.x);
+			logException((RTexception)seed_buffer_data[i].pos.x);
 #endif
 		}
-		else if (is_nan(seed_buffer_data[i].pos) || is_nan(seed_buffer_data[i].dir))
-			mprintf("NaN in seed %u (%g, %g, %g) (%g, %g, %g)\n", i, seed_buffer_data[i].pos.x, seed_buffer_data[i].pos.y, seed_buffer_data[i].pos.z, seed_buffer_data[i].dir.x, seed_buffer_data[i].dir.y, seed_buffer_data[i].dir.z);
-		else if (!j) {
-			cluster_buffer_data[j++] = seed_buffer_data[i];
-			cell_counter++;
-		}
-		else if (seed_buffer_data[i].cell.x != cluster_buffer_data[j - 1].cell.x || seed_buffer_data[i].cell.y != cluster_buffer_data[j - 1].cell.y) {
+		else if (!j || seed_buffer_data[i].cell.x != cluster_buffer_data[j - 1].cell.x || seed_buffer_data[i].cell.y != cluster_buffer_data[j - 1].cell.y) {
+			/* Start a new cell */
 			cluster_bin_start = j;
 			cluster_buffer_data[j++] = seed_buffer_data[i];
 			cell_counter++;
 		}
 		else {
+			/* Check against other members of cell */
 			for (k = cluster_bin_start; k < j; k++)
 				if (checkForOverlap(cluster_buffer_data + k, seed_buffer_data + i, angle, radius))
 					break;
@@ -1042,11 +1037,9 @@ static unsigned int createKMeansClusters( const unsigned int seed_count, const u
 	for ( i = 0u; i < seed_count; i++) {
 		if ( length_squared( seed_buffer_data[i].dir ) < FTINY ) {
 #ifdef DEBUG_OPTIX
-			if (length_squared(seed_buffer_data[i].pos) > FTINY)
-				logException((RTexception)seed_buffer_data[i].pos.x);
+			logException((RTexception)seed_buffer_data[i].pos.x);
 #endif
-		} else if ( is_nan( seed_buffer_data[i].pos ) || is_nan( seed_buffer_data[i].dir ) )
-			mprintf("NaN in seed %u (%g, %g, %g) (%g, %g, %g)\n", i, seed_buffer_data[i].pos.x, seed_buffer_data[i].pos.y, seed_buffer_data[i].pos.z, seed_buffer_data[i].dir.x, seed_buffer_data[i].dir.y, seed_buffer_data[i].dir.z);
+		}
 		else
 			seeds[good_seed_count++] = &seed_buffer_data[i];
 	}
@@ -1149,12 +1142,9 @@ static void calcAmbientValues(const RTcontext context, const unsigned int level,
 	unsigned int divisions = ambientDivisions(ambientWeight(level));
 #ifdef DAYSIM
 	/* Determine how large the scratch space can be */
-	unsigned int clusters_per_segment = cluster_count;
 	const size_t bytes_per_cluster = sizeof(float) * daysimGetCoefficients() * maxdepth * 2 * divisions * divisions;
-	while (bytes_per_cluster * clusters_per_segment > INT_MAX) { // Limit imposed by OptiX
-		clusters_per_segment = (clusters_per_segment - 1) / 2 + 1;
-	}
-	if ((cluster_count - 1) / clusters_per_segment)
+	unsigned int clusters_per_segment = min(cluster_count, INT_MAX / (unsigned int)bytes_per_cluster); // Limit imposed by OptiX
+	if (cluster_count > clusters_per_segment)
 		mprintf("Processing ambient records in %u segments of %u.\n", (cluster_count - 1) / clusters_per_segment + 1, clusters_per_segment);
 
 	if (daysimGetCoefficients())

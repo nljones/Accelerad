@@ -565,6 +565,8 @@ void logException(const RTexception type)
 {
 	unsigned int i;
 
+	if (!type) return; /* Not an error */
+
 	if (!error_log) {
 		error_log = (IntArray *)malloc(sizeof(IntArray));
 		if (!error_log)
