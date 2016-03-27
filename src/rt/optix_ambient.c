@@ -45,7 +45,7 @@ static int saveAmbientRecords( AmbientRecord* record );
 static void calcAmbientValues(const RTcontext context, const unsigned int level, const unsigned int max_level, const size_t cluster_count, const double alarm, RTbuffer ambient_record_buffer);
 #endif
 #ifdef AMBIENT_CELL
-static size_t createClusters(const size_t seed_count, PointDirection* seed_buffer_data, PointDirection* cluster_buffer_data, const unsigned int level);
+static size_t createClusters(const size_t seed_count, PointDirection* seed_buffer_data, size_t* seed_index, const unsigned int level);
 #else /* AMBIENT_CELL */
 static size_t createKMeansClusters(const size_t seed_count, const size_t cluster_count, PointDirection* seed_buffer_data, PointDirection* cluster_buffer_data, const unsigned int level);
 //static void sortKMeans( const unsigned int cluster_count, PointDirection* cluster_buffer_data );
@@ -789,7 +789,7 @@ static size_t chooseAmbientLocations(const RTcontext context, const unsigned int
 	size_t seed_count, i, multi_pass = 0u;
 	PointDirection *seed_buffer_data = NULL, *cluster_buffer_data = NULL;
 #ifdef AMBIENT_CELL
-	PointDirection *cluster_temp_data = NULL;
+	size_t *seed_index = NULL;
 #endif
 
 	if (level) {
@@ -893,17 +893,18 @@ static size_t chooseAmbientLocations(const RTcontext context, const unsigned int
 #else /* AMBIENT_CELL */
 
 	/* Group seed points into clusters */
-	cluster_temp_data = (PointDirection*)malloc(seed_count * sizeof(PointDirection));
-	if (cluster_temp_data == NULL) goto calmemerr;
-	seed_count = createClusters(seed_count, seed_buffer_data, cluster_temp_data, level);
+	seed_index = (size_t*)malloc(seed_count * sizeof(size_t));
+	if (seed_index == NULL) goto calmemerr;
+	seed_count = createClusters(seed_count, seed_buffer_data, seed_index, level);
 
 	/* Add clusters to buffer */
 	RT_CHECK_ERROR(rtBufferSetSize1D(cluster_buffer, seed_count));
 	RT_CHECK_ERROR(rtBufferMap(cluster_buffer, (void**)&cluster_buffer_data));
-	memcpy(cluster_buffer_data, cluster_temp_data, seed_count * sizeof(PointDirection));
+	for (i = 0u; i < seed_count; i++)
+		cluster_buffer_data[i] = seed_buffer_data[seed_index[i]];
 	RT_CHECK_ERROR(rtBufferUnmap(cluster_buffer));
 
-	free(cluster_temp_data);
+	free(seed_index);
 #endif /* AMBIENT_CELL */
 	if (multi_pass)
 		free(seed_buffer_data);
@@ -931,6 +932,11 @@ static int compare_point_directions(const void* a, const void* b)
 	if (((PointDirection*)a)->cell.y < ((PointDirection*)b)->cell.y) return -1;
 	if (((PointDirection*)a)->cell.y > ((PointDirection*)b)->cell.y) return 1;
 	return 0;
+}
+
+static int sameCell(const PointDirection* a, const PointDirection* b)
+{
+	return a->cell.x == b->cell.x && a->cell.y == b->cell.y;
 }
 
 static unsigned int checkForOverlap(const PointDirection* a, const PointDirection* b, const double angle, const double radius)
@@ -975,7 +981,7 @@ static unsigned int checkForOverlap(const PointDirection* a, const PointDirectio
 	return 1;
 }
 
-static size_t createClusters(const size_t seed_count, PointDirection* seed_buffer_data, PointDirection* cluster_buffer_data, const unsigned int level)
+static size_t createClusters(const size_t seed_count, PointDirection* seed_buffer_data, size_t* seed_index, const unsigned int level)
 {
 	size_t i, j, k, cluster_bin_start;
 	unsigned int cell_counter = 0;
@@ -999,19 +1005,19 @@ static size_t createClusters(const size_t seed_count, PointDirection* seed_buffe
 			logException((RTexception)seed_buffer_data[i].pos.x);
 #endif
 		}
-		else if (!j || seed_buffer_data[i].cell.x != cluster_buffer_data[j - 1].cell.x || seed_buffer_data[i].cell.y != cluster_buffer_data[j - 1].cell.y) {
+		else if (!j || !sameCell(seed_buffer_data + i, seed_buffer_data + seed_index[j - 1])) {
 			/* Start a new cell */
 			cluster_bin_start = j;
-			cluster_buffer_data[j++] = seed_buffer_data[i];
+			seed_index[j++] = i;
 			cell_counter++;
 		}
 		else {
 			/* Check against other members of cell */
 			for (k = cluster_bin_start; k < j; k++)
-				if (checkForOverlap(cluster_buffer_data + k, seed_buffer_data + i, angle, radius))
+				if (checkForOverlap(seed_buffer_data + seed_index[k], seed_buffer_data + i, angle, radius))
 					break;
 			if (k == j)
-				cluster_buffer_data[j++] = seed_buffer_data[i];
+				seed_index[j++] = i;
 		}
 	}
 
