@@ -27,11 +27,12 @@ static const char	RCSid[] = "$Id$";
 #define MAXSCENE	127		/* maximum number of scene files */
 #endif
 
-#define ZOOMPCT		9		/* percent to zoom at a time */
+#define ZOOMPCT		9		/* percent to zoom for +/- */
+#define WZOOMPCT	3		/* percent to zoom for mouse wheel */
 
-#define MOVPCT		7		/* percent distance to move /frame */
+#define MOVPCT		4		/* percent distance to move /frame */
 #define MOVDIR(b)	((b)==Button1 ? 1 : (b)==Button2 ? 0 : -1)
-#define MOVDEG		(-5)		/* degrees to orbit CW/down /frame */
+#define MOVDEG		(-1.5)		/* degrees to orbit CW/down /frame */
 #define MOVORB(s)	((s)&ShiftMask ? 1 : (s)&ControlMask ? -1 : 0)
 
 #define BORWIDTH	5		/* border width */
@@ -97,26 +98,26 @@ extern int	nowarn;			/* turn warnings off? */
 
 static void startrtrace(char	*octname);
 static void runrad(int	ac, char	**av);
-static int findvw(register char	*nm);
-static int varmatch(register char	*s, register char	*vn);
+static int findvw(char	*nm);
+static int varmatch(char	*s, char	*vn);
 static char * scan4var(char	*buf, int	buflen, char	*vname, FILE	*fp);
 static void dev_open(char  *id);
 static void dev_close(void);
-static int dev_view(register VIEW	*nv);
+static int dev_view(VIEW	*nv);
 static int dev_input(int	nsecs);
 static void render(void);
 static int moveview(int	dx, int	dy, int	mov, int	orb);
 static void waitabit(void);
 static void getmove(XButtonPressedEvent	*ebut);
 static int getintersect(FVECT	wp, FVECT	org, FVECT	dir, double	md);
-static void setglpersp(register VIEW	*vp);
-static int getkey(register XKeyPressedEvent  *ekey);
+static void setglpersp(VIEW	*vp);
+static int getkey(XKeyPressedEvent  *ekey);
 static void zoomview(int	pct, int	dx, int	dy);
 static void gotoview(int	vwnum);
 static void appendview(char	*nm, VIEW	*vp);
 static void copylastv(char	*cause);
-static void fixwindow(register XExposeEvent  *eexp);
-static void resizewindow(register XConfigureEvent  *ersz);
+static void fixwindow(XExposeEvent  *eexp);
+static void resizewindow(XConfigureEvent  *ersz);
 
 
 int
@@ -245,7 +246,7 @@ runrad(				/* run rad and load variables */
 	static char	optfile[] = TEMPLATE;
 	int	nvn = 0, nvv = 0;
 	FILE	*fp;
-	register char	*cp;
+	char	*cp;
 	char	radcomm[256], buf[128], nam[32];
 					/* set rad commmand */
 	strcpy(radcomm, "rad -w -v 0        ");	/* look out below! */
@@ -335,10 +336,10 @@ runrad(				/* run rad and load variables */
 
 static int
 findvw(			/* find named view */
-	register char	*nm
+	char	*nm
 )
 {
-	register int	n;
+	int	n;
 
 	if ((*nm >= '1') & (*nm <= '9') &&
 			(n = atoi(nm)-1) <= MAXVIEW && vwl[n].v != NULL)
@@ -352,11 +353,11 @@ findvw(			/* find named view */
 
 static int
 varmatch(				/* match line to variable */
-	register char	*s,
-	register char	*vn
+	char	*s,
+	char	*vn
 )
 {
-	register int	c;
+	int	c;
 
 	for ( ; *vn && *s == *vn; s++, vn++)
 		;
@@ -379,7 +380,7 @@ scan4var(	/* scan for variable from fp */
 )
 {
 	int	cval;
-	register char	*cp;
+	char	*cp;
 					/* search out matching line */
 	while ((cval = varmatch(buf, vname))) {
 		if (cval > 0)			/* gone too far? */
@@ -501,7 +502,7 @@ dev_close(void)			/* close our display and free resources */
 
 static int
 dev_view(			/* assign new driver view */
-	register VIEW	*nv
+	VIEW	*nv
 )
 {
 	int	newhres = hres, newvres = vres;
@@ -539,7 +540,7 @@ dev_view(			/* assign new driver view */
 			XResizeWindow(ourdisplay, gwind, newhres, newvres);
 			do
 				dev_input(0);		/* get resize event */
-			while ((newhres != hres) | (newvres != vres));
+			while ((newhres != hres) & (newvres != vres));
 			no_render--;
 		}
 	}
@@ -584,7 +585,19 @@ dev_input(		/* get next input event */
 	case KeyPress:
 		return(getkey(levptr(XKeyPressedEvent)));
 	case ButtonPress:
-		getmove(levptr(XButtonPressedEvent));
+		switch (levptr(XButtonPressedEvent)->button) {
+		case Button4:			/* wheel up */
+			zoomview(100+WZOOMPCT, levptr(XButtonPressedEvent)->x,
+					vres-1-levptr(XButtonPressedEvent)->y);
+			break;
+		case Button5:			/* wheel down */
+			zoomview(100-WZOOMPCT, levptr(XButtonPressedEvent)->x,
+					vres-1-levptr(XButtonPressedEvent)->y);
+			break;
+		default:
+			getmove(levptr(XButtonPressedEvent));
+			break;
+		}
 		break;
 	}
 	return(1);
@@ -748,7 +761,7 @@ getintersect(		/* intersect ray with scene geometry */
 
 static void
 setglpersp(			/* set perspective view in GL */
-	register VIEW	*vp
+	VIEW	*vp
 )
 {
 	double	d, xmin, xmax, ymin, ymax, zmin, zmax;
@@ -782,7 +795,7 @@ setglpersp(			/* set perspective view in GL */
 
 static int
 getkey(				/* get input key */
-	register XKeyPressedEvent  *ekey
+	XKeyPressedEvent  *ekey
 )
 {
 	int  n;
@@ -827,6 +840,7 @@ getkey(				/* get input key */
 	case 'V':			/* append view to rad file */
 		appendview(NULL, &thisview);
 		break;
+	case 'Q':
 	case 'q':			/* quit the program */
 		return(0);
 	default:
@@ -931,7 +945,7 @@ copylastv(			/* copy last view position */
 
 static void
 fixwindow(				/* repair damage to window */
-	register XExposeEvent  *eexp
+	XExposeEvent  *eexp
 )
 {
 	if ((hres == 0) | (vres == 0)) {	/* first exposure */
@@ -947,7 +961,7 @@ fixwindow(				/* repair damage to window */
 
 static void
 resizewindow(			/* resize window */
-	register XConfigureEvent  *ersz
+	XConfigureEvent  *ersz
 )
 {
 	static char	resizing[] = "resizing window";

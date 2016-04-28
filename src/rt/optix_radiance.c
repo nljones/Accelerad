@@ -1090,6 +1090,11 @@ static int createTriangles(const FACE *face, OBJREC *material)
 	}
 	if (face->nv > 3) {	/* triangulation necessary */
 		int i;
+		size_t vertex_index_count = vertex_indices->count;
+		size_t traingle_count = traingles->count;
+#ifdef LIGHTS
+		size_t light_count = lights->count;
+#endif /* LIGHTS */
 		Vert2_list	*v2l = polyAlloc(face->nv);
 		if (v2l == NULL)	/* out of memory */
 			return(0);
@@ -1106,6 +1111,13 @@ static int createTriangles(const FACE *face, OBJREC *material)
 		v2l->p = (void *)material;
 		i = polyTriangulate(v2l, addTriangle);
 		polyFree(v2l);
+		if (!i) { /* triangulation failed */
+			vertex_indices->count = vertex_index_count;
+			traingles->count = traingle_count;
+#ifdef LIGHTS
+			lights->count = light_count;
+#endif /* LIGHTS */
+		}
 		return(i);
 	}
 	return(0);	/* degenerate case */
@@ -1123,11 +1135,23 @@ static int addTriangle( const Vert2_list *tp, int a, int b, int c )
 static void createSphere(OBJREC* rec, OBJREC* parent)
 {
 	unsigned int i, j, steps;
-	int direction;
+	int direction = rec->otype == OBJ_SPHERE ? 1 : -1; // Sphere or Bubble
+	double radius = rec->oargs.farg[3];
 	FVECT x, y, z;
 	OBJREC* material = findmaterial(parent);
 	if (material == NULL)
 		objerror(rec, USER, "missing material");
+
+	// Check radius
+	if (radius < -FTINY) {
+		objerror(rec, WARNING, "negative radius");
+		radius = -radius;
+		direction = -direction;
+	}
+	else if (radius <= FTINY) {
+		objerror(rec, WARNING, "zero radius");
+		return;
+	}
 
 	// Create octahedron
 	IntArray *sph_vertex_indices = (IntArray *)malloc(sizeof(IntArray));
@@ -1156,8 +1180,6 @@ static void createSphere(OBJREC* rec, OBJREC* parent)
 		steps = (unsigned int)rec->oargs.farg[4];
 	else
 		steps = DEFAULT_SPHERE_STEPS;
-
-	direction = rec->otype == OBJ_SPHERE ? 1 : -1; // Sphere or Bubble
 
 	// Subdivide triangles
 	for (i = 0u; i < steps; i++) {
@@ -1200,9 +1222,9 @@ static void createSphere(OBJREC* rec, OBJREC* parent)
 	// Add resulting vertices
 	for (j = 0u; j < sph_vertices->count; j += 3) {
 		insertArray3f(vertices,
-			(float)(rec->oargs.farg[0] + rec->oargs.farg[3] * sph_vertices->array[j]),
-			(float)(rec->oargs.farg[1] + rec->oargs.farg[3] * sph_vertices->array[j + 1]),
-			(float)(rec->oargs.farg[2] + rec->oargs.farg[3] * sph_vertices->array[j + 2]));
+			(float)(rec->oargs.farg[0] + radius * sph_vertices->array[j]),
+			(float)(rec->oargs.farg[1] + radius * sph_vertices->array[j + 1]),
+			(float)(rec->oargs.farg[2] + radius * sph_vertices->array[j + 2]));
 		insertArray3f(normals,
 			direction * sph_vertices->array[j],
 			direction * sph_vertices->array[j + 1],
@@ -1230,6 +1252,7 @@ static void createCone(OBJREC* rec, OBJREC* parent)
 	double theta, sphi, cphi;
 	FVECT u, v, n;
 	CONE* cone = getcone(rec, 0);
+	if (cone == NULL) return;
 	OBJREC* material = findmaterial(parent);
 	if (material == NULL)
 		objerror(rec, USER, "missing material");

@@ -18,6 +18,10 @@ static const char	RCSid[] = "$Id$";
 #ifdef ACCELERAD_RT
 #include  "optix_rvu.h"
 #endif
+#ifdef ACCELERAD_DEBUG
+#include  <inttypes.h>
+//#include  "optix_radiance.h"
+#endif
 
 #define	 CTRL(c)	((c)-'@')
 
@@ -88,17 +92,31 @@ void
 rview(void)				/* do a view */
 {
 	char  buf[32];
+#ifdef ACCELERAD_DEBUG
+	clock_t kernel_clock; // Timer in clock cycles for short jobs
+#endif
 
 	devopen(dvcname);		/* open device */
 	newimage(NULL);			/* start image */
 
+#ifdef ACCELERAD_DEBUG
+	kernel_clock = clock();
+#endif
 #ifdef ACCELERAD_RT
 	if (use_optix) {
 		dev->flush();
 
 		for (;;) {			/* quit in command() */
 			while (cuda_kmeans_iterations < pdepth && cuda_kmeans_iterations > -1) // TODO new variable
+#ifdef ACCELERAD_DEBUG
+			{
+				kernel_clock = clock() - kernel_clock;
+				sprintf(errmsg, "done (%" PRIu64 " milliseconds): ", kernel_clock);
+				command(errmsg);
+			}
+#else
 				command("done: ");
+#endif
 			errno = 0;
 			sprintf(buf, "%d pass...\n", pdepth);
 			(*dev->comout)(buf);
@@ -111,7 +129,15 @@ rview(void)				/* do a view */
 #endif
 	for ( ; ; ) {			/* quit in command() */
 		while (hresolu <= 1<<pdepth && vresolu <= 1<<pdepth)
+#ifdef ACCELERAD_DEBUG
+		{
+			kernel_clock = clock() - kernel_clock;
+			sprintf(errmsg, "done (%" PRIu64 " milliseconds): ", kernel_clock);
+			command(errmsg);
+		}
+#else
 			command("done: ");
+#endif
 		errno = 0;
 		if (hresolu <= psample<<pdepth && vresolu <= psample<<pdepth) {
 			sprintf(buf, "%d sampling...\n", 1<<pdepth);
