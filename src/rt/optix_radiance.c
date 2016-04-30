@@ -949,11 +949,15 @@ static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* pare
 	case OBJ_SOURCE:
 		insertArraydl(sources, createDistantLight(context, rec, parent));
 		break;
+	//case MAT_TFUNC: // bumpmap function
 	case PAT_BFUNC: // brightness function, used for sky brightness
 	case PAT_CFUNC: // color function, used for sky chromaticity
 		buffer_entry_index[index] = createFunction(context, rec);
 		break;
+	//case MAT_TDATA: // bumpmap
 	case PAT_BDATA: // brightness texture, used for IES lighting data
+	case PAT_CDATA: // color texture
+	case PAT_CPICT: // color picture, used as texture map
 		buffer_entry_index[index] = createTexture(context, rec);
 		break;
 	case TEX_FUNC:
@@ -1136,13 +1140,16 @@ static void createSphere(OBJREC* rec, OBJREC* parent)
 {
 	unsigned int i, j, steps;
 	int direction = rec->otype == OBJ_SPHERE ? 1 : -1; // Sphere or Bubble
-	double radius = rec->oargs.farg[3];
+	double radius;
 	FVECT x, y, z;
 	OBJREC* material = findmaterial(parent);
 	if (material == NULL)
 		objerror(rec, USER, "missing material");
 
 	// Check radius
+	if (rec->oargs.nfargs < 4)
+		objerror(rec, USER, "bad # arguments");
+	radius = rec->oargs.farg[3];
 	if (radius < -FTINY) {
 		objerror(rec, WARNING, "negative radius");
 		radius = -radius;
@@ -1786,11 +1793,23 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 	int tex_id = RT_TEXTURE_ID_NULL;
 	int i, entries;
 
-	DATARRAY *dp;
+	DATARRAY *dp, *dpg = NULL, *dpb = NULL;
 	XF bxp;
 
 	/* Load texture data */
-	dp = getdata(rec->oargs.sarg[1]); //TODO for Texdata and Colordata, use 3, 4, 5
+	if (rec->otype == PAT_BDATA)
+		dp = getdata(rec->oargs.sarg[1]);
+	else if (rec->otype == MAT_TDATA || rec->otype == PAT_CDATA) {
+		dp = getdata(rec->oargs.sarg[3]); // red
+		dpg = getdata(rec->oargs.sarg[4]); // green
+		dpb = getdata(rec->oargs.sarg[5]); // blue
+	}
+	else if (rec->otype == PAT_CPICT)
+		dp = getpict(rec->oargs.sarg[3]);
+	else {
+		printObject(rec);
+		return RT_PROGRAM_ID_NULL;
+	}
 
 	/* Get transform */
 	if ( !createTransform( NULL, &bxp, rec ) )
@@ -1824,10 +1843,18 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 	RT_CHECK_ERROR( rtBufferMap( tex_buffer, (void**)&tex_buffer_data ) );
 	if (dp->type == DATATY) // floats
 		memcpy(tex_buffer_data, dp->arr.d, entries * sizeof(float));
-	else // colors
+	else if (dpg != NULL && dpb != NULL) // colors from separate files
 		for (i = 0u; i < entries; i++) {
-			colr_color(tex_buffer_data, dp->arr.c[i]);
-			tex_buffer_data[3] = 1.0f; // Set alpha
+			tex_buffer_data[0] = 1.0f; // Set alpha
+			tex_buffer_data[1] = dp->arr.d[i]; // Set red
+			tex_buffer_data[2] = dpg->arr.d[i]; // Set green
+			tex_buffer_data[3] = dpb->arr.d[i]; // Set blue
+			tex_buffer_data += 4;
+		}
+	else // colors from image
+		for (i = 0u; i < entries; i++) {
+			tex_buffer_data[0] = 1.0f; // Set alpha
+			colr_color(tex_buffer_data + 1, dp->arr.c[i]);
 			tex_buffer_data += 4;
 		}
 	RT_CHECK_ERROR( rtBufferUnmap( tex_buffer ) );
@@ -1848,13 +1875,12 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 
 	/* Create program to access texture sampler */
 	if ( rec->oargs.nsargs >= 5 ) {
+		float transform[9] = {
+			(float)bxp.xfm[0][0], (float)bxp.xfm[1][0], (float)bxp.xfm[2][0],
+			(float)bxp.xfm[0][1], (float)bxp.xfm[1][1], (float)bxp.xfm[2][1],
+			(float)bxp.xfm[0][2], (float)bxp.xfm[1][2], (float)bxp.xfm[2][2]
+		};
 		if (!strcmp(rec->oargs.sarg[2], "source.cal")) {
-			float transform[9] = {
-				(float)bxp.xfm[0][0], (float)bxp.xfm[1][0], (float)bxp.xfm[2][0],
-				(float)bxp.xfm[0][1], (float)bxp.xfm[1][1], (float)bxp.xfm[2][1],
-				(float)bxp.xfm[0][2], (float)bxp.xfm[1][2], (float)bxp.xfm[2][2]
-			};
-
 			/* Check compatibility with existing implementation */
 			if ((strcmp(rec->oargs.sarg[0], "corr") && strcmp(rec->oargs.sarg[0], "flatcorr") && strcmp(rec->oargs.sarg[0], "boxcorr") && strcmp(rec->oargs.sarg[0], "cylcorr")) || strcmp(rec->oargs.sarg[3], "src_phi") || strcmp(rec->oargs.sarg[4], "src_theta")) {
 				printObject(rec);
@@ -1867,13 +1893,21 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 			applyProgramVariable1i( context, program, "type", dp->type == DATATY );
 			applyProgramVariable3f( context, program, "org", dp->dim[dp->nd-1].org, dp->nd > 1 ? dp->dim[dp->nd-2].org : 0.0f, dp->nd > 2 ? dp->dim[dp->nd-3].org : 0.0f );
 			applyProgramVariable3f( context, program, "siz", dp->dim[dp->nd-1].siz, dp->nd > 1 ? dp->dim[dp->nd-2].siz : 1.0f, dp->nd > 2 ? dp->dim[dp->nd-3].siz : 1.0f );
-			applyProgramVariable3i(context, program, "ne", dp->dim[dp->nd - 1].ne, dp->nd > 1 ? dp->dim[dp->nd - 2].ne : 1, dp->nd > 2 ? dp->dim[dp->nd - 3].ne : 1);
 			applyProgramVariable( context, program, "transform", sizeof(transform), transform );
 			if (rec->oargs.nfargs > 0)
 				applyProgramVariable1f(context, program, "multiplier", (float)rec->oargs.farg[0]); //TODO handle per-color channel multipliers
 			if (rec->oargs.nfargs > 2)
 				applyProgramVariable3f(context, program, "bounds", (float)rec->oargs.farg[1], (float)rec->oargs.farg[2], rec->oargs.nfargs > 3 ? (float)rec->oargs.farg[3] : 0.0f);
-		} else {
+		}
+		else if (rec->oargs.nsargs >= 7 && !strcmp(rec->oargs.sarg[0], "clip_r") && !strcmp(rec->oargs.sarg[1], "clip_g") && !strcmp(rec->oargs.sarg[2], "clip_b") && !strcmp(rec->oargs.sarg[4], "fisheye.cal") && !strcmp(rec->oargs.sarg[5], "u") && !strcmp(rec->oargs.sarg[6], "v")) {
+			/* Sigma fisheye projection from Nathaniel Jones */
+			ptxFile(path_to_ptx, "fisheye");
+			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "fisheye", &program));
+			applyProgramVariable1i(context, program, "data", tex_id);
+			applyProgramVariable1i(context, program, "type", dp->type == DATATY);
+			applyProgramVariable(context, program, "transform", sizeof(transform), transform);
+		}
+		else {
 			printObject(rec);
 			return RT_PROGRAM_ID_NULL;
 		}
