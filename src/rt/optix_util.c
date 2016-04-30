@@ -671,6 +671,26 @@ void ptxFile( char* path, const char* name )
 	//mprintf("Referencing %s\n", path);
 }
 
+/* Extract file name from full path. */
+char* filename(char *path)
+{
+	char  *cp = path, *separator = NULL;
+
+	while (*cp) {
+		if (*cp == '\\' || *cp == '/') /* remove directory */
+			separator = cp;
+		else
+			*cp = tolower(*cp);
+		cp++;
+	}
+	if (separator) {
+		/* make sure the original pointer remains the same */
+		memmove(path, separator + 1, cp - separator);
+	}
+	return path;
+}
+
+
 void reportProgress( const double progress, const double alarm )
 {
 	pctdone = progress;

@@ -962,10 +962,10 @@ static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* pare
 		break;
 	case TEX_FUNC:
 		if (rec->oargs.nsargs == 3) {
-			if (!strcmp(rec->oargs.sarg[2], TCALNAME)) break; // Handled by face
+			if (!strcmp(filename(rec->oargs.sarg[2]), TCALNAME)) break; // Handled by face
 		}
 		else if (rec->oargs.nsargs >= 4) {
-			if (!strcmp(rec->oargs.sarg[3], TCALNAME)) break; // Handled by face
+			if (!strcmp(filename(rec->oargs.sarg[3]), TCALNAME)) break; // Handled by face
 		}
 		printObject(rec);
 		break;
@@ -1010,7 +1010,7 @@ static void createFace(OBJREC* rec, OBJREC* parent)
 		RREAL *va = VERTEX(face, j);
 		insertArray3f(vertices, (float)va[0], (float)va[1], (float)va[2]);
 
-		if (material && material->otype == TEX_FUNC && material->oargs.nsargs >= 4 && !strcmp(material->oargs.sarg[3], TCALNAME)) {
+		if (material && material->otype == TEX_FUNC && material->oargs.nsargs >= 4 && !strcmp(filename(material->oargs.sarg[3]), TCALNAME)) {
 			/* Normal calculation from tmesh.cal */
 			double bu, bv;
 			FVECT v;
@@ -1049,7 +1049,7 @@ static void createFace(OBJREC* rec, OBJREC* parent)
 			insertArray3f(normals, (float)face->norm[0], (float)face->norm[1], (float)face->norm[2]);
 		}
 
-		if (material && material->otype == TEX_FUNC && material->oargs.nsargs == 3 && !strcmp(material->oargs.sarg[2], TCALNAME)) {
+		if (material && material->otype == TEX_FUNC && material->oargs.nsargs == 3 && !strcmp(filename(material->oargs.sarg[2]), TCALNAME)) {
 			/* Texture coordinate calculation from tmesh.cal */
 			double bu, bv;
 
@@ -1723,7 +1723,7 @@ static int createFunction(const RTcontext context, OBJREC* rec)
 			(float)bxp.xfm[0][1], (float)bxp.xfm[1][1], (float)bxp.xfm[2][1],
 			(float)bxp.xfm[0][2], (float)bxp.xfm[1][2], (float)bxp.xfm[2][2]
 		};
-		if ( !strcmp(rec->oargs.sarg[0], "skybr") && !strcmp(rec->oargs.sarg[1], "skybright.cal") ) {
+		if (!strcmp(rec->oargs.sarg[0], "skybr") && !strcmp(filename(rec->oargs.sarg[1]), "skybright.cal")) {
 			ptxFile( path_to_ptx, "skybright" );
 			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "sky_bright", &program ) );
 			applyProgramVariable1ui(context, program, "type", (unsigned int)rec->oargs.farg[0]);
@@ -1733,7 +1733,7 @@ static int createFunction(const RTcontext context, OBJREC* rec)
 			applyProgramVariable3f(context, program, "sun", (float)rec->oargs.farg[4], (float)rec->oargs.farg[5], (float)rec->oargs.farg[6]);
 			applyProgramVariable( context, program, "transform", sizeof(transform), transform );
 		}
-		else if ( !strcmp(rec->oargs.sarg[0], "skybright") && !strcmp(rec->oargs.sarg[1], "perezlum.cal") ) {
+		else if (!strcmp(rec->oargs.sarg[0], "skybright") && !strcmp(filename(rec->oargs.sarg[1]), "perezlum.cal")) {
 			float coef[5] = { (float)rec->oargs.farg[2], (float)rec->oargs.farg[3], (float)rec->oargs.farg[4], (float)rec->oargs.farg[5], (float)rec->oargs.farg[6] };
 			ptxFile( path_to_ptx, "perezlum" );
 			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "perez_lum", &program ) );
@@ -1743,14 +1743,14 @@ static int createFunction(const RTcontext context, OBJREC* rec)
 			applyProgramVariable3f(context, program, "sun", (float)rec->oargs.farg[7], (float)rec->oargs.farg[8], (float)rec->oargs.farg[9]);
 			applyProgramVariable( context, program, "transform", sizeof(transform), transform );
 		}
-		else if (!strcmp(rec->oargs.sarg[0], "skybright") && !strcmp(rec->oargs.sarg[1], "isotrop_sky.cal")) {
+		else if (!strcmp(rec->oargs.sarg[0], "skybright") && !strcmp(filename(rec->oargs.sarg[1]), "isotrop_sky.cal")) {
 			/* Isotropic sky from daysim installation */
 			ptxFile(path_to_ptx, "isotropsky");
 			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "isotrop_sky", &program));
 			applyProgramVariable1f(context, program, "skybright", (float)rec->oargs.farg[0]);
 			applyProgramVariable(context, program, "transform", sizeof(transform), transform);
 		}
-		else if (!strcmp(rec->oargs.sarg[0], "skybr") && !strcmp(rec->oargs.sarg[1], "utah.cal")) {
+		else if (!strcmp(rec->oargs.sarg[0], "skybr") && !strcmp(filename(rec->oargs.sarg[1]), "utah.cal")) {
 			/* Preetham sky brightness from Mark Stock */
 			ptxFile(path_to_ptx, "utah");
 			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "utah", &program));
@@ -1759,7 +1759,7 @@ static int createFunction(const RTcontext context, OBJREC* rec)
 			applyProgramVariable3f(context, program, "sun", (float)rec->oargs.farg[1], (float)rec->oargs.farg[2], (float)rec->oargs.farg[3]);
 			applyProgramVariable(context, program, "transform", sizeof(transform), transform);
 		}
-		else if (rec->oargs.nsargs >= 4 && !strcmp(rec->oargs.sarg[0], "skyr") && !strcmp(rec->oargs.sarg[1], "skyg") && !strcmp(rec->oargs.sarg[2], "skyb") && !strcmp(rec->oargs.sarg[3], "utah.cal")) {
+		else if (rec->oargs.nsargs >= 4 && !strcmp(rec->oargs.sarg[0], "skyr") && !strcmp(rec->oargs.sarg[1], "skyg") && !strcmp(rec->oargs.sarg[2], "skyb") && !strcmp(filename(rec->oargs.sarg[3]), "utah.cal")) {
 			/* Preetham sky from Mark Stock */
 			ptxFile(path_to_ptx, "utah");
 			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "utah", &program));
@@ -1880,7 +1880,7 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 			(float)bxp.xfm[0][1], (float)bxp.xfm[1][1], (float)bxp.xfm[2][1],
 			(float)bxp.xfm[0][2], (float)bxp.xfm[1][2], (float)bxp.xfm[2][2]
 		};
-		if (!strcmp(rec->oargs.sarg[2], "source.cal")) {
+		if (!strcmp(filename(rec->oargs.sarg[2]), "source.cal")) {
 			/* Check compatibility with existing implementation */
 			if ((strcmp(rec->oargs.sarg[0], "corr") && strcmp(rec->oargs.sarg[0], "flatcorr") && strcmp(rec->oargs.sarg[0], "boxcorr") && strcmp(rec->oargs.sarg[0], "cylcorr")) || strcmp(rec->oargs.sarg[3], "src_phi") || strcmp(rec->oargs.sarg[4], "src_theta")) {
 				printObject(rec);
@@ -1899,7 +1899,7 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 			if (rec->oargs.nfargs > 2)
 				applyProgramVariable3f(context, program, "bounds", (float)rec->oargs.farg[1], (float)rec->oargs.farg[2], rec->oargs.nfargs > 3 ? (float)rec->oargs.farg[3] : 0.0f);
 		}
-		else if (rec->oargs.nsargs >= 7 && !strcmp(rec->oargs.sarg[0], "clip_r") && !strcmp(rec->oargs.sarg[1], "clip_g") && !strcmp(rec->oargs.sarg[2], "clip_b") && !strcmp(rec->oargs.sarg[4], "fisheye.cal") && !strcmp(rec->oargs.sarg[5], "u") && !strcmp(rec->oargs.sarg[6], "v")) {
+		else if (rec->oargs.nsargs >= 7 && !strcmp(rec->oargs.sarg[0], "clip_r") && !strcmp(rec->oargs.sarg[1], "clip_g") && !strcmp(rec->oargs.sarg[2], "clip_b") && !strcmp(filename(rec->oargs.sarg[4]), "fisheye.cal") && !strcmp(rec->oargs.sarg[5], "u") && !strcmp(rec->oargs.sarg[6], "v")) {
 			/* Sigma fisheye projection from Nathaniel Jones */
 			ptxFile(path_to_ptx, "fisheye");
 			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "fisheye", &program));

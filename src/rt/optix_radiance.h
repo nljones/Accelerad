@@ -223,6 +223,7 @@ void flushExceptionLog(const char* location);
 void printException(const RTexception type, const int index, const char* location);
 #endif
 void ptxFile( char* path, const char* name );
+char* filename(char *path);
 void reportProgress( const double progress, const double alarm );
 #ifdef TIMEOUT_CALLBACK
 int timeoutCallback(void);
