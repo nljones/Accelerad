@@ -679,13 +679,14 @@ char* filename(char *path)
 	while (*cp) {
 		if (*cp == '\\' || *cp == '/') /* remove directory */
 			separator = cp;
-		else
-			*cp = tolower(*cp);
+		//else
+		//	*cp = tolower(*cp);
 		cp++;
 	}
 	if (separator) {
 		/* make sure the original pointer remains the same */
-		memmove(path, separator + 1, cp - separator);
+		//memmove(path, separator + 1, cp - separator);
+		return separator + 1;
 	}
 	return path;
 }
