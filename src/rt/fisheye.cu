@@ -29,7 +29,7 @@ RT_CALLABLE_PROGRAM float3 fisheye(const float3 direction, const float3 ignore)
 	float x2 = x * x;
 	float x3 = x2 * x;
 	float x4 = x3 * x;
-	float y = 0.0896f * (x4 * x) - 0.2618f * x4 + 0.1456f * x3 - 0.0402f * x2 + 1.0708f * x; // fisheye correction
+	float y = 0.7617f * (x4 * x) - 1.9134f * x4 + 1.5577f * x3 - 0.6087f * x2 + 1.2056f * x; // fisheye correction
 
 	if (y > 1.0f) // outside of image
 		return make_float3(0.0f);
