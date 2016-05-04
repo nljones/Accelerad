@@ -633,7 +633,8 @@ void printException(const RTexception type, const int count, const char* locatio
 		case RT_EXCEPTION_INTERNAL_ERROR:
 			msg = "Internal error";				break;
 		default:
-			msg = "Unknown error";				break;
+			sprintf(errmsg, "Unknown error (%i)", type);
+			msg = errmsg;				        break;
 		}
 		sprintf(errmsg, "%s occurred%s in %s", msg, times, location);
 	} else {

@@ -928,7 +928,7 @@ RT_METHOD void comp_fftri( FFTRI *ftp, const AmbientSample *n0, const AmbientSam
 	const float dot_er = dot( ftp->e_i, ftp->r_i );
 	const float rdot_r = 1.0f / dot( ftp->r_i, ftp->r_i );
 	const float rdot_r1 = 1.0f / dot( ftp->r_i1, ftp->r_i1 );
-	ftp->I1 = acosf( dot( ftp->r_i, ftp->r_i1 ) * sqrtf( rdot_r * rdot_r1 ) ) * sqrtf( rdot_cp );
+	ftp->I1 = acosf(clamp(dot(ftp->r_i, ftp->r_i1) * sqrtf(rdot_r * rdot_r1), -1.0f, 1.0f)) * sqrtf(rdot_cp);
 	ftp->I2 = ( dot( ftp->e_i, ftp->r_i1 ) * rdot_r1 - dot_er * rdot_r + dot_e * ftp->I1 ) * 0.5f * rdot_cp;
 	const float J2 =  ( 0.5f * ( rdot_r - rdot_r1 ) - dot_er * ftp->I2 ) / dot_e;
 	ftp->rI2_eJ2 = ftp->I2 * ftp->r_i + J2 * ftp->e_i;
@@ -1123,7 +1123,10 @@ RT_METHOD void ambdirgrad( AMBHEMI *hp, const float3& u, const float3& v, float2
 					/* use vector for azimuth + 90deg */
 			float3 vd = ap->p - hit;
 					/* brightness over cosine factor */
-			float gfact = ap->v.y / dot( normal, vd );
+			float gfact = dot(normal, vd);
+			if (gfact < FTINY)
+				gfact = FTINY;
+			gfact = ap->v.y / gfact;
 					/* sine = proj_radius/vd_length */
 			dgsum.x -= dot( v, vd ) * gfact;
 			dgsum.y += dot( u, vd ) * gfact;
