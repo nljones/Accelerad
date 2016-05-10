@@ -12,6 +12,7 @@
 #include <optix_world.h>
 #include "optix_common.h"
 #include "optix_ambient_common.h"
+#include "optix_point_common.h"
 
 
 #define  array2cuda2(c,a)	((c).x=(a)[0],(c).y=(a)[1])

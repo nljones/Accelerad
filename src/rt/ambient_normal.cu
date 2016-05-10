@@ -453,10 +453,10 @@ RT_METHOD int samp_hemi(
 	const float3& hit
 )
 {
-	float	d;
 	int	j;
 					/* set number of divisions */
 #ifndef AMB_PARALLEL
+	float d;
 	if (ambacc <= FTINY && wt > (d = 0.8f * fmaxf(*rcol) * wt / (ambdiv*minweight))) //TODO second wt should be radiance ray weight
 		wt = d;			/* avoid ray termination */
 #endif
@@ -469,9 +469,7 @@ RT_METHOD int samp_hemi(
 	hp->acol = make_float3( 0.0f );
 	hp->sampOK = 0;
 					/* assign coefficient */
-	hp->acoef = *rcol;
-	d = 1.0f / (n*n);
-	hp->acoef *= d;
+	hp->acoef = *rcol * (1.0f / (n*n));
 					/* make tangent plane axes */
 #ifdef AMB_PARALLEL
 	hp->ux = getperpendicular(normal);

@@ -14,7 +14,6 @@
 #define LIGHTS
 #define ANTIMATTER
 //#define DAYSIM_COMPATIBLE
-#define AMBIENT_CELL
 
 
 /*! Additional Exceptions */
@@ -94,19 +93,6 @@ typedef struct struct_ray_data
 	int ray_count;
 #endif
 } RayData;
-
-/* Structure to hold a point and direction */
-typedef struct struct_point_direction
-{
-#if defined(__cplusplus)
-	typedef optix::float3 float3;
-#endif
-	float3 pos;		/* position in space */
-	float3 dir;		/* normal direction */
-#ifdef AMBIENT_CELL
-	uint2 cell;		/* cell index represented as 4 16-bit shorts */
-#endif
-} PointDirection;
 
 /* Structure to hold ray parameters */
 typedef struct struct_ray_parameters

@@ -116,17 +116,6 @@ struct PerRayData_ambient_record
 #endif
 };
 
-struct PerRayData_point_cloud
-{
-	PointDirection result;
-	PointDirection backup;
-	//rand_state* state;
-#ifdef ANTIMATTER
-	int inside;			/* counter for number of volumes traversed */
-	unsigned int mask;	/* mask for materials to skip */
-#endif
-};
-
 /* Ambient data structures */
 #ifdef OLDAMB
 typedef struct {
@@ -145,7 +134,6 @@ typedef struct {
 } AMBHEMI;		/* ambient sample hemisphere */
 #endif /* OLDAMB */
 
-RT_METHOD void clear(PointDirection& pd);
 RT_METHOD void checkFinite( const float2& v );
 RT_METHOD void checkFinite( const float3& v );
 RT_METHOD int isnan( const float2& v );
@@ -164,15 +152,6 @@ RT_METHOD float ray_start( const float3& hit, const float3& dir, const float3& n
 RT_METHOD float bright(const float3& rgb);
 RT_METHOD float3 exceptionToFloat3( const unsigned int& code );
 RT_METHOD float4 exceptionToFloat4( const unsigned int& code );
-
-/* Clear the contents of object. */
-RT_METHOD void clear(PointDirection& pd)
-{
-	pd.pos = pd.dir = make_float3(0.0f);
-#ifdef AMBIENT_CELL
-	pd.cell = make_uint2(0);
-#endif
-}
 
 /* Throw exception if any vector elements are NaN or infinte. */
 RT_METHOD void checkFinite( const float2& v )

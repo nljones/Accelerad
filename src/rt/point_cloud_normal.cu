@@ -6,8 +6,13 @@
 #include <optix.h>
 #include <optixu/optixu_math_namespace.h>
 #include "optix_shader_common.h"
+#include "optix_point_common.h"
 
 using namespace optix;
+
+/* Material variables */
+//rtDeclareVariable(float, spec, , ) = 0.0f;	/* The material specularity given by the rad file "plastic", "metal", or "trans" object */
+rtDeclareVariable(float, transm, , ) = 0.0f;	/* The material transmissivity given by the rad file "trans" object */
 
 /* OptiX variables */
 rtDeclareVariable(Ray, ray, rtCurrentRay, );
@@ -127,6 +132,17 @@ RT_PROGRAM void closest_hit_point_cloud_normal()
 
 	prd.result.pos = ray.origin + t_hit * ray.direction;
 	prd.result.dir = faceforward(world_geometric_normal, -ray.direction, world_geometric_normal);
+
+	/* Reflect off specular surfaces */
+	//if (spec > FTINY)
+	//	prd.backup = prd.result;
+	//else
+
+	/* Do reverse side */
+	if (transm > FTINY) {
+		prd.backup.pos = ray.origin + (t_hit + RAY_START) * ray.direction;
+		prd.backup.dir = faceforward(world_geometric_normal, ray.direction, world_geometric_normal);
+	} else
 
 	/* Don't reflect off occluded surfaces */
 	if (dot(ray.direction, prd.backup.pos - prd.result.pos) > 0)

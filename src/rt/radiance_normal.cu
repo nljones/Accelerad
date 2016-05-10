@@ -462,7 +462,7 @@ RT_PROGRAM void closest_hit_radiance()
 			const DistantLight light = lights[i];
 			if ( light.casts_shadow ) {
 				shadow_prd.target = i;
-				shadow_ray.direction = normalize( light.pos );
+				shadow_ray.direction = normalize( light.pos ); //TODO implement direct jitter for distant light sources
 				shadow_ray.tmin = ray_start(nd.hit, shadow_ray.direction, nd.normal, RAY_START);
 				shadow_ray.tmax = RAY_END;
 				result += dirnorm(&shadow_ray, &shadow_prd, &nd, light.solid_angle);

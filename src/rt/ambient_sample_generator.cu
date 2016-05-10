@@ -6,6 +6,7 @@
 #include <optix_world.h>
 #include "optix_shader_common.h"
 #include "optix_ambient_common.h"
+#include "optix_point_common.h"
 
 #ifdef AMB_PARALLEL
 
@@ -127,8 +128,7 @@ RT_PROGRAM void exception()
 	index.z += segment_offset;
 #endif /* DAYSIM_COMPATIBLE */
 	amb_samp_buffer[index].d = -1.0f;
-	amb_samp_buffer[index].v = exceptionToFloat3( code );
-	amb_samp_buffer[index].p = exceptionToFloat3( code );
+	amb_samp_buffer[index].v = amb_samp_buffer[index].p = exceptionToFloat3( code );
 #ifdef RAY_COUNT
 	amb_samp_buffer[index].ray_count = 0;
 #endif
