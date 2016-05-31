@@ -118,9 +118,13 @@ rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );
 rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
 
 
+#ifdef CHECK_OVERLAP
 RT_METHOD int check_overlap( const float3& normal, const float3& hit );
+#endif
 #ifndef OLDAMB
+#ifdef CHECK_OVERLAP
 RT_METHOD int plugaleak( const AmbientRecord* record, const float3& anorm, const float3& normal, const float3& hit, float ang );
+#endif
 RT_METHOD int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit );
 RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const int& i, const int& j, const int& n, const float3& normal, const float3& hit);
 #ifdef AMB_SAVE_MEM
@@ -164,10 +168,6 @@ RT_PROGRAM void closest_hit_ambient()
 
 	float3 ffnormal = -ray.direction;
 	float3 hit_point = ray.origin + t_hit * ray.direction;
-
-	// Check that this is not covered by parent
-	if ( check_overlap( ffnormal, hit_point ) )
-		return;
 
 	/* compute weight */
 	//float weight = 1.0f;
@@ -228,6 +228,7 @@ RT_PROGRAM void closest_hit_ambient()
 #endif
 }
 
+#ifdef CHECK_OVERLAP /* We don't have need for this currently. */
 // based on sumambient from ambient.c
 RT_METHOD int check_overlap( const float3& normal, const float3& hit )
 {
@@ -300,8 +301,10 @@ RT_METHOD int check_overlap( const float3& normal, const float3& hit )
 	return( e2 < 0.0f || e1 + e2 <= acc );
 #endif /* OLDAMB */
 }
+#endif /* CHECK_OVERLAP */
 
 #ifndef OLDAMB
+#ifdef CHECK_OVERLAP /* We don't have need for this currently. */
 /* Plug a potential leak where ambient cache value is occluded */
 RT_METHOD int plugaleak( const AmbientRecord* record, const float3& anorm, const float3& normal, const float3& hit, float ang )
 {
@@ -340,6 +343,7 @@ RT_METHOD int plugaleak( const AmbientRecord* record, const float3& anorm, const
 	rtTrace( top_object, shadow_ray, shadow_prd );
 	return( dot( shadow_prd.result, shadow_prd.result ) < 1.0f );	/* check for occluder */
 }
+#endif /* CHECK_OVERLAP */
 
 RT_METHOD int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit )
 {

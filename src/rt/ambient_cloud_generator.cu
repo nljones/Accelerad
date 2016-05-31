@@ -51,7 +51,6 @@ RT_PROGRAM void ambient_cloud_camera()
 
 	PerRayData_ambient_record prd;
 	init_rand(&prd.state, launch_index.x + launch_dim.x * (launch_index.y + launch_dim.y * level));
-	prd.parent = NULL;
 	prd.result.pos = prd.result.val = make_float3( 0.0f );
 	prd.result.lvl = level;
 	prd.result.weight = 1.0f;
