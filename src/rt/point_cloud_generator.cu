@@ -7,6 +7,8 @@
 #include "optix_shader_common.h"
 #include "optix_point_common.h"
 
+#define RING_BUFFER_SIZE	8
+
 using namespace optix;
 
 /* Contex variables */
@@ -57,19 +59,22 @@ RT_PROGRAM void point_cloud_camera()
 	PerRayData_point_cloud prd;
 
 	// Init random state
-	rand_state* state;
-	init_rand(&state, launch_index.x + launch_dim.x * launch_index.y);
+	init_rand(&prd.state, launch_index.x + launch_dim.x * launch_index.y);
 
-	uint3 index = make_uint3( launch_index, 0u );
-	const unsigned int seeds = seed_buffer.size().z;
-	unsigned int loop = 2u * seeds; // Prevent infinite looping
+	prd.index = make_uint3(launch_index, 0u);
+	prd.seeds = seed_buffer.size().z;
+	unsigned int loop = 2u * prd.seeds; // Prevent infinite looping
+
+	float3 point_ring[RING_BUFFER_SIZE];
+	float3 dir_ring[RING_BUFFER_SIZE];
+	unsigned int ring_start = 0, ring_end = 0, ring_full = 0;
 
 	Ray ray;
 	ray.origin = eye;
 	ray.ray_type = point_cloud_ray_type;
 	ray.tmin = 0.0f;
 
-	float2 d = make_float2( curand_uniform( state ), curand_uniform( state ) );
+	float2 d = make_float2(curand_uniform(prd.state), curand_uniform(prd.state));
 	d = 0.5f + dstrpix * ( 0.5f - d ); // this is pixjitter() from rpict.c
 
 	// Set initial ray direction
@@ -121,8 +126,8 @@ RT_PROGRAM void point_cloud_camera()
 		ray.tmax = RAY_END;
 	}
 
-	while ( index.z < seeds && loop-- ) {
-		clear(prd.backup);
+	while (prd.index.z < prd.seeds && loop--) {
+		prd.forward = prd.reverse = make_float3(0.0f);
 #ifdef ANTIMATTER
 		prd.mask = 0u;
 		prd.inside = 0;
@@ -131,50 +136,39 @@ RT_PROGRAM void point_cloud_camera()
 		// Trace the current ray
 		rtTrace(top_object, ray, prd);
 
-		// Check for a valid result
-		if ( isfinite( prd.result.pos ) && dot( prd.result.dir, prd.result.dir ) > FTINY ) { // NaN values will be false
-			seed_buffer[index] = prd.result; // This could contain points on glass materials
-			index.z++;
-#ifndef AMBIENT_CELL
-		} else {
-			prd.result.pos = eye;
-			prd.result.dir = ray.direction;
-#endif /* AMBIENT_CELL */
+		// Add next forward ray to ring buffer
+		if (isfinite(prd.point) && dot(prd.forward, prd.forward) > FTINY) { // NaN values will be false
+			point_ring[ring_end] = prd.point;
+			dir_ring[ring_end] = prd.forward;
+			ring_end = (ring_end + 1) % RING_BUFFER_SIZE;
+			ring_full = ring_start == ring_end;
 		}
 
-#ifdef AMBIENT_CELL
-		if (!(isfinite(prd.backup.pos) && dot(prd.backup.dir, prd.backup.dir) > FTINY)) // NaN values will be false
+		// Add next reverse ray to ring buffer
+		if (!ring_full && isfinite(prd.point) && dot(prd.reverse, prd.reverse) > FTINY) { // NaN values will be false
+			point_ring[ring_end] = prd.point;
+			dir_ring[ring_end] = prd.reverse;
+			ring_end = (ring_end + 1) % RING_BUFFER_SIZE;
+			ring_full = ring_start == ring_end;
+		}
+
+		if (!ring_full && ring_start == ring_end)
 			break;
 
 		// Prepare for next ray
-		ray.origin = prd.backup.pos;
-		ray.direction = reflect(ray.direction, prd.backup.dir);
-		ray.tmin = RAY_START;// ray_start(ray.origin, ray.direction, prd.backup.dir, RAY_START);
-#else /* AMBIENT_CELL */
-		// Prepare for next ray
-		ray.origin = prd.result.pos;
-
-		float3 uz = normalize( prd.result.dir );
-		float3 ux = getperpendicular(uz);
-		float3 uy = normalize(cross(uz, ux));
-
-		float zd = sqrtf( curand_uniform( state ) );
-		float phi = 2.0f*M_PIf * curand_uniform( state );
-		float xd = cosf(phi) * zd;
-		float yd = sinf(phi) * zd;
-		zd = sqrtf(1.0f - zd*zd);
-		ray.direction = normalize( xd*ux + yd*uy + zd*uz );
-
+		ray.origin = point_ring[ring_start];
+		ray.direction = dir_ring[ring_start];
+		ring_start = (ring_start + 1) % RING_BUFFER_SIZE;
+		ring_full = 0;
 		ray.tmin = ray_start(ray.origin, RAY_START);
-#endif /* AMBIENT_CELL */
 		ray.tmax = RAY_END;
 	}
 
 clearout:
 	// If outdoors, there are no bounces, but we need to prevent junk data
-	while ( index.z < seeds ) {
-		clear(seed_buffer[index]);
-		index.z++;
+	while (prd.index.z < prd.seeds) {
+		clear(seed_buffer[prd.index]);
+		prd.index.z++;
 	}
 }
 

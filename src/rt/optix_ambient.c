@@ -367,7 +367,7 @@ static unsigned int populateAmbientRecords( const RTcontext context, const int l
 		/* Get the ambient records from the octree structure. */
 		useful_record_count = gatherAmbientRecords( &atrunk, &ambient_records_ptr, level );
 #endif
-		vprintf("Using %u of %u ambient records\n", useful_record_count, nambvals);
+		vprintf("Using %u of %u ambient records up to level %i.\n", useful_record_count, nambvals, level);
 	}
 
 	/* Resize the buffer of ambient records. */
@@ -684,20 +684,20 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 		RT_CHECK_ERROR(rtVariableSet1f(cell_size_var, (float)radius));
 		cluster_counts[level] = chooseAmbientLocations(context, level, grid_width, grid_height, optix_amb_seeds_per_thread, level ? cluster_counts[level - 1] : 0, seed_buffer, cluster_buffer[level], segment_var);
 
+		if (!cluster_counts[level]) continue;
+
 		if (level)
 			RT_CHECK_ERROR(rtVariableSetObject(current_cluster_buffer, cluster_buffer[level]));
-		updateAmbientCache(context, level + 1);
 
-		if (cluster_counts[level]) {
-			updateAmbientDynamicStorage(context, cluster_counts[level], level);
-			RT_CHECK_ERROR(rtBufferSetSize1D(ambient_record_buffer, cluster_counts[level]));
+		updateAmbientDynamicStorage(context, cluster_counts[level], level);
+		RT_CHECK_ERROR(rtBufferSetSize1D(ambient_record_buffer, cluster_counts[level]));
 #ifdef DAYSIM
-			RT_CHECK_ERROR(rtBufferSetSize2D(ambient_dc_buffer, daysimGetCoefficients(), daysimGetCoefficients() ? cluster_counts[level] : 0));
-			calcAmbientValues(context, level, max_level, cluster_counts[level], alarm, ambient_record_buffer, ambient_dc_buffer, segment_var);
+		RT_CHECK_ERROR(rtBufferSetSize2D(ambient_dc_buffer, daysimGetCoefficients(), daysimGetCoefficients() ? cluster_counts[level] : 0));
+		calcAmbientValues(context, level, max_level, cluster_counts[level], alarm, ambient_record_buffer, ambient_dc_buffer, segment_var);
 #else
-			calcAmbientValues(context, level, max_level, cluster_counts[level], alarm, ambient_record_buffer);
+		calcAmbientValues(context, level, max_level, cluster_counts[level], alarm, ambient_record_buffer);
 #endif
-		}
+
 #else /* AMBIENT_CELL */
 #ifdef DAYSIM
 		calcAmbientValues(context, level, max_level, cuda_kmeans_clusters, alarm, ambient_record_buffer, ambient_dc_buffer, segment_var);
@@ -745,11 +745,6 @@ static void createPointCloudCamera( const RTcontext context, const VIEW* view )
 
 	/* Define ray types */
 	applyContextVariable1ui( context, "point_cloud_ray_type", POINT_CLOUD_RAY );
-
-	/* Miss program */
-	ptxFile( path_to_ptx, "point_cloud_normal" );
-	RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "point_cloud_miss", &program));
-	RT_CHECK_ERROR(rtContextSetMissProgram(context, POINT_CLOUD_RAY, program));
 }
 
 #ifdef AMB_PARALLEL
@@ -903,6 +898,10 @@ static size_t chooseAmbientLocations(const RTcontext context, const unsigned int
 	for (i = 0u; i < seed_count; i++)
 		cluster_buffer_data[i] = seed_buffer_data[seed_index[i]];
 	RT_CHECK_ERROR(rtBufferUnmap(cluster_buffer));
+
+	/* Add previous round's ambient values to cache */
+	if (nambvals && seed_count)
+		updateAmbientCache(context, level + 1);
 
 	free(seed_index);
 #endif /* AMBIENT_CELL */
@@ -1117,7 +1116,7 @@ static size_t createKMeansClusters( const size_t seed_count, const size_t cluste
 #ifdef DEBUG_OPTIX
 		else if ( is_nan(cluster_buffer_data[i].pos) || is_nan(cluster_buffer_data[i].dir) )
 			mprintf("NaN in cluster %" PRIu64 " (%g, %g, %g) (%g, %g, %g)\n", i, cluster_buffer_data[i].pos.x, cluster_buffer_data[i].pos.y, cluster_buffer_data[i].pos.z, cluster_buffer_data[i].dir.x, cluster_buffer_data[i].dir.y, cluster_buffer_data[i].dir.z);
-		else if (length_squared( cluster_buffer_data[i].dir ) < FTINY)
+		else if ( length_squared( cluster_buffer_data[i].dir ) < FTINY)
 			mprintf("Zero direction in cluster %" PRIu64 " (%g, %g, %g) (%g, %g, %g)\n", i, cluster_buffer_data[i].pos.x, cluster_buffer_data[i].pos.y, cluster_buffer_data[i].pos.z, cluster_buffer_data[i].dir.x, cluster_buffer_data[i].dir.y, cluster_buffer_data[i].dir.z);
 #endif
 	}

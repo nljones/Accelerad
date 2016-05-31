@@ -11,8 +11,11 @@
 using namespace optix;
 
 /* Material variables */
-//rtDeclareVariable(float, spec, , ) = 0.0f;	/* The material specularity given by the rad file "plastic", "metal", or "trans" object */
+rtDeclareVariable(float, spec, , ) = 0.0f;	/* The material specularity given by the rad file "plastic", "metal", or "trans" object */
+rtDeclareVariable(float, rough, , ) = 0.0f;	/* The material roughness given by the rad file "plastic", "metal", or "trans" object */
 rtDeclareVariable(float, transm, , ) = 0.0f;	/* The material transmissivity given by the rad file "trans" object */
+rtDeclareVariable(float, tspecu, , ) = 0.0f;	/* The material transmitted specular component given by the rad file "trans" object */
+rtDeclareVariable(unsigned int, ambincl, , ) = 1u;	/* Flag to skip ambient calculation and use default (ae, aE, ai, aI) */
 
 /* OptiX variables */
 rtDeclareVariable(Ray, ray, rtCurrentRay, );
@@ -29,8 +32,13 @@ rtDeclareVariable(int, mat_id, attribute mat_id, );
 rtDeclareVariable(rtObject, top_object, , );
 #endif
 
-#ifdef AMBIENT_CELL
 /* Context variables */
+rtBuffer<PointDirection, 3>      seed_buffer; /* output */
+
+rtDeclareVariable(float, specthresh, , );	/* This is the minimum fraction of reflection or transmission, under which no specular sampling is performed */
+rtDeclareVariable(float, specjitter, , );	/* specular sampling (ss) */
+
+#ifdef AMBIENT_CELL
 rtDeclareVariable(float3, cuorg, , ); /* bounding box minimum */
 rtDeclareVariable(float, cell_size, , ); /* cell side dimension */
 rtDeclareVariable(unsigned int, level, , ) = 0u;
@@ -75,7 +83,7 @@ RT_METHOD int occupied(const float3& pos, const float3& dir, const float3& world
 		ambient_prd.weight *= AVGREFL; // Compute weight as in makeambient() from ambient.c
 
 #ifdef OLDAMB
-	ambient_prd.state = prd.state; // TODO make available here
+	ambient_prd.state = prd.state;
 #endif
 #ifdef DAYSIM_COMPATIBLE
 	ambient_prd.dc = make_uint3(0u); // Mark as null (TODO check this)
@@ -91,69 +99,173 @@ RT_METHOD int occupied(const float3& pos, const float3& dir, const float3& world
 #endif
 	return ambient_prd.wsum > FTINY;
 }
+#else /* AMBIENT_CELL */
+RT_METHOD float3 sample_hemisphere(const float3& uz)
+{
+	float3 ux = getperpendicular(uz);
+	float3 uy = normalize(cross(uz, ux));
+	float zd = sqrtf(curand_uniform(prd.state));
+	float phi = 2.0f*M_PIf * curand_uniform(prd.state);
+	float xd = cosf(phi) * zd;
+	float yd = sinf(phi) * zd;
+	zd = sqrtf(1.0f - zd*zd);
+	return normalize(xd*ux + yd*uy + zd*uz);
+}
 #endif /* AMBIENT_CELL */
 
-RT_PROGRAM void any_hit_point_cloud_glass()
+RT_PROGRAM void closest_hit_point_cloud_glass()
 {
-#ifdef ANTIMATTER
-	if (prd.mask & (1 << mat_id)) {
-		rtIgnoreIntersection();
-		return;
-	}
-#endif /* ANTIMATTER */
-
-	float3 world_geometric_normal = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, geometric_normal ) );
-
-	prd.backup.pos = ray.origin + t_hit * ray.direction;
-	prd.backup.dir = faceforward(world_geometric_normal, -ray.direction, world_geometric_normal);
-#ifdef AMBIENT_CELL
-	prd.backup.cell = cell_hash(prd.backup.pos, prd.backup.dir);
-#endif
-
-	//TODO should probably use first intersection only and send transmitted ray
-	rtIgnoreIntersection();
-}
-
-RT_PROGRAM void closest_hit_point_cloud_normal()
-{
-	float3 world_geometric_normal = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, geometric_normal ) );
+	float3 world_geometric_normal = normalize(rtTransformNormal(RT_OBJECT_TO_WORLD, geometric_normal));
+	float3 snormal = faceforward(world_geometric_normal, -ray.direction, world_geometric_normal);
 
 #ifdef ANTIMATTER
 	if (prd.mask & (1 << mat_id)) {
 		prd.inside += dot(world_geometric_normal, ray.direction) < 0.0f ? 1 : -1;
 
 		/* Continue the ray */
-		float3 snormal = faceforward(world_geometric_normal, -ray.direction, world_geometric_normal);
 		Ray new_ray = make_Ray(ray.origin, ray.direction, ray.ray_type, ray_start(ray.origin + t_hit * ray.direction, ray.direction, snormal, RAY_START) + t_hit, RAY_END);
 		rtTrace(top_object, new_ray, prd);
 		return;
 	}
 #endif /* ANTIMATTER */
 
-	prd.result.pos = ray.origin + t_hit * ray.direction;
-	prd.result.dir = faceforward(world_geometric_normal, -ray.direction, world_geometric_normal);
+	prd.point = ray.origin + t_hit * ray.direction;
 
-	/* Reflect off specular surfaces */
-	//if (spec > FTINY)
-	//	prd.backup = prd.result;
-	//else
+	/* Transmission */
+#ifdef AMBIENT_CELL
+	prd.forward = ray.direction;
+#else
+	prd.forward = sample_hemisphere(-snormal);
+#endif
 
-	/* Do reverse side */
-	if (transm > FTINY) {
-		prd.backup.pos = ray.origin + (t_hit + RAY_START) * ray.direction;
-		prd.backup.dir = faceforward(world_geometric_normal, ray.direction, world_geometric_normal);
-	} else
+	/* Reflection */
+#ifdef AMBIENT_CELL
+	prd.reverse = reflect(ray.direction, snormal);
+#else
+	prd.reverse = sample_hemisphere(snormal);
+#endif
+}
 
-	/* Don't reflect off occluded surfaces */
-	if (dot(ray.direction, prd.backup.pos - prd.result.pos) > 0)
-		clear(prd.backup);
+RT_PROGRAM void closest_hit_point_cloud_normal()
+{
+	float3 world_geometric_normal = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, geometric_normal ) );
+	float3 snormal = faceforward(world_geometric_normal, -ray.direction, world_geometric_normal);
+
+#ifdef ANTIMATTER
+	if (prd.mask & (1 << mat_id)) {
+		prd.inside += dot(world_geometric_normal, ray.direction) < 0.0f ? 1 : -1;
+
+		/* Continue the ray */
+		Ray new_ray = make_Ray(ray.origin, ray.direction, ray.ray_type, ray_start(ray.origin + t_hit * ray.direction, ray.direction, snormal, RAY_START) + t_hit, RAY_END);
+		rtTrace(top_object, new_ray, prd);
+		return;
+	}
+#endif /* ANTIMATTER */
+
+	float trans = transm * (1.0f - spec);
+	float tspec = trans * tspecu;
+	float alpha2 = rough * rough;
+
+	/* Record new origin */
+	prd.point = ray.origin + t_hit * ray.direction;
+
+	/* Transmitted ambient */
+	if (ambincl && trans - tspec > FTINY && prd.index.z < prd.seeds) {
+#ifdef AMBIENT_CELL
+		if (!occupied(prd.point, -snormal, world_geometric_normal)) {
+			seed_buffer[prd.index].cell = cell_hash(prd.point, -snormal);
+#endif
+
+			/* Store seed point */
+			seed_buffer[prd.index].pos = prd.point;
+			seed_buffer[prd.index].dir = -snormal;
+			prd.index.z++;
 
 #ifdef AMBIENT_CELL
-	if (occupied(prd.result.pos, prd.result.dir, world_geometric_normal))
-		clear(prd.result);
-	else
-		prd.result.cell = cell_hash(prd.result.pos, prd.result.dir);
+		}
 #endif
+	}
+
+	/* Reflected ambient */
+	if (ambincl && 1.0f - trans - spec > FTINY && prd.index.z < prd.seeds) {
+#ifdef AMBIENT_CELL
+		if (!occupied(prd.point, snormal, world_geometric_normal)) {
+			seed_buffer[prd.index].cell = cell_hash(prd.point, snormal);
+#endif
+
+			/* Store seed point */
+			seed_buffer[prd.index].pos = prd.point;
+			seed_buffer[prd.index].dir = snormal;
+			prd.index.z++;
+
+#ifdef AMBIENT_CELL
+		}
+#endif
+	}
+
+	if (prd.index.z >= prd.seeds) return;
+
+	/* Transmitted ray */
+	if (tspec > FTINY && (alpha2 <= FTINY || specthresh < tspec - FTINY)) {
+#ifdef AMBIENT_CELL
+		prd.forward = ray.direction;
+
+		if (alpha2 > FTINY) {
+			float3 u = getperpendicular(-snormal); //TODO should be pnormal
+			float3 v = cross(-snormal, u);
+			float2 rv = make_float2(curand_uniform(prd.state), curand_uniform(prd.state)); // should be evenly distributed in both dimensions
+			float d = 2.0f * M_PIf * rv.x;
+			float cosp = cosf(d);
+			float sinp = sinf(d);
+			if ((0.0f <= specjitter) && (specjitter < 1.0f))
+				rv.y = 1.0f - specjitter * rv.y;
+			if (rv.y <= FTINY)
+				d = 1.0f;
+			else
+				d = sqrtf(alpha2 * -logf(rv.y));
+			float3 h = d * (cosp * u + sinp * v) - snormal; //TODO should be pnormal
+			d = -2.0f * dot(h, prd.forward) / (1.0f + d*d);
+			h = prd.forward + h * d;
+
+			/* sample rejection test */
+			if (dot(h, snormal) < -FTINY)
+				prd.forward = h;
+		}
+#else
+		prd.forward = sample_hemisphere(-snormal);
+#endif
+	}
+
+	/* Reflected ray */
+	if (spec > FTINY && (alpha2 <= FTINY || specthresh < spec - FTINY)) {
+#ifdef AMBIENT_CELL
+		prd.reverse = reflect(ray.direction, snormal);
+
+		if (alpha2 > FTINY) {
+			float3 u = getperpendicular(snormal); //TODO should be pnormal
+			float3 v = cross(snormal, u);
+			float2 rv = make_float2(curand_uniform(prd.state), curand_uniform(prd.state)); // should be evenly distributed in both dimensions
+			float d = 2.0f * M_PIf * rv.x;
+			float cosp = cosf(d);
+			float sinp = sinf(d);
+			if ((0.0f <= specjitter) && (specjitter < 1.0f))
+				rv.y = 1.0f - specjitter * rv.y;
+			if (rv.y <= FTINY)
+				d = 1.0f;
+			else
+				d = sqrtf(alpha2 * -logf(rv.y));
+			float3 h = d * (cosp * u + sinp * v) + snormal; //TODO should be pnormal
+			d = -2.0f * dot(h, prd.reverse) / (1.0f + d*d);
+			h = prd.reverse + h * d;
+
+			/* sample rejection test */
+			if (dot(h, snormal) > FTINY)
+				prd.reverse = h;
+		}
+#else
+		prd.reverse = sample_hemisphere(snormal);
+#endif
+	}
 }
 
 RT_PROGRAM void closest_hit_point_cloud_light()
@@ -170,23 +282,4 @@ RT_PROGRAM void closest_hit_point_cloud_light()
 		return;
 	}
 #endif /* ANTIMATTER */
-
-	/* Don't reflect off occluded surfaces */
-	if (dot(ray.direction, prd.backup.pos - prd.result.pos) > 0)
-		clear(prd.backup);
-
-#ifdef AMBIENT_CELL
-	clear(prd.result);
-#else
-	prd.result = prd.backup;
-#endif
-}
-
-RT_PROGRAM void point_cloud_miss()
-{
-#ifdef AMBIENT_CELL
-	clear(prd.result);
-#else
-	prd.result = prd.backup;
-#endif
 }

@@ -23,26 +23,27 @@ rtDeclareVariable(uint3, launch_dim,   rtLaunchDim, );
 RT_PROGRAM void hemisphere_camera()
 {
 	PerRayData_point_cloud prd;
-	clear(prd.backup);
+	clear(seed_buffer[launch_index]);
 
 	PointDirection eye = cluster_buffer[launch_index.z + segment_offset];
 
 	// Check for valid input
 	if ( isfinite( eye.pos ) && isfinite( eye.dir ) && dot( eye.dir, eye.dir ) > FTINY ) { // NaN values will be false
 		// Init random state
-		rand_state* state;
-		init_rand(&state, launch_index.x + launch_dim.x * (launch_index.y + launch_dim.y * launch_index.z));
+		init_rand(&prd.state, launch_index.x + launch_dim.x * (launch_index.y + launch_dim.y * launch_index.z));
 
 		// Make axes
 		float3 uz = normalize(eye.dir);
-		float3 ux = getperpendicular(uz, state);
+		float3 ux = getperpendicular(uz, prd.state);
 		float3 uy = cross(uz, ux);
 						/* avoid coincident samples */
-		float2 spt = 0.1f + 0.8f * make_float2(curand_uniform(state), curand_uniform(state));
+		float2 spt = 0.1f + 0.8f * make_float2(curand_uniform(prd.state), curand_uniform(prd.state));
 		SDsquare2disk(spt, (launch_index.y + spt.y) / launch_dim.y, (launch_index.x + spt.x) / launch_dim.x);
 		float zd = sqrtf(1.0f - dot(spt, spt));
 		float3 rdir = normalize(spt.x * ux + spt.y * uy + zd * uz);
 
+		prd.index = launch_index;
+		prd.seeds = launch_index.z + 1;
 #ifdef ANTIMATTER
 		prd.mask = 0u;
 		prd.inside = 0;
@@ -51,14 +52,7 @@ RT_PROGRAM void hemisphere_camera()
 		// Trace the current ray
 		Ray ray = make_Ray(eye.pos, rdir, point_cloud_ray_type, ray_start( eye.pos, rdir, uz, RAY_START ), RAY_END);
 		rtTrace(top_object, ray, prd);
-
-		// Check for a valid result
-		if ( isfinite( prd.result.pos ) && dot( prd.result.dir, prd.result.dir ) > FTINY ) { // NaN values will be false
-			seed_buffer[launch_index] = prd.result; // This could contain points on glass materials
-			return;
-		}
 	}
-	seed_buffer[launch_index] = prd.backup;
 }
 
 RT_PROGRAM void exception()

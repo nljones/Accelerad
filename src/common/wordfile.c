@@ -40,6 +40,7 @@ wordfile(			/* get words from fname, put in words */
 		return(-1);			/* open error */
 	words[0] = NULL;
 	while (nargs > 1 && (n += read(fd, buf+n, MAXWLEN-n)) > 0) {
+		int	dlen = n;
 		int	crem = 0;
 		if (n > MAXWLEN/2)		/* check for mid-word end */
 			while (!isspace(buf[--n])) {
@@ -56,7 +57,7 @@ wordfile(			/* get words from fname, put in words */
 		words += n; nargs -= n;
 		wrdcnt += n;
 		if ((n = crem) > 0)		/* move remainder */
-			memmove(buf, buf+MAXWLEN-crem, crem);
+			memmove(buf, buf+dlen-crem, crem);
 	}
 done:
 	close(fd);

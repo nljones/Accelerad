@@ -26,9 +26,12 @@ typedef struct struct_point_direction
 /* Ray payload structure */
 struct PerRayData_point_cloud
 {
-	PointDirection result;
-	PointDirection backup;
-	//rand_state* state;
+	float3 point;		/* hit point */
+	float3 forward;		/* transmitted ray normal direction */
+	float3 reverse;		/* reflected ray normal direction */
+	uint3 index;		/* thread index */
+	unsigned int seeds;	/* maximum seed index for thread */
+	rand_state* state;
 #ifdef ANTIMATTER
 	int inside;			/* counter for number of volumes traversed */
 	unsigned int mask;	/* mask for materials to skip */

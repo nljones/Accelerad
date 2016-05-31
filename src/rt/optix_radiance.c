@@ -131,7 +131,7 @@ static RTprogram radiance_normal_closest_hit_program, shadow_normal_closest_hit_
 #ifdef ACCELERAD_RT
 static RTprogram diffuse_normal_closest_hit_program;
 #endif
-static RTprogram radiance_glass_closest_hit_program, shadow_glass_closest_hit_program, ambient_glass_any_hit_program, point_cloud_glass_any_hit_program;
+static RTprogram radiance_glass_closest_hit_program, shadow_glass_closest_hit_program, ambient_glass_any_hit_program, point_cloud_glass_closest_hit_program;
 static RTprogram radiance_light_closest_hit_program, shadow_light_closest_hit_program, point_cloud_light_closest_hit_program;
 #ifdef ANTIMATTER
 static RTprogram radiance_clip_closest_hit_program, shadow_clip_closest_hit_program, point_cloud_clip_closest_hit_program;
@@ -1527,11 +1527,11 @@ static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec)
 		}
 		RT_CHECK_ERROR( rtMaterialSetAnyHitProgram( material, AMBIENT_RECORD_RAY, ambient_glass_any_hit_program ) );
 
-		if (!point_cloud_glass_any_hit_program) {
+		if (!point_cloud_glass_closest_hit_program) {
 			ptxFile( path_to_ptx, "point_cloud_normal" );
-			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "any_hit_point_cloud_glass", &point_cloud_glass_any_hit_program));
+			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_point_cloud_glass", &point_cloud_glass_closest_hit_program));
 		}
-		RT_CHECK_ERROR(rtMaterialSetAnyHitProgram(material, POINT_CLOUD_RAY, point_cloud_glass_any_hit_program));
+		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, POINT_CLOUD_RAY, point_cloud_glass_closest_hit_program));
 	}
 
 	return material;

@@ -45,6 +45,7 @@
 #include "rterror.h"
 
 #include "optix_world.h"
+#include "optix_shader_common.h"
 #include "optix_point_common.h"
 
 typedef unsigned int COUNTER;
