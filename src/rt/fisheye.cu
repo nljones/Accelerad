@@ -1,7 +1,7 @@
 /*
-* Copyright (c) 2013-2016 Nathaniel Jones
-* Massachusetts Institute of Technology
-*/
+ * Copyright (c) 2013-2016 Nathaniel Jones
+ * Massachusetts Institute of Technology
+ */
 
 #include <optix_world.h>
 

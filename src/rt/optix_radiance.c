@@ -14,6 +14,7 @@
 #include <mesh.h>
 #include "data.h"
 #include "random.h"
+#include "paths.h"
 
 #include "optix_radiance.h"
 #include <cuda_runtime_api.h>
@@ -75,6 +76,7 @@ static OBJREC* findFunction(OBJREC *o);
 static int createFunction(const RTcontext context, OBJREC* rec);
 static int createTexture(const RTcontext context, OBJREC* rec);
 static int createTransform( XF* fxp, XF* bxp, const OBJREC* rec );
+static int createGenCumulativeSky(const RTcontext context, char* filename, RTprogram* program);
 static void createAcceleration(const RTcontext context, const RTgeometryinstance instance, const unsigned int imm_irrad);
 static void createIrradianceGeometry( const RTcontext context );
 static void printObject(OBJREC* rec);
@@ -1723,41 +1725,49 @@ static int createFunction(const RTcontext context, OBJREC* rec)
 			(float)bxp.xfm[0][1], (float)bxp.xfm[1][1], (float)bxp.xfm[2][1],
 			(float)bxp.xfm[0][2], (float)bxp.xfm[1][2], (float)bxp.xfm[2][2]
 		};
-		if (!strcmp(rec->oargs.sarg[0], "skybr") && !strcmp(filename(rec->oargs.sarg[1]), "skybright.cal")) {
-			ptxFile( path_to_ptx, "skybright" );
-			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "sky_bright", &program ) );
-			applyProgramVariable1ui(context, program, "type", (unsigned int)rec->oargs.farg[0]);
-			applyProgramVariable1f(context, program, "zenith", (float)rec->oargs.farg[1]);
-			applyProgramVariable1f(context, program, "ground", (float)rec->oargs.farg[2]);
-			applyProgramVariable1f(context, program, "factor", (float)rec->oargs.farg[3]);
-			applyProgramVariable3f(context, program, "sun", (float)rec->oargs.farg[4], (float)rec->oargs.farg[5], (float)rec->oargs.farg[6]);
-			applyProgramVariable( context, program, "transform", sizeof(transform), transform );
+		if (!strcmp(rec->oargs.sarg[0], "skybright")) {
+			if (!strcmp(filename(rec->oargs.sarg[1]), "perezlum.cal")) {
+				float coef[5] = { (float)rec->oargs.farg[2], (float)rec->oargs.farg[3], (float)rec->oargs.farg[4], (float)rec->oargs.farg[5], (float)rec->oargs.farg[6] };
+				ptxFile(path_to_ptx, "perezlum");
+				RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "perez_lum", &program));
+				applyProgramVariable1f(context, program, "diffuse", (float)rec->oargs.farg[0]);
+				applyProgramVariable1f(context, program, "ground", (float)rec->oargs.farg[1]);
+				applyProgramVariable(context, program, "coef", sizeof(coef), coef);
+				applyProgramVariable3f(context, program, "sun", (float)rec->oargs.farg[7], (float)rec->oargs.farg[8], (float)rec->oargs.farg[9]);
+			}
+			else if (!strcmp(filename(rec->oargs.sarg[1]), "isotrop_sky.cal")) {
+				/* Isotropic sky from daysim installation */
+				ptxFile(path_to_ptx, "isotropsky");
+				RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "isotrop_sky", &program));
+				applyProgramVariable1f(context, program, "skybright", (float)rec->oargs.farg[0]);
+			}
+			else if (!createGenCumulativeSky(context, rec->oargs.sarg[1], &program)) {
+				printObject(rec);
+				return RT_PROGRAM_ID_NULL;
+			}
 		}
-		else if (!strcmp(rec->oargs.sarg[0], "skybright") && !strcmp(filename(rec->oargs.sarg[1]), "perezlum.cal")) {
-			float coef[5] = { (float)rec->oargs.farg[2], (float)rec->oargs.farg[3], (float)rec->oargs.farg[4], (float)rec->oargs.farg[5], (float)rec->oargs.farg[6] };
-			ptxFile( path_to_ptx, "perezlum" );
-			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "perez_lum", &program ) );
-			applyProgramVariable1f(context, program, "diffuse", (float)rec->oargs.farg[0]);
-			applyProgramVariable1f(context, program, "ground", (float)rec->oargs.farg[1]);
-			applyProgramVariable( context, program, "coef", sizeof(coef), coef );
-			applyProgramVariable3f(context, program, "sun", (float)rec->oargs.farg[7], (float)rec->oargs.farg[8], (float)rec->oargs.farg[9]);
-			applyProgramVariable( context, program, "transform", sizeof(transform), transform );
-		}
-		else if (!strcmp(rec->oargs.sarg[0], "skybright") && !strcmp(filename(rec->oargs.sarg[1]), "isotrop_sky.cal")) {
-			/* Isotropic sky from daysim installation */
-			ptxFile(path_to_ptx, "isotropsky");
-			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "isotrop_sky", &program));
-			applyProgramVariable1f(context, program, "skybright", (float)rec->oargs.farg[0]);
-			applyProgramVariable(context, program, "transform", sizeof(transform), transform);
-		}
-		else if (!strcmp(rec->oargs.sarg[0], "skybr") && !strcmp(filename(rec->oargs.sarg[1]), "utah.cal")) {
-			/* Preetham sky brightness from Mark Stock */
-			ptxFile(path_to_ptx, "utah");
-			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "utah", &program));
-			applyProgramVariable1ui(context, program, "monochrome", 1u);
-			applyProgramVariable1f(context, program, "turbidity", (float)rec->oargs.farg[0]);
-			applyProgramVariable3f(context, program, "sun", (float)rec->oargs.farg[1], (float)rec->oargs.farg[2], (float)rec->oargs.farg[3]);
-			applyProgramVariable(context, program, "transform", sizeof(transform), transform);
+		else if (!strcmp(rec->oargs.sarg[0], "skybr")) {
+			if (!strcmp(filename(rec->oargs.sarg[1]), "skybright.cal")) {
+				ptxFile(path_to_ptx, "skybright");
+				RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "sky_bright", &program));
+				applyProgramVariable1ui(context, program, "type", (unsigned int)rec->oargs.farg[0]);
+				applyProgramVariable1f(context, program, "zenith", (float)rec->oargs.farg[1]);
+				applyProgramVariable1f(context, program, "ground", (float)rec->oargs.farg[2]);
+				applyProgramVariable1f(context, program, "factor", (float)rec->oargs.farg[3]);
+				applyProgramVariable3f(context, program, "sun", (float)rec->oargs.farg[4], (float)rec->oargs.farg[5], (float)rec->oargs.farg[6]);
+			}
+			else if (!strcmp(filename(rec->oargs.sarg[1]), "utah.cal")) {
+				/* Preetham sky brightness from Mark Stock */
+				ptxFile(path_to_ptx, "utah");
+				RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "utah", &program));
+				applyProgramVariable1ui(context, program, "monochrome", 1u);
+				applyProgramVariable1f(context, program, "turbidity", (float)rec->oargs.farg[0]);
+				applyProgramVariable3f(context, program, "sun", (float)rec->oargs.farg[1], (float)rec->oargs.farg[2], (float)rec->oargs.farg[3]);
+			}
+			else {
+				printObject(rec);
+				return RT_PROGRAM_ID_NULL;
+			}
 		}
 		else if (rec->oargs.nsargs >= 4 && !strcmp(rec->oargs.sarg[0], "skyr") && !strcmp(rec->oargs.sarg[1], "skyg") && !strcmp(rec->oargs.sarg[2], "skyb") && !strcmp(filename(rec->oargs.sarg[3]), "utah.cal")) {
 			/* Preetham sky from Mark Stock */
@@ -1765,13 +1775,14 @@ static int createFunction(const RTcontext context, OBJREC* rec)
 			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "utah", &program));
 			applyProgramVariable1f(context, program, "turbidity", (float)rec->oargs.farg[0]);
 			applyProgramVariable3f(context, program, "sun", (float)rec->oargs.farg[1], (float)rec->oargs.farg[2], (float)rec->oargs.farg[3]);
-			applyProgramVariable(context, program, "transform", sizeof(transform), transform);
 		}
 		else {
 			printObject(rec);
 			return RT_PROGRAM_ID_NULL;
 		}
-	} else {
+		applyProgramVariable(context, program, "transform", sizeof(transform), transform);
+	}
+	else {
 		printObject(rec);
 		return RT_PROGRAM_ID_NULL;
 	}
@@ -1893,7 +1904,6 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 			applyProgramVariable1i( context, program, "type", dp->type == DATATY );
 			applyProgramVariable3f( context, program, "org", dp->dim[dp->nd-1].org, dp->nd > 1 ? dp->dim[dp->nd-2].org : 0.0f, dp->nd > 2 ? dp->dim[dp->nd-3].org : 0.0f );
 			applyProgramVariable3f( context, program, "siz", dp->dim[dp->nd-1].siz, dp->nd > 1 ? dp->dim[dp->nd-2].siz : 1.0f, dp->nd > 2 ? dp->dim[dp->nd-3].siz : 1.0f );
-			applyProgramVariable( context, program, "transform", sizeof(transform), transform );
 			if (rec->oargs.nfargs > 0)
 				applyProgramVariable1f(context, program, "multiplier", (float)rec->oargs.farg[0]); //TODO handle per-color channel multipliers
 			if (rec->oargs.nfargs > 2)
@@ -1905,13 +1915,14 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "fisheye", &program));
 			applyProgramVariable1i(context, program, "data", tex_id);
 			applyProgramVariable1i(context, program, "type", dp->type == DATATY);
-			applyProgramVariable(context, program, "transform", sizeof(transform), transform);
 		}
 		else {
 			printObject(rec);
 			return RT_PROGRAM_ID_NULL;
 		}
-	} else {
+		applyProgramVariable(context, program, "transform", sizeof(transform), transform);
+	}
+	else {
 		printObject(rec);
 		return RT_PROGRAM_ID_NULL;
 	}
@@ -1946,6 +1957,95 @@ static int createTransform( XF* fxp, XF* bxp, const OBJREC* rec )
 		bxp->sca = -bxp->sca;
 
 	return 2;
+}
+
+static int createGenCumulativeSky(const RTcontext context, char* filename, RTprogram* program)
+{
+	char  *fname, *line;
+	FILE  *fp;
+	int success = 0;
+	const char *header = "{ This .cal file was generated automatically by GenCumulativeSky }";
+	size_t length = strlen(header);
+
+	if ((fname = getpath(filename, getrlibpath(), R_OK)) == NULL) {
+		//sprintf(errmsg, "cannot find function file \"%s\"", filename);
+		//error(SYSTEM, errmsg);
+		return 0;
+	}
+	if ((fp = fopen(fname, "r")) == NULL) {
+		//sprintf(errmsg, "cannot open file \"%s\"", filename);
+		//error(SYSTEM, errmsg);
+		return 0;
+	}
+
+	line = (char*)malloc((length + 1) * sizeof(char));
+	if (!line) error(SYSTEM, "out of memory in createGenCumulativeSky");
+
+	if (fgets(line, (int)length + 1, fp) && !strncmp(header, line, length)) { // It's a GenCumulativeSky file
+		RTtexturesampler tex_sampler;
+		RTbuffer         tex_buffer;
+		float*           tex_buffer_data;
+		int              i = 0, j, tex_id = RT_TEXTURE_ID_NULL;
+
+		/* Populate buffer with texture data */
+		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT, 145, &tex_buffer);
+		RT_CHECK_ERROR(rtBufferMap(tex_buffer, (void**)&tex_buffer_data));
+
+		for (j = 0; j < 6; j++) while (fgets(line, 2, fp) && line[0] != '\n'); // Skip 5 lines
+		while (i < 30) if(!fscanf(fp, "%f,", tex_buffer_data + i++)) goto gencumerr; // Read 1st row (30 entries)
+	
+		for (j = 0; j < 4; j++) while (fgets(line, 2, fp) && line[0] != '\n'); // Skip 3 lines
+		while (i < 60) if (!fscanf(fp, "%f,", tex_buffer_data + i++)) goto gencumerr; // Read 2nd row (30 entries)
+
+		for (j = 0; j < 4; j++) while (fgets(line, 2, fp) && line[0] != '\n'); // Skip 3 lines
+		while (i < 84) if (!fscanf(fp, "%f,", tex_buffer_data + i++)) goto gencumerr; // Read 3rd row (24 entries)
+
+		for (j = 0; j < 4; j++) while (fgets(line, 2, fp) && line[0] != '\n'); // Skip 3 lines
+		while (i < 108) if (!fscanf(fp, "%f,", tex_buffer_data + i++)) goto gencumerr; // Read 4th row (24 entries)
+
+		for (j = 0; j < 4; j++) while (fgets(line, 2, fp) && line[0] != '\n'); // Skip 3 lines
+		while (i < 126) if (!fscanf(fp, "%f,", tex_buffer_data + i++)) goto gencumerr; // Read 5th row (18 entries)
+
+		for (j = 0; j < 4; j++) while (fgets(line, 2, fp) && line[0] != '\n'); // Skip 3 lines
+		while (i < 138) if (!fscanf(fp, "%f,", tex_buffer_data + i++)) goto gencumerr; // Read 6th row (12 entries)
+
+		for (j = 0; j < 4; j++) while (fgets(line, 2, fp) && line[0] != '\n'); // Skip 3 lines
+		while (i < 144) if (!fscanf(fp, "%f,", tex_buffer_data + i++)) goto gencumerr; // Read 7th row (6 entries)
+
+		for (j = 0; j < 3; j++) while (fgets(line, 2, fp) && line[0] != '\n'); // Skip 2 lines
+		while (fgets(line, 2, fp) && line[0] != ','); // Read past comma
+		if (!fscanf(fp, "%f,", tex_buffer_data + i)) goto gencumerr; // Read last row (1 entry)
+
+		RT_CHECK_ERROR(rtBufferUnmap(tex_buffer));
+
+		/* Create texture sampler */
+		RT_CHECK_ERROR(rtTextureSamplerCreate(context, &tex_sampler));
+		RT_CHECK_ERROR(rtTextureSamplerSetWrapMode(tex_sampler, 0, RT_WRAP_CLAMP_TO_EDGE));
+		RT_CHECK_ERROR(rtTextureSamplerSetFilteringModes(tex_sampler, RT_FILTER_NEAREST, RT_FILTER_NEAREST, RT_FILTER_NONE));
+		RT_CHECK_ERROR(rtTextureSamplerSetIndexingMode(tex_sampler, RT_TEXTURE_INDEX_ARRAY_INDEX));
+		RT_CHECK_ERROR(rtTextureSamplerSetReadMode(tex_sampler, RT_TEXTURE_READ_ELEMENT_TYPE));
+		RT_CHECK_ERROR(rtTextureSamplerSetMaxAnisotropy(tex_sampler, 0.0f));
+		RT_CHECK_ERROR(rtTextureSamplerSetMipLevelCount(tex_sampler, 1u)); // Currently only one mipmap level supported
+		RT_CHECK_ERROR(rtTextureSamplerSetArraySize(tex_sampler, 1u)); // Currently only one element supported
+		RT_CHECK_ERROR(rtTextureSamplerSetBuffer(tex_sampler, 0u, 0u, tex_buffer));
+		RT_CHECK_ERROR(rtTextureSamplerGetId(tex_sampler, &tex_id));
+
+		/* Create program to access texture sampler */
+		ptxFile(path_to_ptx, "gencumulativesky");
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "gencumsky", program));
+		applyProgramVariable1i(context, *program, "data", tex_id);
+
+		success = 1;
+	}
+
+	free(line);
+	fclose(fp);
+
+	return success;
+
+gencumerr:
+	sprintf(errmsg, "bad format in \"%s\"", filename);
+	error(USER, errmsg);
 }
 
 static void createAcceleration( const RTcontext context, const RTgeometryinstance instance, const unsigned int imm_irrad )

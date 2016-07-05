@@ -109,7 +109,6 @@ struct PerRayData_ambient
 struct PerRayData_ambient_record
 {
 	AmbientRecord result;
-	AmbientRecord* parent;
 	rand_state* state;
 #ifdef DAYSIM_COMPATIBLE
 	DaysimCoef dc;	/* daylight coefficients */

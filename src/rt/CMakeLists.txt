@@ -115,7 +115,7 @@ if(OptiX_USE)
   CUDA_COMPILE_PTX(generated_PTX_files_rpict camera.cu point_cloud_generator.cu)
   CUDA_COMPILE_PTX(generated_PTX_files_rvu rvu_generator.cu diffuse_normal.cu)
   CUDA_COMPILE_PTX(generated_PTX_files
-    triangle_mesh.cu background.cu skybright.cu perezlum.cu isotropsky.cu utah.cu
+    triangle_mesh.cu background.cu skybright.cu perezlum.cu isotropsky.cu utah.cu gencumulativesky.cu
     radiance_normal.cu radiance_glass.cu radiance_light.cu source.cu fisheye.cu clip.cu
     ambient_records.cu ambient_normal.cu ambient_sample_generator.cu ambient_cloud_generator.cu
     point_cloud_normal.cu hemisphere_generator.cu)
