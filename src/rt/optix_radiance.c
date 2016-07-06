@@ -123,7 +123,6 @@ static IntArray*   alt_materials;	/* Two entries per material gives alternate ma
 static IntArray*   lights;			/* Three entries per triangle that is a light */
 #endif
 static DistantLightArray* sources;	/* One entry per source object */
-static IntArray*   functions;		/* One entry per callable program */
 
 /* Index of first vertex of current object */
 static unsigned int vertex_index_0;
@@ -362,7 +361,8 @@ void endOptix()
  */
 static void checkDevices()
 {
-	unsigned int driver = 0, runtime = 0, version = 0, device_count = 0;
+	int driver = 0, runtime = 0;
+	unsigned int version = 0, device_count = 0;
 	unsigned int i;
 	unsigned int multiprocessor_count, threads_per_block, clock_rate, texture_count, timeout_enabled, tcc_driver, cuda_device;
 	unsigned int compute_capability[2];

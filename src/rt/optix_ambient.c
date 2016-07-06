@@ -798,7 +798,7 @@ static size_t chooseAmbientLocations(const RTcontext context, const unsigned int
 		const size_t clusters_per_segment = min(cluster_count, INT_MAX / bytes_per_cluster); // Limit imposed by OptiX
 		seed_count = cluster_count * divisions * divisions;
 
-		if (multi_pass = (cluster_count - 1) / clusters_per_segment) {
+		if ((multi_pass = (cluster_count - 1) / clusters_per_segment)) {
 			mprintf("Processing seeds in %" PRIu64 " segments of %" PRIu64 ".\n", multi_pass + 1, clusters_per_segment);
 			seed_buffer_data = (PointDirection *)malloc(seed_count * sizeof(PointDirection));
 			if (seed_buffer_data == NULL) goto calmemerr;
