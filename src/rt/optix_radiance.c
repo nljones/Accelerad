@@ -2046,6 +2046,7 @@ static int createGenCumulativeSky(const RTcontext context, char* filename, RTpro
 gencumerr:
 	sprintf(errmsg, "bad format in \"%s\"", filename);
 	error(USER, errmsg);
+	return 0;
 }
 
 static void createAcceleration( const RTcontext context, const RTgeometryinstance instance, const unsigned int imm_irrad )

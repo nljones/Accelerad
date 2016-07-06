@@ -4,7 +4,6 @@
  */
 
 #include <fvect.h>
-#include <resolu.h>
 #include <view.h>
 #include <color.h>
 #include <inttypes.h>
@@ -26,7 +25,6 @@
 #define DEBUG_OPTIX /* Catch unexptected OptiX exceptions */
 //#define PRINT_OPTIX /* Enable OptiX rtPrintf statements to standard out */
 //#define REPORT_GPU_STATE /* Report verbose GPU details */
-#define VERBOSE_OUTPUT /* Print extra statements */
 #define ITERATIVE_IC /* Iterative irradiance cache calculation */
 
 /* Entry points */
@@ -107,7 +105,7 @@ typedef enum
 #define mprintf(format, ...) \
 	do { if (erract[WARNING].pf) fprintf(stderr, format, ##__VA_ARGS__); } while(0)
 
-#ifdef VERBOSE_OUTPUT
+#ifdef ACCELERAD_DEBUG /* Print extra statements */
 #define vprintf(format, ...)	mprintf(format, ##__VA_ARGS__)
 #else
 #define vprintf(format, ...)	/* Ignore */
@@ -115,9 +113,9 @@ typedef enum
 
 /* TIMING */
 #ifdef _WIN64
-#define MILLISECONDS(c)	(c) * 1000uLL / CLOCKS_PER_SEC
+#define MILLISECONDS(c)	((c) * 1000uLL / CLOCKS_PER_SEC)
 #else
-#define MILLISECONDS(c)	(c) * 1000uL / CLOCKS_PER_SEC
+#define MILLISECONDS(c)	((c) * 1000uL / CLOCKS_PER_SEC)
 #endif
 
 /* Resizeable array structures */

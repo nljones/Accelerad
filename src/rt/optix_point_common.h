@@ -7,7 +7,7 @@
 
 #include <optixu_vector_types.h>
 
-#define AMBIENT_CELL
+//#define AMBIENT_CELL
 
 /* Structure to hold a point and direction */
 typedef struct struct_point_direction
