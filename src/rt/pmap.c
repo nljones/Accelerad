@@ -27,8 +27,23 @@ static const char RCSid[] = "$Id$";
 #include "otypes.h"
 #include <time.h>
 #include <sys/stat.h>
+#ifdef POSIX
 #include <sys/mman.h>
 #include <sys/wait.h>
+#else /* TODO Missing on Windows, just ignore for now */
+#define PROT_READ	0
+#define PROT_WRITE	1
+#define MAP_SHARED	0
+#define MAP_FAILED	1
+#define WNOHANG	0
+#define mkstemp(f)	mktemp(f)
+#define mmap(...)	MAP_FAILED
+#define fork(...)	0
+#define waitpid(...)	0
+#define munmap(...)	0
+#define WIFEXITED(...)	0
+#define	WEXITSTATUS(...)	1
+#endif
 
 #define PMAP_REV  "$Revision$"
 

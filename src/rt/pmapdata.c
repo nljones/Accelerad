@@ -30,6 +30,13 @@ static const char RCSid[] = "$Id$";
 #include "rcontrib.h"
 #include "random.h"
 
+#ifndef F_GETFL /* TODO Missing on Windows, just ignore for now */
+#define F_GETFL	0
+#define F_SETFL	1
+#define fcntl(...)	0
+#define fsync(...)	0
+#endif
+
 
 
 PhotonMap *photonMaps [NUM_PMAP_TYPES] = {

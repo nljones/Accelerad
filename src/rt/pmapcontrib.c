@@ -23,8 +23,23 @@ static const char RCSid[] = "$Id$";
 #include "pmapdiag.h"
 #include "rcontrib.h"
 #include "otypes.h"
+#ifndef _WIN32
 #include <sys/mman.h>
 #include <sys/wait.h>
+#else /* TODO Missing on Windows, just ignore for now */
+#define PROT_READ	0
+#define PROT_WRITE	1
+#define MAP_SHARED	0
+#define MAP_FAILED	1
+#define WNOHANG	0
+#define mkstemp(f)	mktemp(f)
+#define mmap(...)	MAP_FAILED
+#define fork(...)	0
+#define waitpid(...)	0
+#define munmap(...)	0
+#define WIFEXITED(...)	0
+#define	WEXITSTATUS(...)	1
+#endif
 
 
 
@@ -247,8 +262,13 @@ void distribPhotonContrib (PhotonMap* pm, unsigned numProc)
    PhotonContribCnt  *photonCnt;       /* Photon emission counter array */
    const unsigned    photonCntSize = sizeof(PhotonContribCnt) * 
                                      PHOTONCNT_NUMEMIT(nsources);
+#ifdef _WIN32
+   FILE              **primaryHeap = malloc(numProc * sizeof(FILE*));
+   PhotonPrimaryIdx  *primaryOfs = malloc(numProc * sizeof(PhotonPrimaryIdx));
+#else
    FILE              *primaryHeap [numProc];
    PhotonPrimaryIdx  primaryOfs [numProc];
+#endif
                                     
    if (!pm)
       error(USER, "no photon map defined in distribPhotonContrib");
@@ -652,6 +672,10 @@ void distribPhotonContrib (PhotonMap* pm, unsigned numProc)
    
    /* Build underlying data structure; heap is destroyed */
    buildPhotonMap(pm, srcFlux, primaryOfs, numProc);   
+#ifdef _WIN32
+   free(primaryHeap);
+   free(primaryOfs);
+#endif
 }
 
 
