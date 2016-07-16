@@ -47,7 +47,7 @@ static const char RCSid[] = "$Id$";
 
 #ifdef ACCELERAD
 /* in optix_radiance.c */
-extern void renderOptix(const VIEW* view, const int width, const int height, const double dstrpix, const double mblur, const double dblur, const double alarm, COLOR* colors, float* depths);
+extern void renderOptix(const VIEW* view, const size_t width, const size_t height, const double dstrpix, const double mblur, const double dblur, const double alarm, COLOR* colors, float* depths);
 extern void endOptix();
 #endif
 

@@ -82,7 +82,7 @@ static putf_t *putreal;
 #define EXPECTED_RAY_COUNT	32
 
 /* from optix_radiance.c */
-extern void computeOptix(const int width, const int height, const unsigned int imm_irrad, const double alarm, RAY* rays);
+extern void computeOptix(const size_t width, const size_t height, const unsigned int imm_irrad, const double alarm, RAY* rays);
 
 double  ralrm = 0.0;				/* seconds between reports */
 
@@ -140,7 +140,7 @@ rtrace(				/* trace rays from file */
 #endif
 	FVECT  orig, direc;
 #ifdef ACCELERAD
-	unsigned int current_ray, total_rays;
+	size_t current_ray, total_rays;
 	RAY* ray_cache;
 #endif
 					/* set up input */

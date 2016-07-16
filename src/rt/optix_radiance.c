@@ -47,8 +47,8 @@
 
 #ifdef ACCELERAD
 
-void renderOptix(const VIEW* view, const int width, const int height, const double dstrpix, const double mblur, const double dblur, const double alarm, COLOR* colors, float* depths);
-void computeOptix(const int width, const int height, const unsigned int imm_irrad, const double alarm, RAY* rays);
+void renderOptix(const VIEW* view, const size_t width, const size_t height, const double dstrpix, const double mblur, const double dblur, const double alarm, COLOR* colors, float* depths);
+void computeOptix(const size_t width, const size_t height, const unsigned int imm_irrad, const double alarm, RAY* rays);
 void endOptix();
 
 static void checkDevices();
@@ -149,14 +149,14 @@ RTbuffer dc_scratch_buffer = NULL;
  * This may be called repeatedly in order to render an animation.
  * After the last call, endOptix() should be called.
  */
-void renderOptix(const VIEW* view, const int width, const int height, const double dstrpix, const double mblur, const double dblur, const double alarm, COLOR* colors, float* depths)
+void renderOptix(const VIEW* view, const size_t width, const size_t height, const double dstrpix, const double mblur, const double dblur, const double alarm, COLOR* colors, float* depths)
 {
 	/* Primary RTAPI objects */
 	RTcontext           context;
 	RTbuffer            output_buffer, lastview;
 
 	/* Parameters */
-	unsigned int i, size;
+	size_t i, size;
 	float* data;
 
 #ifdef RAY_COUNT
@@ -256,7 +256,7 @@ void renderOptix(const VIEW* view, const int width, const int height, const doub
 /**
  * Setup and run the OptiX kernel similar to RTRACE.
  */
-void computeOptix(const int width, const int height, const unsigned int imm_irrad, const double alarm, RAY* rays)
+void computeOptix(const size_t width, const size_t height, const unsigned int imm_irrad, const double alarm, RAY* rays)
 {
 	/* Primary RTAPI objects */
 	RTcontext           context;
@@ -266,7 +266,7 @@ void computeOptix(const int width, const int height, const unsigned int imm_irra
 #endif
 
 	/* Parameters */
-	unsigned int size, i;
+	size_t size, i;
 	RayData* data;
 #ifdef DAYSIM
 	float* dc_data;
@@ -435,13 +435,13 @@ static void checkRemoteDevice(RTremotedevice remote)
 	mprintf("Total memory size:        %" PRIu64 " bytes\n\n", size);
 }
 
-void createContext( RTcontext* context, const int width, const int height, const double alarm )
+void createContext(RTcontext* context, const RTsize width, const RTsize height, const double alarm)
 {
 	RTremotedevice remote;
 	//RTbuffer seed_buffer;
 
 	//unsigned int* seeds;
-	//unsigned int i;
+	//RTsize i;
 	unsigned int ray_type_count, entry_point_count;
 
 	/* Check if irradiance cache is used */
@@ -540,7 +540,7 @@ void destroyContext(const RTcontext context)
 }
 
 #ifdef DAYSIM_COMPATIBLE
-void setupDaysim(const RTcontext context, RTbuffer* dc_buffer, const int width, const int height)
+void setupDaysim(const RTcontext context, RTbuffer* dc_buffer, const RTsize width, const RTsize height)
 {
 #ifndef DAYSIM
 	RTbuffer            dc_scratch_buffer;
@@ -567,7 +567,7 @@ void setupDaysim(const RTcontext context, RTbuffer* dc_buffer, const int width, 
 }
 #endif /* DAYSIM_COMPATIBLE */
 
-void setupKernel(const RTcontext context, const VIEW* view, const int width, const int height, const unsigned int imm_irrad, const double dstrpix, const double mblur, const double dblur, const double alarm)
+void setupKernel(const RTcontext context, const VIEW* view, const RTsize width, const RTsize height, const unsigned int imm_irrad, const double dstrpix, const double mblur, const double dblur, const double alarm)
 {
 	/* Primary RTAPI objects */
 	RTgeometryinstance  instance;

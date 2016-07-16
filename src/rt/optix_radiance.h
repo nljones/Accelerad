@@ -147,17 +147,17 @@ typedef struct {
 char path_to_ptx[512];     /* The path to the PTX file. */
 
 /* in optix_radiance.c */
-void createContext(RTcontext* context, const int width, const int height, const double alarm);
+void createContext(RTcontext* context, const RTsize width, const RTsize height, const double alarm);
 void destroyContext(const RTcontext context);
 #ifdef DAYSIM_COMPATIBLE
-void setupDaysim(const RTcontext context, RTbuffer* dc_buffer, const int width, const int height);
+void setupDaysim(const RTcontext context, RTbuffer* dc_buffer, const RTsize width, const RTsize height);
 #endif
-void setupKernel(const RTcontext context, const VIEW* view, const int width, const int height, const unsigned int imm_irrad, const double dstrpix, const double mblur, const double dblur, const double alarm);
+void setupKernel(const RTcontext context, const VIEW* view, const RTsize width, const RTsize height, const unsigned int imm_irrad, const double dstrpix, const double mblur, const double dblur, const double alarm);
 void createCamera(const RTcontext context, const char* ptx_name);
 void updateCamera(const RTcontext context, const VIEW* view);
 
 /* in optix_ambient.c */
-void createAmbientRecords( const RTcontext context, const VIEW* view, const int width, const int height, const double alarm );
+void createAmbientRecords(const RTcontext context, const VIEW* view, const RTsize width, const RTsize height, const double alarm);
 void setupAmbientCache( const RTcontext context, const unsigned int level );
 void createAmbientDynamicStorage(const RTcontext context, const RTprogram program, const RTsize size);
 

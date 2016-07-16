@@ -37,7 +37,7 @@ static double ambientRadius(const double weight);
 static unsigned int ambientDivisions(const double weight);
 static void updateAmbientDynamicStorage(const RTcontext context, const RTsize size, const unsigned int level);
 static unsigned int populateAmbientRecords( const RTcontext context, const int level );
-static size_t chooseAmbientLocations(const RTcontext context, const unsigned int level, const unsigned int width, const unsigned int height, const unsigned int seeds_per_thread, const size_t cluster_count, RTbuffer seed_buffer, RTbuffer cluster_buffer, RTvariable segment_var);
+static size_t chooseAmbientLocations(const RTcontext context, const unsigned int level, const RTsize width, const RTsize height, const unsigned int seeds_per_thread, const size_t cluster_count, RTbuffer seed_buffer, RTbuffer cluster_buffer, RTvariable segment_var);
 #ifdef DAYSIM
 static unsigned int gatherAmbientRecords( AMBTREE* at, AmbientRecord** records, float** dc, const int level );
 static int saveAmbientRecords( AmbientRecord* record, float* dc );
@@ -538,7 +538,7 @@ static void createAmbientAcceleration( const RTcontext context, const RTgeometry
 	RT_CHECK_ERROR( rtAccelerationMarkDirty( ambient_record_acceleration ) );
 }
 
-void createAmbientRecords( const RTcontext context, const VIEW* view, const int width, const int height, const double alarm )
+void createAmbientRecords(const RTcontext context, const VIEW* view, const RTsize width, const RTsize height, const double alarm)
 {
 	RTvariable     level_var, segment_var = NULL;
 	RTbuffer       seed_buffer, ambient_record_buffer;
@@ -557,7 +557,8 @@ void createAmbientRecords( const RTcontext context, const VIEW* view, const int 
 	RTbuffer       cluster_buffer;
 #endif
 
-	unsigned int grid_width, grid_height, level, max_level;
+	RTsize grid_width, grid_height;
+	unsigned int level, max_level;
 
 	/* Set number of iterations. */
 	max_level = ambounce;
@@ -782,7 +783,7 @@ static void createHemisphereSamplingCamera( const RTcontext context )
 }
 #endif /* ITERATIVE_IC */
 
-static size_t chooseAmbientLocations(const RTcontext context, const unsigned int level, const unsigned int width, const unsigned int height, const unsigned int seeds_per_thread, const size_t cluster_count, RTbuffer seed_buffer, RTbuffer cluster_buffer, RTvariable segment_var)
+static size_t chooseAmbientLocations(const RTcontext context, const unsigned int level, const RTsize width, const RTsize height, const unsigned int seeds_per_thread, const size_t cluster_count, RTbuffer seed_buffer, RTbuffer cluster_buffer, RTvariable segment_var)
 {
 	size_t seed_count, i, multi_pass = 0u;
 	PointDirection *seed_buffer_data = NULL, *cluster_buffer_data = NULL;
@@ -855,7 +856,7 @@ static size_t chooseAmbientLocations(const RTcontext context, const unsigned int
 		if (score == NULL || temp_list == NULL) goto calmemerr;
 
 		kernel_clock = clock();
-		cuda_score_hits(seed_buffer_data, score, width, height, (float)(cuda_kmeans_error / (ambacc * maxarad)), (unsigned int)cluster_count);
+		cuda_score_hits(seed_buffer_data, score, (unsigned int)width, (unsigned int)height, (float)(cuda_kmeans_error / (ambacc * maxarad)), (unsigned int)cluster_count);
 		kernel_clock = clock() - kernel_clock;
 		mprintf("Adaptive sampling: %" PRIu64 " milliseconds.\n", MILLISECONDS(kernel_clock));
 
