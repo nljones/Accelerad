@@ -1,0 +1,151 @@
+/*
+ * Copyright (c) 2013-2016 Nathaniel Jones
+ * Massachusetts Institute of Technology
+ */
+
+#include <standard.h> /* TODO just get the includes that are required? */
+#include "ray.h"
+
+#include "optix_radiance.h"
+
+#ifdef ACCELERAD
+
+/* Handles to objects used repeatedly in animation */
+extern unsigned int frame;
+RTcontext context_handle = NULL;
+RTbuffer buffer_handle = NULL;
+#ifdef RAY_COUNT
+RTbuffer ray_count_buffer_handle = NULL;
+#endif
+
+void renderOptix(const VIEW* view, const size_t width, const size_t height, const double dstrpix, const double mblur, const double dblur, const double alarm, COLOR* colors, float* depths);
+void endOptix();
+
+
+/**
+ * Setup and run the OptiX kernel similar to RPICT.
+ * This may be called repeatedly in order to render an animation.
+ * After the last call, endOptix() should be called.
+ */
+void renderOptix(const VIEW* view, const size_t width, const size_t height, const double dstrpix, const double mblur, const double dblur, const double alarm, COLOR* colors, float* depths)
+{
+	/* Primary RTAPI objects */
+	RTcontext           context;
+	RTbuffer            output_buffer, lastview;
+
+	/* Parameters */
+	size_t i, size;
+	float* data;
+
+#ifdef RAY_COUNT
+	RTbuffer            ray_count_buffer;
+	unsigned int *ray_count_data;
+#endif
+#ifdef DAYSIM_COMPATIBLE
+	RTbuffer            dc_buffer;
+#endif
+
+	/* Set the size */
+	size = width * height;
+
+	if (context_handle == NULL) {
+		/* Setup state */
+		createContext(&context, width, height, alarm);
+
+		/* Render result buffer */
+		createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT4, width, height, &output_buffer);
+		applyContextObject(context, "output_buffer", output_buffer);
+
+#ifdef RAY_COUNT
+		createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_UNSIGNED_INT, width, height, &ray_count_buffer);
+		applyContextObject(context, "ray_count_buffer", ray_count_buffer);
+		ray_count_buffer_handle = ray_count_buffer;
+#endif
+#ifdef DAYSIM_COMPATIBLE
+		setupDaysim(context, &dc_buffer, width, height);
+#endif
+
+		/* Ray parameters buffer for motion blur effect, only needed for rendering multiple frames */
+		if (mblur > FTINY)
+			createCustomBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, sizeof(RayParams), width, height, &lastview);
+		else
+			createCustomBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, sizeof(RayParams), 0, 0, &lastview);
+		applyContextObject(context, "last_view_buffer", lastview);
+
+		/* Save handles to objects used in animations */
+		context_handle = context;
+		buffer_handle = output_buffer;
+
+		createCamera(context, "camera");
+		setupKernel(context, view, width, height, 0u, dstrpix, mblur, dblur, alarm);
+	}
+	else {
+		/* Retrieve handles for previously created objects */
+		context = context_handle;
+		output_buffer = buffer_handle;
+#ifdef RAY_COUNT
+		ray_count_buffer = ray_count_buffer_handle;
+#endif
+
+		/* Update the camera view for the next frame */
+		frame++;
+		updateCamera(context, view);
+	}
+
+	/* Run the OptiX kernel */
+	runKernel2D(context, RADIANCE_ENTRY, width, height);
+
+	RT_CHECK_ERROR(rtBufferMap(output_buffer, (void**)&data));
+#ifdef RAY_COUNT
+	RT_CHECK_ERROR(rtBufferMap(ray_count_buffer, (void**)&ray_count_data));
+#endif
+
+	/* Copy the results to allocated memory. */
+	for (i = 0u; i < size; i++) {
+#ifdef DEBUG_OPTIX
+		if (data[3] == -1.0f)
+			logException((RTexception)((int)data[0]));
+#endif
+		copycolor(colors[i], data);
+		depths[i] = data[3];
+		data += 4;
+#ifdef RAY_COUNT
+		nrays += ray_count_data[i];
+#endif
+	}
+
+	RT_CHECK_ERROR(rtBufferUnmap(output_buffer));
+#ifdef RAY_COUNT
+	RT_CHECK_ERROR(rtBufferUnmap(ray_count_buffer));
+#endif
+
+#ifdef DEBUG_OPTIX
+	flushExceptionLog("camera");
+#endif
+
+#ifdef PRINT_OPTIX
+	/* Exit if message printing is on */
+	exit(1);
+#endif
+
+	/* Clean up */
+	//destroyContext(context);
+}
+
+/**
+ * Destroy the OptiX context if one has been created.
+ * This should be called after the last call to renderOptix().
+ */
+void endOptix()
+{
+	if (context_handle == NULL) return;
+
+	destroyContext(context_handle);
+	context_handle = NULL;
+	buffer_handle = NULL;
+#ifdef RAY_COUNT
+	ray_count_buffer_handle = NULL;
+#endif
+}
+
+#endif /* ACCELERAD */

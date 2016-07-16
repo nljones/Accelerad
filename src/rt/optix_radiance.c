@@ -47,10 +47,6 @@
 
 #ifdef ACCELERAD
 
-void renderOptix(const VIEW* view, const size_t width, const size_t height, const double dstrpix, const double mblur, const double dblur, const double alarm, COLOR* colors, float* depths);
-void computeOptix(const size_t width, const size_t height, const unsigned int imm_irrad, const double alarm, RAY* rays);
-void endOptix();
-
 static void checkDevices();
 static void checkRemoteDevice(RTremotedevice remote);
 static void applyRadianceSettings(const RTcontext context, const VIEW* view, const unsigned int imm_irrad, const double dstrpix, const double mblur, const double dblur);
@@ -80,8 +76,6 @@ static int createGenCumulativeSky(const RTcontext context, char* filename, RTpro
 static void createAcceleration(const RTcontext context, const RTgeometryinstance instance, const unsigned int imm_irrad);
 static void createIrradianceGeometry( const RTcontext context );
 static void printObject(OBJREC* rec);
-static void getRay( RayData* data, const RAY* ray );
-static void setRay( RAY* ray, const RayData* data );
 
 
 /* from ambient.c */
@@ -102,13 +96,8 @@ RTvariable navsum_var = NULL;
 
 /* Handles to objects used repeatedly in animation */
 unsigned int frame = 0u;
-static RTremotedevice remote_handle = NULL;
-RTcontext context_handle = NULL;
-RTbuffer buffer_handle = NULL;
-#ifdef RAY_COUNT
-RTbuffer ray_count_buffer_handle = NULL;
-#endif
 RTvariable camera_frame, camera_type, camera_eye, camera_u, camera_v, camera_w, camera_fov, camera_shift, camera_clip, camera_vdist;
+static RTremotedevice remote_handle = NULL;
 
 /* Handles to buffer data */
 static int*       buffer_entry_index;
@@ -143,218 +132,6 @@ static RTprogram radiance_clip_closest_hit_program, shadow_clip_closest_hit_prog
 RTbuffer dc_scratch_buffer = NULL;
 #endif
 
-
-/**
- * Setup and run the OptiX kernel similar to RPICT.
- * This may be called repeatedly in order to render an animation.
- * After the last call, endOptix() should be called.
- */
-void renderOptix(const VIEW* view, const size_t width, const size_t height, const double dstrpix, const double mblur, const double dblur, const double alarm, COLOR* colors, float* depths)
-{
-	/* Primary RTAPI objects */
-	RTcontext           context;
-	RTbuffer            output_buffer, lastview;
-
-	/* Parameters */
-	size_t i, size;
-	float* data;
-
-#ifdef RAY_COUNT
-	RTbuffer            ray_count_buffer;
-	unsigned int *ray_count_data;
-#endif
-#ifdef DAYSIM_COMPATIBLE
-	RTbuffer            dc_buffer;
-#endif
-
-	/* Set the size */
-	size = width * height;
-
-	if ( context_handle == NULL ) {
-		/* Setup state */
-		createContext( &context, width, height, alarm );
-
-		/* Render result buffer */
-		createBuffer2D( context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT4, width, height, &output_buffer );
-		applyContextObject( context, "output_buffer", output_buffer );
-
-#ifdef RAY_COUNT
-		createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_UNSIGNED_INT, width, height, &ray_count_buffer);
-		applyContextObject(context, "ray_count_buffer", ray_count_buffer);
-		ray_count_buffer_handle = ray_count_buffer;
-#endif
-#ifdef DAYSIM_COMPATIBLE
-		setupDaysim(context, &dc_buffer, width, height);
-#endif
-
-		/* Ray parameters buffer for motion blur effect, only needed for rendering multiple frames */
-		if (mblur > FTINY)
-			createCustomBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, sizeof(RayParams), width, height, &lastview);
-		else
-			createCustomBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, sizeof(RayParams), 0, 0, &lastview);
-		applyContextObject(context, "last_view_buffer", lastview);
-
-		/* Save handles to objects used in animations */
-		context_handle = context;
-		buffer_handle = output_buffer;
-
-		createCamera(context, "camera");
-		setupKernel(context, view, width, height, 0u, dstrpix, mblur, dblur, alarm);
-	} else {
-		/* Retrieve handles for previously created objects */
-		context = context_handle;
-		output_buffer = buffer_handle;
-#ifdef RAY_COUNT
-		ray_count_buffer = ray_count_buffer_handle;
-#endif
-
-		/* Update the camera view for the next frame */
-		frame++;
-		updateCamera(context, view);
-	}
-
-	/* Run the OptiX kernel */
-	runKernel2D( context, RADIANCE_ENTRY, width, height );
-
-	RT_CHECK_ERROR( rtBufferMap( output_buffer, (void**)&data ) );
-#ifdef RAY_COUNT
-	RT_CHECK_ERROR(rtBufferMap(ray_count_buffer, (void**)&ray_count_data));
-#endif
-
-	/* Copy the results to allocated memory. */
-	for (i = 0u; i < size; i++) {
-#ifdef DEBUG_OPTIX
-		if (data[3] == -1.0f)
-			logException((RTexception)((int)data[0]));
-#endif
-		copycolor( colors[i], data );
-		depths[i] = data[3];
-		data += 4;
-#ifdef RAY_COUNT
-		nrays += ray_count_data[i];
-#endif
-	}
-
-	RT_CHECK_ERROR(rtBufferUnmap(output_buffer));
-#ifdef RAY_COUNT
-	RT_CHECK_ERROR(rtBufferUnmap(ray_count_buffer));
-#endif
-
-#ifdef DEBUG_OPTIX
-	flushExceptionLog("camera");
-#endif
-
-#ifdef PRINT_OPTIX
-	/* Exit if message printing is on */
-	exit(1);
-#endif
-
-	/* Clean up */
-	//destroyContext(context);
-}
-
-/**
- * Setup and run the OptiX kernel similar to RTRACE.
- */
-void computeOptix(const size_t width, const size_t height, const unsigned int imm_irrad, const double alarm, RAY* rays)
-{
-	/* Primary RTAPI objects */
-	RTcontext           context;
-	RTbuffer            ray_buffer;
-#ifdef DAYSIM_COMPATIBLE
-	RTbuffer            dc_buffer;
-#endif
-
-	/* Parameters */
-	size_t size, i;
-	RayData* data;
-#ifdef DAYSIM
-	float* dc_data;
-#endif
-
-	/* Set the size */
-	size = width * height;
-	if ( !size )
-		error(USER, "Number of points is zero or not set.");
-
-	/* Setup state */
-	createContext( &context, width, height, alarm );
-	
-	/* Input/output buffer */
-	createCustomBuffer2D( context, RT_BUFFER_INPUT_OUTPUT, sizeof(RayData), width, height, &ray_buffer );
-	RT_CHECK_ERROR( rtBufferMap( ray_buffer, (void**)&data ) );
-	for (i = 0u; i < size; i++) {
-		getRay( data++, &rays[i] );
-	}
-	RT_CHECK_ERROR( rtBufferUnmap( ray_buffer ) );
-	applyContextObject( context, "ray_buffer", ray_buffer );
-
-#ifdef DAYSIM_COMPATIBLE
-	setupDaysim(context, &dc_buffer, width, height);
-#endif
-
-	createCamera(context, "sensor");
-	setupKernel(context, NULL, width, height, imm_irrad, 0.0, 0.0, 0.0, 0.0);
-
-#ifdef DAYSIM
-	/* Set scratch buffer size for this OptiX kernel */
-	if (daysimGetCoefficients())
-		RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * maxdepth * 2, width, height));
-#endif
-
-	/* Run the OptiX kernel */
-	runKernel2D( context, RADIANCE_ENTRY, width, height );
-
-	RT_CHECK_ERROR( rtBufferMap( ray_buffer, (void**)&data ) );
-#ifdef DAYSIM
-	RT_CHECK_ERROR(rtBufferMap(dc_buffer, (void**)&dc_data));
-#endif
-
-	/* Copy the results to allocated memory. */
-	for (i = 0u; i < size; i++) {
-#ifdef DEBUG_OPTIX
-		if (data->weight == -1.0f)
-			logException((RTexception)data->val.x);
-#endif
-#ifdef RAY_COUNT
-		nrays += data->ray_count;
-#endif
-		setRay( &rays[i], data++ );
-#ifdef DAYSIM
-		daysimCopy(rays[i].daylightCoef, dc_data);
-		dc_data += daysimGetCoefficients();
-#endif
-	}
-
-	RT_CHECK_ERROR(rtBufferUnmap(ray_buffer));
-#ifdef DAYSIM
-	RT_CHECK_ERROR(rtBufferUnmap(dc_buffer));
-#endif
-
-#ifdef DEBUG_OPTIX
-	flushExceptionLog("sensor");
-#endif
-
-	/* Clean up */
-	destroyContext(context);
-}
-
-/**
- * Destroy the OptiX context if one has been created.
- * This should be called after the last call to renderOptix().
- */
-void endOptix()
-{
-	if ( context_handle == NULL ) return;
-
-	destroyContext(context_handle);
-	context_handle = NULL;
-	buffer_handle = NULL;
-#ifdef RAY_COUNT
-	ray_count_buffer_handle = NULL;
-#endif
-	camera_frame = camera_type = camera_eye = camera_u = camera_v = camera_w = camera_fov = camera_shift = camera_clip = camera_vdist = NULL;
-}
 
 /**
  * Check for supported GPU devices.
@@ -537,6 +314,7 @@ void destroyContext(const RTcontext context)
 		remote_handle = NULL;
 	}
 	avsum_var = navsum_var = NULL;
+	camera_frame = camera_type = camera_eye = camera_u = camera_v = camera_w = camera_fov = camera_shift = camera_clip = camera_vdist = NULL;
 }
 
 #ifdef DAYSIM_COMPATIBLE
@@ -2136,42 +1914,6 @@ static void printObject(OBJREC* rec)
 	if (rec->os)
 		mprintf("\n Object structure: %s", rec->os);
 	mprintf("\n");
-}
-
-static void getRay( RayData* data, const RAY* ray )
-{
-	array2cuda3( data->origin, ray->rorg );
-	array2cuda3( data->dir, ray->rdir );
-	array2cuda3( data->val, ray->rcol );
-	//array2cuda3( data->contrib, ray->rcoef );
-	//array2cuda3( data->extinction, ray->cext );
-	//array2cuda3( data->hit, ray->rop );
-	//array2cuda3( data->pnorm, ray->pert );
-	//array2cuda3( data->normal, ray->ron );
-
-	//array2cuda2(data->tex, ray->uv);
-	data->max = (float)ray->rmax;
-	data->weight = ray->rweight;
-	data->length = (float)ray->rt;
-	//data->t = ray->rot;
-}
-
-static void setRay( RAY* ray, const RayData* data )
-{
-	cuda2array3( ray->rorg, data->origin );
-	cuda2array3( ray->rdir, data->dir );
-	cuda2array3( ray->rcol, data->val );
-	//cuda2array3( ray->rcoef, data->contrib );
-	//cuda2array3( ray->cext, data->extinction );
-	//cuda2array3( ray->rop, data->hit );
-	//cuda2array3( ray->pert, data->pnorm );
-	//cuda2array3( ray->ron, data->normal );
-
-	//cuda2array2(ray->uv, data->tex);
-	ray->rmax = data->max;
-	ray->rweight = data->weight;
-	ray->rt = data->length;
-	//ray->rot = data->t; //TODO setting this requires that the ray has non-null ro.
 }
 
 #endif /* ACCELERAD */

@@ -81,7 +81,7 @@ static putf_t *putreal;
 #ifdef ACCELERAD
 #define EXPECTED_RAY_COUNT	32
 
-/* from optix_radiance.c */
+/* from optix_rtrace.c */
 extern void computeOptix(const size_t width, const size_t height, const unsigned int imm_irrad, const double alarm, RAY* rays);
 
 double  ralrm = 0.0;				/* seconds between reports */

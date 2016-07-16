@@ -15,10 +15,10 @@ clock_t start;	/* start for elapsed time */
 
 /* Handles to objects used repeatedly in animation */
 extern unsigned int frame;
-extern RTcontext context_handle;
-extern RTbuffer buffer_handle;
+RTcontext context_handle = NULL;
+RTbuffer buffer_handle = NULL;
 #ifdef RAY_COUNT
-extern RTbuffer ray_count_buffer_handle;
+RTbuffer ray_count_buffer_handle = NULL;
 #endif
 extern RTvariable camera_frame;
 
@@ -230,6 +230,23 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	/* Clean up */
 	//destroyContext(context);
 }
+
+/**
+ * Destroy the OptiX context if one has been created.
+ * This should be called after the last call to renderOptixIterative().
+ */
+void endOptix()
+{
+	if (context_handle == NULL) return;
+
+	destroyContext(context_handle);
+	context_handle = NULL;
+	buffer_handle = NULL;
+#ifdef RAY_COUNT
+	ray_count_buffer_handle = NULL;
+#endif
+}
+
 
 #define VAL(x, y)	values[(x) + (y) * xmax]
 

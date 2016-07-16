@@ -123,13 +123,18 @@ if(OptiX_USE)
   # Include source wrappers for OptiX and CUDA.
   # The empty blank.cpp file forces g++ to be used as the linker on Linux.
   set(ACCELERAD_LIBRARY accelerad)
-  add_library(${ACCELERAD_LIBRARY} optix_radiance.c optix_ambient.c optix_rvu.c optix_util.c blank.cpp ${generated_CUDA_files} ${generated_PTX_files})
+  add_library(${ACCELERAD_LIBRARY} optix_radiance.c optix_ambient.c optix_util.c blank.cpp ${generated_CUDA_files} ${generated_PTX_files})
+
+  # Set source to be included in executables
+  set(ACCELERAD_rtrace_files optix_rtrace.c ${generated_PTX_files_rtrace})
+  set(ACCELERAD_rpict_files optix_rpict.c ${generated_PTX_files_rpict})
+  set(ACCELERAD_rvu_files optix_rvu.c ${generated_PTX_files_rvu})
 endif()
 
-add_executable(rtrace rtmain.c rtrace.c duphead.c persist.c ${generated_PTX_files_rtrace})
+add_executable(rtrace rtmain.c rtrace.c duphead.c persist.c ${ACCELERAD_rtrace_files})
 target_link_libraries(rtrace ${ACCELERAD_LIBRARY} ${optix_LIBRARY} ${CUDA_CUDART_LIBRARY} raycalls radiance rtrad)
 
-add_executable(rpict rpmain.c rpict.c srcdraw.c duphead.c persist.c ${generated_PTX_files_rpict})
+add_executable(rpict rpmain.c rpict.c srcdraw.c duphead.c persist.c ${ACCELERAD_rpict_files})
 target_link_libraries(rpict ${ACCELERAD_LIBRARY} ${optix_LIBRARY} ${CUDA_CUDART_LIBRARY} radiance rtrad)
 
 add_executable(lookamb lookamb.c ambio.c)
@@ -160,7 +165,7 @@ if(NOT BUILD_HEADLESS)
   if (X11_FOUND OR Qt5Widgets_DIR)
     add_executable(rvu
       rvmain.c rview.c rv2.c rv3.c devtable.c devcomm.c editline.c ${X11_SOURCES}
-      colortab.c ${generated_PTX_files_rvu})
+      colortab.c ${ACCELERAD_rvu_files})
     target_link_libraries(rvu ${ACCELERAD_LIBRARY} ${optix_LIBRARY} ${CUDA_CUDART_LIBRARY} raycalls radiance rtrad ${X11_LIBRARIES})
     list(APPEND targets_to_install rvu)
 

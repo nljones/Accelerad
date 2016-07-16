@@ -6,8 +6,6 @@
 /* from optix_rvu.c */
 extern void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const int greyscale, const double exposure, const double scale, const int decades, const double mask, const double alarm);
 extern void retreiveOptixImage(const int width, const int height, const double exposure, COLR* colrs);
-
-/* from optix_radiance.c */
 extern void endOptix();
 
 /* from rvmain.c */
