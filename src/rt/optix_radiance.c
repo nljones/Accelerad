@@ -49,7 +49,7 @@
 
 static void checkDevices();
 static void checkRemoteDevice(RTremotedevice remote);
-static void applyRadianceSettings(const RTcontext context, const VIEW* view, const unsigned int imm_irrad, const double dstrpix, const double mblur, const double dblur);
+static void applyRadianceSettings(const RTcontext context, const VIEW* view, const unsigned int imm_irrad);
 static void createGeometryInstance( const RTcontext context, RTgeometryinstance* instance );
 static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* parent, const OBJECT index);
 static void createFace(OBJREC* rec, OBJREC* parent);
@@ -345,13 +345,13 @@ void setupDaysim(const RTcontext context, RTbuffer* dc_buffer, const RTsize widt
 }
 #endif /* DAYSIM_COMPATIBLE */
 
-void setupKernel(const RTcontext context, const VIEW* view, const RTsize width, const RTsize height, const unsigned int imm_irrad, const double dstrpix, const double mblur, const double dblur, const double alarm)
+void setupKernel(const RTcontext context, const VIEW* view, const RTsize width, const RTsize height, const unsigned int imm_irrad, const double alarm)
 {
 	/* Primary RTAPI objects */
 	RTgeometryinstance  instance;
 
 	/* Setup state */
-	applyRadianceSettings(context, view, imm_irrad, dstrpix, mblur, dblur);
+	applyRadianceSettings(context, view, imm_irrad);
 	createGeometryInstance( context, &instance );
 	createAcceleration(context, instance, imm_irrad);
 	if ( imm_irrad )
@@ -366,7 +366,7 @@ void setupKernel(const RTcontext context, const VIEW* view, const RTsize width, 
 	}
 }
 
-static void applyRadianceSettings(const RTcontext context, const VIEW* view, const unsigned int imm_irrad, const double dstrpix, const double mblur, const double dblur)
+static void applyRadianceSettings(const RTcontext context, const VIEW* view, const unsigned int imm_irrad)
 {
 	/* Define ray types */
 	applyContextVariable1ui( context, "radiance_primary_ray_type", PRIMARY_RAY );
@@ -431,9 +431,6 @@ static void applyRadianceSettings(const RTcontext context, const VIEW* view, con
 		camera_shift = applyContextVariable2f(context, "shift", (float)view->hoff, (float)view->voff); // -vs, -vl
 		camera_clip  = applyContextVariable2f(context, "clip", (float)view->vfore, (float)view->vaft); // -vo, -va
 		camera_vdist = applyContextVariable1f(context, "vdist", (float)view->vdist);
-		applyContextVariable1f(context, "dstrpix", (float)dstrpix); // -pj
-		applyContextVariable1f(context, "mblur", (float)mblur); // -pm
-		applyContextVariable1f(context, "dblur", (float)dblur); // -pd
 	} else
 		applyContextVariable1ui(context, "imm_irrad", imm_irrad); // -I
 

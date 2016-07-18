@@ -77,7 +77,10 @@ void renderOptix(const VIEW* view, const size_t width, const size_t height, cons
 		buffer_handle = output_buffer;
 
 		createCamera(context, "camera");
-		setupKernel(context, view, width, height, 0u, dstrpix, mblur, dblur, alarm);
+		setupKernel(context, view, width, height, 0u, alarm);
+		applyContextVariable1f(context, "dstrpix", (float)dstrpix); // -pj
+		applyContextVariable1f(context, "mblur", (float)mblur); // -pm
+		applyContextVariable1f(context, "dblur", (float)dblur); // -pd
 	}
 	else {
 		/* Retrieve handles for previously created objects */

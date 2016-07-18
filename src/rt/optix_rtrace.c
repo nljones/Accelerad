@@ -57,7 +57,7 @@ void computeOptix(const size_t width, const size_t height, const unsigned int im
 #endif
 
 	createCamera(context, "sensor");
-	setupKernel(context, NULL, width, height, imm_irrad, 0.0, 0.0, 0.0, 0.0);
+	setupKernel(context, NULL, width, height, imm_irrad, 0.0);
 
 #ifdef DAYSIM
 	/* Set scratch buffer size for this OptiX kernel */

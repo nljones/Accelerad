@@ -95,7 +95,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		buffer_handle = output_buffer;
 
 		createCamera(context, "rvu_generator");
-		setupKernel(context, view, width, height, 0u, 0.0, 0.0, 0.0, alarm);
+		setupKernel(context, view, width, height, 0u, alarm);
 		camera_exposure = applyContextVariable1f(context, "exposure", (float)exposure);
 		applyContextVariable2i(context, "task_position", xt, yt);
 		applyContextVariable1f(context, "task_angle", (float)omegat);

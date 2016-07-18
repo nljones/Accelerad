@@ -152,7 +152,7 @@ void destroyContext(const RTcontext context);
 #ifdef DAYSIM_COMPATIBLE
 void setupDaysim(const RTcontext context, RTbuffer* dc_buffer, const RTsize width, const RTsize height);
 #endif
-void setupKernel(const RTcontext context, const VIEW* view, const RTsize width, const RTsize height, const unsigned int imm_irrad, const double dstrpix, const double mblur, const double dblur, const double alarm);
+void setupKernel(const RTcontext context, const VIEW* view, const RTsize width, const RTsize height, const unsigned int imm_irrad, const double alarm);
 void createCamera(const RTcontext context, const char* ptx_name);
 void updateCamera(const RTcontext context, const VIEW* view);
 
