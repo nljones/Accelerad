@@ -23,7 +23,7 @@ static const char RCSid[] = "$Id$";
 #include "pmapdiag.h"
 #include "rcontrib.h"
 #include "otypes.h"
-#ifndef _WIN32
+#ifndef NON_POSIX
 #include <sys/mman.h>
 #include <sys/wait.h>
 #else /* TODO Missing on Windows, just ignore for now */

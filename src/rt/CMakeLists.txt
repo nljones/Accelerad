@@ -113,6 +113,7 @@ if(OptiX_USE)
   # in the directory specified by CUDA_GENERATED_OUTPUT_DIR.
   CUDA_COMPILE_PTX(generated_PTX_files_rtrace sensor.cu sensor_cloud_generator.cu irradiance_intersect.cu)
   CUDA_COMPILE_PTX(generated_PTX_files_rpict camera.cu point_cloud_generator.cu)
+  CUDA_COMPILE_PTX(generated_PTX_files_rcontrib rcontrib_generator.cu)
   CUDA_COMPILE_PTX(generated_PTX_files_rvu rvu_generator.cu diffuse_normal.cu)
   CUDA_COMPILE_PTX(generated_PTX_files
     triangle_mesh.cu background.cu skybright.cu perezlum.cu isotropsky.cu utah.cu gencumulativesky.cu
@@ -128,6 +129,7 @@ if(OptiX_USE)
   # Set source to be included in executables
   set(ACCELERAD_rtrace_files optix_rtrace.c ${generated_PTX_files_rtrace})
   set(ACCELERAD_rpict_files optix_rpict.c ${generated_PTX_files_rpict})
+  set(ACCELERAD_rcontrib_files optix_rcontrib.c ${generated_PTX_files_rcontrib})
   set(ACCELERAD_rvu_files optix_rvu.c ${generated_PTX_files_rvu})
 endif()
 
@@ -140,8 +142,8 @@ target_link_libraries(rpict ${ACCELERAD_LIBRARY} ${optix_LIBRARY} ${CUDA_CUDART_
 add_executable(lookamb lookamb.c ambio.c)
 target_link_libraries(lookamb rtrad)
 
-add_executable(rcontrib rcmain.c rcontrib.c rc2.c rc3.c)
-target_link_libraries(rcontrib radiance rtrad)
+add_executable(rcontrib rcmain.c rcontrib.c rc2.c rc3.c ${ACCELERAD_rcontrib_files})
+target_link_libraries(rcontrib ${ACCELERAD_LIBRARY} ${optix_LIBRARY} ${CUDA_CUDART_LIBRARY} radiance rtrad)
 
 add_executable(mkpmap mkpmap.c)
 target_link_libraries(mkpmap radiance rtrad)

@@ -41,9 +41,6 @@ void renderOptix(const VIEW* view, const size_t width, const size_t height, cons
 	RTbuffer            ray_count_buffer;
 	unsigned int *ray_count_data;
 #endif
-#ifdef DAYSIM_COMPATIBLE
-	RTbuffer            dc_buffer;
-#endif
 
 	/* Set the size */
 	size = width * height;
@@ -61,8 +58,11 @@ void renderOptix(const VIEW* view, const size_t width, const size_t height, cons
 		applyContextObject(context, "ray_count_buffer", ray_count_buffer);
 		ray_count_buffer_handle = ray_count_buffer;
 #endif
+#ifdef CONTRIB
+		makeContribCompatible(context);
+#endif
 #ifdef DAYSIM_COMPATIBLE
-		setupDaysim(context, &dc_buffer, width, height);
+		makeDaysimCompatible(context);
 #endif
 
 		/* Ray parameters buffer for motion blur effect, only needed for rendering multiple frames */
@@ -77,7 +77,7 @@ void renderOptix(const VIEW* view, const size_t width, const size_t height, cons
 		buffer_handle = output_buffer;
 
 		createCamera(context, "camera");
-		setupKernel(context, view, width, height, 0u, alarm);
+		setupKernel(context, view, NULL, width, height, 0u, alarm);
 		applyContextVariable1f(context, "dstrpix", (float)dstrpix); // -pj
 		applyContextVariable1f(context, "mblur", (float)mblur); // -pm
 		applyContextVariable1f(context, "dblur", (float)dblur); // -pd

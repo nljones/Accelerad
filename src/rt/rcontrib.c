@@ -71,6 +71,19 @@ static void mcfree(void *p) { epfree((*(MODCONT *)p).binv); free(p); }
 
 LUTAB	modconttab = LU_SINIT(NULL,mcfree);	/* modifier lookup table */
 
+#ifdef ACCELERAD
+#define EXPECTED_RAY_COUNT	32
+
+/* from optix_radiance.c */
+extern void contribOptix(const size_t width, const size_t height, const unsigned int imm_irrad, const unsigned int lim_dist, const unsigned int contrib, const double alarm, double* rays, LUTAB *modifiers);
+
+double  ralrm = 0.0;				/* seconds between reports */
+
+/* TODO This shouldn't be necessary, but the variable must exist in optix_util.c */
+double	pctdone = 0.0;			/* percentage done */
+void report(int dummy) {}		/* report progress */
+#endif
+
 /************************** INITIALIZATION ROUTINES ***********************/
 
 char *
@@ -188,6 +201,10 @@ rcinit(void)
 		sprintf(errmsg, "too many processes requested -- reducing to %d",
 				nproc = MAXPROCESS);
 	if (nproc > 1) {
+#ifdef ACCELERAD
+		if (use_optix) /* Don't allow multiple processes to access the graphics card. */
+			error(USER, "multiprocessing incompatible with GPU implementation");
+#endif
 		preload_objs();		/* preload auxiliary data */
 					/* set shared memory boundary */
 		shm_boundary = strcpy((char *)malloc(16), "SHM_BOUNDARY");
@@ -208,6 +225,9 @@ rcinit(void)
 	if (nproc > 1 && in_rchild())	/* forked child? */
 		return;			/* return to main processing loop */
 
+#ifdef ACCELERAD
+	if (!use_optix) /* Recovery shouldn't be useful for parallel computation. */
+#endif
 	if (recover) {			/* recover previous output? */
 		if (accumulate <= 0)
 			reload_output();
@@ -300,7 +320,11 @@ eval_rad(FVECT org, FVECT dir, double dmax)
 
 
 /* Accumulate and/or output ray contributions (child or only process) */
+#ifdef ACCELERAD
+void
+#else
 static void
+#endif
 done_contrib(void)
 {
 	MODCONT	*mp;
@@ -327,11 +351,49 @@ rcontrib(void)
 	static int	ignore_warning_given = 0;
 	FVECT		orig, direc;
 	double		d;
+#ifdef ACCELERAD
+	size_t current_ray, total_rays;
+	RREAL *ray_cache;
+#endif
 					/* initialize (& fork more of us) */
 	rcinit();
 					/* load rays from stdin & process */
 #ifdef getc_unlocked
 	flockfile(stdin);		/* avoid mutex overhead */
+#endif
+#ifdef ACCELERAD
+	if (use_optix) {
+		/* Populate the set of rays to trace */
+		total_rays = yres > 0 ? (xres > 0 ? xres * yres : yres) : EXPECTED_RAY_COUNT;
+		ray_cache = (RREAL *)malloc(6 * sizeof(RREAL) * total_rays);
+		if (ray_cache == NULL)
+			error(SYSTEM, "out of memory in rcontrib");
+		current_ray = 0u;
+
+		/* load rays from stdin & process */
+		while (getvec(orig) == 0 && getvec(direc) == 0) {
+			/* skip flushing rays */
+			if (direc[0] == 0.0 && direc[1] == 0.0 && direc[2] == 0.0) continue;
+
+			/* resize array if necessary (should only happen when vcount == 0) */
+			if (current_ray == total_rays) {
+				total_rays *= 2;
+				ray_cache = (RREAL *)realloc(ray_cache, 6 * sizeof(RREAL) * total_rays);
+				if (ray_cache == NULL)
+					error(SYSTEM, "out of memory in rcontrib");
+			}
+			VCOPY(ray_cache + (6 * current_ray), orig);
+			VCOPY(ray_cache + (6 * current_ray + 3), direc);
+			current_ray++;
+		}
+
+		total_rays = current_ray;
+		if (raysleft)
+			raysleft -= total_rays;
+		contribOptix(xres ? xres : 1, yres ? yres : total_rays, imm_irrad, lim_dist, contrib, ralrm, ray_cache, &modconttab);
+		free(ray_cache);
+	}
+	else
 #endif
 	while (getvec(orig) == 0 && getvec(direc) == 0) {
 		d = normalize(direc);

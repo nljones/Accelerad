@@ -57,9 +57,6 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	RTbuffer            ray_count_buffer;
 	//unsigned int *ray_count_data;
 #endif
-#ifdef DAYSIM_COMPATIBLE
-	RTbuffer            dc_buffer;
-#endif
 
 	/* Set the size */
 	size = width * height;
@@ -86,8 +83,11 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		applyContextObject(context, "ray_count_buffer", ray_count_buffer);
 		ray_count_buffer_handle = ray_count_buffer;
 #endif
+#ifdef CONTRIB
+		makeContribCompatible(context);
+#endif
 #ifdef DAYSIM_COMPATIBLE
-		setupDaysim(context, &dc_buffer, width, height);
+		makeDaysimCompatible(context);
 #endif
 
 		/* Save handles to objects used in animations */
@@ -95,7 +95,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		buffer_handle = output_buffer;
 
 		createCamera(context, "rvu_generator");
-		setupKernel(context, view, width, height, 0u, alarm);
+		setupKernel(context, view, NULL, width, height, 0u, alarm);
 		camera_exposure = applyContextVariable1f(context, "exposure", (float)exposure);
 		applyContextVariable2i(context, "task_position", xt, yt);
 		applyContextVariable1f(context, "task_angle", (float)omegat);

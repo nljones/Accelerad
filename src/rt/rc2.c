@@ -189,11 +189,13 @@ getostream(const char *ospec, const char *mname, int bn, int noopen)
 		sop->ofp = NULL;		/* open iff noopen==0 */
 		sop->xr = xres; sop->yr = yres;
 		lep->data = (char *)sop;
+#ifndef ACCELERAD_DEBUG
 		if (!sop->outpipe & !force_open & !recover &&
 				access(oname, F_OK) == 0) {
 			errno = EEXIST;		/* file exists */
 			goto openerr;
 		}
+#endif
 	}
 	if (!noopen && sop->ofp == NULL) {	/* open output stream */
 		if (oname[0] == '!')		/* output to command */

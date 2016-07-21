@@ -16,6 +16,12 @@ static const char	RCSid[] = "$Id$";
 #include "pmapray.h"
 #include "pmapcontrib.h"
 
+#ifdef ACCELERAD
+extern void printRayTracingTime(const time_t time, const clock_t clock);
+
+extern double  ralrm;				/* seconds between reports */
+#endif
+
 int	gargc;				/* global argc */
 char	**gargv;			/* global argv */
 char	*octname;			/* global octree name */
@@ -69,6 +75,9 @@ printdefaults(void)			/* print default values to stdout */
 			header ? "output" : "no");
 	printf("-f%c%c\t\t\t\t# format input/output = %s/%s\n",
 			inpfmt, outfmt, formstr(inpfmt), formstr(outfmt));
+#ifdef ACCELERAD
+	printf("-t  %f\t\t\t# time between reports\n", ralrm);
+#endif
 	printf(erract[WARNING].pf != NULL ?
 			"-w+\t\t\t\t# warning messages on\n" :
 			"-w-\t\t\t\t# warning messages off\n");
@@ -176,6 +185,10 @@ main(int argc, char *argv[])
 	int	bincnt = 0;
 	int	rval;
 	int	i;
+#ifdef ACCELERAD
+	time_t rcontrib_time; // Timer in seconds for long jobs
+	clock_t rcontrib_clock; // Timer in clock cycles for short jobs
+#endif
 					/* global program name */
 	progname = argv[0] = fixargv0(argv[0]);
 	gargv = argv;
@@ -292,6 +305,12 @@ main(int argc, char *argv[])
 			check(2,"s");
 			addmodfile(argv[++i], curout, prms, binval, bincnt);
 			break;
+#ifdef ACCELERAD
+		case 't':				/* timer */
+			check(2, "f");
+			ralrm = atof(argv[++i]);
+			break;
+#endif
 		default:
 			goto badopt;
 		}
@@ -345,6 +364,9 @@ main(int argc, char *argv[])
 	/* PMAP: set up & load photon maps */
 	ray_init_pmap();     
 	
+#ifdef ACCELERAD
+	if (!use_optix) /* Don't shoot rays here, since the OptiX program should handle this. */
+#endif
 	marksources();			/* find and mark sources */
 	
 	/* PMAP: init photon map for light source contributions */
@@ -352,7 +374,16 @@ main(int argc, char *argv[])
 
 	setambient();			/* initialize ambient calculation */
 	
+#ifdef ACCELERAD
+	rcontrib_time = time((time_t *)NULL);
+	rcontrib_clock = clock();
+#endif
 	rcontrib();			/* trace ray contributions (loop) */
+#ifdef ACCELERAD
+	rcontrib_clock = clock() - rcontrib_clock;
+	rcontrib_time = time((time_t *)NULL) - rcontrib_time;
+	printRayTracingTime(rcontrib_time, rcontrib_clock);
+#endif
 
 	ambsync();			/* flush ambient file */
 

@@ -27,7 +27,7 @@ static const char RCSid[] = "$Id$";
 #include "otypes.h"
 #include <time.h>
 #include <sys/stat.h>
-#ifdef POSIX
+#ifndef NON_POSIX
 #include <sys/mman.h>
 #include <sys/wait.h>
 #else /* TODO Missing on Windows, just ignore for now */

@@ -52,12 +52,15 @@ void computeOptix(const size_t width, const size_t height, const unsigned int im
 	RT_CHECK_ERROR(rtBufferUnmap(ray_buffer));
 	applyContextObject(context, "ray_buffer", ray_buffer);
 
+#ifdef CONTRIB
+	makeContribCompatible(context);
+#endif
 #ifdef DAYSIM_COMPATIBLE
 	setupDaysim(context, &dc_buffer, width, height);
 #endif
 
 	createCamera(context, "sensor");
-	setupKernel(context, NULL, width, height, imm_irrad, 0.0);
+	setupKernel(context, NULL, NULL, width, height, imm_irrad, 0.0);
 
 #ifdef DAYSIM
 	/* Set scratch buffer size for this OptiX kernel */

@@ -7,6 +7,7 @@
 #include <view.h>
 #include <color.h>
 #include <inttypes.h>
+#include "lookup.h"
 
 #include <optix_world.h>
 #include "optix_common.h"
@@ -149,10 +150,14 @@ char path_to_ptx[512];     /* The path to the PTX file. */
 /* in optix_radiance.c */
 void createContext(RTcontext* context, const RTsize width, const RTsize height, const double alarm);
 void destroyContext(const RTcontext context);
+#ifdef CONTRIB
+void makeContribCompatible(const RTcontext context);
+#endif
 #ifdef DAYSIM_COMPATIBLE
+void makeDaysimCompatible(const RTcontext context);
 void setupDaysim(const RTcontext context, RTbuffer* dc_buffer, const RTsize width, const RTsize height);
 #endif
-void setupKernel(const RTcontext context, const VIEW* view, const RTsize width, const RTsize height, const unsigned int imm_irrad, const double alarm);
+void setupKernel(const RTcontext context, const VIEW* view, LUTAB* modifiers, const RTsize width, const RTsize height, const unsigned int imm_irrad, const double alarm);
 void createCamera(const RTcontext context, const char* ptx_name);
 void updateCamera(const RTcontext context, const VIEW* view);
 

@@ -50,8 +50,8 @@
 static void checkDevices();
 static void checkRemoteDevice(RTremotedevice remote);
 static void applyRadianceSettings(const RTcontext context, const VIEW* view, const unsigned int imm_irrad);
-static void createGeometryInstance( const RTcontext context, RTgeometryinstance* instance );
-static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* parent, const OBJECT index);
+static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RTgeometryinstance* instance);
+static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* parent, const OBJECT index, LUTAB* modifiers);
 static void createFace(OBJREC* rec, OBJREC* parent);
 static __inline void createTriangle(OBJREC *material, const int a, const int b, const int c);
 #ifdef TRIANGULATE
@@ -61,13 +61,13 @@ static int addTriangle(const Vert2_list *tp, int a, int b, int c);
 static void createSphere(OBJREC* rec, OBJREC* parent);
 static void createCone(OBJREC* rec, OBJREC* parent);
 static void createMesh(OBJREC* rec, OBJREC* parent);
-static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec);
-static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec);
-static RTmaterial createLightMaterial( const RTcontext context, OBJREC* rec );
+static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec, LUTAB* modifiers);
+static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec, LUTAB* modifiers);
+static RTmaterial createLightMaterial(const RTcontext context, OBJREC* rec, LUTAB* modifiers);
 #ifdef ANTIMATTER
 static RTmaterial createClipMaterial(const RTcontext context, OBJREC* rec);
 #endif
-static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, OBJREC* parent);
+static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, OBJREC* parent, LUTAB* modifiers);
 static OBJREC* findFunction(OBJREC *o);
 static int createFunction(const RTcontext context, OBJREC* rec);
 static int createTexture(const RTcontext context, OBJREC* rec);
@@ -317,7 +317,22 @@ void destroyContext(const RTcontext context)
 	camera_frame = camera_type = camera_eye = camera_u = camera_v = camera_w = camera_fov = camera_shift = camera_clip = camera_vdist = NULL;
 }
 
+#ifdef CONTRIB
+void makeContribCompatible(const RTcontext context)
+{
+	RTbuffer *contrib_buffer;
+	createBuffer3D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT3, 0, 0, 0, contrib_buffer);
+	applyContextObject(context, "contrib_buffer", *contrib_buffer);
+}
+#endif
+
 #ifdef DAYSIM_COMPATIBLE
+void makeDaysimCompatible(const RTcontext context)
+{
+	RTbuffer *dc_buffer;
+	setupDaysim(context, dc_buffer, 0, 0);
+}
+
 void setupDaysim(const RTcontext context, RTbuffer* dc_buffer, const RTsize width, const RTsize height)
 {
 #ifndef DAYSIM
@@ -345,14 +360,14 @@ void setupDaysim(const RTcontext context, RTbuffer* dc_buffer, const RTsize widt
 }
 #endif /* DAYSIM_COMPATIBLE */
 
-void setupKernel(const RTcontext context, const VIEW* view, const RTsize width, const RTsize height, const unsigned int imm_irrad, const double alarm)
+void setupKernel(const RTcontext context, const VIEW* view, LUTAB* modifiers, const RTsize width, const RTsize height, const unsigned int imm_irrad, const double alarm)
 {
 	/* Primary RTAPI objects */
 	RTgeometryinstance  instance;
 
 	/* Setup state */
 	applyRadianceSettings(context, view, imm_irrad);
-	createGeometryInstance( context, &instance );
+	createGeometryInstance(context, modifiers, &instance);
 	createAcceleration(context, instance, imm_irrad);
 	if ( imm_irrad )
 		createIrradianceGeometry( context );
@@ -431,7 +446,8 @@ static void applyRadianceSettings(const RTcontext context, const VIEW* view, con
 		camera_shift = applyContextVariable2f(context, "shift", (float)view->hoff, (float)view->voff); // -vs, -vl
 		camera_clip  = applyContextVariable2f(context, "clip", (float)view->vfore, (float)view->vaft); // -vo, -va
 		camera_vdist = applyContextVariable1f(context, "vdist", (float)view->vdist);
-	} else
+	}
+	else if (imm_irrad)
 		applyContextVariable1ui(context, "imm_irrad", imm_irrad); // -I
 
 #ifdef DAYSIM
@@ -448,7 +464,8 @@ void createCamera(const RTcontext context, const char* ptx_name)
 	/* Ray generation program */
 	ptxFile(path_to_ptx, ptx_name);
 	RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "ray_generator", &program));
-	applyProgramVariable1ui(context, program, "do_irrad", do_irrad); // -i
+	if (do_irrad)
+		applyProgramVariable1ui(context, program, "do_irrad", do_irrad); // -i
 	RT_CHECK_ERROR(rtContextSetRayGenerationProgram(context, RADIANCE_ENTRY, program));
 
 	/* Exception program */
@@ -486,7 +503,7 @@ void updateCamera( const RTcontext context, const VIEW* view )
 	RT_CHECK_ERROR(rtVariableSet1f(camera_vdist, (float)view->vdist));
 }
 
-static void createGeometryInstance( const RTcontext context, RTgeometryinstance* instance )
+static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RTgeometryinstance* instance)
 {
 	RTgeometry mesh;
 	RTprogram  mesh_intersection_program;
@@ -553,7 +570,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 	/* Material 0 is Lambertian. */
 	if ( do_irrad ) {
 		insertArray2i(alt_materials, (int)materials->count, (int)materials->count);
-		insertArraym(materials, createNormalMaterial(context, &Lamb));
+		insertArraym(materials, createNormalMaterial(context, &Lamb, NULL));
 	}
 
 	/* Get the scene geometry as a list of triangles. */
@@ -567,7 +584,7 @@ static void createGeometryInstance( const RTcontext context, RTgeometryinstance*
 		else
 			parent = NULL;
 
-		addRadianceObject(context, rec, parent, on);
+		addRadianceObject(context, rec, parent, on, modifiers);
 	}
 
 	free( buffer_entry_index );
@@ -669,7 +686,7 @@ memerr:
 	error(SYSTEM, "out of memory in createGeometryInstance");
 }
 
-static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* parent, const OBJECT index)
+static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* parent, const OBJECT index, LUTAB* modifiers)
 {
 	int alternate = -1;
 
@@ -678,12 +695,12 @@ static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* pare
 	case MAT_METAL: // Metal material
 	case MAT_TRANS: // Translucent material
 		buffer_entry_index[index] = insertArray2i(alt_materials, 0, (int)materials->count);
-		insertArraym(materials, createNormalMaterial(context, rec));
+		insertArraym(materials, createNormalMaterial(context, rec, modifiers));
 		break;
 	case MAT_GLASS: // Glass material
 	case MAT_DIELECTRIC: // Dielectric material TODO handle separately, see dialectric.c
 		buffer_entry_index[index] = insertArray2i(alt_materials, -1, (int)materials->count);
-		insertArraym(materials, createGlassMaterial(context, rec));
+		insertArraym(materials, createGlassMaterial(context, rec, modifiers));
 		break;
 	case MAT_LIGHT: // primary light source material, may modify a face or a source (solid angle)
 	case MAT_ILLUM: // secondary light source material
@@ -698,7 +715,7 @@ static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* pare
 			alternate = buffer_entry_index[lastmod(objndx(rec), rec->oargs.sarg[0])];
 		}
 		insertArray2i(alt_materials, (int)materials->count, alternate);
-		insertArraym(materials, createLightMaterial(context, rec));
+		insertArraym(materials, createLightMaterial(context, rec, modifiers));
 		break;
 #ifdef ANTIMATTER
 	case MAT_CLIP: // Antimatter
@@ -724,7 +741,7 @@ static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* pare
 		createMesh(rec, parent);
 		break;
 	case OBJ_SOURCE:
-		insertArraydl(sources, createDistantLight(context, rec, parent));
+		insertArraydl(sources, createDistantLight(context, rec, parent, modifiers));
 		break;
 	//case MAT_TFUNC: // bumpmap function
 	case PAT_BFUNC: // brightness function, used for sky brightness
@@ -750,7 +767,7 @@ static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* pare
 		if (rec->oargs.nsargs) {
 			if (rec->oargs.nsargs > 1)
 				objerror(rec, INTERNAL, "too many string arguments");
-			addRadianceObject(context, objptr(lastmod(objndx(rec), rec->oargs.sarg[0])), objptr(rec->omod), index); // TODO necessary?
+			addRadianceObject(context, objptr(lastmod(objndx(rec), rec->oargs.sarg[0])), objptr(rec->omod), index, modifiers); // TODO necessary?
 		}
 		// Otherwise it's a pass-through (do nothing)
 		break;
@@ -1189,7 +1206,7 @@ static void createMesh(OBJREC* rec, OBJREC* parent)
 	freemeshinst(rec);
 }
 
-static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec)
+static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 {
 	RTmaterial material;
 
@@ -1267,7 +1284,7 @@ static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec)
 	return material;
 }
 
-static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec)
+static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 {
 	RTmaterial material;
 
@@ -1314,7 +1331,7 @@ static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec)
 	return material;
 }
 
-static RTmaterial createLightMaterial(const RTcontext context, OBJREC* rec)
+static RTmaterial createLightMaterial(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 {
 	RTmaterial material;
 	OBJREC* mat;
@@ -1438,7 +1455,10 @@ static RTmaterial createClipMaterial(const RTcontext context, OBJREC* rec)
 }
 #endif
 
-static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, OBJREC* parent)
+#ifdef CONTRIB
+#include "rcontrib.h"
+#endif
+static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, OBJREC* parent, LUTAB* modifiers)
 {
 	SRCREC source;
 	OBJREC* material;
@@ -1450,6 +1470,25 @@ static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, OBJ
 	array2cuda3(light.pos, source.sloc);
 	light.solid_angle = source.ss2;
 	light.casts_shadow = material->otype != MAT_GLOW; // Glow cannot cast shadow infinitely far away
+
+#ifdef CONTRIB
+	/* Check for a call-back function. */
+	if (modifiers) {
+		MODCONT	*mp;
+		if ((mp = (MODCONT *)lu_find(modifiers, material->oname)->data)) {
+			light.contrib_index = 0;// mp->start_bin;
+			light.contrib_function = RT_PROGRAM_ID_NULL;// createContribFunction(mp);
+		}
+		else {
+			light.contrib_index = -1;
+			light.contrib_function = RT_PROGRAM_ID_NULL;
+		}
+	}
+	else {
+		light.contrib_index = -1;
+		light.contrib_function = RT_PROGRAM_ID_NULL;
+	}
+#endif /* CONTRIB */
 
 	/* Check for a parent function. */
 	if ((material = findFunction(parent))) // TODO can there be multiple parent functions?
@@ -1877,7 +1916,7 @@ static void createIrradianceGeometry( const RTcontext context )
 
 	/* Create a Lambertian material as the geometry instance's only material. */
 	RT_CHECK_ERROR( rtGeometryInstanceSetMaterialCount( instance, 1 ) );
-	RT_CHECK_ERROR( rtGeometryInstanceSetMaterial( instance, 0, createNormalMaterial( context, &Lamb ) ) );
+	RT_CHECK_ERROR( rtGeometryInstanceSetMaterial( instance, 0, createNormalMaterial( context, &Lamb, NULL ) ) );
 
 	/* Create a geometry group to hold the geometry instance.  This will be used as the top level group. */
 	RT_CHECK_ERROR( rtGeometryGroupCreate( context, &geometrygroup ) );

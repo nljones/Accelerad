@@ -13,6 +13,7 @@
 //#define OLDAMB
 #define LIGHTS
 #define ANTIMATTER
+#define CONTRIB
 //#define DAYSIM_COMPATIBLE
 
 
@@ -33,6 +34,10 @@ typedef struct struct_DistantLight
 	float  solid_angle;		/* solid angle covered by soruce */
 	int    function;		/* OptiX callable program ID */
 	int    casts_shadow;	/* true if source casts shadows (i.e., not a glow material) */
+#ifdef CONTRIB
+	int    contrib_index;
+	int    contrib_function;
+#endif
 } DistantLight;
 
 /* Structure to hold an ambient record */

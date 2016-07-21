@@ -22,7 +22,7 @@ rtDeclareVariable(float,         vdist, , ); /* Focal length */
 rtDeclareVariable(float,         dstrpix, , ); /* Pixel sample jitter (-pj) */
 rtDeclareVariable(float,         mblur, , ); /* Motion blur (-pm) */
 rtDeclareVariable(float,         dblur, , ); /* Depth-of-field blur (-pd) */
-rtDeclareVariable(unsigned int,  do_irrad, , ); /* Calculate irradiance (-i) */
+rtDeclareVariable(unsigned int,  do_irrad, , ) = 0u; /* Calculate irradiance (-i) */
 
 rtBuffer<float4, 2>              output_buffer;
 #ifdef RAY_COUNT

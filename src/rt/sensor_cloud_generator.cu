@@ -11,9 +11,6 @@
 
 using namespace optix;
 
-/* Program variables */
-rtDeclareVariable(unsigned int,  do_irrad, , ); /* Calculate irradiance (-i) */
-
 /* Contex variables */
 rtBuffer<RayData, 2>             ray_buffer;
 rtBuffer<PointDirection, 3>      seed_buffer;

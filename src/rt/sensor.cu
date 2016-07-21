@@ -9,7 +9,7 @@
 using namespace optix;
 
 /* Program variables */
-rtDeclareVariable(unsigned int,  do_irrad, , ); /* Calculate irradiance (-i) */
+rtDeclareVariable(unsigned int,  do_irrad, , ) = 0u; /* Calculate irradiance (-i) */
 
 /* Contex variables */
 rtBuffer<RayData, 2>             ray_buffer;
