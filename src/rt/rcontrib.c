@@ -75,7 +75,9 @@ LUTAB	modconttab = LU_SINIT(NULL,mcfree);	/* modifier lookup table */
 #define EXPECTED_RAY_COUNT	32
 
 /* from optix_radiance.c */
-extern void contribOptix(const size_t width, const size_t height, const unsigned int imm_irrad, const unsigned int lim_dist, const unsigned int contrib, const double alarm, double* rays, LUTAB *modifiers);
+extern void contribOptix(const size_t width, const size_t height, const unsigned int imm_irrad, const unsigned int lim_dist, const unsigned int contrib, const unsigned int bins, const double alarm, double* rays, LUTAB *modifiers);
+
+static unsigned int total_bins = 0;	/* total number of contribution bins */
 
 double  ralrm = 0.0;				/* seconds between reports */
 
@@ -149,6 +151,10 @@ addmodifier(char *modn, char *outf, char *prms, char *binv, int bincnt)
 	mp->params = prms;		/* XXX assumes static string */
 	mp->binv = ebinv;
 	mp->nbins = bincnt;
+#ifdef ACCELERAD
+	mp->start_bin = total_bins;
+	total_bins += bincnt;
+#endif
 	memset(mp->cbin, 0, sizeof(DCOLOR)*bincnt);
 					/* allocate output streams */
 	for (i = bincnt; i-- > 0; )
@@ -390,7 +396,7 @@ rcontrib(void)
 		total_rays = current_ray;
 		if (raysleft)
 			raysleft -= (RNUMBER)total_rays;
-		contribOptix(xres ? xres : 1, yres ? yres : total_rays, imm_irrad, lim_dist, contrib, ralrm, ray_cache, &modconttab);
+		contribOptix(xres ? xres : 1, yres ? yres : total_rays, imm_irrad, lim_dist, contrib, total_bins, ralrm, ray_cache, &modconttab);
 		free(ray_cache);
 	}
 	else

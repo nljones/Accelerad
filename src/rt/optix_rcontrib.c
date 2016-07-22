@@ -12,7 +12,7 @@
 
 #ifdef ACCELERAD
 
-void contribOptix(const size_t width, const size_t height, const unsigned int imm_irrad, const unsigned int lim_dist, const unsigned int contrib, const double alarm, double* rays, const LUTAB* modifiers);
+void contribOptix(const size_t width, const size_t height, const unsigned int imm_irrad, const unsigned int lim_dist, const unsigned int contrib, const unsigned int bins, const double alarm, double* rays, LUTAB* modifiers);
 
 extern void done_contrib();
 
@@ -20,7 +20,7 @@ extern void done_contrib();
 /**
  * Setup and run the OptiX kernel similar to RTRACE.
  */
-void contribOptix(const size_t width, const size_t height, const unsigned int imm_irrad, const unsigned int lim_dist, const unsigned int contrib, const double alarm, double* rays, LUTAB* modifiers)
+void contribOptix(const size_t width, const size_t height, const unsigned int imm_irrad, const unsigned int lim_dist, const unsigned int contrib, const unsigned int bins, const double alarm, double* rays, LUTAB* modifiers)
 {
 	/* Primary RTAPI objects */
 	RTcontext           context;
@@ -83,14 +83,8 @@ void contribOptix(const size_t width, const size_t height, const unsigned int im
 	if (contrib)
 		applyContextVariable1ui(context, "contrib", contrib); // -V
 
-	/* Count contribution outputs */
-	for (j = 0; j < nmods; j++) {
-		mp = (MODCONT *)lu_find(modifiers, modname[j])->data;
-		i += mp->nbins;
-	}
-
 	/* Render result buffer */
-	createBuffer3D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT3, i ? width : 0, i ? height : 0, i, &contrib_buffer);
+	createBuffer3D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT3, bins ? width : 0, bins ? height : 0, bins, &contrib_buffer);
 	applyContextObject(context, "contrib_buffer", contrib_buffer);
 
 #ifdef RAY_COUNT

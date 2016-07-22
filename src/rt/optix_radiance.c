@@ -79,6 +79,7 @@ static int createTransform( XF* fxp, XF* bxp, const OBJREC* rec );
 static int createGenCumulativeSky(const RTcontext context, char* filename, RTprogram* program);
 #ifdef CONTRIB
 static int createContribFunction(const RTcontext context, MODCONT *mp);
+static void applyContribution(const RTcontext context, const RTmaterial material, OBJREC* rec, LUTAB* modifiers);
 #endif
 static void createAcceleration(const RTcontext context, const RTgeometryinstance instance, const unsigned int imm_irrad);
 static void createIrradianceGeometry( const RTcontext context );
@@ -1229,6 +1230,9 @@ static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec, LUT
 		applyMaterialVariable1f(context, material, "transm", (float)rec->oargs.farg[5]);
 		applyMaterialVariable1f(context, material, "tspecu", (float)rec->oargs.farg[6]);
 	}
+#ifdef CONTRIB
+	applyContribution(context, material, rec, modifiers);
+#endif
 
 	/* Check ambient include/exclude list */
 	if (ambincl != -1) {
@@ -1305,6 +1309,9 @@ static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec, LUTA
 	applyMaterialVariable3f(context, material, "color", (float)rec->oargs.farg[0], (float)rec->oargs.farg[1], (float)rec->oargs.farg[2]);
 	if (rec->oargs.nfargs > 3)
 		applyMaterialVariable1f(context, material, "r_index", (float)rec->oargs.farg[3]);
+#ifdef CONTRIB
+	applyContribution(context, material, rec, modifiers);
+#endif
 
 	/* Create our hit programs to be shared among all glass materials */
 	if (!radiance_glass_closest_hit_program || !shadow_glass_closest_hit_program)
@@ -1361,6 +1368,9 @@ static RTmaterial createLightMaterial(const RTcontext context, OBJREC* rec, LUTA
 		free(spot);
 		rec->os = NULL;
 	}
+#ifdef CONTRIB
+	applyContribution(context, material, rec, modifiers);
+#endif
 
 	/* Check for a parent function. */
 	if ((mat = findFunction(rec))) // TODO can there be multiple parent functions?
@@ -1480,7 +1490,7 @@ static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, OBJ
 	if (modifiers) {
 		MODCONT	*mp;
 		if ((mp = (MODCONT *)lu_find(modifiers, material->oname)->data)) {
-			light.contrib_index = 0;// mp->start_bin;
+			light.contrib_index = mp->start_bin;
 			light.contrib_function = createContribFunction(context, mp);
 		}
 		else {
@@ -1887,6 +1897,23 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 	}
 
 	return program_id;
+}
+
+static void applyContribution(const RTcontext context, const RTmaterial material, OBJREC* rec, LUTAB* modifiers)
+{
+	/* Check for a call-back function. */
+	if (modifiers) {
+		MODCONT	*mp;
+		if ((mp = (MODCONT *)lu_find(modifiers, rec->oname)->data)) {
+			applyMaterialVariable1i(context, material, "contrib_index", mp->start_bin);
+			applyMaterialVariable1i(context, material, "contrib_function", createContribFunction(context, mp));
+			return;
+		}
+	}
+
+	/* No call-back function. */
+	//applyMaterialVariable1i(context, material, "contrib_index", -1);
+	applyMaterialVariable1i(context, material, "contrib_function", RT_PROGRAM_ID_NULL);
 }
 #endif /* CONTRIB */
 

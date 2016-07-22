@@ -6,6 +6,9 @@
 #include <optix.h>
 #include <optixu/optixu_math_namespace.h>
 #include "optix_shader_common.h"
+#ifdef CONTRIB
+#include "optix_shader_contrib.h"
+#endif
 
 using namespace optix;
 
@@ -277,5 +280,8 @@ RT_PROGRAM void closest_hit_radiance()
 	
 #ifdef HIT_TYPE
 	prd.hit_type = type;
+#endif
+#ifdef CONTRIB
+	contribution(prd.weight, result, ray.direction);
 #endif
 }

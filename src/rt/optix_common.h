@@ -35,8 +35,8 @@ typedef struct struct_DistantLight
 	int    function;		/* OptiX callable program ID */
 	int    casts_shadow;	/* true if source casts shadows (i.e., not a glow material) */
 #ifdef CONTRIB
-	int    contrib_index;
-	int    contrib_function;
+	int    contrib_index;		/* index of first bin for contribution accumulation */
+	int    contrib_function;	/* function to choose bin for contribution accumulation */
 #endif
 } DistantLight;
 

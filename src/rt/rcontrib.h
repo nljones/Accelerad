@@ -59,6 +59,9 @@ typedef struct {
 	const char	*modname;	/* modifier name */
 	const char	*params;	/* parameter list */
 	EPNODE		*binv;		/* bin value expression */
+#ifdef ACCELERAD
+	int		start_bin;		/* index of first contribution bin */
+#endif
 	int		nbins;		/* number of contribution bins */
 	DCOLOR		cbin[1];	/* contribution bins (extends struct) */
 } MODCONT;			/* modifier contribution */
