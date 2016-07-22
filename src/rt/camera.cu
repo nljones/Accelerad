@@ -19,9 +19,9 @@ rtDeclareVariable(float2,        fov, , ); /* Field of view (-vh, -vv) */
 rtDeclareVariable(float2,        shift, , ); /* Camera shift (-vs, -vl) */
 rtDeclareVariable(float2,        clip, , ); /* Fore and aft clipping planes (-vo, -va) */
 rtDeclareVariable(float,         vdist, , ); /* Focal length */
-rtDeclareVariable(float,         dstrpix, , ); /* Pixel sample jitter (-pj) */
-rtDeclareVariable(float,         mblur, , ); /* Motion blur (-pm) */
-rtDeclareVariable(float,         dblur, , ); /* Depth-of-field blur (-pd) */
+rtDeclareVariable(float,         dstrpix, , ) = 0.0f; /* Pixel sample jitter (-pj) */
+rtDeclareVariable(float,         mblur, , ) = 0.0f; /* Motion blur (-pm) */
+rtDeclareVariable(float,         dblur, , ) = 0.0f; /* Depth-of-field blur (-pd) */
 rtDeclareVariable(unsigned int,  do_irrad, , ) = 0u; /* Calculate irradiance (-i) */
 
 rtBuffer<float4, 2>              output_buffer;

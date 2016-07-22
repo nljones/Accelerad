@@ -96,19 +96,30 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 
 		createCamera(context, "rvu_generator");
 		setupKernel(context, view, NULL, width, height, 0u, alarm);
+
+		/* Apply unique settings */
 		camera_exposure = applyContextVariable1f(context, "exposure", (float)exposure);
-		applyContextVariable2i(context, "task_position", xt, yt);
-		applyContextVariable1f(context, "task_angle", (float)omegat);
-		applyContextVariable2i(context, "high_position", xh, yh);
-		applyContextVariable1f(context, "high_angle", (float)omegah);
-		applyContextVariable2i(context, "low_position", xl, yl);
-		applyContextVariable1f(context, "low_angle", (float)omegal);
-		applyContextVariable1ui(context, "greyscale", (unsigned int)greyscale);
+		if (omegat > FTINY) {
+			applyContextVariable2i(context, "task_position", xt, yt);
+			applyContextVariable1f(context, "task_angle", (float)omegat);
+		}
+		if (omegah > FTINY) {
+			applyContextVariable2i(context, "high_position", xh, yh);
+			applyContextVariable1f(context, "high_angle", (float)omegah);
+		}
+		if (omegal > FTINY) {
+			applyContextVariable2i(context, "low_position", xl, yl);
+			applyContextVariable1f(context, "low_angle", (float)omegal);
+		}
+		if (greyscale)
+			applyContextVariable1ui(context, "greyscale", (unsigned int)greyscale);
 		if (scale > 0)
 			applyContextVariable1i(context, "tonemap", makeFalseColorMap(context));
 		applyContextVariable1f(context, "fc_scale", (float)scale);
-		applyContextVariable1i(context, "fc_log", decades);
-		applyContextVariable1f(context, "fc_mask", (float)mask);
+		if (decades > 0)
+			applyContextVariable1i(context, "fc_log", decades);
+		if (mask > 0.0)
+			applyContextVariable1f(context, "fc_mask", (float)mask);
 #ifdef SAVE_METRICS
 		sprintf(errmsg, "%s.csv", octname);
 		csv = fopen(errmsg, "w");
