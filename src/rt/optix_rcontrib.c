@@ -27,7 +27,7 @@ void contribOptix(const size_t width, const size_t height, const unsigned int im
 	RTbuffer            origin_buffer, direction_buffer, contrib_buffer;
 
 	/* Parameters */
-	size_t size, i;
+	size_t size, i = 0;
 	float *origins, *directions, *contributions;
 #ifdef RAY_COUNT
 	RTbuffer            ray_count_buffer;
@@ -83,8 +83,14 @@ void contribOptix(const size_t width, const size_t height, const unsigned int im
 	if (contrib)
 		applyContextVariable1ui(context, "contrib", contrib); // -V
 
+	/* Count contribution outputs */
+	for (j = 0; j < nmods; j++) {
+		mp = (MODCONT *)lu_find(modifiers, modname[j])->data;
+		i += mp->nbins;
+	}
+
 	/* Render result buffer */
-	createBuffer3D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT3, width, height, 1, &contrib_buffer); //TODO real depth
+	createBuffer3D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT3, i ? width : 0, i ? height : 0, i, &contrib_buffer);
 	applyContextObject(context, "contrib_buffer", contrib_buffer);
 
 #ifdef RAY_COUNT

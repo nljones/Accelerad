@@ -19,6 +19,10 @@
 #include "optix_radiance.h"
 #include <cuda_runtime_api.h>
 
+#ifdef CONTRIB
+#include "rcontrib.h"
+#endif
+
 /* Needed for sleep while waiting for VCA */
 #ifdef _WIN32
 #include <windows.h>
@@ -73,6 +77,9 @@ static int createFunction(const RTcontext context, OBJREC* rec);
 static int createTexture(const RTcontext context, OBJREC* rec);
 static int createTransform( XF* fxp, XF* bxp, const OBJREC* rec );
 static int createGenCumulativeSky(const RTcontext context, char* filename, RTprogram* program);
+#ifdef CONTRIB
+static int createContribFunction(const RTcontext context, MODCONT *mp);
+#endif
 static void createAcceleration(const RTcontext context, const RTgeometryinstance instance, const unsigned int imm_irrad);
 static void createIrradianceGeometry( const RTcontext context );
 static void printObject(OBJREC* rec);
@@ -320,17 +327,17 @@ void destroyContext(const RTcontext context)
 #ifdef CONTRIB
 void makeContribCompatible(const RTcontext context)
 {
-	RTbuffer *contrib_buffer;
-	createBuffer3D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT3, 0, 0, 0, contrib_buffer);
-	applyContextObject(context, "contrib_buffer", *contrib_buffer);
+	RTbuffer contrib_buffer;
+	createBuffer3D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT3, 0, 0, 0, &contrib_buffer);
+	applyContextObject(context, "contrib_buffer", contrib_buffer);
 }
 #endif
 
 #ifdef DAYSIM_COMPATIBLE
 void makeDaysimCompatible(const RTcontext context)
 {
-	RTbuffer *dc_buffer;
-	setupDaysim(context, dc_buffer, 0, 0);
+	RTbuffer dc_buffer;
+	setupDaysim(context, &dc_buffer, 0, 0);
 }
 
 void setupDaysim(const RTcontext context, RTbuffer* dc_buffer, const RTsize width, const RTsize height)
@@ -1455,9 +1462,6 @@ static RTmaterial createClipMaterial(const RTcontext context, OBJREC* rec)
 }
 #endif
 
-#ifdef CONTRIB
-#include "rcontrib.h"
-#endif
 static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, OBJREC* parent, LUTAB* modifiers)
 {
 	SRCREC source;
@@ -1477,7 +1481,7 @@ static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, OBJ
 		MODCONT	*mp;
 		if ((mp = (MODCONT *)lu_find(modifiers, material->oname)->data)) {
 			light.contrib_index = 0;// mp->start_bin;
-			light.contrib_function = RT_PROGRAM_ID_NULL;// createContribFunction(mp);
+			light.contrib_function = createContribFunction(context, mp);
 		}
 		else {
 			light.contrib_index = -1;
@@ -1862,6 +1866,29 @@ gencumerr:
 	error(USER, errmsg);
 	return 0;
 }
+
+#ifdef CONTRIB
+static int createContribFunction(const RTcontext context, MODCONT *mp)
+{
+	RTprogram program;
+	int program_id = RT_PROGRAM_ID_NULL;
+
+	if (mp->nbins <= 1) // Guessing that no program is needed for a single bin
+		return RT_PROGRAM_ID_NULL;
+
+	if (mp->nbins == 146 && !strcmp(mp->binv->v.ln->def->v.ln->name, "tbin")) { // It's probably tregenza.cal
+		ptxFile(path_to_ptx, "tregenza");
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "tbin", &program));
+		RT_CHECK_ERROR(rtProgramGetId(program, &program_id));
+	}
+	else {
+		sprintf(errmsg, "Unrecognized bin function for modifier %s\n", mp->modname);
+		error(WARNING, errmsg);
+	}
+
+	return program_id;
+}
+#endif /* CONTRIB */
 
 static void createAcceleration( const RTcontext context, const RTgeometryinstance instance, const unsigned int imm_irrad )
 {

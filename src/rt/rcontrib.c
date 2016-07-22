@@ -389,7 +389,7 @@ rcontrib(void)
 
 		total_rays = current_ray;
 		if (raysleft)
-			raysleft -= total_rays;
+			raysleft -= (RNUMBER)total_rays;
 		contribOptix(xres ? xres : 1, yres ? yres : total_rays, imm_irrad, lim_dist, contrib, ralrm, ray_cache, &modconttab);
 		free(ray_cache);
 	}
