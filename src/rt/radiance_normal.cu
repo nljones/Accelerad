@@ -226,7 +226,7 @@ RT_PROGRAM void closest_hit_shadow()
 			/* check threshold */
 			if (!(nd.specfl & SP_PURE) && specthresh >= nd.tspec - FTINY)
 				nd.specfl |= SP_TBLT;
-			if (!prd.ambient_depth && hastexture) {
+			if (hastexture) { //TODO only if ambient depth == 0
 				if (dot(nd.prdir - pert, nd.normal) < -FTINY)
 					nd.prdir = normalize(nd.prdir - pert);	/* OK */
 			}

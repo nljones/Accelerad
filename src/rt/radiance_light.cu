@@ -50,7 +50,7 @@ RT_METHOD int spotout();
 RT_PROGRAM void closest_hit_shadow()
 {
 #ifdef ANTIMATTER
-	if (prd.mask & (1 << mat_id)) {
+	if (prd_shadow.mask & (1 << mat_id)) {
 		prd_shadow.result = make_float3(0.0f);
 		return;
 	}

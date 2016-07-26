@@ -302,7 +302,7 @@ void createAmbientDynamicStorage(const RTcontext context, const RTprogram progra
 	if (!ambssamp)
 		n = 0;
 	createBuffer3D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT, size ? n : 0, size ? n : 0, n ? size : 0, &earr_buffer);
-	applyContextObject(context, "earr_buffer", earr_buffer);
+	applyProgramObject(context, program, "earr_buffer", earr_buffer);
 #endif
 #endif /* AMB_SAVE_MEM */
 #else /* OLDAMB */

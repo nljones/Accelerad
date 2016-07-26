@@ -53,8 +53,8 @@ RT_PROGRAM void closest_hit_shadow()
 	float3 mcolor = color;
 
 #ifdef ANTIMATTER
-	if (prd.mask & (1 << mat_id)) {
-		prd.inside += dot(world_geometric_normal, ray.direction) < 0.0f ? 1 : -1;
+	if (prd_shadow.mask & (1 << mat_id)) {
+		prd_shadow.inside += dot(world_geometric_normal, ray.direction) < 0.0f ? 1 : -1;
 
 		/* Continue the ray */
 		Ray new_ray = make_Ray(ray.origin, ray.direction, ray.ray_type, ray_start(hit_point, ray.direction, snormal, RAY_START) + t_hit, RAY_END);
