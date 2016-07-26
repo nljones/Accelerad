@@ -17,7 +17,7 @@ rtDeclareVariable(unsigned int, type, , ); /* The material type representing "so
 /* Context variables */
 rtBuffer<DistantLight> lights;
 #ifdef CONTRIB
-rtBuffer<float3, 3> contrib_buffer; /* accumulate contributions */
+rtBuffer<float4, 3> contrib_buffer; /* accumulate contributions */
 rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
 rtDeclareVariable(unsigned int, contrib, , ) = 0u;		/* Boolean switch for computing contributions (V) */
 #endif
@@ -81,7 +81,7 @@ RT_PROGRAM void miss()
 				int contr_index = light.contrib_index;
 				if (light.contrib_function != RT_PROGRAM_ID_NULL)
 					contr_index += ((rtCallableProgramId<int(const float3)>)light.contrib_function)(H);
-				contrib_buffer[make_uint3(launch_index.x, launch_index.y, contr_index)] += contr;
+				contrib_buffer[make_uint3(contr_index, launch_index.x, launch_index.y)] += make_float4(contr);
 			}
 #endif /* CONTRIB */
 		}

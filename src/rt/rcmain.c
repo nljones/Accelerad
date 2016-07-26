@@ -311,6 +311,12 @@ main(int argc, char *argv[])
 			ralrm = atof(argv[++i]);
 			break;
 #endif
+#ifdef ACCELERAD_DEBUG
+		case 'q':				/* input file */
+			check(2, "s");
+			freopen(argv[++i], "r", stdin);
+			break;
+#endif
 		default:
 			goto badopt;
 		}

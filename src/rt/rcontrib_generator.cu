@@ -14,7 +14,7 @@ rtDeclareVariable(unsigned int, do_irrad, , ) = 0u; /* Calculate irradiance (-i)
 /* Contex variables */
 rtBuffer<float3, 2>              origin_buffer;
 rtBuffer<float3, 2>              direction_buffer;
-rtBuffer<float3, 3>              contrib_buffer;
+rtBuffer<float4, 3>              contrib_buffer;
 #ifdef RAY_COUNT
 rtBuffer<unsigned int, 2>        ray_count_buffer;
 #endif
@@ -45,8 +45,8 @@ RT_PROGRAM void ray_generator()
 	setupPayload(prd);
 
 	/* Zero the output */
-	for (int i = 0; i < contrib_buffer.size().z; i++)
-		contrib_buffer[make_uint3(launch_index.x, launch_index.y, i)] = make_float3(0.0f);
+	for (int i = 0; i < contrib_buffer.size().x; i++)
+		contrib_buffer[make_uint3(i, launch_index.x, launch_index.y)] = make_float4(0.0f);
 
 	float3 org = origin_buffer[launch_index];
 	float3 dir = direction_buffer[launch_index];
@@ -72,5 +72,5 @@ RT_PROGRAM void exception()
 {
 	const unsigned int code = rtGetExceptionCode();
 	rtPrintf("Caught exception 0x%X at launch index (%d,%d)\n", code, launch_index.x, launch_index.y);
-	contrib_buffer[make_uint3(launch_index.x, launch_index.y, 0)] = make_float3(code, 0.0f, -1.0f);;
+	contrib_buffer[make_uint3(0, launch_index.x, launch_index.y)] = exceptionToFloat4(code);
 }

@@ -84,7 +84,7 @@ void contribOptix(const size_t width, const size_t height, const unsigned int im
 		applyContextVariable1ui(context, "contrib", contrib); // -V
 
 	/* Render result buffer */
-	createBuffer3D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT3, bins ? width : 0, bins ? height : 0, bins, &contrib_buffer);
+	createBuffer3D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT4, bins, bins ? width : 0, bins ? height : 0, &contrib_buffer);
 	applyContextObject(context, "contrib_buffer", contrib_buffer);
 
 #ifdef RAY_COUNT
@@ -106,12 +106,12 @@ void contribOptix(const size_t width, const size_t height, const unsigned int im
 			mp = (MODCONT *)lu_find(modifiers, modname[j])->data;
 			for (k = 0; k < mp->nbins; k++) {
 #ifdef DEBUG_OPTIX
-				if (contributions[BLU] == -1.0f)
+				if (contributions[3] == -1.0f)
 					logException((RTexception)contributions[RED]);
 				else
 #endif
 				addcolor(mp->cbin[k], contributions);
-				contributions += 3;
+				contributions += 4;
 			}
 		}
 #ifdef RAY_COUNT

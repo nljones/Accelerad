@@ -112,7 +112,7 @@ void renderOptix(const VIEW* view, const size_t width, const size_t height, cons
 	for (i = 0u; i < size; i++) {
 #ifdef DEBUG_OPTIX
 		if (data[3] == -1.0f)
-			logException((RTexception)((int)data[0]));
+			logException((RTexception)((int)data[RED]));
 #endif
 		copycolor(colors[i], data);
 		depths[i] = data[3];
