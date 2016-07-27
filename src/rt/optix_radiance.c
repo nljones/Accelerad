@@ -151,6 +151,7 @@ static void checkDevices()
 	unsigned int i;
 	unsigned int multiprocessor_count, threads_per_block, clock_rate, texture_count, timeout_enabled, tcc_driver, cuda_device;
 	unsigned int compute_capability[2];
+	int major = 1000, minor = 10;
 	char device_name[128];
 	RTsize memory_size;
 
@@ -165,8 +166,12 @@ static void checkDevices()
 
 	RT_CHECK_WARN_NO_CONTEXT(rtGetVersion(&version));
 	RT_CHECK_ERROR_NO_CONTEXT(rtDeviceGetDeviceCount(&device_count)); // This will return an error if no supported devices are found
+	if (version > 4000) { // Extra digit added in OptiX 4.0.0
+		major *= 10;
+		minor *= 10;
+	}
 	mprintf("OptiX %d.%d.%d found driver %d.%d.%d and %i GPU device%s:\n",
-		version / 1000, (version % 1000) / 10, version % 10, driver / 1000, (driver % 100) / 10, driver % 10,
+		version / major, (version % major) / minor, version % minor, driver / 1000, (driver % 100) / 10, driver % 10,
 		device_count, device_count != 1 ? "s" : "");
 
 	for (i = 0; i < device_count; i++) {
@@ -329,7 +334,7 @@ void destroyContext(const RTcontext context)
 void makeContribCompatible(const RTcontext context)
 {
 	RTbuffer contrib_buffer;
-	createBuffer3D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT3, 0, 0, 0, &contrib_buffer);
+	createBuffer3D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT4, 0, 0, 0, &contrib_buffer);
 	applyContextObject(context, "contrib_buffer", contrib_buffer);
 }
 #endif

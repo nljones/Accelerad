@@ -20,8 +20,9 @@
 /*! Additional Exceptions */
 typedef enum
 {
-	RT_EXCEPTION_INF = RT_EXCEPTION_PROGRAM_ID_INVALID - 2,  /*!< Inf error */
-	RT_EXCEPTION_NAN = RT_EXCEPTION_PROGRAM_ID_INVALID - 1   /*!< NaN error */
+	RT_EXCEPTION_INF = RT_EXCEPTION_USER,	/*!< Inf error */
+	RT_EXCEPTION_NAN,		/*!< NaN error */
+	RT_EXCEPTION_CUSTOM		/*!< Custom user exception */
 } RTexceptionUser;
 
 typedef struct struct_DistantLight

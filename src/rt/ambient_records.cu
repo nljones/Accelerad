@@ -47,7 +47,7 @@ RT_PROGRAM void ambient_record_any_hit()
 RT_PROGRAM void ambient_miss()
 {
 	//if ( prd.wsum == 0.0f )
-	//	rtThrow( RT_EXCEPTION_USER );
+	//	rtThrow( RT_EXCEPTION_CUSTOM );
 }
 
 // based on sumambient from ambient.c

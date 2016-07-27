@@ -884,7 +884,7 @@ RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pn
 	if (do_ambient) {			/* no ambient storage */
 		/* Option to show error if nothing found */
 		if (ambdiv_final < 0)
-			rtThrow(RT_EXCEPTION_USER - ambdiv_final);
+			rtThrow(RT_EXCEPTION_CUSTOM - ambdiv_final);
 
 		float3 acol = aval;
 #ifdef DAYSIM_COMPATIBLE

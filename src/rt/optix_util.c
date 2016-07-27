@@ -609,7 +609,7 @@ void printException(const RTexception type, const int count, const char* locatio
 	else
 		times[0] = '\0'; // Empty string
 
-	if (type < RT_EXCEPTION_USER) {
+	if (type < RT_EXCEPTION_CUSTOM) {
 		char* msg;
 		switch (type) {
 		case RT_EXCEPTION_INF:
@@ -638,7 +638,7 @@ void printException(const RTexception type, const int count, const char* locatio
 		}
 		sprintf(errmsg, "%s occurred%s in %s", msg, times, location);
 	} else {
-		sprintf(errmsg, "Exception %i occurred%s in %s", type - RT_EXCEPTION_USER, times, location);
+		sprintf(errmsg, "Exception %i occurred%s in %s", type - RT_EXCEPTION_CUSTOM, times, location);
 	}
 	error(WARNING, errmsg);
 }
