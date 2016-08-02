@@ -128,6 +128,7 @@ static unsigned int vertex_index_0;
 static RTprogram radiance_normal_closest_hit_program, shadow_normal_closest_hit_program, ambient_normal_closest_hit_program, point_cloud_normal_closest_hit_program;
 #ifdef ACCELERAD_RT
 static RTprogram diffuse_normal_closest_hit_program;
+int has_diffuse_normal_closest_hit_program = 0;	/* Flag for including rvu programs. */
 #endif
 static RTprogram radiance_glass_closest_hit_program, shadow_glass_closest_hit_program, ambient_glass_any_hit_program, point_cloud_glass_closest_hit_program;
 static RTprogram radiance_light_closest_hit_program, shadow_light_closest_hit_program, point_cloud_light_closest_hit_program;
@@ -1268,6 +1269,8 @@ static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec, LUT
 	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, SHADOW_RAY, shadow_normal_closest_hit_program));
 
 #ifdef ACCELERAD_RT
+	if (!has_diffuse_normal_closest_hit_program) // Don't create the program if it won't be used
+		diffuse_normal_closest_hit_program = radiance_normal_closest_hit_program;
 	if (!diffuse_normal_closest_hit_program) {
 		ptxFile(path_to_ptx, "diffuse_normal");
 		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_radiance", &diffuse_normal_closest_hit_program));

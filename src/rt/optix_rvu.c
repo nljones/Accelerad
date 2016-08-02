@@ -13,6 +13,8 @@ clock_t start;	/* start for elapsed time */
 
 #define METRICS_COUNT	6
 
+extern int has_diffuse_normal_closest_hit_program;	/* Flag for including rvu programs. */
+
 /* Handles to objects used repeatedly in animation */
 extern unsigned int frame;
 RTcontext context_handle = NULL;
@@ -93,6 +95,8 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		/* Save handles to objects used in animations */
 		context_handle = context;
 		buffer_handle = output_buffer;
+
+		has_diffuse_normal_closest_hit_program = 1;
 
 		createCamera(context, "rvu_generator");
 		setupKernel(context, view, NULL, width, height, 0u, alarm);
