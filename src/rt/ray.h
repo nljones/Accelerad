@@ -122,6 +122,7 @@ extern float cuda_kmeans_error;			/* Weighting of position in k-means error */
 
 /* For OptiX remote VCA access */
 extern int optix_remote_nodes;			/* Number of VCA nodes to request */
+extern int optix_remote_config;			/* Index of VCA configuration */
 extern char *optix_remote_url, *optix_remote_user, *optix_remote_password;	/* VCA device parameters */
 #endif
 

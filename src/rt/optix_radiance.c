@@ -53,6 +53,7 @@
 
 static void checkDevices();
 static void checkRemoteDevice(RTremotedevice remote);
+static void createRemoteDevice(RTremotedevice* remote);
 static void applyRadianceSettings(const RTcontext context, const VIEW* view, const unsigned int imm_irrad);
 static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RTgeometryinstance* instance);
 static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* parent, const OBJECT index, LUTAB* modifiers);
@@ -197,11 +198,16 @@ static void checkRemoteDevice(RTremotedevice remote)
 {
 	char s[256];
 	unsigned int version = 0;
+	int major = 1000, minor = 10;
 	int i = 0, j;
 	RTsize size;
 
 	RT_CHECK_WARN_NO_CONTEXT(rtGetVersion(&version));
-	mprintf("OptiX %d.%d.%d logged into %s as %s\n", version / 1000, (version % 1000) / 10, version % 10, optix_remote_url, optix_remote_user);
+	if (version > 4000) { // Extra digit added in OptiX 4.0.0
+		major *= 10;
+		minor *= 10;
+	}
+	mprintf("OptiX %d.%d.%d logged into %s as %s\n", version / major, (version % major) / minor, version % minor, optix_remote_url, optix_remote_user);
 	rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_NAME, sizeof(s), &s);
 	mprintf("VCA Name:                 %s\n", s);
 	rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_NUM_GPUS, sizeof(int), &i);
@@ -226,9 +232,37 @@ static void checkRemoteDevice(RTremotedevice remote)
 	mprintf("Total memory size:        %" PRIu64 " bytes\n\n", size);
 }
 
+static void createRemoteDevice(RTremotedevice* remote)
+{
+	RTremotedevicestatus ready;
+	int first = 1, configs = 0;
+
+	/* Connect to the VCA and reserve nodes */
+	RT_CHECK_ERROR_NO_CONTEXT(rtRemoteDeviceCreate(optix_remote_url, optix_remote_user, optix_remote_password, remote));
+	RT_CHECK_ERROR_NO_CONTEXT(rtRemoteDeviceGetAttribute(*remote, RT_REMOTEDEVICE_ATTRIBUTE_NUM_CONFIGURATIONS, sizeof(int), &configs));
+	if (configs < 1)
+		error(SYSTEM, "No compatible VCA configurations");
+	if (optix_remote_config >= configs || optix_remote_config < 0)
+		error(USER, "Invalid VCA configuration");
+	RT_CHECK_ERROR_NO_CONTEXT(rtRemoteDeviceReserve(*remote, optix_remote_nodes, optix_remote_config));
+	checkRemoteDevice(*remote);
+
+	/* Wait until the VCA is ready */
+	mprintf("Waiting for %s", optix_remote_url);
+	do {
+		if (first)
+			first = 0;
+		else {
+			mprintf(".");
+			sleep(1); // poll once per second.
+		}
+		RT_CHECK_ERROR_NO_CONTEXT(rtRemoteDeviceGetAttribute(*remote, RT_REMOTEDEVICE_ATTRIBUTE_STATUS, sizeof(RTremotedevicestatus), &ready));
+	} while (ready != RT_REMOTEDEVICE_STATUS_READY);
+	mprintf("\n");
+}
+
 void createContext(RTcontext* context, const RTsize width, const RTsize height, const double alarm)
 {
-	RTremotedevice remote;
 	//RTbuffer seed_buffer;
 
 	//unsigned int* seeds;
@@ -248,33 +282,14 @@ void createContext(RTcontext* context, const RTsize width, const RTsize height, 
 	}
 
 	/* Setup remote device */
-	if (optix_remote_nodes > 0) {
-		RTremotedevicestatus ready;
-		int first = 1;
-
-		RT_CHECK_ERROR_NO_CONTEXT(rtRemoteDeviceCreate(optix_remote_url, optix_remote_user, optix_remote_password, &remote));
-		RT_CHECK_ERROR_NO_CONTEXT(rtRemoteDeviceReserve(remote, optix_remote_nodes, 0));
-
-		// Wait until the VCA is ready
-		mprintf("Waiting for %s", optix_remote_url);
-		do {
-			if (first)
-				first = 0;
-			else {
-				mprintf(".");
-				sleep(1); // poll once per second.
-			}
-			RT_CHECK_ERROR_NO_CONTEXT(rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_STATUS, sizeof(RTremotedevicestatus), &ready));
-		} while (ready != RT_REMOTEDEVICE_STATUS_READY);
-		mprintf("\n");
-		checkRemoteDevice(remote);
-		remote_handle = remote;
-	} else
+	if (optix_remote_nodes > 0)
+		createRemoteDevice(&remote_handle);
+	else
 		checkDevices();
 
 	/* Setup context */
 	RT_CHECK_ERROR2( rtContextCreate( context ) );
-	if (optix_remote_nodes > 0) RT_CHECK_ERROR2(rtContextSetRemoteDevice(*context, remote));
+	if (remote_handle) RT_CHECK_ERROR2(rtContextSetRemoteDevice(*context, remote_handle));
 	RT_CHECK_ERROR2( rtContextSetRayTypeCount( *context, ray_type_count ) );
 	RT_CHECK_ERROR2( rtContextSetEntryPointCount( *context, entry_point_count ) );
 
@@ -291,7 +306,7 @@ void createContext(RTcontext* context, const RTsize width, const RTsize height, 
 	//applyContextObject( *context, "rnd_seeds", seed_buffer );
 
 #ifdef TIMEOUT_CALLBACK
-	if (optix_remote_nodes < 1 && alarm > 0)
+	if (!remote_handle && alarm > 0)
 		RT_CHECK_ERROR2( rtContextSetTimeoutCallback( *context, timeoutCallback, alarm ) );
 #endif
 
@@ -301,7 +316,7 @@ void createContext(RTcontext* context, const RTsize width, const RTsize height, 
 #endif
 
 #ifdef PRINT_OPTIX
-	if (optix_remote_nodes < 1) {
+	if (!remote_handle) {
 		/* Enable message pringing */
 		RT_CHECK_ERROR2( rtContextSetPrintEnabled( *context, 1 ) );
 		RT_CHECK_ERROR2( rtContextSetPrintBufferSize( *context, 512 * width * height ) );

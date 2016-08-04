@@ -31,6 +31,7 @@ float cuda_kmeans_error = 1.0f;			/* Weighting of position in k-means error (-ax
 
 /* For OptiX remote VCA access */
 int optix_remote_nodes = 0;				/* Number of VCA nodes to request */
+int optix_remote_config = 0;			/* Index of VCA configuration */
 char *optix_remote_url = NULL;			/* URL to VCA */
 char *optix_remote_user = NULL;			/* User name for VCA access */
 char *optix_remote_password = NULL;		/* User password for VCA access */
@@ -76,13 +77,15 @@ getrenderopt(		/* get next render option */
 		use_optix = optix_stack_size > 0;
 		return(1);
 	case 'v':				/* Remote VCA */
-		if (av[0][2] == 'c' && av[0][3] == 'a') {
-			check(4, "sssi");
+		if (av[0][2] == 'c' && av[0][3] == 'a' && av[0][4] == '\0') {
+			check(4, "sssii");
 			optix_remote_url = av[1];
 			optix_remote_user = av[2];
 			optix_remote_password = av[3];
 			optix_remote_nodes = atoi(av[4]);
-			return(4);
+			optix_remote_config = atoi(av[5]);
+			av[3] = "*****"; // obscure password
+			return(5);
 		}
 		break;
 #endif
