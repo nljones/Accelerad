@@ -23,14 +23,6 @@
 #include "rcontrib.h"
 #endif
 
-/* Needed for sleep while waiting for VCA */
-#ifdef _WIN32
-#include <windows.h>
-#define sleep(s) Sleep((DWORD)((s)*1000))
-#else
-#include <unistd.h>
-#endif
-
 #define TRIANGULATE
 #ifdef TRIANGULATE
 #include "triangulate.h"
