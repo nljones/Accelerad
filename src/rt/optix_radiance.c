@@ -212,7 +212,7 @@ static void checkRemoteDevice(RTremotedevice remote)
 	mprintf("Number of configurations: %i\n", i);
 	for (j = 0; j < i; j++) {
 		rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_CONFIGURATIONS + j, sizeof(s), &s);
-		mprintf("Configuration %i:          %s\n", j, s);
+		mprintf("Configuration %i:          %s%s\n", j, s, optix_remote_config == j ? " [active]" : "");
 	}
 	rtRemoteDeviceGetAttribute(remote, RT_REMOTEDEVICE_ATTRIBUTE_NUM_TOTAL_NODES, sizeof(int), &i);
 	mprintf("Number of nodes:          %i\n", i);
@@ -1886,16 +1886,35 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 	if (mp->nbins <= 1) // Guessing that no program is needed for a single bin
 		return RT_PROGRAM_ID_NULL;
 
+	if (!mp->binv->v.ln || !mp->binv->v.ln->def || !mp->binv->v.ln->def->v.ln || !mp->binv->v.ln->def->v.ln->name) {
+		sprintf(errmsg, "Undefined bin function for modifier %s\n", mp->modname);
+		error(WARNING, errmsg);
+		return RT_PROGRAM_ID_NULL;
+	}
+
 	if (mp->nbins == 146 && !strcmp(mp->binv->v.ln->def->v.ln->name, "tbin")) { // It's probably tregenza.cal
 		ptxFile(path_to_ptx, "tregenza");
 		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "tbin", &program));
-		RT_CHECK_ERROR(rtProgramGetId(program, &program_id));
+	}
+	else if (!strcmp(mp->binv->v.ln->def->v.ln->name, "rbin")) { // It's probably reinhart.cal
+		EPNODE	*mf = eparse("MF");
+		if (!mf)
+			error(USER, "No MF given");
+		if (mf->type != NUM)	/* check value if constant */
+			error(USER, "MF not numeric");
+
+		ptxFile(path_to_ptx, "reinhart");
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "rbin", &program));
+		applyProgramVariable1i(context, program, "nbins", mp->nbins); // Nrbins from reinhart.cal
+		applyProgramVariable1i(context, program, "mf", (int)(evalue(mf))); // Number of divisions per Tregenza patch
 	}
 	else {
 		sprintf(errmsg, "Unrecognized bin function for modifier %s\n", mp->modname);
 		error(WARNING, errmsg);
+		return RT_PROGRAM_ID_NULL;
 	}
 
+	RT_CHECK_ERROR(rtProgramGetId(program, &program_id));
 	return program_id;
 }
 
