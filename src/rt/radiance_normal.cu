@@ -938,7 +938,7 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 	if (ambacc <= FTINY && wt > (d = 0.8f * fmaxf(*rcol) * wt / (ambdiv_final * minweight)))
 		wt = d;			/* avoid ray termination */
 	int n = sqrtf(ambdiv_final * wt) + 0.5f;
-	int i = 1 + 8 * (ambacc > FTINY);	/* minimum number of samples */
+	int i = 1 + 5 * (ambacc > FTINY);	/* minimum number of samples */
 	if (n < i)
 		n = i;
 	const int nn = n * n;
@@ -979,7 +979,7 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 			//hp.sampOK += ambsample( &hp, i, j, normal, hit );
 			/* ambsample in ambcomp.c */
 			float2 spt = make_float2(curand_uniform(prd.state), curand_uniform(prd.state));
-			if (n > 1) /* avoid coincident samples */
+			if (i > 0 && i < n - 1 && j > 0 && j < n - 1) /* avoid coincident samples */
 				spt = 0.1f + 0.8f * spt;
 			SDsquare2disk( spt, (j+spt.y) / n, (i+spt.x) / n );
 			float zd = sqrtf( 1.0f - dot( spt, spt ) );

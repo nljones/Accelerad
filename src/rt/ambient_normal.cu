@@ -768,7 +768,7 @@ RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const int& i, const int&
 	//hlist[2] = i;
 	//multisamp(spt, 2, urand(ilhash(hlist,3)+n));
 	float2 spt = make_float2( curand_uniform( prd.state ), curand_uniform( prd.state ) );
-	if (!n) /* avoid coincident samples */
+	if (!n && i > 0 && i < hp->ns - 1 && j > 0 && j < hp->ns - 1) /* avoid coincident samples */
 		spt = 0.1f + 0.8f * spt;
 	SDsquare2disk( spt, (j+spt.y) / hp->ns, (i+spt.x) / hp->ns );
 	float zd = sqrtf( 1.0f - dot( spt, spt ) );
