@@ -189,6 +189,11 @@ main(int argc, char *argv[])
 	time_t rcontrib_time; // Timer in seconds for long jobs
 	clock_t rcontrib_clock; // Timer in clock cycles for short jobs
 #endif
+
+#if defined ACCELERAD_DEBUG && defined _WIN32
+	/* Set maximum number of files that may be opened simultaneously */
+	_setmaxstdio(2048);
+#endif
 					/* global program name */
 	progname = argv[0] = fixargv0(argv[0]);
 	gargv = argv;

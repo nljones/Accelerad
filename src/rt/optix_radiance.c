@@ -1920,17 +1920,27 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 
 static void applyContribution(const RTcontext context, const RTmaterial material, DistantLight* light, OBJREC* rec, LUTAB* modifiers)
 {
+	const static char *cfunc = "contrib_function";
+
 	/* Check for a call-back function. */
 	if (modifiers) {
 		MODCONT	*mp;
 		if ((mp = (MODCONT *)lu_find(modifiers, rec->oname)->data)) {
 			if (material) {
 				applyMaterialVariable1i(context, material, "contrib_index", mp->start_bin);
-				applyMaterialVariable1i(context, material, "contrib_function", createContribFunction(context, mp));
+				applyMaterialVariable1i(context, material, cfunc, createContribFunction(context, mp));
 			}
 			else if (light) {
+				/* Check for a existing program. */
+				RTmaterial mat = materials->array[buffer_entry_index[objndx(rec)]];
 				light->contrib_index = mp->start_bin;
-				light->contrib_function = createContribFunction(context, mp);
+				if (mat) {
+					RTvariable var;
+					RT_CHECK_ERROR(rtMaterialQueryVariable(mat, cfunc, &var));
+					RT_CHECK_ERROR(rtVariableGet1i(var, &light->contrib_function));
+				}
+				else
+					light->contrib_function = createContribFunction(context, mp);
 			}
 			return;
 		}
@@ -1939,7 +1949,7 @@ static void applyContribution(const RTcontext context, const RTmaterial material
 	/* No call-back function. */
 	if (material) {
 		//applyMaterialVariable1i(context, material, "contrib_index", -1);
-		applyMaterialVariable1i(context, material, "contrib_function", RT_PROGRAM_ID_NULL);
+		applyMaterialVariable1i(context, material, cfunc, RT_PROGRAM_ID_NULL);
 	}
 	else if (light) {
 		light->contrib_index = -1;
