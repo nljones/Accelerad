@@ -6,15 +6,13 @@
 #include <optix_world.h>
 //#include "optix_shader_common.h"
 
-rtDeclareVariable(int, nbins, , );	/* Number of bins */
 rtDeclareVariable(int, mf, , );	/* Number of divisions per Tregenza patch */
 
 // Calculate the Reinhart patch based on reinhart.cal.
 RT_CALLABLE_PROGRAM int rbin(const float3 direction)
 {
-	if (direction.z > 1.0f) return nbins - 1;
 	if (direction.z < 0.0f) return 0;
-	float alt = asinf(direction.z) * 180 * M_1_PIf;
+	float alt = (direction.z >= 1.0f) ? 90.0f : asinf(direction.z) * 180 * M_1_PIf;
 	float azi = atan2f(direction.x, direction.y) * 180 * M_1_PIf;
 	if (azi < 0.0f) azi += 360.0f;
 

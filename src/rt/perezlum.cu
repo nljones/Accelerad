@@ -25,7 +25,7 @@ rtDeclareVariable(Transform,  transform, , ); /* transformation matrix */
 
 // Calculate the All-weather Angular Sky Luminance Distribution value for the current ray direction.
 // This function replicates the algorithm in perezlum.cal.
-RT_CALLABLE_PROGRAM float3 perez_lum(const float3 direction, const float3 ignore)
+RT_CALLABLE_PROGRAM float3 skybright(const float3 direction, const float3 ignore)
 {
 	//rtPrintf("PerezLum Recieved (%f, %f, %f)\n", direction.x, direction.y, direction.z);
 

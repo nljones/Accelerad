@@ -12,12 +12,12 @@ struct Transform
 };
 
 /* Program variables */
-rtDeclareVariable(float,      skybright, , ); /* isotropic sky radiance */
+rtDeclareVariable(float,      radiance, , ); /* isotropic sky radiance */
 rtDeclareVariable(Transform,  transform, , ); /* transformation matrix, ignored */
 
 // Calculate the isotropic sky value for the current ray direction.
 // This function replicates the algorithm in isotrop_sky.cal distributed with Daysim.
-RT_CALLABLE_PROGRAM float3 isotrop_sky(const float3 ignore0, const float3 ignore1)
+RT_CALLABLE_PROGRAM float3 skybright(const float3 ignore0, const float3 ignore1)
 {
-	return make_float3(skybright);
+	return make_float3(radiance);
 }

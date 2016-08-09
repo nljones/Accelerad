@@ -28,7 +28,7 @@ RT_METHOD float perez(const float& theta, const float& gamma, const float& a, co
 // From Preetham, Shirley, Smits, "A Practical, Analytical Model for Daylight"
 // Converted to Radiance by Mark J.Stock, mstock@umich.edu
 // This function replicates the algorithm in utah.cal.
-RT_CALLABLE_PROGRAM float3 utah(const float3 direction, const float3 ignore)
+RT_CALLABLE_PROGRAM float3 skybr(const float3 direction, const float3 ignore)
 {
 	const float3 dir = transform.m * direction;
 

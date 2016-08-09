@@ -1495,6 +1495,8 @@ static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, OBJ
 
 	ssetsrc(&source, rec);
 	material = findmaterial(parent);
+	if (material == NULL)
+		objerror(rec, USER, "missing material");
 	array2cuda3(light.color, material->oargs.farg); // TODO these are given in RGB radiance value (watts/steradian/m2)
 	array2cuda3(light.pos, source.sloc);
 	light.solid_angle = source.ss2;
@@ -1557,7 +1559,7 @@ static int createFunction(const RTcontext context, OBJREC* rec)
 			if (!strcmp(filename(rec->oargs.sarg[1]), "perezlum.cal")) {
 				float coef[5] = { (float)rec->oargs.farg[2], (float)rec->oargs.farg[3], (float)rec->oargs.farg[4], (float)rec->oargs.farg[5], (float)rec->oargs.farg[6] };
 				ptxFile(path_to_ptx, "perezlum");
-				RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "perez_lum", &program));
+				RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, rec->oargs.sarg[0], &program));
 				applyProgramVariable1f(context, program, "diffuse", (float)rec->oargs.farg[0]);
 				applyProgramVariable1f(context, program, "ground", (float)rec->oargs.farg[1]);
 				applyProgramVariable(context, program, "coef", sizeof(coef), coef);
@@ -1566,8 +1568,8 @@ static int createFunction(const RTcontext context, OBJREC* rec)
 			else if (!strcmp(filename(rec->oargs.sarg[1]), "isotrop_sky.cal")) {
 				/* Isotropic sky from daysim installation */
 				ptxFile(path_to_ptx, "isotropsky");
-				RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "isotrop_sky", &program));
-				applyProgramVariable1f(context, program, "skybright", (float)rec->oargs.farg[0]);
+				RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, rec->oargs.sarg[0], &program));
+				applyProgramVariable1f(context, program, "radiance", (float)rec->oargs.farg[0]);
 			}
 			else if (!createGenCumulativeSky(context, rec->oargs.sarg[1], &program)) {
 				printObject(rec);
@@ -1577,7 +1579,7 @@ static int createFunction(const RTcontext context, OBJREC* rec)
 		else if (!strcmp(rec->oargs.sarg[0], "skybr")) {
 			if (!strcmp(filename(rec->oargs.sarg[1]), "skybright.cal")) {
 				ptxFile(path_to_ptx, "skybright");
-				RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "sky_bright", &program));
+				RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, rec->oargs.sarg[0], &program));
 				applyProgramVariable1ui(context, program, "type", (unsigned int)rec->oargs.farg[0]);
 				applyProgramVariable1f(context, program, "zenith", (float)rec->oargs.farg[1]);
 				applyProgramVariable1f(context, program, "ground", (float)rec->oargs.farg[2]);
@@ -1587,7 +1589,7 @@ static int createFunction(const RTcontext context, OBJREC* rec)
 			else if (!strcmp(filename(rec->oargs.sarg[1]), "utah.cal")) {
 				/* Preetham sky brightness from Mark Stock */
 				ptxFile(path_to_ptx, "utah");
-				RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "utah", &program));
+				RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, rec->oargs.sarg[0], &program));
 				applyProgramVariable1ui(context, program, "monochrome", 1u);
 				applyProgramVariable1f(context, program, "turbidity", (float)rec->oargs.farg[0]);
 				applyProgramVariable3f(context, program, "sun", (float)rec->oargs.farg[1], (float)rec->oargs.farg[2], (float)rec->oargs.farg[3]);
@@ -1600,7 +1602,7 @@ static int createFunction(const RTcontext context, OBJREC* rec)
 		else if (rec->oargs.nsargs >= 4 && !strcmp(rec->oargs.sarg[0], "skyr") && !strcmp(rec->oargs.sarg[1], "skyg") && !strcmp(rec->oargs.sarg[2], "skyb") && !strcmp(filename(rec->oargs.sarg[3]), "utah.cal")) {
 			/* Preetham sky from Mark Stock */
 			ptxFile(path_to_ptx, "utah");
-			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "utah", &program));
+			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "skybr", &program));
 			applyProgramVariable1f(context, program, "turbidity", (float)rec->oargs.farg[0]);
 			applyProgramVariable3f(context, program, "sun", (float)rec->oargs.farg[1], (float)rec->oargs.farg[2], (float)rec->oargs.farg[3]);
 		}
@@ -1882,6 +1884,7 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 {
 	RTprogram program;
 	int program_id = RT_PROGRAM_ID_NULL;
+	char *bin_func;
 
 	if (mp->nbins <= 1) // Guessing that no program is needed for a single bin
 		return RT_PROGRAM_ID_NULL;
@@ -1891,12 +1894,13 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 		error(WARNING, errmsg);
 		return RT_PROGRAM_ID_NULL;
 	}
+	bin_func = mp->binv->v.ln->def->v.ln->name;
 
-	if (mp->nbins == 146 && !strcmp(mp->binv->v.ln->def->v.ln->name, "tbin")) { // It's probably tregenza.cal
+	if (mp->nbins == 146 && !strcmp(bin_func, "tbin")) { // It's probably tregenza.cal
 		ptxFile(path_to_ptx, "tregenza");
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "tbin", &program));
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, bin_func, &program));
 	}
-	else if (!strcmp(mp->binv->v.ln->def->v.ln->name, "rbin")) { // It's probably reinhart.cal
+	else if (!strcmp(bin_func, "rbin")) { // It's probably reinhart.cal
 		EPNODE	*mf = eparse("MF");
 		if (!mf)
 			error(USER, "No MF given");
@@ -1904,13 +1908,12 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 			error(USER, "MF not numeric");
 
 		ptxFile(path_to_ptx, "reinhart");
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "rbin", &program));
-		applyProgramVariable1i(context, program, "nbins", mp->nbins); // Nrbins from reinhart.cal
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, bin_func, &program));
 		applyProgramVariable1i(context, program, "mf", (int)(evalue(mf))); // Number of divisions per Tregenza patch
 	}
-	else if (!strncmp(mp->binv->v.ln->def->v.ln->name, "kbin", 4)) { // It's probably klems_full.cal
+	else if (!strncmp(bin_func, "kbin", 4)) { // It's probably klems_full.cal
 		ptxFile(path_to_ptx, "klems_full");
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, mp->binv->v.ln->def->v.ln->name, &program));
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, bin_func, &program));
 	}
 	else {
 		sprintf(errmsg, "Unrecognized bin function for modifier %s\n", mp->modname);

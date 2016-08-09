@@ -18,7 +18,7 @@ RT_METHOD int kbin(const float3& direction, const float3& normal, const float3& 
 	const float NdotU = dot(normal, up);
 
 	if (DdotN > 0) return -1; // Wrong-side ray, probably bad
-	if (DdotN < -1) return 0;
+	if (DdotN <= -1) return 0;
 	float pol = acosf(-DdotN) * 180 * M_1_PIf;
 	float azi = atan2f(-DdotU + DdotN * NdotU, -RHS * dot(direction, cross(up, normal))) * 180 * M_1_PIf;
 	if (azi < 0.0f) azi += 360.0f;

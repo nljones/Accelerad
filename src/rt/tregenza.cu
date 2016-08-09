@@ -9,7 +9,7 @@
 // Calculate the Tregenza patch based on tregenza.cal.
 RT_CALLABLE_PROGRAM int tbin(const float3 direction)
 {
-	if (direction.z > 1.0f) return 145;
+	if (direction.z >= 1.0f) return 145;
 	if (direction.z < 0.0f) return 0;
 	float alt = asinf(direction.z) * 180 * M_1_PIf;
 	float azi = atan2f(direction.x, direction.y) * 180 * M_1_PIf;
