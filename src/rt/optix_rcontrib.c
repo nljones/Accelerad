@@ -25,9 +25,10 @@ void contribOptix(const size_t width, const size_t height, const unsigned int im
 	/* Primary RTAPI objects */
 	RTcontext           context;
 	RTbuffer            origin_buffer, direction_buffer, contrib_buffer;
+	RTvariable			segment_start = NULL;
 
 	/* Parameters */
-	size_t size, i = 0;
+	size_t size, start, i = 0;
 	float *origins, *directions, *contributions;
 #ifdef RAY_COUNT
 	RTbuffer            ray_count_buffer;
@@ -35,6 +36,12 @@ void contribOptix(const size_t width, const size_t height, const unsigned int im
 #endif
 	MODCONT	*mp;
 	int	j, k;
+
+	/* Check size of output */
+	const size_t bytes_per_row = sizeof(float4) * bins * width;
+	const size_t rows_per_segment = min(height, INT_MAX / bytes_per_row); // Limit imposed by OptiX
+	if (!rows_per_segment)
+		error(USER, "Too many rays per row. User a smaller -x.");
 
 	/* Set the size */
 	size = width * height;
@@ -82,9 +89,13 @@ void contribOptix(const size_t width, const size_t height, const unsigned int im
 		applyContextVariable1ui(context, "lim_dist", lim_dist); // -ld
 	if (contrib)
 		applyContextVariable1ui(context, "contrib", contrib); // -V
+	if (height > rows_per_segment) {
+		mprintf("Processing rows in %" PRIu64 " groups of %" PRIu64 ".\n", (height - 1) / rows_per_segment + 1, rows_per_segment);
+		RT_CHECK_ERROR(rtContextDeclareVariable(context, "contrib_segment", &segment_start));
+	}
 
 	/* Render result buffer */
-	createBuffer3D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT4, bins, bins ? width : 0, bins ? height : 0, &contrib_buffer);
+	createBuffer3D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT4, bins, bins ? width : 0, bins ? rows_per_segment : 0, &contrib_buffer);
 	applyContextObject(context, "contrib_buffer", contrib_buffer);
 
 #ifdef RAY_COUNT
@@ -92,40 +103,49 @@ void contribOptix(const size_t width, const size_t height, const unsigned int im
 	applyContextObject(context, "ray_count_buffer", ray_count_buffer);
 #endif
 
-	/* Run the OptiX kernel */
-	runKernel2D(context, RADIANCE_ENTRY, width, height);
+	for (start = 0u; start < height; start += rows_per_segment) {
+		const size_t rows = min(height - start, rows_per_segment);
+		const size_t segment_size = rows * width;
 
-	RT_CHECK_ERROR(rtBufferMap(contrib_buffer, (void**)&contributions));
+		if (segment_start)
+			RT_CHECK_ERROR(rtVariableSet1ui(segment_start, (unsigned int)start));
+
+		/* Run the OptiX kernel */
+		runKernel2D(context, RADIANCE_ENTRY, width, rows);
+
+		RT_CHECK_ERROR(rtBufferMap(contrib_buffer, (void**)&contributions));
 #ifdef RAY_COUNT
-	RT_CHECK_ERROR(rtBufferMap(ray_count_buffer, (void**)&ray_count_data));
+		RT_CHECK_ERROR(rtBufferMap(ray_count_buffer, (void**)&ray_count_data));
+		ray_count_data += start * width;
 #endif
 
-	/* Copy the results to allocated memory. */
-	for (i = 0u; i < size; i++) {
-		for (j = 0; j < nmods; j++) {
-			mp = (MODCONT *)lu_find(modifiers, modname[j])->data;
-			for (k = 0; k < mp->nbins; k++) {
+		/* Copy the results to allocated memory. */
+		for (i = 0u; i < segment_size; i++) {
+			for (j = 0; j < nmods; j++) {
+				mp = (MODCONT *)lu_find(modifiers, modname[j])->data;
+				for (k = 0; k < mp->nbins; k++) {
 #ifdef DEBUG_OPTIX
-				if (contributions[3] == -1.0f)
-					logException((RTexception)contributions[RED]);
-				else
+					if (contributions[3] == -1.0f)
+						logException((RTexception)contributions[RED]);
+					else
 #endif
-				addcolor(mp->cbin[k], contributions);
-				contributions += 4;
+					addcolor(mp->cbin[k], contributions);
+					contributions += 4;
+				}
 			}
+#ifdef RAY_COUNT
+			nrays += ray_count_data[i];
+#endif
+
+			/* accumulate/output values for this ray */
+			done_contrib();
 		}
-#ifdef RAY_COUNT
-		nrays += ray_count_data[i];
-#endif
 
-		/* accumulate/output values for this ray */
-		done_contrib();
+		RT_CHECK_ERROR(rtBufferUnmap(contrib_buffer));
+#ifdef RAY_COUNT
+		RT_CHECK_ERROR(rtBufferUnmap(ray_count_buffer));
+#endif
 	}
-
-	RT_CHECK_ERROR(rtBufferUnmap(contrib_buffer));
-#ifdef RAY_COUNT
-	RT_CHECK_ERROR(rtBufferUnmap(ray_count_buffer));
-#endif
 
 #ifdef DEBUG_OPTIX
 	flushExceptionLog("sensor");
