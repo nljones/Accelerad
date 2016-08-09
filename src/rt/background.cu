@@ -81,7 +81,8 @@ RT_PROGRAM void miss()
 				int contr_index = light.contrib_index;
 				if (light.contrib_function != RT_PROGRAM_ID_NULL)
 					contr_index += ((rtCallableProgramId<int(const float3)>)light.contrib_function)(H);
-				contrib_buffer[make_uint3(contr_index, launch_index.x, launch_index.y)] += make_float4(contr);
+				if (contr_index >= light.contrib_function)
+					contrib_buffer[make_uint3(contr_index, launch_index.x, launch_index.y)] += make_float4(contr);
 			}
 #endif /* CONTRIB */
 		}

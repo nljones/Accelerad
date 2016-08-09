@@ -24,7 +24,8 @@ RT_METHOD void contribution(const float weight, const float3& color, const float
 		int contr_index = contrib_index;
 		if (contrib_function != RT_PROGRAM_ID_NULL)
 			contr_index += contrib_function(direction);
-		contrib_buffer[make_uint3(contr_index, launch_index.x, launch_index.y)] += make_float4(contr);
+		if (contr_index >= contrib_index)
+			contrib_buffer[make_uint3(contr_index, launch_index.x, launch_index.y)] += make_float4(contr);
 	}
 }
 

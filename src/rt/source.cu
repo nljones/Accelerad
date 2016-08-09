@@ -23,7 +23,7 @@ rtDeclareVariable(float, multiplier, , ) = 1.0f; /* multiplier for light source 
 rtDeclareVariable(float3, bounds, , ); /* dimensions of axis-aligned box or Z-aligned cylinder in meters */
 
 // Calculate source distribution.
-RT_METHOD float3 source(const float3 dir)
+RT_METHOD float3 source(const float3& dir)
 {
 	float phi = acosf(dir.z);
 	float theta = atan2f(-dir.y, -dir.x);

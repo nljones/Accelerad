@@ -1908,6 +1908,10 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 		applyProgramVariable1i(context, program, "nbins", mp->nbins); // Nrbins from reinhart.cal
 		applyProgramVariable1i(context, program, "mf", (int)(evalue(mf))); // Number of divisions per Tregenza patch
 	}
+	else if (!strncmp(mp->binv->v.ln->def->v.ln->name, "kbin", 4)) { // It's probably klems_full.cal
+		ptxFile(path_to_ptx, "klems_full");
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, mp->binv->v.ln->def->v.ln->name, &program));
+	}
 	else {
 		sprintf(errmsg, "Unrecognized bin function for modifier %s\n", mp->modname);
 		error(WARNING, errmsg);
