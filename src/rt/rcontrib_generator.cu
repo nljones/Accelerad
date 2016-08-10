@@ -33,8 +33,9 @@ rtDeclareVariable(uint2, launch_dim, rtLaunchDim, );
 
 RT_PROGRAM void ray_generator()
 {
+	const uint2 index = make_uint2(launch_index.x, launch_index.y + contrib_segment);
 	PerRayData_radiance prd;
-	init_rand(&prd.state, launch_index.x + launch_dim.x * (launch_index.y + contrib_segment));
+	init_rand(&prd.state, index.x + launch_dim.x * index.y);
 	prd.weight = 1.0f;
 	prd.depth = 0;
 	prd.ambient_depth = 0;
@@ -49,7 +50,6 @@ RT_PROGRAM void ray_generator()
 	for (int i = 0; i < contrib_buffer.size().x; i++)
 		contrib_buffer[make_uint3(i, launch_index.x, launch_index.y)] = make_float4(0.0f);
 
-	const uint2 index = make_uint2(launch_index.x, launch_index.y + contrib_segment);
 	float3 org = origin_buffer[index];
 	float3 dir = direction_buffer[index];
 
@@ -66,7 +66,7 @@ RT_PROGRAM void ray_generator()
 	checkFinite(prd.result);
 
 #ifdef RAY_COUNT
-	ray_count_buffer[index] = prd.ray_count;
+	ray_count_buffer[launch_index] = prd.ray_count;
 #endif
 }
 

@@ -99,7 +99,7 @@ void contribOptix(const size_t width, const size_t height, const unsigned int im
 	applyContextObject(context, "contrib_buffer", contrib_buffer);
 
 #ifdef RAY_COUNT
-	createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_UNSIGNED_INT, width, height, &ray_count_buffer); //TODO why do we collect this?
+	createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_UNSIGNED_INT, width, rows_per_segment, &ray_count_buffer); //TODO why do we collect this?
 	applyContextObject(context, "ray_count_buffer", ray_count_buffer);
 #endif
 
@@ -116,7 +116,6 @@ void contribOptix(const size_t width, const size_t height, const unsigned int im
 		RT_CHECK_ERROR(rtBufferMap(contrib_buffer, (void**)&contributions));
 #ifdef RAY_COUNT
 		RT_CHECK_ERROR(rtBufferMap(ray_count_buffer, (void**)&ray_count_data));
-		ray_count_data += start * width;
 #endif
 
 		/* Copy the results to allocated memory. */
