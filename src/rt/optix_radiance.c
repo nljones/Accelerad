@@ -1435,7 +1435,7 @@ static RTmaterial createClipMaterial(const RTcontext context, OBJREC* rec)
 			objerror(rec, WARNING, errmsg);
 			continue;
 		}
-		if ((index = buffer_entry_index[mod]) > 32) {
+		if ((index = buffer_entry_index[mod]) > CHAR_BIT * sizeof(mask)) {
 			sprintf(errmsg, "out of range modifier \"%s\"", rec->oargs.sarg[i]);
 			objerror(rec, WARNING, errmsg);
 			continue;

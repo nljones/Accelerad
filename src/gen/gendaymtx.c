@@ -86,6 +86,7 @@ static const char RCSid[] = "$Id$";
 #include <string.h>
 #include <ctype.h>
 #include "rtmath.h"
+#include "rtio.h"
 #include "resolu.h"
 #include "platform.h"
 #include "color.h"
@@ -555,7 +556,7 @@ main(int argc, char *argv[])
 			break;
 		case 'f':
 			for (j = 0; j < ntsteps; j++) {
-				fwrite(mtx_data+mtx_offset, sizeof(float), 3,
+				putbinary(mtx_data+mtx_offset, sizeof(float), 3,
 						stdout);
 				mtx_offset += 3*nskypatch;
 			}
@@ -566,7 +567,7 @@ main(int argc, char *argv[])
 				ment[0] = mtx_data[mtx_offset];
 				ment[1] = mtx_data[mtx_offset+1];
 				ment[2] = mtx_data[mtx_offset+2];
-				fwrite(ment, sizeof(double), 3, stdout);
+				putbinary(ment, sizeof(double), 3, stdout);
 				mtx_offset += 3*nskypatch;
 			}
 			break;

@@ -64,7 +64,7 @@ typedef struct {
 	FVECT	uva[2];			/* tangent axes */
 	int	ntris;			/* number of triangles */
 	struct ptri {
-		float	afrac;			/* fraction of total area */
+		double	afrac;			/* fraction of total area */
 		short	vndx[3];		/* vertex indices */
 	}	tri[1];			/* triangle array (extends struct) */
 } POLYTRIS;			/* triangulated polygon */
@@ -602,7 +602,7 @@ ssamp_poly(FVECT orig, SURF *sp, double x)
 		sp->priv = (void *)ptp;
 	}
 					/* pick triangle by partial area */
-	for (i = 0; i < ptp->ntris && x > ptp->tri[i].afrac; i++)
+	for (i = 0; i < ptp->ntris-1 && x > ptp->tri[i].afrac; i++)
 		x -= ptp->tri[i].afrac;
 	SDmultiSamp(samp2, 2, x/ptp->tri[i].afrac);
 	samp2[0] *= samp2[1] = sqrt(samp2[1]);
@@ -690,7 +690,7 @@ sample_uniform(PARAMS *p, int b, FILE *fp)
 						duvw[2]*p->nrm[i] ;
 		if (!sample_origin(p, orig_dir[0], orig_dir[1], samp3[0]))
 			return(0);
-		if (fwrite(orig_dir, sizeof(FVECT), 2, fp) != 2)
+		if (putbinary(orig_dir, sizeof(FVECT), 2, fp) != 2)
 			return(0);
 	}
 	return(1);
@@ -720,7 +720,7 @@ sample_shirchiu(PARAMS *p, int b, FILE *fp)
 						duvw[2]*p->nrm[i] ;
 		if (!sample_origin(p, orig_dir[0], orig_dir[1], samp3[0]))
 			return(0);
-		if (fwrite(orig_dir, sizeof(FVECT), 2, fp) != 2)
+		if (putbinary(orig_dir, sizeof(FVECT), 2, fp) != 2)
 			return(0);
 	}
 	return(1);
@@ -768,7 +768,7 @@ sample_reinhart(PARAMS *p, int b, FILE *fp)
 						duvw[2]*p->nrm[i] ;
 		if (!sample_origin(p, orig_dir[0], orig_dir[1], samp3[0]))
 			return(0);
-		if (fwrite(orig_dir, sizeof(FVECT), 2, fp) != 2)
+		if (putbinary(orig_dir, sizeof(FVECT), 2, fp) != 2)
 			return(0);
 	}
 	return(1);
@@ -819,7 +819,7 @@ sample_klems(PARAMS *p, int b, FILE *fp)
 						duvw[2]*p->nrm[i] ;
 		if (!sample_origin(p, orig_dir[0], orig_dir[1], samp2[0]))
 			return(0);
-		if (fwrite(orig_dir, sizeof(FVECT), 2, fp) != 2)
+		if (putbinary(orig_dir, sizeof(FVECT), 2, fp) != 2)
 			return(0);
 	}
 	return(1);

@@ -15,11 +15,13 @@ include_directories(${radiance_SOURCE_DIR}/src/rt
   ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR})
   
 # NLJ addition
-if(OptiX_USE)
-  include_directories("C:/Qwt-6.1.2/include")
-  link_directories("C:/Qwt-6.1.2/lib")
+if(OptiX_USE AND WIN32)
+  set(Qwt_DIR "C:/Qwt-6.1.2" CACHE PATH "Path to Qwt installed location.")
+  include_directories("${Qwt_DIR}/include")
+  link_directories("${Qwt_DIR}/lib")
   set(ACCELERAD_Qwt metricsplot.cxx)
-  set(Qwt_LIBRARIES "C:/Qwt-6.1.2/lib/qwt.lib")
+  set(Qwt_LIBRARIES "${Qwt_DIR}/lib/qwt.lib")
+  add_definitions("-DHAS_QWT")
 endif()
 
 add_library(qtrvu  qt.c rvuwidget.cxx qt_rvu_main.cxx mainwindow.cxx ${ACCELERAD_Qwt}

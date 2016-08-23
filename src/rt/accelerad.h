@@ -7,7 +7,7 @@
 /* Compiler setting to use OptiX ray tracing */
 #define ACCELERAD
 /* Compiler setting to allow real-time progressive OptiX ray tracing */
-#if defined(HAS_QT) || (defined(_WIN32) && defined(__cplusplus)) // TODO need a better QT test for C++
+#if defined(HAS_QT) || defined(HAS_QWT)
 #define ACCELERAD_RT
 #endif
 /* Compiler setting to allow debugging of OptiX ray tracing */

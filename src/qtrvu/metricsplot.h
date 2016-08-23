@@ -1,10 +1,11 @@
-#include <qwt_plot.h>
-#include <qwt_plot_curve.h>
 #include "accelerad.h"
 
 #define HISTORY 50 // frames
 
 #ifdef ACCELERAD_RT
+#include <qwt_plot.h>
+#include <qwt_plot_curve.h>
+
 class MetricsPlot : public QwtPlot
 {
 	//Q_OBJECT
