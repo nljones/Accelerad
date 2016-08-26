@@ -25,6 +25,12 @@ public:
 #ifdef ACCELERAD_RT
   /** Draw an image to the widget (stored in a QImage). */
   void drawImage(int x, int y, int width, int height, const uchar *data);
+
+  /** Receive mouse wheel events, move camera. */
+  void RvuWidget::wheelEvent(QWheelEvent *event);
+
+  /** Receive mouse wheel events, pan, zoom, and swivel camera */
+  void RvuWidget::mouseMoveEvent(QMouseEvent *event);
 #endif
 
   /** Resize the stored QImage to the supplied width and height. */
@@ -48,6 +54,12 @@ protected:
   int m_x;
   int m_y;
   bool m_do_pick;
+
+#ifdef ACCELERAD_RT
+  /** Last X and Y for camera movement */
+  int p_x;
+  int p_y;
+#endif
 };
 
 #endif
