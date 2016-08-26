@@ -37,8 +37,10 @@ static double calcRAMMG(const Metrics *metrics, const int width, const int heigh
 static int makeFalseColorMap(const RTcontext context);
 
 /* Handles to objects used repeatedly in animation */
-static RTvariable camera_exposure;
+static RTvariable greyscale_var = NULL, exposure_var = NULL, scale_var = NULL, tonemap_var = NULL, decades_var = NULL, mask_var = NULL;
 static RTbuffer metrics_buffer = NULL, direct_buffer = NULL, diffuse_buffer = NULL;
+static int last_greyscale, last_decades;
+static double last_exposure, last_scale, last_mask;
 
 void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const int greyscale, const double exposure, const double scale, const int decades, const double mask, const double alarm)
 {
@@ -102,7 +104,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		setupKernel(context, view, NULL, width, height, 0u, alarm);
 
 		/* Apply unique settings */
-		camera_exposure = applyContextVariable1f(context, "exposure", (float)exposure);
+		exposure_var = applyContextVariable1f(context, "exposure", (float)exposure);
 		if (omegat > FTINY) {
 			applyContextVariable2i(context, "task_position", xt, yt);
 			applyContextVariable1f(context, "task_angle", (float)omegat);
@@ -115,15 +117,19 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 			applyContextVariable2i(context, "low_position", xl, yl);
 			applyContextVariable1f(context, "low_angle", (float)omegal);
 		}
-		if (greyscale)
-			applyContextVariable1ui(context, "greyscale", (unsigned int)greyscale);
+		greyscale_var = applyContextVariable1ui(context, "greyscale", (unsigned int)greyscale);
 		if (scale > 0)
 			applyContextVariable1i(context, "tonemap", makeFalseColorMap(context));
-		applyContextVariable1f(context, "fc_scale", (float)scale);
-		if (decades > 0)
-			applyContextVariable1i(context, "fc_log", decades);
-		if (mask > 0.0)
-			applyContextVariable1f(context, "fc_mask", (float)mask);
+		scale_var = applyContextVariable1f(context, "fc_scale", (float)scale);
+		decades_var = applyContextVariable1i(context, "fc_log", decades);
+		mask_var = applyContextVariable1f(context, "fc_mask", (float)mask);
+
+		/* Save settings */
+		last_exposure = exposure;
+		last_greyscale = greyscale;
+		last_scale = scale;
+		last_decades = decades;
+		last_mask = mask;
 #ifdef SAVE_METRICS
 		sprintf(errmsg, "%s.csv", octname);
 		csv = fopen(errmsg, "w");
@@ -147,7 +153,29 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		else {
 			RT_CHECK_ERROR(rtVariableSet1ui(camera_frame, ++frame));
 		}
-		RT_CHECK_ERROR(rtVariableSet1f(camera_exposure, (float)exposure));
+
+		/* Parameters that can change without resetting frame count */
+		if (exposure != last_exposure) {
+			RT_CHECK_ERROR(rtVariableSet1f(exposure_var, (float)exposure));
+			last_exposure = exposure;
+		}
+		if (greyscale != last_greyscale) {
+			RT_CHECK_ERROR(rtVariableSet1ui(greyscale_var, (unsigned int)greyscale));
+			last_greyscale = greyscale;
+		}
+		if (scale != last_scale) {
+			RT_CHECK_ERROR(rtVariableSet1f(scale_var, (float)scale));
+			last_scale = scale;
+			//TODO change tonemap
+		}
+		if (decades != last_decades) {
+			RT_CHECK_ERROR(rtVariableSet1i(decades_var, decades));
+			last_decades = decades;
+		}
+		if (mask != last_mask) {
+			RT_CHECK_ERROR(rtVariableSet1f(mask_var, (float)mask));
+			last_mask = mask;
+		}
 	}
 
 	/* Run the OptiX kernel */
@@ -225,6 +253,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 #ifdef DEBUG_OPTIX
 	flushExceptionLog("camera");
 #endif
+#ifdef PRINT_METRICS
 	vprintf("Solid angle:                %g\n", omega);
 	if (do_irrad) {
 		vprintf("Average illuminance:        %g cd/m2\n", avlum);
@@ -238,6 +267,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		if (nh && nl) vprintf("Contrast ratio:             %g over %i high and %i low pixels\n", cr, nh, nl);
 	}
 	vprintf("RAMMG:                      %g\n", rammg);
+#endif /* PRINT_METRICS */
 #ifdef SAVE_METRICS
 	fprintf(csv, "%" PRIu64 ",%u,%g,%g,%g,%g,%g,%g,%g,%g\n", MILLISECONDS(clock() - start), frame, avlum, ev, dgp, rammg, lumT, lumH, lumL, cr);
 #endif /* SAVE_METRICS */

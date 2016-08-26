@@ -118,7 +118,7 @@ RT_PROGRAM void ray_generator()
 
 	/* Tone map */
 	const float luminance = bright(accum) * LUMINOUS_EFFICACY;
-	if (tonemap == RT_TEXTURE_ID_NULL) {
+	if (fc_scale == 0.0f || tonemap == RT_TEXTURE_ID_NULL) {
 		accum *= exposure;
 		if (greyscale)
 			accum = make_float3(bright(accum));

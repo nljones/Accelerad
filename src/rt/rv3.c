@@ -15,9 +15,6 @@ static const char	RCSid[] = "$Id$";
 #include  "rpaint.h"
 #include  "random.h"
 
-#ifdef ACCELERAD_RT
-#include  "optix_rvu.h"
-#endif
 
 #ifndef WFLUSH
 #define WFLUSH		64		/* flush after this many primary rays */
@@ -187,10 +184,8 @@ paint(			/* compute and paint a rectangle */
 	double  h, v;
 
 #ifdef ACCELERAD_RT
-	if (use_optix) {
-		renderOptixIterative(&ourview, hresolu, vresolu, !(pdepth++), greyscale, exposure, scale, decades, mask, ralrm);
+	if (use_optix)
 		return(0);
-	}
 #endif
 	if ((p->xmax <= p->xmin) | (p->ymax <= p->ymin)) {	/* empty */
 		p->x = p->xmin;
@@ -330,9 +325,7 @@ redraw(void)				/* redraw the image */
 	(*dev->clear)(hresolu, vresolu);
 	(*dev->comout)("redrawing...\n");
 #ifdef ACCELERAD_RT
-	if (use_optix)
-		renderOptixIterative(&ourview, hresolu, vresolu, !(pdepth++), greyscale, exposure, scale, decades, mask, ralrm);
-	else
+	if (!use_optix)
 #endif
 	repaint(0, 0, hresolu, vresolu);
 	(*dev->comout)("\n");

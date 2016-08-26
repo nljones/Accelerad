@@ -17,6 +17,10 @@
 
 #include <iostream>
 
+#ifdef ACCELERAD_RT
+#include "ray.h"
+#endif
+
 // Process a command
 extern "C" void qt_process_command(const char*);
 // set the abort flag to stop a render in progress
@@ -87,7 +91,10 @@ MainWindow::MainWindow(int width, int height, const char* name, const char* id)
   resize(width, height);
   updatePositionLabels();
 #ifdef ACCELERAD_RT
-	mp = new MetricsPlot();
+	if (use_optix) {
+		mp = new MetricsPlot();
+		m_ui->pushButton->setText("Abort");
+	}
 #endif
 }
 
@@ -129,7 +136,8 @@ void MainWindow::closeEvent(QCloseEvent *event)
   this->m_commandsDialog->close();
 #ifdef ACCELERAD_RT
   /* Close the plot window. */
-  mp->close();
+  if (mp)
+	  mp->close();
 
   /* Destroy the OptiX context. */
   quit(0);
@@ -373,6 +381,9 @@ void MainWindow::refreshView(VIEW *nv)
 
 void MainWindow::move(int direction, float amount)
 {
+#ifdef ACCELERAD_RT
+	if (!use_optix)
+#endif
   if( m_ui->pushButton->text() == QString("Abort") )
     {
     qt_set_abort(1);

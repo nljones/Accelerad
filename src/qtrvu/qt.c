@@ -252,6 +252,7 @@ void qt_process_command(const char* com)
   /* after processing a command try to do a render */
 #ifdef ACCELERAD_RT
 	if (use_optix) {
+		pdepth = 0;
 		for (;;)
 		{
 			if (cuda_kmeans_iterations < pdepth && cuda_kmeans_iterations > -1) // TODO new variable
@@ -270,7 +271,6 @@ void qt_process_command(const char* com)
 			{
 				qt_comout("abort");
 				dev->inpready = 0;
-				pdepth = cuda_kmeans_iterations; // TODO new variable
 				return;
 			}
 		}

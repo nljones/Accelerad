@@ -266,10 +266,10 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 	else
 		d = fmaxf(acoef);
 	new_prd.weight = prd.weight * d;
-	if (new_prd.weight < minweight) //if (rayorigin(&ar, AMBIENT, r, ar.rcoef) < 0)
+	new_prd.depth = prd.depth + 1;
+	if (new_prd.weight < minweight || new_prd.depth > abs(maxdepth)) //if (rayorigin(&ar, AMBIENT, r, ar.rcoef) < 0)
 		return(0);
 
-	new_prd.depth = prd.depth + 1;
 	new_prd.ambient_depth = prd.ambient_depth + 1;
 	//new_prd.seed = prd.seed;//lcg( prd.seed );
 	new_prd.state = prd.state;
