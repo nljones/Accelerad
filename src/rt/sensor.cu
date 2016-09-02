@@ -93,8 +93,9 @@ RT_PROGRAM void ray_generator()
 
 RT_PROGRAM void exception()
 {
-	const unsigned int code = rtGetExceptionCode();
-	rtPrintf( "Caught exception 0x%X at launch index (%d,%d)\n", code, launch_index.x, launch_index.y );
+#ifdef PRINT_OPTIX
+	rtPrintExceptionDetails();
+#endif
 #ifdef TIME_VIEW
 	clock_t t1 = clock();
  
@@ -102,7 +103,7 @@ RT_PROGRAM void exception()
 	float ray_time       = ( t1 - ray_buffer[launch_index].val.x ) * time_view_scale * expected_fps;
 	ray_buffer[index].val = make_float3( ray_time );
 #else
-	ray_buffer[launch_index].val = exceptionToFloat3( code );
+	ray_buffer[launch_index].val = exceptionToFloat3(rtGetExceptionCode());
 	ray_buffer[launch_index].weight = -1.0f;
 #endif
 }

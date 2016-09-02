@@ -311,12 +311,13 @@ RT_METHOD int inTask(const int2 &position, const float &angle, const float3 &ray
 
 RT_PROGRAM void exception()
 {
-	const unsigned int code = rtGetExceptionCode();
-	rtPrintf("Caught exception 0x%X at launch index (%d,%d)\n", code, launch_index.x, launch_index.y);
+#ifdef PRINT_OPTIX
+	rtPrintExceptionDetails();
+#endif
 	color_buffer[launch_index] = 0xffffffff;
 	Metrics metrics;
 	metrics.omega = -1.0f;
-	metrics.ev = code;
+	metrics.ev = rtGetExceptionCode();
 	metrics.avlum = 0.0f;
 	metrics.dgp = 0.0f;
 	metrics_buffer[launch_index] = metrics;

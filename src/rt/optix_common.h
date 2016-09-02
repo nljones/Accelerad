@@ -15,6 +15,7 @@
 #define ANTIMATTER
 #define CONTRIB
 //#define DAYSIM_COMPATIBLE
+//#define PRINT_OPTIX /* Enable OptiX rtPrintf statements to standard out */
 
 
 /*! Additional Exceptions */

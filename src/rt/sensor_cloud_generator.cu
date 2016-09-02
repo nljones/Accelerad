@@ -103,10 +103,11 @@ RT_PROGRAM void cloud_generator()
 
 RT_PROGRAM void exception()
 {
-	const unsigned int code = rtGetExceptionCode();
-	rtPrintf( "Caught exception 0x%X at launch index (%d,%d)\n", code, launch_index.x, launch_index.y );
+#ifdef PRINT_OPTIX
+	rtPrintExceptionDetails();
+#endif
 	uint3 index = make_uint3(launch_index, seed_buffer.size().z - 1u); // record error to last segment
-	seed_buffer[index].pos = exceptionToFloat3( code );
+	seed_buffer[index].pos = exceptionToFloat3(rtGetExceptionCode());
 	seed_buffer[index].dir = make_float3( 0.0f );
 #ifdef AMBIENT_CELL
 	seed_buffer[index].cell = make_uint2(0);

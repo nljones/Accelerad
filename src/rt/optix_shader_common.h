@@ -402,7 +402,7 @@ RT_METHOD void SDsquare2disk( float2& ds, const float& seedx, const float& seedy
 				phi = 0.0f;
 		}
 	}
-	r *= 0.9999999999999f;	/* prophylactic against MS sin()/cos() impl. (probably unnecessary on GPU) */
+	r *= 0.999999f;	/* prophylactic against MS sin()/cos() impl. */
 	ds.x = r * cosf(phi);
 	ds.y = r * sinf(phi);
 }

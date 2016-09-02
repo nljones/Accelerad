@@ -178,8 +178,9 @@ done:
 
 RT_PROGRAM void exception()
 {
-	const unsigned int code = rtGetExceptionCode();
-	rtPrintf( "Caught exception 0x%X at launch index (%d,%d)\n", code, launch_index.x, launch_index.y );
+#ifdef PRINT_OPTIX
+	rtPrintExceptionDetails();
+#endif
 #ifdef TIME_VIEW
 	clock_t t1 = clock();
  
@@ -187,6 +188,6 @@ RT_PROGRAM void exception()
 	float pixel_time     = ( t1 - output_buffer[launch_index].x ) * time_view_scale * expected_fps;
 	output_buffer[launch_index] = make_float4( pixel_time );
 #else
-	output_buffer[launch_index] = exceptionToFloat4(code);
+	output_buffer[launch_index] = exceptionToFloat4(rtGetExceptionCode());
 #endif
 }

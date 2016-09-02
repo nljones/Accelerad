@@ -72,7 +72,8 @@ RT_PROGRAM void ray_generator()
 
 RT_PROGRAM void exception()
 {
-	const unsigned int code = rtGetExceptionCode();
-	rtPrintf("Caught exception 0x%X at launch index (%d,%d)\n", code, launch_index.x, launch_index.y);
-	contrib_buffer[make_uint3(0, launch_index.x, launch_index.y)] = exceptionToFloat4(code);
+#ifdef PRINT_OPTIX
+	rtPrintExceptionDetails();
+#endif
+	contrib_buffer[make_uint3(0, launch_index.x, launch_index.y)] = exceptionToFloat4(rtGetExceptionCode());
 }

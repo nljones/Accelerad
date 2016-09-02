@@ -121,14 +121,15 @@ RT_PROGRAM void ambient_sample_camera()
 
 RT_PROGRAM void exception()
 {
-	const unsigned int code = rtGetExceptionCode();
-	rtPrintf("Caught exception 0x%X at launch index (%d,%d,%d)\n", code, launch_index.x, launch_index.y, launch_index.z);
+#ifdef PRINT_OPTIX
+	rtPrintExceptionDetails();
+#endif
 	uint3 index = launch_index;
 #ifdef DAYSIM_COMPATIBLE
 	index.z += segment_offset;
 #endif /* DAYSIM_COMPATIBLE */
 	amb_samp_buffer[index].d = -1.0f;
-	amb_samp_buffer[index].v = amb_samp_buffer[index].p = exceptionToFloat3( code );
+	amb_samp_buffer[index].v = amb_samp_buffer[index].p = exceptionToFloat3(rtGetExceptionCode());
 #ifdef RAY_COUNT
 	amb_samp_buffer[index].ray_count = 0;
 #endif

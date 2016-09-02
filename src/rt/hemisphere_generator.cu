@@ -57,9 +57,10 @@ RT_PROGRAM void hemisphere_camera()
 
 RT_PROGRAM void exception()
 {
-	const unsigned int code = rtGetExceptionCode();
-	rtPrintf( "Caught exception 0x%X at launch index (%d,%d,%d)\n", code, launch_index.x, launch_index.y, launch_index.z );
-	seed_buffer[launch_index].pos = exceptionToFloat3( code );
+#ifdef PRINT_OPTIX
+	rtPrintExceptionDetails();
+#endif
+	seed_buffer[launch_index].pos = exceptionToFloat3(rtGetExceptionCode());
 	seed_buffer[launch_index].dir = make_float3( 0.0f );
 #ifdef AMBIENT_CELL
 	seed_buffer[launch_index].cell = make_uint2(0);

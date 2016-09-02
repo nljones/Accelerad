@@ -108,9 +108,10 @@ RT_PROGRAM void exception()
 	if (index >= ambient_record_buffer.size())
 		return;
 
-	const unsigned int code = rtGetExceptionCode();
-	rtPrintf("Caught exception 0x%X at launch index (%d,%d)\n", code, launch_index.x, launch_index.y);
+#ifdef PRINT_OPTIX
+	rtPrintExceptionDetails();
+#endif
 	ambient_record_buffer[index].lvl = level;
-	ambient_record_buffer[index].val = exceptionToFloat3( code );
+	ambient_record_buffer[index].val = exceptionToFloat3(rtGetExceptionCode());
 	ambient_record_buffer[index].weight = -1.0f;
 }

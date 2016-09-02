@@ -24,7 +24,6 @@
 #define TIMEOUT_CALLBACK /* Interupt OptiX kernel periodically to refresh screen */
 //#define CUMULTATIVE_TIME /* Track cumulative timing of OptiX kernel functions */
 #define DEBUG_OPTIX /* Catch unexptected OptiX exceptions */
-//#define PRINT_OPTIX /* Enable OptiX rtPrintf statements to standard out */
 //#define REPORT_GPU_STATE /* Report verbose GPU details */
 #define ITERATIVE_IC /* Iterative irradiance cache calculation */
 
