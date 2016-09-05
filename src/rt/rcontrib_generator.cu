@@ -36,6 +36,7 @@ RT_PROGRAM void ray_generator()
 	const uint2 index = make_uint2(launch_index.x, launch_index.y + contrib_segment);
 	PerRayData_radiance prd;
 	init_rand(&prd.state, index.x + launch_dim.x * index.y);
+	prd.result = make_float3(0.0f); // Probably not necessary
 	prd.weight = 1.0f;
 	prd.depth = 0;
 	prd.ambient_depth = 0;
@@ -53,17 +54,19 @@ RT_PROGRAM void ray_generator()
 	float3 org = origin_buffer[index];
 	float3 dir = direction_buffer[index];
 
-	const float tmin = ray_start(org, RAY_START);
-	if (imm_irrad) {
-		Ray ray = make_Ray(org, -normalize(dir), radiance_ray_type, -tmin, tmin);
-		rtTrace(top_irrad, ray, prd);
-	}
-	else {
-		Ray ray = make_Ray(org, normalize(dir), do_irrad ? radiance_primary_ray_type : radiance_ray_type, tmin, lim_dist ? length(dir) : RAY_END);
-		rtTrace(top_object, ray, prd);
+	if (dot(dir, dir) > 0.0f) {
+		const float tmin = ray_start(org, RAY_START);
+		if (imm_irrad) {
+			Ray ray = make_Ray(org, -normalize(dir), radiance_ray_type, -tmin, tmin);
+			rtTrace(top_irrad, ray, prd);
+		}
+		else {
+			Ray ray = make_Ray(org, normalize(dir), do_irrad ? radiance_primary_ray_type : radiance_ray_type, tmin, lim_dist ? length(dir) : RAY_END);
+			rtTrace(top_object, ray, prd);
+		}
 	}
 
-	checkFinite(prd.result);
+	checkFinite(prd.result); // Probably not necessary
 
 #ifdef RAY_COUNT
 	ray_count_buffer[launch_index] = prd.ray_count;

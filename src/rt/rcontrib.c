@@ -378,9 +378,6 @@ rcontrib(void)
 
 		/* load rays from stdin & process */
 		while (getvec(orig) == 0 && getvec(direc) == 0) {
-			/* skip flushing rays */
-			if (direc[0] == 0.0 && direc[1] == 0.0 && direc[2] == 0.0) continue;
-
 			/* resize array if necessary (should only happen when vcount == 0) */
 			if (current_ray == total_rays) {
 				total_rays *= 2;
