@@ -271,7 +271,7 @@ RT_METHOD int plugaleak(const AmbientRecord* record, const float3& anorm, const 
 	//PerRayData_shadow shadow_prd;
 	//shadow_prd.result = make_float3( 1.0f );
 #ifdef CONTRIB
-	//shadow_prd.weight = 0.0f;
+	//shadow_prd.rcoef = make_float3(0.0f);
 #endif
 #ifdef ANTIMATTER
 	//shadow_prd.mask = prd.mask;

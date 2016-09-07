@@ -96,7 +96,7 @@ RT_PROGRAM void closest_hit_radiance()
 	prd.hit_type = type;
 #endif
 #ifdef CONTRIB
-	contribution(prd.weight, prd.result, ray.direction);
+	contribution(prd.rcoef, prd.result, ray.direction);
 #endif
 }
 

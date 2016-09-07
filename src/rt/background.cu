@@ -75,7 +75,7 @@ RT_PROGRAM void miss()
 #endif /* DAYSIM_COMPATIBLE */
 #ifdef CONTRIB
 			if (light.contrib_index >= 0) {
-				float3 contr = make_float3(prd_radiance.weight);
+				float3 contr = prd_radiance.rcoef;
 				if (contrib)
 					contr *= color;
 				int contr_index = light.contrib_index;
@@ -125,7 +125,7 @@ RT_PROGRAM void miss_shadow()
 #endif /* DAYSIM_COMPATIBLE */
 #ifdef CONTRIB
 				if (light.contrib_index >= 0) {
-					float3 contr = make_float3(prd_shadow.weight);
+					float3 contr = prd_shadow.rcoef;
 					if (contrib)
 						contr *= color;
 					int contr_index = light.contrib_index;

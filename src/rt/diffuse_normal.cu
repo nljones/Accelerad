@@ -273,6 +273,9 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 	new_prd.ambient_depth = prd.ambient_depth + 1;
 	//new_prd.seed = prd.seed;//lcg( prd.seed );
 	new_prd.state = prd.state;
+#ifdef CONTRIB
+	new_prd.rcoef = prd.rcoef * acoef;
+#endif
 #ifdef ANTIMATTER
 	new_prd.mask = prd.mask;
 	new_prd.inside = prd.inside;

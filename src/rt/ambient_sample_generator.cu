@@ -76,6 +76,9 @@ RT_PROGRAM void ambient_sample_camera()
 
 	prd.depth = level + 1;//prd.depth + 1;
 	prd.ambient_depth = level + 1;//prd.ambient_depth + 1;
+#ifdef CONTRIB
+	prd.rcoef = make_float3(prd.weight); //Probably not necessary
+#endif
 #ifdef ANTIMATTER
 	prd.mask = 0u; //TODO this assumes we are not inside an antimatter volume
 	prd.inside = 0;

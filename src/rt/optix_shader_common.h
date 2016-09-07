@@ -57,6 +57,9 @@ struct PerRayData_radiance
 	int depth;
 	int ambient_depth;
 	rand_state* state;
+#ifdef CONTRIB
+	float3 rcoef;
+#endif
 #ifdef ANTIMATTER
 	int inside;			/* counter for number of volumes traversed */
 	unsigned int mask;	/* mask for materials to skip */
@@ -80,7 +83,7 @@ struct PerRayData_shadow
 	float3 result;
 	int target;
 #ifdef CONTRIB
-	float weight;
+	float3 rcoef;
 #endif
 #ifdef ANTIMATTER
 	int inside;			/* counter for number of volumes traversed */
@@ -642,7 +645,7 @@ RT_METHOD void daysimCheck(const DaysimCoef& daylightCoef, const DC& value, cons
 }
 #endif /* DAYSIM_COMPATIBLE */
 
-RT_METHOD void setupPayload(PerRayData_radiance& prd, const int& primary);
+RT_METHOD void setupPayload(PerRayData_radiance& prd);
 RT_METHOD void resolvePayload(PerRayData_radiance& parent, PerRayData_radiance& prd);
 
 RT_METHOD void setupPayload(PerRayData_radiance& prd)

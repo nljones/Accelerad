@@ -337,7 +337,7 @@ RT_METHOD int plugaleak( const AmbientRecord* record, const float3& anorm, const
 	shadow_prd.target = 0;
 	shadow_prd.result = make_float3( 1.0f );
 #ifdef CONTRIB
-	shadow_prd.weight = 0.0f;
+	shadow_prd.rcoef = make_float3(0.0f);
 #endif
 #ifdef ANTIMATTER
 	shadow_prd.mask = 0u; //TODO check if we are in an antimatter volume
@@ -782,6 +782,9 @@ RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const int& i, const int&
 	new_prd.ambient_depth = prd.result.lvl + 1;//prd.ambient_depth + 1;
 	//new_prd.seed = prd.seed;//lcg( prd.seed );
 	new_prd.state = prd.state;
+#ifdef CONTRIB
+	new_prd.rcoef = prd.result.weight * hp->acoef; //TODO This is not exact, but it's probably not used
+#endif
 #ifdef ANTIMATTER
 	new_prd.mask = 0u; //TODO check if we are in an antimatter volume
 	new_prd.inside = 0;
@@ -1454,9 +1457,12 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point, con
 	new_prd.ambient_depth = prd.result.lvl + 1;//prd.ambient_depth + 1;
 	//new_prd.seed = prd.seed;//lcg( prd.seed );
 	new_prd.state = prd.state;
+#ifdef CONTRIB
+	new_prd.rcoef = prd.result.weight * h->acoef; //TODO This is not exact, but it's probably not used
+#endif
 #ifdef ANTIMATTER
-	new_prd.mask = prd.mask;
-	new_prd.inside = prd.inside;
+	new_prd.mask = 0u; //TODO check if we are in an antimatter volume
+	new_prd.inside = 0;
 #endif
 #ifdef DAYSIM_COMPATIBLE
 	new_prd.dc = daysimNext(prd.dc);

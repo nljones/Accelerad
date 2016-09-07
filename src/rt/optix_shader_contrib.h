@@ -15,10 +15,10 @@ rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
 
 
 /* Compute and accumulate contributions */
-RT_METHOD void contribution(const float weight, const float3& color, const float3& direction)
+RT_METHOD void contribution(const float3& rcoef, const float3& color, const float3& direction)
 {
 	if (contrib_index >= 0) {
-		float3 contr = make_float3(weight);
+		float3 contr = rcoef;
 		if (contrib)
 			contr *= color;
 		int contr_index = contrib_index;

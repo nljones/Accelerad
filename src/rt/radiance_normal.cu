@@ -235,6 +235,9 @@ RT_PROGRAM void closest_hit_shadow()
 
 	/* transmitted ray */
 	if ((nd.specfl&(SP_TRAN | SP_PURE | SP_TBLT)) == (SP_TRAN | SP_PURE)) {
+#ifdef CONTRIB
+		prd_shadow.rcoef *= nd.mcolor * nd.tspec;
+#endif
 		Ray trans_ray = make_Ray(nd.hit, nd.prdir, ray.ray_type, ray_start(nd.hit, nd.prdir, nd.normal, RAY_START), RAY_END);
 		rtTrace(top_object, trans_ray, prd_shadow);
 		prd_shadow.result *= nd.mcolor * nd.tspec;
@@ -337,6 +340,9 @@ RT_PROGRAM void closest_hit_radiance()
 			new_prd.depth = prd.depth;
 			new_prd.ambient_depth = prd.ambient_depth;
 			new_prd.state = prd.state;
+#ifdef CONTRIB
+			new_prd.rcoef = prd.rcoef * nd.mcolor * nd.tspec;
+#endif
 #ifdef ANTIMATTER
 			new_prd.mask = prd.mask;
 			new_prd.inside = prd.inside;
@@ -393,6 +399,9 @@ RT_PROGRAM void closest_hit_radiance()
 		if (new_prd.weight >= minweight && new_prd.depth <= abs(maxdepth)) {
 			new_prd.ambient_depth = prd.ambient_depth;
 			new_prd.state = prd.state;
+#ifdef CONTRIB
+			new_prd.rcoef = prd.rcoef * nd.scolor;
+#endif
 #ifdef ANTIMATTER
 			new_prd.mask = prd.mask;
 			new_prd.inside = prd.inside;
@@ -539,7 +548,7 @@ RT_PROGRAM void closest_hit_radiance()
 	prd.hit_type = type;
 #endif
 #ifdef CONTRIB
-	contribution(prd.weight, result, ray.direction);
+	contribution(prd.rcoef, result, ray.direction);
 #endif
 }
 
@@ -554,27 +563,6 @@ RT_METHOD float3 dirnorm(Ray *shadow_ray, PerRayData_shadow *shadow_prd, const N
 #else
 	if ( ldot <= FTINY )
 #endif
-		return cval;
-
-	// cast shadow ray
-	shadow_prd->result = make_float3( 0.0f );
-#ifdef CONTRIB
-	if (ldot > 0.0f)
-		shadow_prd->weight = prd.weight * fmaxf(nd->scolor);
-#ifdef TRANSMISSION
-	else
-		shadow_prd->weight = prd.weight * fmaxf(nd->mcolor) * nd->tspec;
-#endif
-#endif
-#ifdef ANTIMATTER
-	shadow_prd->mask = prd.mask;
-	shadow_prd->inside = prd.inside;
-#endif
-#ifdef DAYSIM_COMPATIBLE
-	daysimSet(shadow_prd->dc, 0.0f);
-#endif
-	rtTrace( top_object, *shadow_ray, *shadow_prd );
-	if( fmaxf( shadow_prd->result ) <= 0.0f )
 		return cval;
 	
 	/* Fresnel estimate */
@@ -645,6 +633,25 @@ RT_METHOD float3 dirnorm(Ray *shadow_ray, PerRayData_shadow *shadow_prd, const N
 		}
 	}
 #endif
+
+	/* from direct() in source.c */
+	if (fmaxf(cval) <= 0.0f)
+		return cval;
+
+	// cast shadow ray
+	shadow_prd->result = make_float3(0.0f);
+#ifdef CONTRIB
+	shadow_prd->rcoef = prd.rcoef * cval;
+#endif
+#ifdef ANTIMATTER
+	shadow_prd->mask = prd.mask;
+	shadow_prd->inside = prd.inside;
+#endif
+#ifdef DAYSIM_COMPATIBLE
+	daysimSet(shadow_prd->dc, 0.0f);
+#endif
+	rtTrace(top_object, *shadow_ray, *shadow_prd);
+
 #ifdef DAYSIM_COMPATIBLE
 	daysimAddScaled(prd.dc, shadow_prd->dc, cval.x);
 #endif
@@ -725,6 +732,9 @@ RT_METHOD float3 gaussamp(const NORMDAT *nd)
 
 			gaus_ray.direction = normalize( gaus_ray.direction );
 			gaus_ray.tmin = ray_start(nd->hit, gaus_ray.direction, nd->normal, RAY_START);
+#ifdef CONTRIB
+			gaus_prd.rcoef = prd.rcoef * scolor;
+#endif
 #ifdef ANTIMATTER
 			gaus_prd.mask = prd.mask;
 			gaus_prd.inside = prd.inside;
@@ -801,6 +811,9 @@ RT_METHOD float3 gaussamp(const NORMDAT *nd)
 
 			gaus_ray.direction = normalize( gaus_ray.direction );
 			gaus_ray.tmin = ray_start(nd->hit, gaus_ray.direction, nd->normal, RAY_START);
+#ifdef CONTRIB
+			gaus_prd.rcoef = prd.rcoef * mcolor;
+#endif
 #ifdef ANTIMATTER
 			gaus_prd.mask = prd.mask;
 			gaus_prd.inside = prd.inside;
@@ -997,6 +1010,9 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 			amb_ray.tmin = ray_start( hit, amb_ray.direction, normal, RAY_START );
 			//dimlist[ndims++] = AI(hp,i,j) + 90171;
 
+#ifdef CONTRIB
+			new_prd.rcoef = prd.rcoef * acoef;
+#endif
 #ifdef ANTIMATTER
 			new_prd.mask = prd.mask;
 			new_prd.inside = prd.inside;
@@ -1253,6 +1269,9 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& normal, const 
 	new_prd.ambient_depth = prd.ambient_depth + 1;
 	//new_prd.seed = prd.seed;//lcg( prd.seed );
 	new_prd.state = prd.state;
+#ifdef CONTRIB
+	new_prd.rcoef = prd.rcoef * h->acoef;
+#endif
 #ifdef ANTIMATTER
 	new_prd.mask = prd.mask;
 	new_prd.inside = prd.inside;

@@ -100,12 +100,12 @@ RT_PROGRAM void closest_hit_shadow()
 		//trans *= pcol;
 
 		/* transmitted ray */
+#ifdef CONTRIB
+		prd_shadow.rcoef *= trans;
+#endif
 		Ray trans_ray = make_Ray(hit_point, ray.direction, ray.ray_type, ray_start(hit_point, ray.direction, snormal, RAY_START), RAY_END);
 		rtTrace(top_object, trans_ray, prd_shadow);
 		prd_shadow.result *= trans;
-#ifdef CONTRIB
-		prd_shadow.weight *= fmaxf(trans);
-#endif
 #ifdef DAYSIM_COMPATIBLE
 		daysimScale(prd_shadow.dc, trans.x);
 #endif
@@ -186,6 +186,9 @@ RT_PROGRAM void closest_hit_radiance()
 			new_prd.ambient_depth = prd.ambient_depth;
 			//new_prd.seed = prd.seed;//lcg( prd.seed );
 			new_prd.state = prd.state;
+#ifdef CONTRIB
+			new_prd.rcoef = prd.rcoef * trans;
+#endif
 #ifdef ANTIMATTER
 			new_prd.mask = prd.mask;
 			new_prd.inside = prd.inside;
@@ -230,6 +233,9 @@ RT_PROGRAM void closest_hit_radiance()
 		new_prd.ambient_depth = prd.ambient_depth;
 		//new_prd.seed = prd.seed;//lcg( prd.seed );
 		new_prd.state = prd.state;
+#ifdef CONTRIB
+		new_prd.rcoef = prd.rcoef * refl;
+#endif
 #ifdef ANTIMATTER
 		new_prd.mask = prd.mask;
 		new_prd.inside = prd.inside;
@@ -269,6 +275,6 @@ RT_PROGRAM void closest_hit_radiance()
 	prd.hit_type = type;
 #endif
 #ifdef CONTRIB
-	contribution(prd.weight, result, ray.direction);
+	contribution(prd.rcoef, result, ray.direction);
 #endif
 }

@@ -97,6 +97,9 @@ RT_PROGRAM void ray_generator()
 		prd.depth = 0;
 		prd.ambient_depth = 0;
 		//prd.seed = rnd_seeds[launch_index];
+#ifdef CONTRIB
+		prd.rcoef = make_float3(1.0f); //Probably not necessary
+#endif
 #ifdef ANTIMATTER
 		prd.mask = 0u;
 		prd.inside = 0;
