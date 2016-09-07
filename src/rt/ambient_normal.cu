@@ -336,6 +336,9 @@ RT_METHOD int plugaleak( const AmbientRecord* record, const float3& anorm, const
 	PerRayData_shadow shadow_prd;
 	shadow_prd.target = 0;
 	shadow_prd.result = make_float3( 1.0f );
+#ifdef CONTRIB
+	shadow_prd.weight = 0.0f;
+#endif
 #ifdef ANTIMATTER
 	shadow_prd.mask = 0u; //TODO check if we are in an antimatter volume
 	shadow_prd.inside = 0;

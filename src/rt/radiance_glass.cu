@@ -47,8 +47,6 @@ RT_PROGRAM void closest_hit_shadow()
 	float3 ffnormal = faceforward( world_shading_normal, -ray.direction, world_geometric_normal );
 	float3 snormal = faceforward( world_geometric_normal, -ray.direction, world_geometric_normal );
 
-	PerRayData_shadow new_prd;             
-	float3 result = make_float3( 0.0f );
 	float3 hit_point = ray.origin + t_hit * ray.direction;
 	float3 mcolor = color;
 
@@ -102,27 +100,16 @@ RT_PROGRAM void closest_hit_shadow()
 		//trans *= pcol;
 
 		/* transmitted ray */
-		//new_prd.depth = prd.depth + 1;
-		new_prd.target = prd_shadow.target;
-		new_prd.result = make_float3( 0.0f );
-#ifdef ANTIMATTER
-		new_prd.mask = prd_shadow.mask;
-		new_prd.inside = prd_shadow.inside;
-#endif
-#ifdef DAYSIM_COMPATIBLE
-		new_prd.dc = daysimNext(prd_shadow.dc);
-		daysimSet(new_prd.dc, 0.0f);
-#endif
 		Ray trans_ray = make_Ray(hit_point, ray.direction, ray.ray_type, ray_start(hit_point, ray.direction, snormal, RAY_START), RAY_END);
-		rtTrace(top_object, trans_ray, new_prd);
-		result += new_prd.result * trans;
+		rtTrace(top_object, trans_ray, prd_shadow);
+		prd_shadow.result *= trans;
+#ifdef CONTRIB
+		prd_shadow.weight *= fmaxf(trans);
+#endif
 #ifdef DAYSIM_COMPATIBLE
-		daysimAddScaled(prd_shadow.dc, new_prd.dc, trans.x);
+		daysimScale(prd_shadow.dc, trans.x);
 #endif
 	//}
-
-	// pass the color back up the tree
-	prd_shadow.result = result;
 }
 
 

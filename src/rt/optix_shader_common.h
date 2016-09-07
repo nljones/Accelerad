@@ -79,6 +79,9 @@ struct PerRayData_shadow
 {
 	float3 result;
 	int target;
+#ifdef CONTRIB
+	float weight;
+#endif
 #ifdef ANTIMATTER
 	int inside;			/* counter for number of volumes traversed */
 	unsigned int mask;	/* mask for materials to skip */

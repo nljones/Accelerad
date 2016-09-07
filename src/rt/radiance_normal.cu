@@ -558,6 +558,14 @@ RT_METHOD float3 dirnorm(Ray *shadow_ray, PerRayData_shadow *shadow_prd, const N
 
 	// cast shadow ray
 	shadow_prd->result = make_float3( 0.0f );
+#ifdef CONTRIB
+	if (ldot > 0.0f)
+		shadow_prd->weight = prd.weight * fmaxf(nd->scolor);
+#ifdef TRANSMISSION
+	else
+		shadow_prd->weight = prd.weight * fmaxf(nd->mcolor) * nd->tspec;
+#endif
+#endif
 #ifdef ANTIMATTER
 	shadow_prd->mask = prd.mask;
 	shadow_prd->inside = prd.inside;
