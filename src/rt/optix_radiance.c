@@ -1247,8 +1247,12 @@ static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec, LUT
 	applyContribution(context, material, NULL, rec, modifiers);
 #endif
 
+	/* As a shortcut, exclude black materials from ambient calculation */
+	if (rec->oargs.farg[0] == 0.0 && rec->oargs.farg[1] == 0.0 && rec->oargs.farg[2] == 0.0 && (rec->otype != MAT_TRANS || rec->oargs.farg[5] == 0.0))
+		applyMaterialVariable1ui(context, material, "ambincl", 0u);
+
 	/* Check ambient include/exclude list */
-	if (ambincl != -1) {
+	else if (ambincl != -1) {
 		char **amblp;
 		int in_set = 0;
 		for (amblp = amblist; *amblp != NULL; amblp++)

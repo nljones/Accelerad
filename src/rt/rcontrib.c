@@ -150,15 +150,19 @@ addmodifier(char *modn, char *outf, char *prms, char *binv, int bincnt)
 	mp->modname = modn;		/* XXX assumes static string */
 	mp->params = prms;		/* XXX assumes static string */
 	mp->binv = ebinv;
+	mp->bin0 = 0;
 	mp->nbins = bincnt;
 #ifdef ACCELERAD
 	mp->start_bin = total_bins;
 	total_bins += bincnt;
 #endif
 	memset(mp->cbin, 0, sizeof(DCOLOR)*bincnt);
-					/* allocate output streams */
-	for (i = bincnt; i-- > 0; )
-		getostream(mp->outspec, mp->modname, i, 1);
+					/* figure out starting bin */
+	while (!getostream(mp->outspec, mp->modname, mp->bin0, 1))
+		mp->bin0++;
+					/* allocate other output streams */
+	for (i = 0; ++i < mp->nbins; )
+		getostream(mp->outspec, mp->modname, mp->bin0+i, 1);
 	lep->data = (char *)mp;
 	return(mp);
 }
