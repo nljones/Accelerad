@@ -6,6 +6,9 @@
 //#define RT_USE_TEMPLATED_RTCALLABLEPROGRAM
 #include <optix_world.h>
 #include "optix_shader_common.h"
+#ifdef CONTRIB_DOUBLE
+#include "optix_double.h"
+#endif
 
 using namespace optix;
 
@@ -17,7 +20,7 @@ rtDeclareVariable(unsigned int, type, , ); /* The material type representing "so
 /* Context variables */
 rtBuffer<DistantLight> lights;
 #ifdef CONTRIB
-rtBuffer<float4, 3> contrib_buffer; /* accumulate contributions */
+rtBuffer<contrib4, 3> contrib_buffer; /* accumulate contributions */
 rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
 rtDeclareVariable(unsigned int, contrib, , ) = 0u;		/* Boolean switch for computing contributions (V) */
 #endif
@@ -75,14 +78,14 @@ RT_PROGRAM void miss()
 #endif /* DAYSIM_COMPATIBLE */
 #ifdef CONTRIB
 			if (light.contrib_index >= 0) {
-				float3 contr = prd_radiance.rcoef;
+				contrib3 contr = prd_radiance.rcoef;
 				if (contrib)
 					contr *= color;
 				int contr_index = light.contrib_index;
 				if (light.contrib_function != RT_PROGRAM_ID_NULL)
 					contr_index += ((rtCallableProgramId<int(const float3)>)light.contrib_function)(H);
 				if (contr_index >= light.contrib_function)
-					contrib_buffer[make_uint3(contr_index, launch_index.x, launch_index.y)] += make_float4(contr);
+					contrib_buffer[make_uint3(contr_index, launch_index.x, launch_index.y)] += make_contrib4(contr);
 			}
 #endif /* CONTRIB */
 		}
@@ -125,14 +128,14 @@ RT_PROGRAM void miss_shadow()
 #endif /* DAYSIM_COMPATIBLE */
 #ifdef CONTRIB
 				if (light.contrib_index >= 0) {
-					float3 contr = prd_shadow.rcoef;
+					contrib3 contr = prd_shadow.rcoef;
 					if (contrib)
 						contr *= color;
 					int contr_index = light.contrib_index;
 					if (light.contrib_function != RT_PROGRAM_ID_NULL)
 						contr_index += ((rtCallableProgramId<int(const float3)>)light.contrib_function)(H);
 					if (contr_index >= light.contrib_function)
-						contrib_buffer[make_uint3(contr_index, launch_index.x, launch_index.y)] += make_float4(contr);
+						contrib_buffer[make_uint3(contr_index, launch_index.x, launch_index.y)] += make_contrib4(contr);
 				}
 #endif /* CONTRIB */
 			}

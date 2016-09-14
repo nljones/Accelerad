@@ -7,6 +7,9 @@
 #include "optix_shader_common.h"
 #include "optix_ambient_common.h"
 #include "optix_point_common.h"
+#ifdef CONTRIB_DOUBLE
+#include "optix_double.h"
+#endif
 
 #ifdef AMB_PARALLEL
 
@@ -77,7 +80,7 @@ RT_PROGRAM void ambient_sample_camera()
 	prd.depth = level + 1;//prd.depth + 1;
 	prd.ambient_depth = level + 1;//prd.ambient_depth + 1;
 #ifdef CONTRIB
-	prd.rcoef = make_float3(prd.weight); //Probably not necessary
+	prd.rcoef = make_contrib3(prd.weight); //Probably not necessary
 #endif
 #ifdef ANTIMATTER
 	prd.mask = 0u; //TODO this assumes we are not inside an antimatter volume

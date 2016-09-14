@@ -341,7 +341,7 @@ RT_PROGRAM void closest_hit_radiance()
 			new_prd.ambient_depth = prd.ambient_depth;
 			new_prd.state = prd.state;
 #ifdef CONTRIB
-			new_prd.rcoef = prd.rcoef * nd.mcolor * nd.tspec;
+			new_prd.rcoef = prd.rcoef * (nd.mcolor * nd.tspec);
 #endif
 #ifdef ANTIMATTER
 			new_prd.mask = prd.mask;

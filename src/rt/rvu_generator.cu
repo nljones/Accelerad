@@ -5,6 +5,9 @@
 
 #include <optix_world.h>
 #include "optix_shader_common.h"
+#ifdef CONTRIB_DOUBLE
+#include "optix_double.h"
+#endif
 
 #define GAMMA  2.2f
 #define LUMINOUS_EFFICACY 179.0f
@@ -98,7 +101,7 @@ RT_PROGRAM void ray_generator()
 		prd.ambient_depth = 0;
 		//prd.seed = rnd_seeds[launch_index];
 #ifdef CONTRIB
-		prd.rcoef = make_float3(1.0f); //Probably not necessary
+		prd.rcoef = make_contrib3(1.0f); //Probably not necessary
 #endif
 #ifdef ANTIMATTER
 		prd.mask = 0u;

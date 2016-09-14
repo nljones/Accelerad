@@ -29,7 +29,12 @@ void contribOptix(const size_t width, const size_t height, const unsigned int im
 
 	/* Parameters */
 	size_t size, start, i = 0;
-	float *origins, *directions, *contributions;
+	float *origins, *directions;
+#ifdef CONTRIB_DOUBLE
+	double *contributions;
+#else
+	float *contributions;
+#endif
 #ifdef RAY_COUNT
 	RTbuffer            ray_count_buffer;
 	unsigned int *ray_count_data;
@@ -38,7 +43,11 @@ void contribOptix(const size_t width, const size_t height, const unsigned int im
 	int	j, k;
 
 	/* Check size of output */
+#ifdef CONTRIB_DOUBLE
+	const size_t bytes_per_row = sizeof(double4) * bins * width;
+#else
 	const size_t bytes_per_row = sizeof(float4) * bins * width;
+#endif
 	const size_t rows_per_segment = min(height, INT_MAX / bytes_per_row); // Limit imposed by OptiX
 	if (!rows_per_segment)
 		error(USER, "Too many rays per row. User a smaller -x.");
@@ -95,7 +104,11 @@ void contribOptix(const size_t width, const size_t height, const unsigned int im
 	}
 
 	/* Render result buffer */
+#ifdef CONTRIB_DOUBLE
+	createCustomBuffer3D(context, RT_BUFFER_OUTPUT, sizeof(double4), bins, bins ? width : 0, bins ? rows_per_segment : 0, &contrib_buffer);
+#else
 	createBuffer3D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT4, bins, bins ? width : 0, bins ? rows_per_segment : 0, &contrib_buffer);
+#endif
 	applyContextObject(context, "contrib_buffer", contrib_buffer);
 
 #ifdef RAY_COUNT

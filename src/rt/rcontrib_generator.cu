@@ -5,6 +5,9 @@
 
 #include <optix_world.h>
 #include "optix_shader_common.h"
+#ifdef CONTRIB_DOUBLE
+#include "optix_double.h"
+#endif
 
 using namespace optix;
 
@@ -14,7 +17,7 @@ rtDeclareVariable(unsigned int, do_irrad, , ) = 0u; /* Calculate irradiance (-i)
 /* Contex variables */
 rtBuffer<float3, 2>              origin_buffer;
 rtBuffer<float3, 2>              direction_buffer;
-rtBuffer<float4, 3>              contrib_buffer;
+rtBuffer<contrib4, 3>            contrib_buffer;
 #ifdef RAY_COUNT
 rtBuffer<unsigned int, 2>        ray_count_buffer;
 #endif
@@ -42,7 +45,7 @@ RT_PROGRAM void ray_generator()
 	prd.ambient_depth = 0;
 	//prd.seed = rnd_seeds[launch_index];
 #ifdef CONTRIB
-	prd.rcoef = make_float3(1.0f);
+	prd.rcoef = make_contrib3(1.0f);
 #endif
 #ifdef ANTIMATTER
 	prd.mask = 0u;
@@ -52,7 +55,7 @@ RT_PROGRAM void ray_generator()
 
 	/* Zero the output */
 	for (int i = 0; i < contrib_buffer.size().x; i++)
-		contrib_buffer[make_uint3(i, launch_index.x, launch_index.y)] = make_float4(0.0f);
+		contrib_buffer[make_uint3(i, launch_index.x, launch_index.y)] = make_contrib4(0.0f);
 
 	float3 org = origin_buffer[index];
 	float3 dir = direction_buffer[index];
@@ -81,5 +84,9 @@ RT_PROGRAM void exception()
 #ifdef PRINT_OPTIX
 	rtPrintExceptionDetails();
 #endif
+#ifdef CONTRIB_DOUBLE
+	contrib_buffer[make_uint3(0, launch_index.x, launch_index.y)] = make_contrib4(rtGetExceptionCode(), 0.0f, 0.0f, -1.0f);
+#else
 	contrib_buffer[make_uint3(0, launch_index.x, launch_index.y)] = exceptionToFloat4(rtGetExceptionCode());
+#endif
 }
