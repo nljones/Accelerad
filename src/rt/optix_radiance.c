@@ -342,7 +342,11 @@ void destroyContext(const RTcontext context)
 void makeContribCompatible(const RTcontext context)
 {
 	RTbuffer contrib_buffer;
+#ifdef CONTRIB_DOUBLE
+	createCustomBuffer3D(context, RT_BUFFER_OUTPUT, sizeof(double4), 0, 0, 0, &contrib_buffer);
+#else
 	createBuffer3D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT4, 0, 0, 0, &contrib_buffer);
+#endif
 	applyContextObject(context, "contrib_buffer", contrib_buffer);
 }
 #endif
