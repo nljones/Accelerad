@@ -15,7 +15,7 @@
 #define ANTIMATTER
 #define CONTRIB /* Calculate contribution coefficients (for rcontrib) */
 #ifdef CONTRIB
-#define CONTRIB_DOUBLE /* Use double-precision contribution coefficients */
+//#define CONTRIB_DOUBLE /* Use double-precision contribution coefficients */
 #endif
 //#define DAYSIM_COMPATIBLE
 //#define PRINT_OPTIX /* Enable OptiX rtPrintf statements to standard out */

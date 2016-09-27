@@ -32,6 +32,7 @@ int qt_rvu_paint(int r,int g,int b,
 extern "C" void qt_rvu_paint_image(int xmin, int ymin, int xmax, int ymax, const uchar *data)
 {
 	WidgetInstance->drawImage(xmin, YSize - ymax - 1, abs(xmax - xmin), abs(ymax - ymin), data);
+	dev->flush();
 }
 
 extern "C" void qt_rvu_update_plot(double *values)

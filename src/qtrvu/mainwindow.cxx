@@ -308,12 +308,12 @@ void MainWindow::buttonPressed()
 }
 
 #ifdef ACCELERAD_RT
-int getPaddedWidth(const QWidget *widget)
+static int getPaddedWidth(const QWidget *widget)
 {
 	return widget->size().width() + widget->contentsMargins().left() + widget->contentsMargins().right();
 }
 
-int getPaddedHeight(const QWidget *widget)
+static int getPaddedHeight(const QWidget *widget)
 {
 	return widget->size().height() + widget->contentsMargins().top() + widget->contentsMargins().bottom();
 }

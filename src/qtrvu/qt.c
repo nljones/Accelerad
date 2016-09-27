@@ -49,6 +49,11 @@ extern void qt_window_comout(const char*);
 extern void qt_set_progress(int);
 extern int qt_open_text_dialog(char* , const char*);
 
+#ifdef ACCELERAD_RT
+extern void qt_rvu_paint_image(int xmin, int ymin, int xmax, int ymax, const unsigned char *data);
+extern void qt_rvu_update_plot(double *values);
+#endif
+
 #ifdef ACCELERAD
 double	pctdone = 0.0;			/* percentage done */
 
@@ -266,7 +271,7 @@ void qt_process_command(const char* com)
 			qt_comout(buf);
 			last_total_progress = progress ? progress : 1;
 			progress = 0;
-			renderOptixIterative(&ourview, hresolu, vresolu, !(pdepth++), greyscale, exposure, scale, decades, mask, ralrm);
+			renderOptixIterative(&ourview, hresolu, vresolu, !(pdepth++), greyscale, exposure, scale, decades, mask, ralrm, qt_rvu_paint_image, qt_rvu_update_plot);
 			if (dev->inpready)
 			{
 				qt_comout("abort");

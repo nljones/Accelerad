@@ -23,6 +23,11 @@ static const char	RCSid[] = "$Id$";
 //#include  "optix_radiance.h"
 #endif
 
+#ifdef ACCELERAD_RT
+extern void qt_rvu_paint_image(int xmin, int ymin, int xmax, int ymax, const unsigned char *data);
+extern void qt_rvu_update_plot(double *values);
+#endif
+
 #define	 CTRL(c)	((c)-'@')
 
 
@@ -120,7 +125,7 @@ rview(void)				/* do a view */
 			errno = 0;
 			sprintf(buf, "%d pass...\n", pdepth);
 			(*dev->comout)(buf);
-			renderOptixIterative(&ourview, hresolu, vresolu, !(pdepth++), greyscale, exposure, scale, decades, mask, ralrm);
+			renderOptixIterative(&ourview, hresolu, vresolu, !(pdepth++), greyscale, exposure, scale, decades, mask, ralrm, qt_rvu_paint_image, qt_rvu_update_plot);
 			if (dev->inpready)		/* noticed some input */
 				command(": ");
 		}

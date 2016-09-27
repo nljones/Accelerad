@@ -2,8 +2,6 @@
 #include "optix_radiance.h"
 
 #ifdef ACCELERAD_RT
-#include  "driver.h"
-
 //#define SAVE_METRICS
 #ifdef SAVE_METRICS
 extern char	*octname;			/* octree name we are given */
@@ -24,14 +22,9 @@ RTbuffer ray_count_buffer_handle = NULL;
 #endif
 extern RTvariable camera_frame;
 
-extern struct driver  *dev;
-
 /* Regions */
 extern int xt, yt, xh, yh, xl, yl;
 extern double omegat, omegah, omegal;
-
-extern void qt_rvu_paint_image(int xmin, int ymin, int xmax, int ymax, const unsigned char *data);
-extern void qt_rvu_update_plot(double *values);
 
 static double calcRAMMG(const Metrics *metrics, const int width, const int height);
 static int makeFalseColorMap(const RTcontext context);
@@ -42,7 +35,7 @@ static RTbuffer metrics_buffer = NULL, direct_buffer = NULL, diffuse_buffer = NU
 static int last_greyscale, last_decades;
 static double last_exposure, last_scale, last_mask;
 
-void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const int greyscale, const double exposure, const double scale, const int decades, const double mask, const double alarm)
+void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const int greyscale, const double exposure, const double scale, const int decades, const double mask, const double alarm, void fpaint(int, int, int, int, const unsigned char *), void fplot(double *))
 {
 	/* Primary RTAPI objects */
 	RTcontext           context;
@@ -183,9 +176,8 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 
 	/* Retrieve the image */
 	RT_CHECK_ERROR(rtBufferMap(output_buffer, (void**)&colors));
-	qt_rvu_paint_image(0, 0, width, height, colors);
+	fpaint(0, 0, width, height, colors);
 	RT_CHECK_ERROR(rtBufferUnmap(output_buffer));
-	dev->flush();
 
 	/* Calculate the metrics */
 	RT_CHECK_ERROR(rtBufferMap(metrics_buffer, (void**)&metrics));
@@ -246,7 +238,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		plotValues[3] = lumT;
 		plotValues[4] = cr;
 		plotValues[5] = rammg;
-		qt_rvu_update_plot(plotValues);
+		fplot(plotValues);
 		free(plotValues);
 	}
 

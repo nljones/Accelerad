@@ -786,7 +786,11 @@ RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const int& i, const int&
 	//new_prd.seed = prd.seed;//lcg( prd.seed );
 	new_prd.state = prd.state;
 #ifdef CONTRIB
+#ifdef CONTRIB_DOUBLE
 	new_prd.rcoef = make_contrib3(prd.result.weight * hp->acoef); //TODO This is not exact, but it's probably not used
+#else
+	new_prd.rcoef = prd.result.weight * hp->acoef; //TODO This is not exact, but it's probably not used
+#endif
 #endif
 #ifdef ANTIMATTER
 	new_prd.mask = 0u; //TODO check if we are in an antimatter volume
