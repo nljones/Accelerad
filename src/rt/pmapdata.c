@@ -30,13 +30,6 @@ static const char RCSid[] = "$Id$";
 #include "rcontrib.h"
 #include "random.h"
 
-#ifndef F_GETFL /* TODO Missing on Windows, just ignore for now */
-#define F_GETFL	0
-#define F_SETFL	1
-#define fcntl(...)	0
-#define fsync(...)	0
-#endif
-
 
 
 PhotonMap *photonMaps [NUM_PMAP_TYPES] = {
@@ -112,8 +105,10 @@ void initPhotonHeap (PhotonMap *pmap)
       /* Open heap file */
       if (!(pmap -> heap = tmpfile()))
          error(SYSTEM, "failed opening heap file in initPhotonHeap");
+#ifdef F_SETFL	/* XXX is there an alternate needed for Windows? */
       fdFlags = fcntl(fileno(pmap -> heap), F_GETFL);
       fcntl(fileno(pmap -> heap), F_SETFL, fdFlags | O_APPEND);
+#endif
 /*      ftruncate(fileno(pmap -> heap), 0); */
    }
 }
@@ -146,10 +141,11 @@ void flushPhotonHeap (PhotonMap *pmap)
    /*if (pwrite(fd, pmap -> heapBuf, len, lseek(fd, 0, SEEK_END)) != len) */
    if (write(fd, pmap -> heapBuf, len) != len)
       error(SYSTEM, "failed append to heap file in flushPhotonHeap");
-   
+
+#if !defined(_WIN32) && !defined(_WIN64)
    if (fsync(fd))
       error(SYSTEM, "failed fsync in flushPhotonHeap");
-      
+#endif
    pmap -> heapBufLen = 0;
 }
 
