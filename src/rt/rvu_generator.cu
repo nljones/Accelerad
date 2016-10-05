@@ -41,6 +41,7 @@ rtDeclareVariable(int, tonemap, , ) = RT_TEXTURE_ID_NULL; /* texture ID */
 rtDeclareVariable(float, fc_scale, , ) = 1000.0f; /* Maximum of scale for falsecolor images, zero for regular tonemapping (-s) */
 rtDeclareVariable(int, fc_log, , ) = 0; /* Number of decades for log scale, zero for standard scale (-log) */
 rtDeclareVariable(float, fc_mask, , ) = 0.0f; /* Minimum value to display in falsecolor images (-m) */
+rtDeclareVariable(unsigned int, flags, , ) = 0; /* Flags for areas to highlight in image */
 
 rtBuffer<unsigned int, 2>        color_buffer; /* Output RGBA colors */
 rtBuffer<Metrics, 2>             metrics_buffer; /* Output metrics */
@@ -172,9 +173,9 @@ RT_PROGRAM void ray_generator()
 	if (low_angle > 0.0f)
 		metrics.flags |= (inTask(low_position, low_angle, ray_direction) & 0x1) << 2;
 
-	//if (metrics.flags & 0x1) color_buffer[launch_index] = 0xff0000ff;
-	//if (metrics.flags & 0x2) color_buffer[launch_index] = 0xff00ff00;
-	//if (metrics.flags & 0x4) color_buffer[launch_index] = 0xffff0000;
+	if (flags & metrics.flags & 0x1) color_buffer[launch_index] = 0xff0000ff;
+	if (flags & metrics.flags & 0x2) color_buffer[launch_index] = 0xff00ff00;
+	if (flags & metrics.flags & 0x4) color_buffer[launch_index] = 0xffff0000;
 
 	metrics_buffer[launch_index] = metrics;
 

@@ -12,6 +12,12 @@ extern void renderOptixIterative(const VIEW* view, const int width, const int he
 extern void retreiveOptixImage(const int width, const int height, const double exposure, COLR* colrs);
 extern void endOptix();
 
+extern void setTaskArea(const int x, const int y, const double omega);
+extern void setHighArea(const int x, const int y, const double omega);
+extern void setLowArea(const int x, const int y, const double omega);
+extern void setAreaFlags(const unsigned int flags);
+
+
 /* from rvmain.c */
 extern double scale;			/* maximum of scale for falsecolor images, zero for regular tonemapping (-s) */
 extern int decades;				/* number of decades for log scale, zero for standard scale (-log) */

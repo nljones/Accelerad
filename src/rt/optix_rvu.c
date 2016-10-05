@@ -31,6 +31,7 @@ static int makeFalseColorMap(const RTcontext context);
 
 /* Handles to objects used repeatedly in animation */
 static RTvariable greyscale_var = NULL, exposure_var = NULL, scale_var = NULL, tonemap_var = NULL, decades_var = NULL, mask_var = NULL;
+static RTvariable task_position = NULL, task_angle = NULL, high_position = NULL, high_angle = NULL, low_position = NULL, low_angle = NULL, position_flags = NULL;
 static RTbuffer metrics_buffer = NULL, direct_buffer = NULL, diffuse_buffer = NULL;
 static int last_greyscale, last_decades;
 static double last_exposure, last_scale, last_mask;
@@ -98,24 +99,20 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 
 		/* Apply unique settings */
 		exposure_var = applyContextVariable1f(context, "exposure", (float)exposure);
-		if (omegat > FTINY) {
-			applyContextVariable2i(context, "task_position", xt, yt);
-			applyContextVariable1f(context, "task_angle", (float)omegat);
-		}
-		if (omegah > FTINY) {
-			applyContextVariable2i(context, "high_position", xh, yh);
-			applyContextVariable1f(context, "high_angle", (float)omegah);
-		}
-		if (omegal > FTINY) {
-			applyContextVariable2i(context, "low_position", xl, yl);
-			applyContextVariable1f(context, "low_angle", (float)omegal);
-		}
 		greyscale_var = applyContextVariable1ui(context, "greyscale", (unsigned int)greyscale);
 		if (scale > 0)
 			applyContextVariable1i(context, "tonemap", makeFalseColorMap(context));
 		scale_var = applyContextVariable1f(context, "fc_scale", (float)scale);
 		decades_var = applyContextVariable1i(context, "fc_log", decades);
 		mask_var = applyContextVariable1f(context, "fc_mask", (float)mask);
+
+		task_position = applyContextVariable2i(context, "task_position", xt, yt);
+		task_angle = applyContextVariable1f(context, "task_angle", (float)omegat);
+		high_position = applyContextVariable2i(context, "high_position", xh, yh);
+		high_angle = applyContextVariable1f(context, "high_angle", (float)omegah);
+		low_position = applyContextVariable2i(context, "low_position", xl, yl);
+		low_angle = applyContextVariable1f(context, "low_angle", (float)omegal);
+		position_flags = applyContextVariable1ui(context, "flags", 0u);
 
 		/* Save settings */
 		last_exposure = exposure;
@@ -412,5 +409,41 @@ void retreiveOptixImage(const int width, const int height, const double exposure
 
 	RT_CHECK_ERROR(rtBufferUnmap(direct_buffer));
 	RT_CHECK_ERROR(rtBufferUnmap(diffuse_buffer));
+}
+
+void setTaskArea(const int x, const int y, const double omega)
+{
+	RTcontext context = context_handle;
+	xt = x;
+	yt = y;
+	omegat = omega;
+	RT_CHECK_ERROR(rtVariableSet2i(task_position, xt, yt));
+	RT_CHECK_ERROR(rtVariableSet1f(task_angle, (float)omegat));
+}
+
+void setHighArea(const int x, const int y, const double omega)
+{
+	RTcontext context = context_handle;
+	xh = x;
+	yh = y;
+	omegah = omega;
+	RT_CHECK_ERROR(rtVariableSet2i(high_position, xh, yh));
+	RT_CHECK_ERROR(rtVariableSet1f(high_angle, (float)omegah));
+}
+
+void setLowArea(const int x, const int y, const double omega)
+{
+	RTcontext context = context_handle;
+	xl = x;
+	yl = y;
+	omegal = omega;
+	RT_CHECK_ERROR(rtVariableSet2i(low_position, xl, yl));
+	RT_CHECK_ERROR(rtVariableSet1f(low_angle, (float)omegal));
+}
+
+void setAreaFlags(const unsigned int flags)
+{
+	RTcontext context = context_handle;
+	RT_CHECK_ERROR(rtVariableSet1ui(position_flags, flags));
 }
 #endif /* ACCELERAD_RT */
