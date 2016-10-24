@@ -13,6 +13,7 @@
 #include <cone.h>
 #include <mesh.h>
 #include "data.h"
+#include "bsdf.h"
 #include "random.h"
 #include "paths.h"
 
@@ -47,7 +48,7 @@ static void checkDevices();
 static void checkRemoteDevice(RTremotedevice remote);
 static void createRemoteDevice(RTremotedevice* remote);
 static void applyRadianceSettings(const RTcontext context, const VIEW* view, const unsigned int imm_irrad);
-static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RTgeometryinstance* instance);
+static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RTgeometry* mesh, RTgeometryinstance* instance);
 static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* parent, const OBJECT index, LUTAB* modifiers);
 static void createFace(OBJREC* rec, OBJREC* parent);
 static __inline void createTriangle(OBJREC *material, const int a, const int b, const int c);
@@ -74,7 +75,7 @@ static int createGenCumulativeSky(const RTcontext context, char* filename, RTpro
 static int createContribFunction(const RTcontext context, MODCONT *mp);
 static void applyContribution(const RTcontext context, const RTmaterial material, DistantLight* light, OBJREC* rec, LUTAB* modifiers);
 #endif
-static void createAcceleration(const RTcontext context, const RTgeometryinstance instance, const unsigned int imm_irrad);
+static void createAcceleration(const RTcontext context, const RTgeometryinstance instance, const unsigned int imm_irrad, RTacceleration* acceleration);
 static void createIrradianceGeometry( const RTcontext context );
 static void printObject(OBJREC* rec);
 
@@ -99,6 +100,10 @@ RTvariable navsum_var = NULL;
 unsigned int frame = 0u;
 RTvariable camera_frame, camera_type, camera_eye, camera_u, camera_v, camera_w, camera_fov, camera_shift, camera_clip, camera_vdist;
 static RTremotedevice remote_handle = NULL;
+static RTgeometryinstance instance_handle = NULL;
+static RTgeometry mesh_handle = NULL;
+static RTbuffer vertex_buffer = NULL, normal_buffer = NULL, texcoord_buffer = NULL, vindex_buffer = NULL, material_buffer = NULL, material_alt_buffer = NULL, lindex_buffer = NULL, lights_buffer = NULL;
+static RTacceleration acceleration_handle = NULL;
 
 /* Handles to buffer data */
 static int*       buffer_entry_index;
@@ -127,6 +132,9 @@ static RTprogram radiance_glass_closest_hit_program, shadow_glass_closest_hit_pr
 static RTprogram radiance_light_closest_hit_program, shadow_light_closest_hit_program, point_cloud_light_closest_hit_program;
 #ifdef ANTIMATTER
 static RTprogram radiance_clip_closest_hit_program, shadow_clip_closest_hit_program, point_cloud_clip_closest_hit_program;
+#endif
+#ifdef BSDF
+static RTprogram radiance_bsdf_closest_hit_program, shadow_bsdf_closest_hit_program, ambient_bsdf_closest_hit_program, point_cloud_bsdf_closest_hit_program;
 #endif
 
 #ifdef DAYSIM
@@ -387,13 +395,10 @@ void setupDaysim(const RTcontext context, RTbuffer* dc_buffer, const RTsize widt
 
 void setupKernel(const RTcontext context, const VIEW* view, LUTAB* modifiers, const RTsize width, const RTsize height, const unsigned int imm_irrad, const double alarm)
 {
-	/* Primary RTAPI objects */
-	RTgeometryinstance  instance;
-
 	/* Setup state */
 	applyRadianceSettings(context, view, imm_irrad);
-	createGeometryInstance(context, modifiers, &instance);
-	createAcceleration(context, instance, imm_irrad);
+	createGeometryInstance(context, modifiers, &mesh_handle, &instance_handle);
+	createAcceleration(context, instance_handle, imm_irrad, &acceleration_handle);
 	if ( imm_irrad )
 		createIrradianceGeometry( context );
 
@@ -404,6 +409,12 @@ void setupKernel(const RTcontext context, const VIEW* view, LUTAB* modifiers, co
 		else
 			setupAmbientCache( context, 0u ); // only need level 0 for final gather
 	}
+}
+
+void updateModel(const RTcontext context, LUTAB* modifiers)
+{
+	createGeometryInstance(context, modifiers, &mesh_handle, &instance_handle);
+	RT_CHECK_ERROR(rtAccelerationMarkDirty(acceleration_handle));
 }
 
 static void applyRadianceSettings(const RTcontext context, const VIEW* view, const unsigned int imm_irrad)
@@ -528,13 +539,8 @@ void updateCamera( const RTcontext context, const VIEW* view )
 	RT_CHECK_ERROR(rtVariableSet1f(camera_vdist, (float)view->vdist));
 }
 
-static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RTgeometryinstance* instance)
+static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RTgeometry* mesh, RTgeometryinstance* instance)
 {
-	RTgeometry mesh;
-	RTprogram  mesh_intersection_program;
-	RTprogram  mesh_bounding_box_program;
-	RTbuffer   buffer;
-
 	unsigned int i;
 	OBJECT on;
 	OBJREC* rec, *parent;
@@ -625,19 +631,25 @@ static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RT
 	}
 
 	/* Create the geometry reference for OptiX. */
-	RT_CHECK_ERROR(rtGeometryCreate(context, &mesh));
-	RT_CHECK_ERROR(rtGeometrySetPrimitiveCount(mesh, (unsigned int)traingles->count));
+	if (!*mesh) {
+		RTprogram program;
 
-	ptxFile(path_to_ptx, "triangle_mesh");
-	RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "mesh_bounds", &mesh_bounding_box_program));
-	RT_CHECK_ERROR(rtGeometrySetBoundingBoxProgram(mesh, mesh_bounding_box_program));
-	RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "mesh_intersect", &mesh_intersection_program));
-	RT_CHECK_ERROR(rtGeometrySetIntersectionProgram(mesh, mesh_intersection_program));
-	applyProgramVariable1ui(context, mesh_intersection_program, "backvis", backvis); // -bv
+		RT_CHECK_ERROR(rtGeometryCreate(context, mesh));
+
+		ptxFile(path_to_ptx, "triangle_mesh");
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "mesh_bounds", &program));
+		RT_CHECK_ERROR(rtGeometrySetBoundingBoxProgram(*mesh, program));
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "mesh_intersect", &program));
+		RT_CHECK_ERROR(rtGeometrySetIntersectionProgram(*mesh, program));
+		applyProgramVariable1ui(context, program, "backvis", backvis); // -bv
+	}
+	RT_CHECK_ERROR(rtGeometrySetPrimitiveCount(*mesh, (unsigned int)traingles->count));
 
 	/* Create the geometry instance containing the geometry. */
-	RT_CHECK_ERROR(rtGeometryInstanceCreate(context, instance));
-	RT_CHECK_ERROR(rtGeometryInstanceSetGeometry(*instance, mesh));
+	if (!*instance) {
+		RT_CHECK_ERROR(rtGeometryInstanceCreate(context, instance));
+		RT_CHECK_ERROR(rtGeometryInstanceSetGeometry(*instance, *mesh));
+	}
 	RT_CHECK_ERROR(rtGeometryInstanceSetMaterialCount(*instance, (unsigned int)materials->count));
 
 	/* Apply materials to the geometry instance. */
@@ -647,60 +659,92 @@ static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RT
 	freeArraym(materials);
 	free(materials);
 
-	/* Unmap and apply the geometry buffers. */
+	/* Apply the geometry buffers. */
 	vprintf("Processed %" PRIu64 " vertices.\n", vertices->count / 3);
-	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, vertices->count / 3, &buffer);
-	copyToBufferf(context, buffer, vertices);
-	//applyGeometryInstanceObject( context, *instance, "vertex_buffer", buffer );
-	applyContextObject(context, "vertex_buffer", buffer);
+	if (!vertex_buffer) {
+		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, vertices->count / 3, &vertex_buffer);
+		//applyGeometryInstanceObject( context, *instance, "vertex_buffer", vertex_buffer );
+		applyContextObject(context, "vertex_buffer", vertex_buffer);
+	}
+	else
+		RT_CHECK_ERROR(rtBufferSetSize1D(vertex_buffer, vertices->count / 3));
+	copyToBufferf(context, vertex_buffer, vertices);
 	freeArrayf(vertices);
 	free(vertices);
 
-	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, normals->count / 3, &buffer);
-	copyToBufferf(context, buffer, normals);
-	applyGeometryInstanceObject(context, *instance, "normal_buffer", buffer);
+	if (!normal_buffer) {
+		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, normals->count / 3, &normal_buffer);
+		applyGeometryInstanceObject(context, *instance, "normal_buffer", normal_buffer);
+	}
+	else
+		RT_CHECK_ERROR(rtBufferSetSize1D(normal_buffer, normals->count / 3));
+	copyToBufferf(context, normal_buffer, normals);
 	freeArrayf(normals);
 	free(normals);
 
-	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT2, tex_coords->count / 2, &buffer);
-	copyToBufferf(context, buffer, tex_coords);
-	applyGeometryInstanceObject(context, *instance, "texcoord_buffer", buffer);
+	if (!texcoord_buffer) {
+		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT2, tex_coords->count / 2, &texcoord_buffer);
+		applyGeometryInstanceObject(context, *instance, "texcoord_buffer", texcoord_buffer);
+	}
+	else
+		RT_CHECK_ERROR(rtBufferSetSize1D(texcoord_buffer, tex_coords->count / 2));
+	copyToBufferf(context, texcoord_buffer, tex_coords);
 	freeArrayf(tex_coords);
 	free(tex_coords);
 
-	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_UNSIGNED_INT3, vertex_indices->count / 3, &buffer);
-	copyToBufferi(context, buffer, vertex_indices);
-	applyGeometryInstanceObject(context, *instance, "vindex_buffer", buffer);
+	if (!vindex_buffer) {
+		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_UNSIGNED_INT3, vertex_indices->count / 3, &vindex_buffer);
+		applyGeometryInstanceObject(context, *instance, "vindex_buffer", vindex_buffer);
+	}
+	else
+		RT_CHECK_ERROR(rtBufferSetSize1D(vindex_buffer, vertex_indices->count / 3));
+	copyToBufferi(context, vindex_buffer, vertex_indices);
 	freeArrayi(vertex_indices);
 	free(vertex_indices);
 
 	vprintf("Processed %" PRIu64 " triangles.\n", traingles->count);
-	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_INT, traingles->count, &buffer);
-	copyToBufferi(context, buffer, traingles);
-	applyGeometryInstanceObject(context, *instance, "material_buffer", buffer);
+	if (!material_buffer) {
+		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_INT, traingles->count, &material_buffer);
+		applyGeometryInstanceObject(context, *instance, "material_buffer", material_buffer);
+	}
+	else
+		RT_CHECK_ERROR(rtBufferSetSize1D(material_buffer, traingles->count));
+	copyToBufferi(context, material_buffer, traingles);
 	freeArrayi(traingles);
 	free(traingles);
 
-	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_INT2, alt_materials->count / 2, &buffer);
-	copyToBufferi(context, buffer, alt_materials);
-	applyGeometryInstanceObject(context, *instance, "material_alt_buffer", buffer);
+	if (!material_alt_buffer) {
+		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_INT2, alt_materials->count / 2, &material_alt_buffer);
+		applyGeometryInstanceObject(context, *instance, "material_alt_buffer", material_alt_buffer);
+	}
+	else
+		RT_CHECK_ERROR(rtBufferSetSize1D(material_alt_buffer, alt_materials->count / 2));
+	copyToBufferi(context, material_alt_buffer, alt_materials);
 	freeArrayi(alt_materials);
 	free(alt_materials);
 
-	/* Unmap and apply the lighting buffers. */
+	/* Apply the lighting buffers. */
 #ifdef LIGHTS
 	if (lights->count) vprintf("Processed %" PRIu64 " lights.\n", lights->count / 3);
-	createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_UNSIGNED_INT3, lights->count / 3, &buffer);
-	copyToBufferi(context, buffer, lights);
-	applyContextObject(context, "lindex_buffer", buffer);
+	if (!lindex_buffer) {
+		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_UNSIGNED_INT3, lights->count / 3, &lindex_buffer);
+		applyContextObject(context, "lindex_buffer", lindex_buffer);
+	}
+	else
+		RT_CHECK_ERROR(rtBufferSetSize1D(lindex_buffer, lights->count));
+	copyToBufferi(context, lindex_buffer, lights);
 	freeArrayi(lights);
 	free(lights);
 #endif
 
 	if (sources->count) vprintf("Processed %" PRIu64 " sources.\n", sources->count);
-	createCustomBuffer1D(context, RT_BUFFER_INPUT, sizeof(DistantLight), sources->count, &buffer);
-	copyToBufferdl(context, buffer, sources);
-	applyContextObject(context, "lights", buffer);
+	if (!lights_buffer) {
+		createCustomBuffer1D(context, RT_BUFFER_INPUT, sizeof(DistantLight), sources->count, &lights_buffer);
+		applyContextObject(context, "lights", lights_buffer);
+	}
+	else
+		RT_CHECK_ERROR(rtBufferSetSize1D(lights_buffer, sources->count));
+	copyToBufferdl(context, lights_buffer, sources);
 	freeArraydl(sources);
 	free(sources);
 
@@ -742,6 +786,12 @@ static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* pare
 		insertArray2i(alt_materials, (int)materials->count, alternate);
 		insertArraym(materials, createLightMaterial(context, rec, modifiers));
 		break;
+#ifdef BSDF
+	case MAT_BSDF: // BSDF
+		buffer_entry_index[index] = insertArray2i(alt_materials, 0, (int)materials->count);
+		insertArraym(materials, createBSDFMaterial(context, rec, modifiers));
+		break;
+#endif
 #ifdef ANTIMATTER
 	case MAT_CLIP: // Antimatter
 		buffer_entry_index[index] = insertArray2i(alt_materials, (int)materials->count, (int)materials->count);
@@ -1230,6 +1280,107 @@ static void createMesh(OBJREC* rec, OBJREC* parent)
 	}
 	freemeshinst(rec);
 }
+
+#ifdef BSDF
+static RTmaterial createBSDFMaterial(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
+{
+	RTmaterial material;
+	MFUNC *mf;
+	SDData *sd;
+	double thick;
+	FVECT upvec;
+
+	if (rec->oargs.nsargs < 6 || rec->oargs.nfargs > 9 || rec->oargs.nfargs % 3)
+		objerror(rec, USER, "bad number of arguments");
+	if (strcmp(rec->oargs.sarg[5], ".")) {
+		printObject(rec);
+		return NULL; // TODO accept null ouptut
+	}
+	mf = getfunc(rec, 5, 0x1d, 1);
+	sd = loadBSDF(rec->oargs.sarg[1]);
+	thick = evalue(mf->ep[0]);
+	upvec[0] = evalue(mf->ep[1]);
+	upvec[1] = evalue(mf->ep[2]);
+	upvec[2] = evalue(mf->ep[3]);
+	if (-FTINY <= thick && thick <= FTINY)
+		thick = 0.0;
+
+	/* return to world coords */
+	if (mf->fxp != &unitxf) {
+		multv3(upvec, upvec, mf->fxp->xfm);
+		thick *= mf->fxp->sca;
+	}
+
+	/* Create our material */
+	RT_CHECK_ERROR(rtMaterialCreate(context, &material));
+
+	/* Set variables to be consumed by material for this geometry instance */
+	applyMaterialVariable1f(context, material, "thick", (float)thick);
+	applyMaterialVariable3f(context, material, "up", (float)upvec[0], (float)upvec[1], (float)upvec[2]);
+	if (rec->oargs.nfargs >= 3)
+		applyMaterialVariable3f(context, material, "front", (float)rec->oargs.farg[0], (float)rec->oargs.farg[1], (float)rec->oargs.farg[2]);
+	if (rec->oargs.nfargs >= 6)
+		applyMaterialVariable3f(context, material, "back", (float)rec->oargs.farg[3], (float)rec->oargs.farg[4], (float)rec->oargs.farg[5]);
+	if (rec->oargs.nfargs == 9)
+		applyMaterialVariable3f(context, material, "trans", (float)rec->oargs.farg[6], (float)rec->oargs.farg[7], (float)rec->oargs.farg[8]);
+#ifdef CONTRIB
+	applyContribution(context, material, NULL, rec, modifiers);
+#endif
+
+	/* Create our hit programs to be shared among all normal materials */
+	if (!radiance_bsdf_closest_hit_program || (!shadow_bsdf_closest_hit_program && thick == 0.0))
+		ptxFile(path_to_ptx, "radiance_bsdf");
+
+	//TODO shadow program only if thickness == 0
+	if (!radiance_bsdf_closest_hit_program)
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_radiance", &radiance_bsdf_closest_hit_program));
+	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, RADIANCE_RAY, radiance_bsdf_closest_hit_program));
+
+	if (thick == 0.0) {
+		if (do_irrad)
+			RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, PRIMARY_RAY, radiance_bsdf_closest_hit_program));
+		if (!shadow_bsdf_closest_hit_program)
+			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_shadow", &shadow_bsdf_closest_hit_program));
+		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, SHADOW_RAY, shadow_bsdf_closest_hit_program));
+	}
+
+//#ifdef ACCELERAD_RT
+//	if (!has_diffuse_normal_closest_hit_program) // Don't create the program if it won't be used
+//		diffuse_bsdf_closest_hit_program = radiance_bsdf_closest_hit_program;
+//	if (!diffuse_bsdf_closest_hit_program) {
+//		ptxFile(path_to_ptx, "diffuse_bsdf");
+//		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_radiance", &diffuse_bsdf_closest_hit_program));
+//	}
+//	if (do_irrad)
+//		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, DIFFUSE_PRIMARY_RAY, diffuse_bsdf_closest_hit_program));
+//	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, DIFFUSE_RAY, diffuse_bsdf_closest_hit_program));
+//#endif
+
+	if (calc_ambient) {
+		if (!ambient_bsdf_closest_hit_program) {
+			ptxFile(path_to_ptx, "ambient_bsdf");
+			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_ambient", &ambient_bsdf_closest_hit_program));
+
+#ifdef AMBIENT_CELL
+			createAmbientDynamicStorage(context, ambient_bsdf_closest_hit_program, 0);
+#else
+			createAmbientDynamicStorage(context, ambient_bsdf_closest_hit_program, cuda_kmeans_clusters);
+#endif
+		}
+		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, AMBIENT_RECORD_RAY, ambient_bsdf_closest_hit_program));
+
+		if (thick == 0.0) {
+			if (!point_cloud_bsdf_closest_hit_program) {
+				ptxFile(path_to_ptx, "point_cloud_bsdf");
+				RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_point_cloud_normal", &point_cloud_bsdf_closest_hit_program));
+			}
+			RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, POINT_CLOUD_RAY, point_cloud_bsdf_closest_hit_program));
+		}
+	}
+
+	return material;
+}
+#endif /* BSDF */
 
 static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 {
@@ -1973,10 +2124,9 @@ static void applyContribution(const RTcontext context, const RTmaterial material
 }
 #endif /* CONTRIB */
 
-static void createAcceleration( const RTcontext context, const RTgeometryinstance instance, const unsigned int imm_irrad )
+static void createAcceleration(const RTcontext context, const RTgeometryinstance instance, const unsigned int imm_irrad, RTacceleration* acceleration)
 {
 	RTgeometrygroup geometrygroup;
-	RTacceleration  acceleration;
 
 	/* Create a geometry group to hold the geometry instance.  This will be used as the top level group. */
 	RT_CHECK_ERROR( rtGeometryGroupCreate( context, &geometrygroup ) );
@@ -1991,15 +2141,15 @@ static void createAcceleration( const RTcontext context, const RTgeometryinstanc
 		applyContextObject( context, "top_irrad", geometrygroup ); // Need to define this because it is referred to by sensor.cu, sensor_cloud_generator, and ambient_cloud_generator.cu
 
 	/* create acceleration object for group and specify some build hints */
-	RT_CHECK_ERROR( rtAccelerationCreate( context, &acceleration ) );
-	RT_CHECK_ERROR( rtAccelerationSetBuilder( acceleration, "Sbvh" ) );
-	RT_CHECK_ERROR( rtAccelerationSetTraverser( acceleration, "Bvh" ) );
-	RT_CHECK_ERROR( rtAccelerationSetProperty( acceleration, "vertex_buffer_name", "vertex_buffer" ) ); // For Sbvh only
-	RT_CHECK_ERROR( rtAccelerationSetProperty( acceleration, "index_buffer_name", "vindex_buffer" ) ); // For Sbvh only
-	RT_CHECK_ERROR( rtGeometryGroupSetAcceleration( geometrygroup, acceleration ) );
+	RT_CHECK_ERROR(rtAccelerationCreate(context, acceleration));
+	RT_CHECK_ERROR(rtAccelerationSetBuilder(*acceleration, "Sbvh"));
+	RT_CHECK_ERROR(rtAccelerationSetTraverser(*acceleration, "Bvh"));
+	RT_CHECK_ERROR(rtAccelerationSetProperty(*acceleration, "vertex_buffer_name", "vertex_buffer")); // For Sbvh only
+	RT_CHECK_ERROR(rtAccelerationSetProperty(*acceleration, "index_buffer_name", "vindex_buffer")); // For Sbvh only
+	RT_CHECK_ERROR(rtGeometryGroupSetAcceleration(geometrygroup, *acceleration));
 
 	/* mark acceleration as dirty */
-	RT_CHECK_ERROR( rtAccelerationMarkDirty( acceleration ) );
+	RT_CHECK_ERROR(rtAccelerationMarkDirty(*acceleration));
 }
 
 static void createIrradianceGeometry( const RTcontext context )

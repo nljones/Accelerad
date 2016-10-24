@@ -157,6 +157,7 @@ void makeDaysimCompatible(const RTcontext context);
 void setupDaysim(const RTcontext context, RTbuffer* dc_buffer, const RTsize width, const RTsize height);
 #endif
 void setupKernel(const RTcontext context, const VIEW* view, LUTAB* modifiers, const RTsize width, const RTsize height, const unsigned int imm_irrad, const double alarm);
+void updateModel(const RTcontext context, LUTAB* modifiers);
 void createCamera(const RTcontext context, const char* ptx_name);
 void updateCamera(const RTcontext context, const VIEW* view);
 

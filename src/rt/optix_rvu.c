@@ -265,6 +265,12 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	//destroyContext(context);
 }
 
+void updateOctree(char* path)
+{
+	ray_init(path);
+	updateModel(context_handle, NULL);
+}
+
 /**
  * Destroy the OptiX context if one has been created.
  * This should be called after the last call to renderOptixIterative().

@@ -10,6 +10,7 @@ extern "C" {
 /* from optix_rvu.c */
 extern void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const int greyscale, const double exposure, const double scale, const int decades, const double mask, const double alarm, void fpaint(int, int, int, int, const unsigned char *), void fplot(double *));
 extern void retreiveOptixImage(const int width, const int height, const double exposure, COLR* colrs);
+extern void updateOctree(char* path);
 extern void endOptix();
 
 extern void setTaskArea(const int x, const int y, const double omega);
