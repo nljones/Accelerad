@@ -68,6 +68,7 @@ RT_METHOD int splane_normal(const float3 &e1, const float3 &e2, float3 &n);
 RT_METHOD float getSolidAngle();
 RT_METHOD float getPositionIndex(const float3 &dir);
 RT_METHOD int inTask(const int2 &position, const float &angle, const float3 &ray_direction);
+RT_METHOD void tint(unsigned int &color, const unsigned int component);
 
 
 // Pick the ray direction based on camera type as in image.c.
@@ -173,9 +174,9 @@ RT_PROGRAM void ray_generator()
 	if (low_angle > 0.0f)
 		metrics.flags |= (inTask(low_position, low_angle, ray_direction) & 0x1) << 2;
 
-	if (flags & metrics.flags & 0x1) color_buffer[launch_index] = 0xff0000ff;
-	if (flags & metrics.flags & 0x2) color_buffer[launch_index] = 0xff00ff00;
-	if (flags & metrics.flags & 0x4) color_buffer[launch_index] = 0xffff0000;
+	if (flags & metrics.flags & 0x1) tint(color_buffer[launch_index], 2);
+	if (flags & metrics.flags & 0x2) tint(color_buffer[launch_index], 1);
+	if (flags & metrics.flags & 0x4) tint(color_buffer[launch_index], 0);
 
 	metrics_buffer[launch_index] = metrics;
 
@@ -314,6 +315,16 @@ RT_METHOD int inTask(const int2 &position, const float &angle, const float3 &ray
 	float3 task_dir = getViewDirection(d);
 	float r_actual = acosf(dot(task_dir, ray_direction));
 	return r_actual <= angle;
+}
+
+/* Tint the color with emphasis on the component */
+RT_METHOD void tint(unsigned int &color, const unsigned int component)
+{
+	unsigned int c = color;
+	c += (0xff - (c & 0xff)) / (component == 2 ? 2 : 8);
+	c += ((0xff - ((c >> 8) & 0xff)) / (component == 1 ? 2 : 8)) << 8;
+	c += ((0xff - ((c >> 16) & 0xff)) / (component ? 8 : 2)) << 16;
+	color = c;
 }
 
 RT_PROGRAM void exception()
