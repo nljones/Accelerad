@@ -66,9 +66,6 @@ rtDeclareVariable(float, minarad, , );	/* minimum ambient radius */
 rtDeclareVariable(float, avsum, , );		/* computed ambient value sum (log) */
 rtDeclareVariable(unsigned int, navsum, , );	/* number of values in avsum */
 
-rtDeclareVariable(float, minweight, , );	/* minimum ray weight (lw) */
-rtDeclareVariable(int, maxdepth, , );	/* maximum recursion depth (lr) */
-
 rtBuffer<DistantLight> lights;
 
 /* Material variables */
@@ -262,27 +259,9 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 
 	/* Setup from ambsample in ambcomp.c */
 	PerRayData_radiance new_prd;
-	/* generate hemispherical sample */
-	/* ambient coefficient for weight */
-	if (ambacc > FTINY)
-		d = AVGREFL; // Reusing this variable
-	else
-		d = fmaxf(acoef);
-	new_prd.weight = prd.weight * d;
-	new_prd.depth = prd.depth + 1;
-	if (new_prd.weight < minweight || new_prd.depth > abs(maxdepth)) //if (rayorigin(&ar, AMBIENT, r, ar.rcoef) < 0)
+	if (!rayorigin(new_prd, prd, acoef, 1, 1))
 		return(0);
 
-	new_prd.ambient_depth = prd.ambient_depth + 1;
-	//new_prd.seed = prd.seed;//lcg( prd.seed );
-	new_prd.state = prd.state;
-#ifdef CONTRIB
-	new_prd.rcoef = prd.rcoef * acoef;
-#endif
-#ifdef ANTIMATTER
-	new_prd.mask = prd.mask;
-	new_prd.inside = prd.inside;
-#endif
 #ifdef DAYSIM_COMPATIBLE
 	new_prd.dc = daysimNext(dc);
 #endif

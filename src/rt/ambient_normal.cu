@@ -78,9 +78,6 @@ rtDeclareVariable(float,        minarad, , ); /* minimum ambient radius */
 rtDeclareVariable(float,        avsum, , ); /* computed ambient value sum (log) */
 rtDeclareVariable(unsigned int, navsum, , ); /* number of values in avsum */
 
-rtDeclareVariable(float,        minweight, , ); /* minimum ray weight (lw) */
-rtDeclareVariable(int,          maxdepth, , ); /* maximum recursion depth (lr) */
-
 /* Material variables */
 rtDeclareVariable(unsigned int, type, , ); /* The material type representing "plastic", "metal", or "trans" */
 rtDeclareVariable(float3,       color, , ); /* The material color given by the rad file "plastic", "metal", or "trans" object */
@@ -761,7 +758,7 @@ RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const int& i, const int&
 	if (ambacc > FTINY)
 		b2 = AVGREFL; // Reusing this variable
 	else
-		b2 = fmaxf(hp->acoef);
+		b2 = fminf(fmaxf(hp->acoef), 1.0f);
 	new_prd.weight = prd.result.weight * b2;
 	if (new_prd.weight < minweight) //if (rayorigin(&ar, AMBIENT, r, ar.rcoef) < 0)
 		return(0);
@@ -1437,7 +1434,7 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point, con
 	if (ambacc > FTINY)
 		b2 = AVGREFL; // Reusing this variable
 	else
-		b2 = fmaxf(h->acoef);
+		b2 = fminf(fmaxf(h->acoef), 1.0f);
 	new_prd.weight = prd.result.weight * b2;
 	if (new_prd.weight < minweight) //if (rayorigin(&ar, AMBIENT, r, ar.rcoef) < 0)
 		return(-1);

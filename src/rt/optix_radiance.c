@@ -465,6 +465,8 @@ static void applyRadianceSettings(const RTcontext context, const VIEW* view, con
 	//applyContextVariable1f( context, "ssampdist", ssampdist ); // -ms
 
 	/* Set ray limitting parameters */
+	if (maxdepth <= 0 && minweight <= 0.0) // check found in rayorigin() from raytrace.c
+		error(USER, "zero ray weight in Russian roulette");
 	applyContextVariable1f(context, "minweight", (float)minweight); // -lw, from ray.h
 	applyContextVariable1i( context, "maxdepth", maxdepth ); // -lr, from ray.h, negative values indicate Russian roulette
 

@@ -8,6 +8,9 @@
 #include <curand_kernel.h>
 #endif
 #include "optix_common.h"
+#ifdef CONTRIB_DOUBLE
+#include "optix_double.h"
+#endif
 
 /* OptiX method declaration in the style of RT_PROGRAM */
 #define RT_METHOD	static __inline__ __device__
@@ -657,8 +660,50 @@ RT_METHOD void daysimCheck(const DaysimCoef& daylightCoef, const DC& value, cons
 }
 #endif /* DAYSIM_COMPATIBLE */
 
+rtDeclareVariable(float, minweight, , ) = 0.0f;	/* minimum ray weight (lw) */
+rtDeclareVariable(int, maxdepth, , ) = 0;	/* maximum recursion depth (lr) */
+
+RT_METHOD int rayorigin(PerRayData_radiance& new_prd, const PerRayData_radiance& prd, const float3& rcoef, const int& d, const int& ad);
 RT_METHOD void setupPayload(PerRayData_radiance& prd);
 RT_METHOD void resolvePayload(PerRayData_radiance& parent, PerRayData_radiance& prd);
+
+/* Based on rayoringin() from raytrace.c */
+RT_METHOD int rayorigin(PerRayData_radiance& new_prd, const PerRayData_radiance& prd, const float3& rcoef, const int& d, const int& ad)
+{
+	new_prd.weight = prd.weight * fminf(fmaxf(rcoef), 1.0f);
+	if (new_prd.weight <= 0.0f)			/* check for expiration */
+		return 0;
+
+	//new_prd.seed = prd.seed;//lcg( prd.seed );
+	new_prd.state = prd.state;
+	new_prd.depth = prd.depth + d;
+	new_prd.ambient_depth = prd.ambient_depth + ad;
+#ifdef CONTRIB
+	new_prd.rcoef = prd.rcoef * rcoef;
+#endif
+#ifdef ANTIMATTER
+	new_prd.mask = prd.mask;
+	new_prd.inside = prd.inside;
+#endif
+
+	if (maxdepth <= 0) {	/* Russian roulette */
+		//if (minweight <= 0.0f)
+		//	error(USER, "zero ray weight in Russian roulette");
+		if (maxdepth < 0 && new_prd.depth > -maxdepth)
+			return 0;		/* upper reflection limit */
+		if (new_prd.weight >= minweight)
+			return 1;
+		if (curand_uniform(prd.state) > new_prd.weight / minweight)
+			return 0;
+#ifdef CONTRIB
+		new_prd.rcoef *= minweight / new_prd.weight;	/* promote survivor */
+#endif
+		new_prd.weight = minweight;
+		return 1;
+	}
+
+	return (new_prd.weight >= minweight && new_prd.depth <= maxdepth);
+}
 
 RT_METHOD void setupPayload(PerRayData_radiance& prd)
 {

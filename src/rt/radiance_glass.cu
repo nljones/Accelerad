@@ -15,9 +15,6 @@ using namespace optix;
 /* Context variables */
 rtDeclareVariable(rtObject,     top_object, , );
 
-rtDeclareVariable(float,        minweight, , ); /* minimum ray weight */
-rtDeclareVariable(int,          maxdepth, , ); /* maximum recursion depth */
-
 /* Material variables */
 #ifdef HIT_TYPE
 rtDeclareVariable(unsigned int, type, , ); /* The material type representing "glass" or "dielectric" */
@@ -179,20 +176,7 @@ RT_PROGRAM void closest_hit_radiance()
 		//trans *= pcol;
 
 		/* transmitted ray */
-		new_prd.weight = prd.weight * fmaxf(trans);
-		if (new_prd.weight >= minweight) {
-			new_prd.result = make_float3(0.0f);
-			new_prd.depth = prd.depth;
-			new_prd.ambient_depth = prd.ambient_depth;
-			//new_prd.seed = prd.seed;//lcg( prd.seed );
-			new_prd.state = prd.state;
-#ifdef CONTRIB
-			new_prd.rcoef = prd.rcoef * trans;
-#endif
-#ifdef ANTIMATTER
-			new_prd.mask = prd.mask;
-			new_prd.inside = prd.inside;
-#endif
+		if (rayorigin(new_prd, prd, trans, 0, 0)) {
 #ifdef DAYSIM_COMPATIBLE
 			new_prd.dc = daysimNext(prd.dc);
 #endif
@@ -226,20 +210,7 @@ RT_PROGRAM void closest_hit_radiance()
 	refl       += 0.5f * r1m * ( 1.0f + (1.0f-2.0f*r1m) * mcolor * mcolor ) / (1.0f - r1m * r1m * mcolor * mcolor );
 
 	/* reflected ray */
-	new_prd.weight = prd.weight * fmaxf(refl);
-	new_prd.depth = prd.depth + 1;
-	if (new_prd.weight >= minweight && new_prd.depth <= abs(maxdepth)) {
-		new_prd.result = make_float3(0.0f);
-		new_prd.ambient_depth = prd.ambient_depth;
-		//new_prd.seed = prd.seed;//lcg( prd.seed );
-		new_prd.state = prd.state;
-#ifdef CONTRIB
-		new_prd.rcoef = prd.rcoef * refl;
-#endif
-#ifdef ANTIMATTER
-		new_prd.mask = prd.mask;
-		new_prd.inside = prd.inside;
-#endif
+	if (rayorigin(new_prd, prd, refl, 1, 0)) {
 #ifdef DAYSIM_COMPATIBLE
 		new_prd.dc = daysimNext(prd.dc);
 #endif

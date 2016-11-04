@@ -27,7 +27,6 @@ rtDeclareVariable(unsigned int, segment_offset, , ) = 0u; /* Offset into data if
 
 rtDeclareVariable(float,        ambacc, , ); /* Ambient accuracy (aa). This value will approximately equal the error from indirect illuminance interpolation */
 rtDeclareVariable(float,        maxarad, , ); /* maximum ambient radius */
-rtDeclareVariable(float,        minweight, , ); /* minimum ray weight (lw) */
 
 /* OptiX variables */
 rtDeclareVariable(uint3, launch_index, rtLaunchIndex, );
