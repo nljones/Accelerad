@@ -6,6 +6,7 @@
 #include <optix.h>
 #include <optixu/optixu_math_namespace.h>
 #include "optix_shader_common.h"
+#include "optix_shader_ray.h"
 #include "optix_point_common.h"
 
 using namespace optix;

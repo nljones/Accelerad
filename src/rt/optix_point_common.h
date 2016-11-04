@@ -23,6 +23,8 @@ typedef struct struct_point_direction
 } PointDirection;
 
 #ifdef __CUDACC__
+#include "optix_shader_random.h"
+
 /* Ray payload structure */
 struct PerRayData_point_cloud
 {

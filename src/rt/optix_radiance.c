@@ -471,7 +471,7 @@ static void applyRadianceSettings(const RTcontext context, const VIEW* view, con
 	applyContextVariable1i( context, "maxdepth", maxdepth ); // -lr, from ray.h, negative values indicate Russian roulette
 
 	if (rand_samp)
-		applyContextVariable1ui(context, "random_seed", random()); // -u
+		applyContextVariable1ui(context, "random_seed", (unsigned int)random()); // -u
 
 	if (view) {
 		camera_frame = applyContextVariable1ui(context, "frame", frame);

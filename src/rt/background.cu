@@ -6,6 +6,7 @@
 //#define RT_USE_TEMPLATED_RTCALLABLEPROGRAM
 #include <optix_world.h>
 #include "optix_shader_common.h"
+#include "optix_shader_ray.h"
 #ifdef CONTRIB_DOUBLE
 #include "optix_double.h"
 #endif

@@ -5,6 +5,7 @@
 
 #include <optix_world.h>
 #include "optix_shader_common.h"
+#include "optiX_shader_ray.h"
 #include "optix_ambient_common.h"
 #include "optix_point_common.h"
 #ifdef CONTRIB_DOUBLE
