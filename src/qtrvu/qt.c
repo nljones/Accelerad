@@ -271,7 +271,7 @@ void qt_process_command(const char* com)
 			qt_comout(buf);
 			last_total_progress = progress ? progress : 1;
 			progress = 0;
-			renderOptixIterative(&ourview, hresolu, vresolu, !(pdepth++), greyscale, exposure, scale, decades, mask, ralrm, qt_rvu_paint_image, qt_rvu_update_plot);
+			renderOptixIterative(&ourview, hresolu, vresolu, !(pdepth++), ralrm, qt_rvu_paint_image, qt_rvu_update_plot);
 			if (dev->inpready)
 			{
 				qt_comout("abort");

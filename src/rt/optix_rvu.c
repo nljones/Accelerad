@@ -22,6 +22,13 @@ RTbuffer ray_count_buffer_handle = NULL;
 #endif
 extern RTvariable camera_frame;
 
+/* Parameters that can change without resetting frame count */
+extern double exposure;		/* exposure for scene (-pe) */
+extern int greyscale;		/* map colors to brightness? (-b) */
+extern double scale;		/* maximum of scale for falsecolor images, zero for regular tonemapping (-s) */
+extern int decades;			/* number of decades for log scale, zero for standard scale (-log) */
+extern double mask;			/* minimum value to display in falsecolor images (-m) */
+
 /* Regions */
 extern int xt, yt, xh, yh, xl, yl;
 extern double omegat, omegah, omegal;
@@ -33,10 +40,8 @@ static int makeFalseColorMap(const RTcontext context);
 static RTvariable greyscale_var = NULL, exposure_var = NULL, scale_var = NULL, tonemap_var = NULL, decades_var = NULL, mask_var = NULL;
 static RTvariable task_position = NULL, task_angle = NULL, high_position = NULL, high_angle = NULL, low_position = NULL, low_angle = NULL, position_flags = NULL;
 static RTbuffer metrics_buffer = NULL, direct_buffer = NULL, diffuse_buffer = NULL;
-static int last_greyscale, last_decades;
-static double last_exposure, last_scale, last_mask;
 
-void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const int greyscale, const double exposure, const double scale, const int decades, const double mask, const double alarm, void fpaint(int, int, int, int, const unsigned char *), void fplot(double *))
+void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const double alarm, void fpaint(int, int, int, int, const unsigned char *), void fplot(double *))
 {
 	/* Primary RTAPI objects */
 	RTcontext           context;
@@ -114,12 +119,6 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		low_angle = applyContextVariable1f(context, "low_angle", (float)omegal);
 		position_flags = applyContextVariable1ui(context, "flags", 0u);
 
-		/* Save settings */
-		last_exposure = exposure;
-		last_greyscale = greyscale;
-		last_scale = scale;
-		last_decades = decades;
-		last_mask = mask;
 #ifdef SAVE_METRICS
 		sprintf(errmsg, "%s.csv", octname);
 		csv = fopen(errmsg, "w");
@@ -142,29 +141,6 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		}
 		else {
 			RT_CHECK_ERROR(rtVariableSet1ui(camera_frame, ++frame));
-		}
-
-		/* Parameters that can change without resetting frame count */
-		if (exposure != last_exposure) {
-			RT_CHECK_ERROR(rtVariableSet1f(exposure_var, (float)exposure));
-			last_exposure = exposure;
-		}
-		if (greyscale != last_greyscale) {
-			RT_CHECK_ERROR(rtVariableSet1ui(greyscale_var, (unsigned int)greyscale));
-			last_greyscale = greyscale;
-		}
-		if (scale != last_scale) {
-			RT_CHECK_ERROR(rtVariableSet1f(scale_var, (float)scale));
-			last_scale = scale;
-			//TODO change tonemap
-		}
-		if (decades != last_decades) {
-			RT_CHECK_ERROR(rtVariableSet1i(decades_var, decades));
-			last_decades = decades;
-		}
-		if (mask != last_mask) {
-			RT_CHECK_ERROR(rtVariableSet1f(mask_var, (float)mask));
-			last_mask = mask;
 		}
 	}
 
@@ -415,6 +391,41 @@ void retreiveOptixImage(const int width, const int height, const double exposure
 
 	RT_CHECK_ERROR(rtBufferUnmap(direct_buffer));
 	RT_CHECK_ERROR(rtBufferUnmap(diffuse_buffer));
+}
+
+void setExposure(const double expose)
+{
+	RTcontext context = context_handle;
+	exposure = expose;
+	RT_CHECK_ERROR(rtVariableSet1f(exposure_var, (float)expose));
+}
+
+void setGreyscale(const int grey)
+{
+	RTcontext context = context_handle;
+	greyscale = grey;
+	RT_CHECK_ERROR(rtVariableSet1ui(greyscale_var, (unsigned int)grey));
+}
+
+void setScale(const double maximum)
+{
+	RTcontext context = context_handle;
+	scale = maximum;
+	RT_CHECK_ERROR(rtVariableSet1f(scale_var, (float)maximum)); //TODO change tonemap
+}
+
+void setDecades(const int decade)
+{
+	RTcontext context = context_handle;
+	decades = decade;
+	RT_CHECK_ERROR(rtVariableSet1i(decades_var, decade));
+}
+
+void setMask(const double masking)
+{
+	RTcontext context = context_handle;
+	mask = masking;
+	RT_CHECK_ERROR(rtVariableSet1f(mask_var, (float)masking));
 }
 
 void setTaskArea(const int x, const int y, const double omega)
