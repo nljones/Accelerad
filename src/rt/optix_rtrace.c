@@ -15,6 +15,11 @@ void computeOptix(const size_t width, const size_t height, const unsigned int im
 static void getRay(RayData* data, const RAY* ray);
 static void setRay(RAY* ray, const RayData* data);
 
+#ifdef DAYSIM
+/* Handles to objects used repeatedly for daylight coefficient calulation */
+extern RTbuffer dc_scratch_buffer;
+#endif
+
 
 /**
  * Setup and run the OptiX kernel similar to RTRACE.

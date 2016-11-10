@@ -796,7 +796,7 @@ static size_t chooseAmbientLocations(const RTcontext context, const unsigned int
 		/* Adjust output buffer size */
 		unsigned int divisions = cluster_count ? ambientDivisions(ambientWeight(level)) : 0;
 		const size_t bytes_per_cluster = sizeof(PointDirection) * divisions * divisions;
-		const size_t clusters_per_segment = min(cluster_count, INT_MAX / bytes_per_cluster); // Limit imposed by OptiX
+		const size_t clusters_per_segment = bytes_per_cluster ? min(cluster_count, INT_MAX / bytes_per_cluster) : cluster_count; // Limit imposed by OptiX
 		seed_count = cluster_count * divisions * divisions;
 
 		if ((multi_pass = (cluster_count - 1) / clusters_per_segment)) {
@@ -1158,7 +1158,7 @@ static void calcAmbientValues(const RTcontext context, const unsigned int level,
 #ifdef DAYSIM
 	/* Determine how large the scratch space can be */
 	const size_t bytes_per_cluster = sizeof(float) * daysimGetCoefficients() * maxdepth * 2 * divisions * divisions;
-	const size_t clusters_per_segment = min(cluster_count, INT_MAX / bytes_per_cluster); // Limit imposed by OptiX
+	const size_t clusters_per_segment = bytes_per_cluster ? min(cluster_count, INT_MAX / bytes_per_cluster) : cluster_count; // Limit imposed by OptiX
 	if (cluster_count > clusters_per_segment)
 		mprintf("Processing ambient records in %" PRIu64 " segments of %" PRIu64 ".\n", (cluster_count - 1) / clusters_per_segment + 1, clusters_per_segment);
 
@@ -1166,9 +1166,9 @@ static void calcAmbientValues(const RTcontext context, const unsigned int level,
 		RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * maxdepth * 2, divisions * divisions, clusters_per_segment));
 
 	for (i = 0u; i < cluster_count; i += clusters_per_segment) {
-		unsigned int current_count = min(cluster_count - i, clusters_per_segment);
+		const size_t current_count = min(cluster_count - i, clusters_per_segment);
 
-		RT_CHECK_ERROR(rtVariableSet1ui(segment_var, i));
+		RT_CHECK_ERROR(rtVariableSet1ui(segment_var, (unsigned int)i));
 
 		/* Run */
 		runKernel3D(context, AMBIENT_SAMPLING_ENTRY, divisions, divisions, current_count);
