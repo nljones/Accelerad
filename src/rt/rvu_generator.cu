@@ -157,10 +157,11 @@ RT_PROGRAM void ray_generator()
 	}
 	else {
 		metrics.avlum = luminance * metrics.omega;
-		if (dot(W, ray_direction) > 0) {
+		const float WdotD = dot(W, ray_direction);
+		if (WdotD > 0.0f) {
 			float guth = getPositionIndex(ray_direction);
-			metrics.ev = luminance * dot(W, ray_direction * metrics.omega);
-			metrics.dgp = luminance * luminance * metrics.omega / (guth * guth);
+			metrics.ev = luminance * metrics.omega * WdotD;
+			metrics.dgp = (metric)luminance * luminance * metrics.omega / (guth * guth);
 		}
 		else
 			metrics.ev = metrics.dgp = 0.0f;

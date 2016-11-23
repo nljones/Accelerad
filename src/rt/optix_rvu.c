@@ -50,7 +50,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	/* Parameters */
 	unsigned int i, size;
 	double omega = 0.0, ev = 0.0, avlum = 0.0, dgp = 0.0, rammg = 0.0;
-	double lumT = 0.0, omegaT = 0.0, lumH = 0.0, omegaH = 0.0, lumL = 0.0, omegaL = 0.0, cr = 0.0;
+	double lumV = 0.0, omegaV = 0.0, lumT = 0.0, omegaT = 0.0, lumH = 0.0, omegaH = 0.0, lumL = 0.0, omegaL = 0.0, cr = 0.0;
 	int nt = 0, nh = 0, nl = 0;
 	unsigned char* colors;
 	Metrics *metrics;
@@ -155,37 +155,41 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	/* Calculate the metrics */
 	RT_CHECK_ERROR(rtBufferMap(metrics_buffer, (void**)&metrics));
 
+#ifndef USER_STUDY
 	rammg = calcRAMMG(metrics, width, height);
+#endif
 
 	for (i = 0u; i < size; i++) {
 #ifdef DEBUG_OPTIX
-		if (metrics->omega == -1.0f)
-			logException((RTexception)((int)metrics->ev));
+		if (metrics[i].omega == -1.0f)
+			logException((RTexception)((int)metrics[i].ev));
 #endif
-		if (metrics->omega >= 0.0f) {
-			omega += metrics->omega;
-			ev += metrics->ev;
-			avlum += metrics->avlum;
-			dgp += metrics->dgp;
-			if (metrics->flags & 0x1) {
-				lumT += metrics->avlum;
-				omegaT += metrics->omega;
+		if (metrics[i].omega >= 0.0f) {
+			omega += metrics[i].omega;
+			ev += metrics[i].ev;
+			avlum += metrics[i].avlum;
+			if (metrics[i].ev > 0.0) { // In the field of view
+				lumV += metrics[i].avlum;
+				omegaV += metrics[i].omega;
+			}
+			if (metrics[i].flags & 0x1) {
+				lumT += metrics[i].avlum;
+				omegaT += metrics[i].omega;
 				nt++;
 			}
-			if (metrics->flags & 0x2) {
-				lumH += metrics->avlum;
-				omegaH += metrics->omega;
+			if (metrics[i].flags & 0x2) {
+				lumH += metrics[i].avlum;
+				omegaH += metrics[i].omega;
 				nh++;
 			}
-			if (metrics->flags & 0x4) {
-				lumL += metrics->avlum;
-				omegaL += metrics->omega;
+			if (metrics[i].flags & 0x4) {
+				lumL += metrics[i].avlum;
+				omegaL += metrics[i].omega;
 				nl++;
 			}
 		}
-		metrics++;
 	}
-	RT_CHECK_ERROR(rtBufferUnmap(metrics_buffer));
+
 	if (do_irrad) {
 		avlum /= size;
 		if (nt) lumT /= nt;
@@ -193,14 +197,34 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		if (nl) lumL /= nl;
 	}
 	else {
+		double lum_thresh = 5.0; // Max 100
 		avlum /= omega;
-		dgp = 5.87e-5 * ev + 0.0918 * log10(1 + dgp / pow(ev, 1.87)) + 0.16;
-		if (dgp > 1.0) dgp = 1.0;
+		lumV /= omegaV;
 		if (nt) lumT /= omegaT;
 		if (nh) lumH /= omegaH;
 		if (nl) lumL /= omegaL;
+
+		if (nt)
+			lum_thresh *= lumT;
+		else
+			lum_thresh *= lumV;
+
+		for (i = 0u; i < size; i++) {
+			if (metrics[i].omega >= 0.0f && metrics[i].avlum > lum_thresh * metrics[i].omega) {
+				dgp += metrics[i].dgp;
+			}
+		}
+
+		//if (ev > 380) {
+		dgp = 5.87e-5 * ev + 0.092 * log10(1 + dgp / pow(ev, 1.87)) + 0.159;
+		if (dgp > 1.0) dgp = 1.0;
+		if (ev < 1000) /* low light correction */
+			dgp *= exp(0.024 * ev - 4) / (1 + exp(0.024 * ev - 4));
+		//dgp /= 1.1 - 0.5 * age / 100.0; /* age correction */
+		//}
 	}
 	if (nh && nl) cr = lumH / lumL;
+	RT_CHECK_ERROR(rtBufferUnmap(metrics_buffer));
 
 	/* Plot results */
 	plotValues = (double *)malloc(METRICS_COUNT * sizeof(double));

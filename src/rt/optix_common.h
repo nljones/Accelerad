@@ -13,6 +13,7 @@
 //#define OLDAMB
 #define LIGHTS
 #define ANTIMATTER
+#define METRICS_DOUBLE
 #define CONTRIB /* Calculate contribution coefficients (for rcontrib) */
 #ifdef CONTRIB
 //#define CONTRIB_DOUBLE /* Use double-precision contribution coefficients */
@@ -20,6 +21,12 @@
 //#define DAYSIM_COMPATIBLE
 //#define PRINT_OPTIX /* Enable OptiX rtPrintf statements to standard out */
 
+
+#ifdef METRICS_DOUBLE
+typedef double metric;
+#else
+typedef float metric;
+#endif
 
 /*! Additional Exceptions */
 typedef enum
@@ -119,9 +126,9 @@ typedef struct struct_ray_parameters
 /* Structure to hold evaluation metrics */
 typedef struct struct_eval_metrics
 {
-	float omega;	/* solid angle */
-	float ev;		/* contribution to vertical eye illuminance */
-	float avlum;	/* contribution to average luminance */
-	float dgp;		/* contribution to daylight glare probability */
+	metric omega;	/* solid angle */
+	metric ev;		/* contribution to vertical eye illuminance */
+	metric avlum;	/* contribution to average luminance */
+	metric dgp;		/* contribution to daylight glare probability */
 	int flags;		/* flags for task regions */
 } Metrics;
