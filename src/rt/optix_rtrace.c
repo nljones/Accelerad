@@ -69,8 +69,10 @@ void computeOptix(const size_t width, const size_t height, const unsigned int im
 
 #ifdef DAYSIM
 	/* Set scratch buffer size for this OptiX kernel */
-	if (daysimGetCoefficients())
-		RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * maxdepth * 2, width, height));
+	if (daysimGetCoefficients()) {
+		int use_ambient = ambacc > FTINY && ambounce > 0 && ambdiv > 0;
+		RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * abs(maxdepth) * (use_ambient ? 2 : 3), width, height));
+	}
 #endif
 
 	/* Run the OptiX kernel */

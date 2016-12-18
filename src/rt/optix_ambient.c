@@ -562,8 +562,8 @@ void createAmbientRecords(const RTcontext context, const VIEW* view, const RTsiz
 
 	/* Set number of iterations. */
 	max_level = ambounce;
-	if (maxdepth > 0 && maxdepth < ambounce)
-		max_level = maxdepth;
+	if (maxdepth && abs(maxdepth) < ambounce)
+		max_level = abs(maxdepth);
 	if (minweight > 0)
 		while (max_level > 1 && ambientWeight(max_level) < minweight) // if max_level is zero, objects won't get initialized
 			max_level--;
@@ -660,7 +660,7 @@ void createAmbientRecords(const RTcontext context, const VIEW* view, const RTsiz
 #ifndef AMB_PARALLEL
 #ifdef DAYSIM
 	if (daysimGetCoefficients())
-		RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * maxdepth * 2, 1u, cuda_kmeans_clusters));
+		RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * abs(maxdepth) * 2, 1u, cuda_kmeans_clusters));
 #endif
 #endif /* AMB_PARALLEL */
 #ifdef AMBIENT_CELL
@@ -1157,13 +1157,13 @@ static void calcAmbientValues(const RTcontext context, const unsigned int level,
 	unsigned int divisions = ambientDivisions(ambientWeight(level));
 #ifdef DAYSIM
 	/* Determine how large the scratch space can be */
-	const size_t bytes_per_cluster = sizeof(float) * daysimGetCoefficients() * maxdepth * 2 * divisions * divisions;
+	const size_t bytes_per_cluster = sizeof(float) * daysimGetCoefficients() * abs(maxdepth) * 2 * divisions * divisions;
 	const size_t clusters_per_segment = bytes_per_cluster ? min(cluster_count, INT_MAX / bytes_per_cluster) : cluster_count; // Limit imposed by OptiX
 	if (cluster_count > clusters_per_segment)
 		mprintf("Processing ambient records in %" PRIu64 " segments of %" PRIu64 ".\n", (cluster_count - 1) / clusters_per_segment + 1, clusters_per_segment);
 
 	if (daysimGetCoefficients())
-		RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * maxdepth * 2, divisions * divisions, clusters_per_segment));
+		RT_CHECK_ERROR(rtBufferSetSize3D(dc_scratch_buffer, daysimGetCoefficients() * abs(maxdepth) * 2, divisions * divisions, clusters_per_segment));
 
 	for (i = 0u; i < cluster_count; i += clusters_per_segment) {
 		const size_t current_count = min(cluster_count - i, clusters_per_segment);

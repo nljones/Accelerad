@@ -42,6 +42,11 @@ void contribOptix(const size_t width, const size_t height, const unsigned int im
 	MODCONT	*mp;
 	int	j, k;
 
+	/* Set the size */
+	size = width * height;
+	if (!size)
+		error(USER, "Number of points is zero or not set.");
+
 	/* Check size of output */
 #ifdef CONTRIB_DOUBLE
 	const size_t bytes_per_row = sizeof(double4) * bins * width;
@@ -50,12 +55,7 @@ void contribOptix(const size_t width, const size_t height, const unsigned int im
 #endif
 	const size_t rows_per_segment = bytes_per_row ? min(height, INT_MAX / bytes_per_row) : height; // Limit imposed by OptiX
 	if (!rows_per_segment)
-		error(USER, "Too many rays per row. User a smaller -x.");
-
-	/* Set the size */
-	size = width * height;
-	if (!size)
-		error(USER, "Number of points is zero or not set.");
+		error(USER, "Too many rays per row. Use a smaller -x.");
 
 	/* Setup state */
 	createContext(&context, width, height, alarm);
