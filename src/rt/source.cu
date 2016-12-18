@@ -19,6 +19,8 @@ rtDeclareVariable(int, type, , ); /* type of data (true for float) */
 rtDeclareVariable(float3, org, , ); /* texture minimum coordinates */
 rtDeclareVariable(float3, siz, , ); /* texture coordinates extent */
 rtDeclareVariable(Transform, transform, , ); /* transformation matrix */
+rtDeclareVariable(int, transpose, , ) = 0; /* flag to transpose texture to swap phi and theta */
+rtDeclareVariable(float, symmetry, , ) = 0.0f; /* radial symmetry angle in radians */
 rtDeclareVariable(float, multiplier, , ) = 1.0f; /* multiplier for light source intensity */
 rtDeclareVariable(float3, bounds, , ); /* dimensions of axis-aligned box or Z-aligned cylinder in meters */
 
@@ -28,6 +30,16 @@ RT_METHOD float3 source(const float3& dir)
 	float phi = acosf(dir.z);
 	float theta = atan2f(-dir.y, -dir.x);
 	theta += 2.0f * M_PIf * (theta < 0.0f);
+
+	if (transpose) {
+		float temp = phi;
+		phi = theta;
+		theta = temp;
+	}
+
+	if (symmetry > 0.0f) {
+		phi = fabsf(symmetry - fmodf(phi + symmetry, 2 * symmetry));
+	}
 
 	/* Normalize to [0, 1] within range */
 	phi = (180.0f * M_1_PIf * phi - org.x) / siz.x;

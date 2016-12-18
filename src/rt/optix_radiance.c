@@ -1883,8 +1883,30 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 			(float)bxp.xfm[0][2], (float)bxp.xfm[1][2], (float)bxp.xfm[2][2]
 		};
 		if (!strcmp(filename(rec->oargs.sarg[2]), "source.cal")) {
+			const char *src_phi = "src_phi", *src_theta = "src_theta";
+			const size_t length_phi = strlen(src_phi);
+			int transpose = 0;
+			double symmetry = 0.0;
+			char *sym_str;
+
 			/* Check compatibility with existing implementation */
-			if ((strcmp(rec->oargs.sarg[0], "corr") && strcmp(rec->oargs.sarg[0], "flatcorr") && strcmp(rec->oargs.sarg[0], "boxcorr") && strcmp(rec->oargs.sarg[0], "cylcorr")) || strcmp(rec->oargs.sarg[3], "src_phi") || strcmp(rec->oargs.sarg[4], "src_theta")) {
+			if (strcmp(rec->oargs.sarg[0], "corr") && strcmp(rec->oargs.sarg[0], "flatcorr") && strcmp(rec->oargs.sarg[0], "boxcorr") && strcmp(rec->oargs.sarg[0], "cylcorr")) {
+				printObject(rec);
+				return RT_PROGRAM_ID_NULL;
+			}
+			if (strncmp(rec->oargs.sarg[3], src_phi, length_phi) || strcmp(rec->oargs.sarg[4], src_theta)) {
+				if (strncmp(rec->oargs.sarg[4], src_phi, length_phi) || strcmp(rec->oargs.sarg[3], src_theta)) {
+					printObject(rec);
+					return RT_PROGRAM_ID_NULL;
+				}
+				transpose = 1;
+			}
+			sym_str = &rec->oargs.sarg[3 + transpose][length_phi];
+			if (!strcmp(sym_str, "2"))
+				symmetry = PI;
+			else if (!strcmp(sym_str, "4"))
+				symmetry = PI / 2;
+			else if (strlen(sym_str)) {
 				printObject(rec);
 				return RT_PROGRAM_ID_NULL;
 			}
@@ -1895,6 +1917,10 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 			applyProgramVariable1i( context, program, "type", dp->type == DATATY );
 			applyProgramVariable3f( context, program, "org", dp->dim[dp->nd-1].org, dp->nd > 1 ? dp->dim[dp->nd-2].org : 0.0f, dp->nd > 2 ? dp->dim[dp->nd-3].org : 0.0f );
 			applyProgramVariable3f( context, program, "siz", dp->dim[dp->nd-1].siz, dp->nd > 1 ? dp->dim[dp->nd-2].siz : 1.0f, dp->nd > 2 ? dp->dim[dp->nd-3].siz : 1.0f );
+			if (transpose)
+				applyProgramVariable1i(context, program, "transpose", transpose);
+			if (symmetry > 0.0)
+				applyProgramVariable1f(context, program, "symmetry", (float)symmetry);
 			if (rec->oargs.nfargs > 0)
 				applyProgramVariable1f(context, program, "multiplier", (float)rec->oargs.farg[0]); //TODO handle per-color channel multipliers
 			if (rec->oargs.nfargs > 2)
