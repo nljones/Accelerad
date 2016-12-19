@@ -98,7 +98,8 @@ RTvariable navsum_var = NULL;
 
 /* Handles to objects used repeatedly in animation */
 unsigned int frame = 0u;
-RTvariable camera_frame, camera_type, camera_eye, camera_u, camera_v, camera_w, camera_fov, camera_shift, camera_clip, camera_vdist;
+RTvariable camera_frame = NULL, backvis_var = NULL, irrad_var = NULL;
+static RTvariable camera_type, camera_eye, camera_u, camera_v, camera_w, camera_fov, camera_shift, camera_clip, camera_vdist;
 static RTremotedevice remote_handle = NULL;
 static RTgeometryinstance instance_handle = NULL;
 static RTgeometry mesh_handle = NULL;
@@ -502,8 +503,7 @@ void createCamera(const RTcontext context, const char* ptx_name)
 	/* Ray generation program */
 	ptxFile(path_to_ptx, ptx_name);
 	RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "ray_generator", &program));
-	if (do_irrad)
-		applyProgramVariable1ui(context, program, "do_irrad", do_irrad); // -i
+	irrad_var = applyProgramVariable1ui(context, program, "do_irrad", (unsigned int)do_irrad); // -i
 	RT_CHECK_ERROR(rtContextSetRayGenerationProgram(context, RADIANCE_ENTRY, program));
 
 	/* Exception program */
@@ -513,8 +513,7 @@ void createCamera(const RTcontext context, const char* ptx_name)
 	/* Miss program */
 	ptxFile( path_to_ptx, "background" );
 	RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "miss", &program));
-	if ( do_irrad )
-		RT_CHECK_ERROR(rtContextSetMissProgram(context, PRIMARY_RAY, program));
+	RT_CHECK_ERROR(rtContextSetMissProgram(context, PRIMARY_RAY, program)); // only needed when do_irrad is true
 	RT_CHECK_ERROR(rtContextSetMissProgram(context, RADIANCE_RAY, program));
 #ifdef HIT_TYPE
 	applyProgramVariable1ui(context, program, "type", OBJ_SOURCE);
@@ -643,7 +642,7 @@ static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RT
 		RT_CHECK_ERROR(rtGeometrySetBoundingBoxProgram(*mesh, program));
 		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "mesh_intersect", &program));
 		RT_CHECK_ERROR(rtGeometrySetIntersectionProgram(*mesh, program));
-		applyProgramVariable1ui(context, program, "backvis", backvis); // -bv
+		backvis_var = applyProgramVariable1ui(context, program, "backvis", (unsigned int)backvis); // -bv
 	}
 	RT_CHECK_ERROR(rtGeometrySetPrimitiveCount(*mesh, (unsigned int)traingles->count));
 
@@ -1864,6 +1863,8 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 	/* Create texture sampler */
 	RT_CHECK_ERROR( rtTextureSamplerCreate( context, &tex_sampler ) );
 	for (i = 0u; i < dp->nd; i++) {
+		if (dp->dim[i].p)
+			objerror(rec, WARNING, "ignoring point locations");
 		RT_CHECK_ERROR( rtTextureSamplerSetWrapMode( tex_sampler, i, RT_WRAP_CLAMP_TO_EDGE ) );
 	}
 	RT_CHECK_ERROR( rtTextureSamplerSetFilteringModes( tex_sampler, RT_FILTER_LINEAR, RT_FILTER_LINEAR, RT_FILTER_NONE ) );

@@ -40,6 +40,7 @@ static int makeFalseColorMap(const RTcontext context);
 static RTvariable greyscale_var = NULL, exposure_var = NULL, scale_var = NULL, tonemap_var = NULL, decades_var = NULL, mask_var = NULL;
 static RTvariable task_position = NULL, task_angle = NULL, high_position = NULL, high_angle = NULL, low_position = NULL, low_angle = NULL, position_flags = NULL;
 static RTbuffer metrics_buffer = NULL, direct_buffer = NULL, diffuse_buffer = NULL;
+extern RTvariable backvis_var, irrad_var;
 
 void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const double alarm, void fpaint(int, int, int, int, const unsigned char *), void fplot(double *))
 {
@@ -415,6 +416,21 @@ void retreiveOptixImage(const int width, const int height, const double exposure
 
 	RT_CHECK_ERROR(rtBufferUnmap(direct_buffer));
 	RT_CHECK_ERROR(rtBufferUnmap(diffuse_buffer));
+}
+
+void setBackfaceVisibility(const int back)
+{
+	RTcontext context = context_handle;
+	backvis = back;
+	RT_CHECK_ERROR(rtVariableSet1ui(backvis_var, (unsigned int)back));
+}
+
+void setIrradiance(const int irrad)
+{
+	RTcontext context = context_handle;
+	do_irrad = irrad;
+	updateModel(context, NULL);
+	RT_CHECK_ERROR(rtVariableSet1ui(irrad_var, (unsigned int)irrad));
 }
 
 void setExposure(const double expose)

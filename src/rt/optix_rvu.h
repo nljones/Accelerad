@@ -13,6 +13,9 @@ extern void retreiveOptixImage(const int width, const int height, const double e
 extern void updateOctree(char* path);
 extern void endOptix();
 
+extern void setBackfaceVisibility(const int back);
+extern void setIrradiance(const int irrad);
+
 extern void setExposure(const double expose);
 extern void setGreyscale(const int grey);
 extern void setScale(const double maximum);
