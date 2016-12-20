@@ -160,6 +160,7 @@ void setupKernel(const RTcontext context, const VIEW* view, LUTAB* modifiers, co
 void updateModel(const RTcontext context, LUTAB* modifiers);
 void createCamera(const RTcontext context, const char* ptx_name);
 void updateCamera(const RTcontext context, const VIEW* view);
+int setIrradiance(const int irrad);
 
 /* in optix_ambient.c */
 void createAmbientRecords(const RTcontext context, const VIEW* view, const RTsize width, const RTsize height, const double alarm);
@@ -180,6 +181,7 @@ RTvariable applyContextVariable1ui(const RTcontext context, const char* name, co
 RTvariable applyContextVariable1f(const RTcontext context, const char* name, const float value);
 RTvariable applyContextVariable2f(const RTcontext context, const char* name, const float x, const float y);
 RTvariable applyContextVariable3f(const RTcontext context, const char* name, const float x, const float y, const float z);
+RTvariable applyContextVariable(const RTcontext context, const char* name, const unsigned int size, const void* data);
 RTvariable applyProgramVariable1i(const RTcontext context, const RTprogram program, const char* name, const int value);
 RTvariable applyProgramVariable3i(const RTcontext context, const RTprogram program, const char* name, const int x, const int y, const int z);
 RTvariable applyProgramVariable1ui(const RTcontext context, const RTprogram program, const char* name, const unsigned int value);

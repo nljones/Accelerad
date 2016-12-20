@@ -13,8 +13,7 @@ extern void retreiveOptixImage(const int width, const int height, const double e
 extern void updateOctree(char* path);
 extern void endOptix();
 
-extern void setBackfaceVisibility(const int back);
-extern void setIrradiance(const int irrad);
+extern int updateIrradiance(const int irrad);
 
 extern void setExposure(const double expose);
 extern void setGreyscale(const int grey);
@@ -27,6 +26,15 @@ extern void setHighArea(const int x, const int y, const double omega);
 extern void setLowArea(const int x, const int y, const double omega);
 extern void setAreaFlags(const unsigned int flags);
 
+/* from optix_radiance.c */
+extern int setBackfaceVisibility(const int back);
+extern int setDirectJitter(const double jitter);
+extern int setDirectSampling(const double ratio);
+extern int setDirectVisibility(const int vis);
+extern int setSpecularThreshold(const double threshold);
+extern int setSpecularJitter(const double jitter);
+extern int setMinWeight(const double weight);
+extern int setMaxDepth(const int depth);
 
 /* from rvmain.c */
 extern double ralrm;			/* seconds between reports (-t) */

@@ -200,6 +200,14 @@ RTvariable applyContextVariable3f(const RTcontext context, const char* name, con
 	return var;
 }
 
+RTvariable applyContextVariable(const RTcontext context, const char* name, const unsigned int size, const void* data)
+{
+	RTvariable var;
+	RT_CHECK_ERROR(rtContextDeclareVariable(context, name, &var));
+	RT_CHECK_ERROR(rtVariableSetUserData(var, size, data));
+	return var;
+}
+
 RTvariable applyProgramVariable1i(const RTcontext context, const RTprogram program, const char* name, const int value)
 {
 	RTvariable var;

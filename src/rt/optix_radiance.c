@@ -98,7 +98,11 @@ RTvariable navsum_var = NULL;
 
 /* Handles to objects used repeatedly in animation */
 unsigned int frame = 0u;
-RTvariable camera_frame = NULL, backvis_var = NULL, irrad_var = NULL;
+RTvariable camera_frame = NULL;
+static RTvariable backvis_var = NULL, irrad_var = NULL;
+static RTvariable dstrsrc_var = NULL, srcsizerat_var = NULL, directvis_var = NULL;
+static RTvariable specthresh_var = NULL, specjitter_var = NULL;
+static RTvariable minweight_var = NULL, maxdepth_var = NULL;
 static RTvariable camera_type, camera_eye, camera_u, camera_v, camera_w, camera_fov, camera_shift, camera_clip, camera_vdist;
 static RTremotedevice remote_handle = NULL;
 static RTgeometryinstance instance_handle = NULL;
@@ -433,17 +437,17 @@ static void applyRadianceSettings(const RTcontext context, const VIEW* view, con
 	applyContextVariable3f(context, "CIE_rgbf", (float)CIE_rf, (float)CIE_gf, (float)CIE_bf); // from color.h
 
 	/* Set direct parameters */
-	applyContextVariable1f(context, "dstrsrc", (float) dstrsrc); // -dj
-	applyContextVariable1f(context, "srcsizerat", (float)srcsizerat); // -ds
+	dstrsrc_var = applyContextVariable1f(context, "dstrsrc", (float)dstrsrc); // -dj
+	srcsizerat_var = applyContextVariable1f(context, "srcsizerat", (float)srcsizerat); // -ds
 	//applyContextVariable1f( context, "shadthresh", shadthresh ); // -dt
 	//applyContextVariable1f( context, "shadcert", shadcert ); // -dc
 	//applyContextVariable1i( context, "directrelay", directrelay ); // -dr
 	//applyContextVariable1i( context, "vspretest", vspretest ); // -dp
-	applyContextVariable1i( context, "directvis", directvis ); // -dv
+	directvis_var = applyContextVariable1i(context, "directvis", directvis); // -dv
 
 	/* Set specular parameters */
-	applyContextVariable1f(context, "specthresh", (float)specthresh); // -st
-	applyContextVariable1f(context, "specjitter", (float)specjitter); // -ss
+	specthresh_var = applyContextVariable1f(context, "specthresh", (float)specthresh); // -st
+	specjitter_var = applyContextVariable1f(context, "specjitter", (float)specjitter); // -ss
 
 	/* Set ambient parameters */
 	applyContextVariable3f( context, "ambval", ambval[0], ambval[1], ambval[2] ); // -av
@@ -468,8 +472,8 @@ static void applyRadianceSettings(const RTcontext context, const VIEW* view, con
 	/* Set ray limitting parameters */
 	if (maxdepth <= 0 && minweight <= 0.0) // check found in rayorigin() from raytrace.c
 		error(USER, "zero ray weight in Russian roulette");
-	applyContextVariable1f(context, "minweight", (float)minweight); // -lw, from ray.h
-	applyContextVariable1i( context, "maxdepth", maxdepth ); // -lr, from ray.h, negative values indicate Russian roulette
+	minweight_var = applyContextVariable1f(context, "minweight", (float)minweight); // -lw, from ray.h
+	maxdepth_var = applyContextVariable1i(context, "maxdepth", maxdepth); // -lr, from ray.h, negative values indicate Russian roulette
 
 	if (rand_samp)
 		applyContextVariable1ui(context, "random_seed", (unsigned int)random()); // -u
@@ -2239,6 +2243,96 @@ static void printObject(OBJREC* rec)
 	if (rec->os)
 		mprintf("\n Object structure: %s", rec->os);
 	mprintf("\n");
+}
+
+int setBackfaceVisibility(const int back)
+{
+	int changed;
+	if (changed = (backvis != back)) {
+		backvis = back;
+		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1ui(backvis_var, (unsigned int)back));
+	}
+	return changed;
+}
+
+int setIrradiance(const int irrad)
+{
+	int changed;
+	if (changed = (do_irrad != irrad)) {
+		do_irrad = irrad;
+		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1ui(irrad_var, (unsigned int)irrad));
+	}
+	return changed;
+}
+
+int setDirectJitter(const double jitter)
+{
+	int changed;
+	if (changed = (dstrsrc != jitter)) {
+		dstrsrc = jitter;
+		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1f(dstrsrc_var, (float)jitter));
+	}
+	return changed;
+}
+
+int setDirectSampling(const double ratio)
+{
+	int changed;
+	if (changed = (srcsizerat != ratio)) {
+		srcsizerat = ratio;
+		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1f(srcsizerat_var, (float)ratio));
+	}
+	return changed;
+}
+
+int setDirectVisibility(const int vis)
+{
+	int changed;
+	if (changed = (directvis != vis)) {
+		directvis = vis;
+		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1i(directvis_var, vis));
+	}
+	return changed;
+}
+
+int setSpecularThreshold(const double threshold)
+{
+	int changed;
+	if (changed = (specthresh != threshold)) {
+		specthresh = threshold;
+		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1f(specthresh_var, (float)threshold));
+	}
+	return changed;
+}
+
+int setSpecularJitter(const double jitter)
+{
+	int changed;
+	if (changed = (specjitter != jitter)) {
+		specjitter = jitter;
+		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1f(specjitter_var, (float)jitter));
+	}
+	return changed;
+}
+
+int setMinWeight(const double weight)
+{
+	int changed;
+	if (changed = (minweight != weight)) {
+		minweight = weight;
+		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1f(minweight_var, (float)weight));
+	}
+	return changed;
+}
+
+int setMaxDepth(const int depth)
+{
+	int changed;
+	if (changed = (maxdepth != depth)) {
+		maxdepth = depth;
+		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1i(maxdepth_var, depth));
+	}
+	return changed;
 }
 
 #endif /* ACCELERAD */
