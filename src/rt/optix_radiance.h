@@ -181,14 +181,14 @@ RTvariable applyContextVariable1ui(const RTcontext context, const char* name, co
 RTvariable applyContextVariable1f(const RTcontext context, const char* name, const float value);
 RTvariable applyContextVariable2f(const RTcontext context, const char* name, const float x, const float y);
 RTvariable applyContextVariable3f(const RTcontext context, const char* name, const float x, const float y, const float z);
-RTvariable applyContextVariable(const RTcontext context, const char* name, const unsigned int size, const void* data);
+RTvariable applyContextVariable(const RTcontext context, const char* name, const RTsize size, const void* data);
 RTvariable applyProgramVariable1i(const RTcontext context, const RTprogram program, const char* name, const int value);
 RTvariable applyProgramVariable3i(const RTcontext context, const RTprogram program, const char* name, const int x, const int y, const int z);
 RTvariable applyProgramVariable1ui(const RTcontext context, const RTprogram program, const char* name, const unsigned int value);
 RTvariable applyProgramVariable1f(const RTcontext context, const RTprogram program, const char* name, const float value);
 RTvariable applyProgramVariable2f(const RTcontext context, const RTprogram program, const char* name, const float x, const float y);
 RTvariable applyProgramVariable3f(const RTcontext context, const RTprogram program, const char* name, const float x, const float y, const float z);
-RTvariable applyProgramVariable(const RTcontext context, const RTprogram program, const char* name, const unsigned int size, const void* data);
+RTvariable applyProgramVariable(const RTcontext context, const RTprogram program, const char* name, const RTsize size, const void* data);
 RTvariable applyMaterialVariable1i(const RTcontext context, const RTmaterial material, const char* name, const int value);
 RTvariable applyMaterialVariable1ui(const RTcontext context, const RTmaterial material, const char* name, const unsigned int value);
 RTvariable applyMaterialVariable1f(const RTcontext context, const RTmaterial material, const char* name, const float value);
