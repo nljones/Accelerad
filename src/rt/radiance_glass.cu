@@ -178,6 +178,7 @@ RT_PROGRAM void closest_hit_radiance()
 
 		/* transmitted ray */
 		if (rayorigin(new_prd, prd, trans, 0, 0)) {
+			new_prd.result = make_float3(0.0f);
 #ifdef DAYSIM_COMPATIBLE
 			new_prd.dc = daysimNext(prd.dc);
 #endif
@@ -212,6 +213,7 @@ RT_PROGRAM void closest_hit_radiance()
 
 	/* reflected ray */
 	if (rayorigin(new_prd, prd, refl, 1, 0)) {
+		new_prd.result = make_float3(0.0f);
 #ifdef DAYSIM_COMPATIBLE
 		new_prd.dc = daysimNext(prd.dc);
 #endif

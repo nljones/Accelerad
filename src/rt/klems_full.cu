@@ -8,10 +8,12 @@
 
 using namespace optix;
 
-#define RHS	1 // set to -1 for left-handed system
+rtDeclareVariable(float3, normal, , );	/* Normal direction */
+rtDeclareVariable(float3, up, , );		/* Up direction */
+rtDeclareVariable(int, RHS, , ) = 1;	/* Coordinate system handedness: set to -1 for left-handed system */
 
 // Calculate the Klems bin based on klems_full.cal.
-RT_METHOD int kbin(const float3& direction, const float3& normal, const float3& up)
+RT_CALLABLE_PROGRAM int kbin(const float3 direction)
 {
 	const float DdotN = dot(direction, normal);
 	const float DdotU = dot(direction, up);
@@ -39,32 +41,32 @@ RT_METHOD int kbin(const float3& direction, const float3& normal, const float3& 
 	return kaccum;
 }
 
-/* Calculate the Klems bin based on klems_full.cal for north bins. */
-RT_CALLABLE_PROGRAM int kbinN(const float3 direction)
-{
-	return kbin(direction, make_float3(0, -1, 0), make_float3(0, 0, 1));
-}
-
-/* Calculate the Klems bin based on klems_full.cal for east bins. */
-RT_CALLABLE_PROGRAM int kbinE(const float3 direction)
-{
-	return kbin(direction, make_float3(-1, 0, 0), make_float3(0, 0, 1));
-}
-
-/* Calculate the Klems bin based on klems_full.cal for south bins. */
-RT_CALLABLE_PROGRAM int kbinS(const float3 direction)
-{
-	return kbin(direction, make_float3(0, 1, 0), make_float3(0, 0, 1));
-}
-
-/* Calculate the Klems bin based on klems_full.cal for west bins. */
-RT_CALLABLE_PROGRAM int kbinW(const float3 direction)
-{
-	return kbin(direction, make_float3(1, 0, 0), make_float3(0, 0, 1));
-}
-
-/* Calculate the Klems bin based on klems_full.cal for skylight bins. */
-RT_CALLABLE_PROGRAM int kbinD(const float3 direction)
-{
-	return kbin(direction, make_float3(0, 0, -1), make_float3(0, 1, 0));
-}
+///* Calculate the Klems bin based on klems_full.cal for north bins. */
+//RT_CALLABLE_PROGRAM int kbinN(const float3 direction)
+//{
+//	return kbin(direction, make_float3(0, -1, 0), make_float3(0, 0, 1));
+//}
+//
+///* Calculate the Klems bin based on klems_full.cal for east bins. */
+//RT_CALLABLE_PROGRAM int kbinE(const float3 direction)
+//{
+//	return kbin(direction, make_float3(-1, 0, 0), make_float3(0, 0, 1));
+//}
+//
+///* Calculate the Klems bin based on klems_full.cal for south bins. */
+//RT_CALLABLE_PROGRAM int kbinS(const float3 direction)
+//{
+//	return kbin(direction, make_float3(0, 1, 0), make_float3(0, 0, 1));
+//}
+//
+///* Calculate the Klems bin based on klems_full.cal for west bins. */
+//RT_CALLABLE_PROGRAM int kbinW(const float3 direction)
+//{
+//	return kbin(direction, make_float3(1, 0, 0), make_float3(0, 0, 1));
+//}
+//
+///* Calculate the Klems bin based on klems_full.cal for skylight bins. */
+//RT_CALLABLE_PROGRAM int kbinD(const float3 direction)
+//{
+//	return kbin(direction, make_float3(0, 0, -1), make_float3(0, 1, 0));
+//}

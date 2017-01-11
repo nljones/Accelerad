@@ -72,6 +72,7 @@ static int createTexture(const RTcontext context, OBJREC* rec);
 static int createTransform( XF* fxp, XF* bxp, const OBJREC* rec );
 static int createGenCumulativeSky(const RTcontext context, char* filename, RTprogram* program);
 #ifdef CONTRIB
+static char* findSymbol(EPNODE *ep);
 static int createContribFunction(const RTcontext context, MODCONT *mp);
 static void applyContribution(const RTcontext context, const RTmaterial material, DistantLight* light, OBJREC* rec, LUTAB* modifiers);
 #endif
@@ -2072,6 +2073,60 @@ gencumerr:
 }
 
 #ifdef CONTRIB
+static char* findSymbol(EPNODE *ep)
+{
+	static EPNODE  *curdef = NULL;
+	EPNODE  *ep1 = NULL;
+	char *found = NULL;
+
+	switch (ep->type) {
+	case VAR:
+		if (ep->v.ln->def)
+			found = findSymbol(ep->v.ln->def);
+		break;
+
+	case SYM:
+		found = ep->v.name;
+		break;
+
+	case FUNC:
+		found = findSymbol(ep->v.kid);
+		break;
+
+	case ARG:
+		if (curdef == NULL || curdef->v.kid->type != FUNC || (ep1 = ekid(curdef->v.kid, ep->v.chan)) == NULL) {
+			return NULL;
+		}
+		found = findSymbol(ep1);
+		break;
+
+	case UMINUS:
+		found = findSymbol(ep->v.kid);
+		break;
+
+	case '=':
+	case ':':
+		ep1 = curdef;
+		curdef = ep;
+		found = findSymbol(ep->v.kid);
+		if (!found)
+			found = findSymbol(ep->v.kid->sibling);
+		curdef = ep1;
+		break;
+
+	case '+':
+	case '-':
+	case '*':
+	case '/':
+	case '^':
+		found = findSymbol(ep->v.kid);
+		if (!found)
+			found = findSymbol(ep->v.kid->sibling);
+		break;
+	}
+	return found;
+}
+
 static int createContribFunction(const RTcontext context, MODCONT *mp)
 {
 	RTprogram program;
@@ -2081,12 +2136,13 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 	if (mp->nbins <= 1) // Guessing that no program is needed for a single bin
 		return RT_PROGRAM_ID_NULL;
 
-	if (!mp->binv->v.ln || !mp->binv->v.ln->def || !mp->binv->v.ln->def->v.ln || !mp->binv->v.ln->def->v.ln->name) {
+	//eprint(mp->binv, stderr); vprintf("\n");
+	bin_func = findSymbol(mp->binv);
+	if (!bin_func) {
 		sprintf(errmsg, "Undefined bin function for modifier %s\n", mp->modname);
 		error(WARNING, errmsg);
 		return RT_PROGRAM_ID_NULL;
 	}
-	bin_func = mp->binv->v.ln->def->v.ln->name;
 
 	if (mp->nbins == 146 && !strcmp(bin_func, "tbin")) { // It's probably tregenza.cal
 		ptxFile(path_to_ptx, "tregenza");
@@ -2104,8 +2160,44 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 		applyProgramVariable1i(context, program, "mf", (int)(evalue(mf))); // Number of divisions per Tregenza patch
 	}
 	else if (!strncmp(bin_func, "kbin", 4)) { // It's probably klems_full.cal
+		float orientation[6] = {
+			0.0f, 0.0f, 0.0f,
+			0.0f, 0.0f, 0.0f
+		};
+
+		/* For current RHS definition */
+		if (mp->binv->type == FUNC) { // It's a function
+			EPNODE *child = mp->binv->v.kid;
+			int i = 0;
+			const size_t count = sizeof(orientation) / sizeof(float);
+			while ((child = child->sibling) != NULL && i < count) {
+				orientation[i++] = (float)(evalue(child));
+			}
+			if (child != NULL || i != count) {
+				sprintf(errmsg, "Bad arguments to bin function %s for modifier %s\n", bin_func, mp->modname);
+				error(WARNING, errmsg);
+				return RT_PROGRAM_ID_NULL;
+			}
+		}
+		else switch (bin_func[4]) {
+		case 'N': orientation[1] = -1.0f; orientation[5] = 1.0f; break;
+		case 'E': orientation[0] = -1.0f; orientation[5] = 1.0f; break;
+		case 'S': orientation[1] = 1.0f; orientation[5] = 1.0f; break;
+		case 'W': orientation[0] = 1.0f; orientation[5] = 1.0f; break;
+		case 'D': orientation[2] = -1.0f; orientation[4] = 1.0f; break;
+		default:
+			sprintf(errmsg, "Undefined bin function %s for modifier %s\n", bin_func, mp->modname);
+			error(WARNING, errmsg);
+			return RT_PROGRAM_ID_NULL;
+		}
+
+		set_eparams(mp->params);	/* For current RHS definition */
+
 		ptxFile(path_to_ptx, "klems_full");
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, bin_func, &program));
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "kbin", &program));
+		applyProgramVariable3f(context, program, "normal", orientation[0], orientation[1], orientation[2]); // Normal direction
+		applyProgramVariable3f(context, program, "up", orientation[3], orientation[4], orientation[5]); // Up direction
+		applyProgramVariable1i(context, program, "RHS", (int)eval("RHS")); // Coordinate system handedness
 	}
 	else {
 		sprintf(errmsg, "Unrecognized bin function for modifier %s\n", mp->modname);
