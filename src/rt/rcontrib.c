@@ -362,7 +362,7 @@ rcontrib(void)
 	FVECT		orig, direc;
 	double		d;
 #ifdef ACCELERAD
-	size_t current_ray, total_rays;
+	size_t width, current_ray, total_rays;
 	RREAL *ray_cache;
 #endif
 					/* initialize (& fork more of us) */
@@ -374,7 +374,7 @@ rcontrib(void)
 #ifdef ACCELERAD
 	if (use_optix) {
 		/* Populate the set of rays to trace */
-		total_rays = yres > 0 ? (xres > 0 ? xres * yres : yres) : EXPECTED_RAY_COUNT;
+		total_rays = raysleft ? raysleft : EXPECTED_RAY_COUNT;
 		ray_cache = (RREAL *)malloc(6 * sizeof(RREAL) * total_rays);
 		if (ray_cache == NULL)
 			error(SYSTEM, "out of memory in rcontrib");
@@ -397,7 +397,10 @@ rcontrib(void)
 		total_rays = current_ray;
 		if (raysleft)
 			raysleft -= (RNUMBER)total_rays;
-		contribOptix(xres ? xres : 1, yres ? yres : total_rays, imm_irrad, lim_dist, contrib, total_bins, ralrm, ray_cache, &modconttab);
+		width = (yres > 0 && xres > 0) ? xres : 1;
+		if (yres > 0 && accumulate > 1)
+			width *= accumulate;
+		contribOptix(width, yres > 0 ? yres : total_rays, imm_irrad, lim_dist, contrib, total_bins, ralrm, ray_cache, &modconttab);
 		free(ray_cache);
 	}
 	else

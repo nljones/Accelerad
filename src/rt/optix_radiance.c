@@ -2136,6 +2136,9 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 	if (mp->nbins <= 1) // Guessing that no program is needed for a single bin
 		return RT_PROGRAM_ID_NULL;
 
+	/* Set current definitions */
+	set_eparams(mp->params);
+
 	//eprint(mp->binv, stderr); vprintf("\n");
 	bin_func = findSymbol(mp->binv);
 	if (!bin_func) {
@@ -2149,23 +2152,15 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, bin_func, &program));
 	}
 	else if (!strcmp(bin_func, "rbin")) { // It's probably reinhart.cal
-		EPNODE	*mf = eparse("MF");
-		if (!mf)
-			error(USER, "No MF given");
-		if (mf->type != NUM)	/* check value if constant */
-			error(USER, "MF not numeric");
-
 		ptxFile(path_to_ptx, "reinhart");
 		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, bin_func, &program));
-		applyProgramVariable1i(context, program, "mf", (int)(evalue(mf))); // Number of divisions per Tregenza patch
+		applyProgramVariable1i(context, program, "mf", (int)eval("MF")); // Number of divisions per Tregenza patch
 	}
 	else if (!strncmp(bin_func, "kbin", 4)) { // It's probably klems_full.cal
 		float orientation[6] = {
 			0.0f, 0.0f, 0.0f,
 			0.0f, 0.0f, 0.0f
 		};
-
-		/* For current RHS definition */
 		if (mp->binv->type == FUNC) { // It's a function
 			EPNODE *child = mp->binv->v.kid;
 			int i = 0;
@@ -2190,8 +2185,6 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 			error(WARNING, errmsg);
 			return RT_PROGRAM_ID_NULL;
 		}
-
-		set_eparams(mp->params);	/* For current RHS definition */
 
 		ptxFile(path_to_ptx, "klems_full");
 		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "kbin", &program));

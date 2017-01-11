@@ -6,7 +6,7 @@
 #include <optix_world.h>
 //#include "optix_shader_common.h"
 
-rtDeclareVariable(int, mf, , );	/* Number of divisions per Tregenza patch */
+rtDeclareVariable(int, mf, , ) = 1;	/* Number of divisions per Tregenza patch */
 
 // Calculate the Reinhart patch based on reinhart.cal.
 RT_CALLABLE_PROGRAM int rbin(const float3 direction)
