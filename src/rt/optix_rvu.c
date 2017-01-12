@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2013-2017 Nathaniel Jones
+ * Massachusetts Institute of Technology
+ */
+
 #include "ray.h"
 #include "optix_radiance.h"
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2016 Nathaniel Jones
+ * Copyright (c) 2013-2017 Nathaniel Jones
  * Massachusetts Institute of Technology
  */
 
