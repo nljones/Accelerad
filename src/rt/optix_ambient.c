@@ -548,6 +548,7 @@ void createAmbientRecords(const RTcontext context, const VIEW* view, const RTsiz
 #ifdef ITERATIVE_IC
 	RTvariable     current_cluster_buffer;
 	RTbuffer*      cluster_buffer;
+	int*	       cluster_buffer_id;
 #ifdef AMBIENT_CELL
 	size_t*        cluster_counts;
 	double         radius;
@@ -602,11 +603,14 @@ void createAmbientRecords(const RTcontext context, const VIEW* view, const RTsiz
 	/* Create buffer for inputting seed point clusters. */
 #ifdef ITERATIVE_IC
 	cluster_buffer = (RTbuffer*)malloc(max_level * sizeof(RTbuffer));
-	if (cluster_buffer == NULL) goto carmemerr;
+	cluster_buffer_id = (int*)malloc(max_level * sizeof(int));
+	if (cluster_buffer == NULL || cluster_buffer_id == NULL) goto carmemerr;
 	for (level = 0u; level < max_level; level++) {
 		createCustomBuffer1D( context, RT_BUFFER_INPUT, sizeof(PointDirection), cuda_kmeans_clusters, &cluster_buffer[level] );
+		RT_CHECK_ERROR(rtBufferGetId(cluster_buffer[level], &cluster_buffer_id[level]));
 	}
-	current_cluster_buffer = applyContextObject(context, "cluster_buffer", cluster_buffer[0]);
+	//current_cluster_buffer = applyContextObject(context, "cluster_buffer", cluster_buffer[0]);
+	current_cluster_buffer = applyContextVariable(context, "cluster_buffer", sizeof(cluster_buffer_id[0]), &cluster_buffer_id[0]);
 #ifdef AMBIENT_CELL
 	cluster_counts = (size_t*)malloc(max_level * sizeof(size_t));
 	if (cluster_counts == NULL) goto carmemerr;
@@ -651,7 +655,8 @@ void createAmbientRecords(const RTcontext context, const VIEW* view, const RTsiz
 #endif
 
 		/* Set input buffer index for next iteration */
-		RT_CHECK_ERROR( rtVariableSetObject( current_cluster_buffer, cluster_buffer[level] ) );
+		//RT_CHECK_ERROR( rtVariableSetObject( current_cluster_buffer, cluster_buffer[level] ) );
+		RT_CHECK_ERROR(rtVariableSetUserData(current_cluster_buffer, sizeof(cluster_buffer_id[level]), &cluster_buffer_id[level]));
 	}
 #else /* ITERATIVE_IC */
 	chooseAmbientLocations(context, 0u, grid_width, grid_height, optix_amb_seeds_per_thread, cuda_kmeans_clusters, seed_buffer, cluster_buffer, segment_var);
@@ -684,14 +689,16 @@ void createAmbientRecords(const RTcontext context, const VIEW* view, const RTsiz
 		vprintf("Size of cell: %g\nNumber of cells: %u\n", radius, (unsigned int)ceil(thescene.cusize / radius));
 
 		if (level)
-			RT_CHECK_ERROR(rtVariableSetObject(current_cluster_buffer, cluster_buffer[level - 1]));
+			//RT_CHECK_ERROR(rtVariableSetObject(current_cluster_buffer, cluster_buffer[level - 1]));
+			RT_CHECK_ERROR(rtVariableSetUserData(current_cluster_buffer, sizeof(cluster_buffer_id[level - 1]), &cluster_buffer_id[level - 1]));
 		RT_CHECK_ERROR(rtVariableSet1f(cell_size_var, (float)radius));
 		cluster_counts[level] = chooseAmbientLocations(context, level, grid_width, grid_height, optix_amb_seeds_per_thread, level ? cluster_counts[level - 1] : 0, seed_buffer, cluster_buffer[level], segment_var);
 
 		if (!cluster_counts[level]) continue;
 
 		if (level)
-			RT_CHECK_ERROR(rtVariableSetObject(current_cluster_buffer, cluster_buffer[level]));
+			//RT_CHECK_ERROR(rtVariableSetObject(current_cluster_buffer, cluster_buffer[level]));
+			RT_CHECK_ERROR(rtVariableSetUserData(current_cluster_buffer, sizeof(cluster_buffer_id[level]), &cluster_buffer_id[level]));
 
 		updateAmbientDynamicStorage(context, cluster_counts[level], level);
 		RT_CHECK_ERROR(rtBufferSetSize1D(ambient_record_buffer, cluster_counts[level]));
@@ -711,12 +718,14 @@ void createAmbientRecords(const RTcontext context, const VIEW* view, const RTsiz
 #endif /* AMBIENT_CELL */
 #ifdef ITERATIVE_IC
 		if ( level )
-			RT_CHECK_ERROR( rtVariableSetObject( current_cluster_buffer, cluster_buffer[level - 1] ) );
+			//RT_CHECK_ERROR( rtVariableSetObject( current_cluster_buffer, cluster_buffer[level - 1] ) );
+			RT_CHECK_ERROR(rtVariableSetUserData(current_cluster_buffer, sizeof(cluster_buffer_id[level - 1]), &cluster_buffer_id[level - 1]));
 #endif
 	}
 
 #ifdef ITERATIVE_IC
 	free(cluster_buffer);
+	free(cluster_buffer_id);
 #endif
 #ifdef AMBIENT_CELL
 	free(cluster_counts);
@@ -1088,9 +1097,9 @@ static size_t createKMeansClusters( const size_t seed_count, const size_t cluste
 	if (membership == NULL || distance == NULL)	goto kmmemerr;
 	kernel_clock = clock();
 #if defined(ITERATIVE_IC) && defined(ADAPTIVE_SEED_SAMPLING)
-	clusters = (PointDirection**)cuda_kmeans((float**)seeds, sizeof(PointDirection) / sizeof(float), (unsigned int)good_seed_count, (unsigned int)cluster_count, cuda_kmeans_iterations, cuda_kmeans_threshold, (float)(cuda_kmeans_error / (ambacc * maxarad)), level, membership, distance, &loops);
+	clusters = (PointDirection**)cuda_kmeans((float**)seeds, sizeof(PointDirection) / sizeof(float), (unsigned int)good_seed_count, (unsigned int)cluster_count, cuda_kmeans_iterations, (float)cuda_kmeans_threshold, (float)(cuda_kmeans_error / (ambacc * maxarad)), level, membership, distance, &loops);
 #else
-	clusters = (PointDirection**)cuda_kmeans((float**)seeds, sizeof(PointDirection) / sizeof(float), (unsigned int)good_seed_count, (unsigned int)cluster_count, cuda_kmeans_iterations, cuda_kmeans_threshold, (float)(cuda_kmeans_error / (ambacc * maxarad)), 1u, membership, distance, &loops);
+	clusters = (PointDirection**)cuda_kmeans((float**)seeds, sizeof(PointDirection) / sizeof(float), (unsigned int)good_seed_count, (unsigned int)cluster_count, cuda_kmeans_iterations, (float)cuda_kmeans_threshold, (float)(cuda_kmeans_error / (ambacc * maxarad)), 1u, membership, distance, &loops);
 #endif
 	kernel_clock = clock() - kernel_clock;
 	mprintf("K-means performed %u loop iterations in %" PRIu64 " milliseconds.\n", loops, MILLISECONDS(kernel_clock));
@@ -1255,7 +1264,7 @@ static void calcAmbientValues(const RTcontext context, const unsigned int level,
 //	membership = (int*) malloc(cluster_count * sizeof(int));
 //	distance = (float*) malloc(cluster_count * sizeof(float));
 //	kernel_clock = clock();
-//	groups = (PointDirection**)cuda_kmeans((float**)clusters, sizeof(PointDirection) / sizeof(float), cluster_count, group_count, cuda_kmeans_threshold, cuda_kmeans_error / (ambacc * maxarad), random_seeds, membership, distance, &loops);
+//	groups = (PointDirection**)cuda_kmeans((float**)clusters, sizeof(PointDirection) / sizeof(float), cluster_count, group_count, (float)cuda_kmeans_threshold, (float)(cuda_kmeans_error / (ambacc * maxarad)), random_seeds, membership, distance, &loops);
 //	kernel_clock = clock() - kernel_clock;
 //	mprintf("Kmeans performed %u loop iterations in %" PRIu64 " milliseconds.\n", loops, MILLISECONDS(kernel_clock));
 //

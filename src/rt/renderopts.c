@@ -26,8 +26,8 @@ int optix_amb_seeds_per_thread = 16;	/* Number of ambient seeds per OptiX thread
 /* For OptiX k-means ambient sampling */
 int cuda_kmeans_clusters = 4096;		/* Number of clusters of ambient for k-means (-ac) */
 int cuda_kmeans_iterations = 100;		/* Maximum number of k-means iterations (-an) */
-float cuda_kmeans_threshold = 0.05f;	/* Fraction of seeds that must change cluster to continue k-means iteration (-at) */
-float cuda_kmeans_error = 1.0f;			/* Weighting of position in k-means error (-ax) */
+double cuda_kmeans_threshold = 0.05;	/* Fraction of seeds that must change cluster to continue k-means iteration (-at) */
+double cuda_kmeans_error = 1.0;			/* Weighting of position in k-means error (-ax) */
 
 /* For OptiX remote VCA access */
 int optix_remote_nodes = 0;				/* Number of VCA nodes to request */

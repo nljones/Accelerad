@@ -20,7 +20,8 @@ using namespace optix;
 rtDeclareVariable(unsigned int,  stride, , ) = 1u; /* Spacing between used threads in warp. */
 
 /* Contex variables */
-rtBuffer<PointDirection, 1>      cluster_buffer; /* input */
+//rtBuffer<PointDirection, 1>      cluster_buffer; /* input */
+rtDeclareVariable(PointDirectionBuffer, cluster_buffer, , ); /* input */
 rtBuffer<AmbientRecord, 1>       ambient_record_buffer; /* ambient record output */
 #ifdef DAYSIM_COMPATIBLE
 rtBuffer<DC, 2>                  ambient_dc_buffer; /* daylight coefficient output */

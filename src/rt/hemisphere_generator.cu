@@ -10,7 +10,8 @@
 using namespace optix;
 
 /* Contex variables */
-rtBuffer<PointDirection, 1>      cluster_buffer; /* input */
+//rtBuffer<PointDirection, 1>      cluster_buffer; /* input */
+rtDeclareVariable(PointDirectionBuffer, cluster_buffer, , ); /* input */
 rtBuffer<PointDirection, 3>      seed_buffer; /* output */
 rtDeclareVariable(rtObject,      top_object, , );
 rtDeclareVariable(unsigned int,  point_cloud_ray_type, , );

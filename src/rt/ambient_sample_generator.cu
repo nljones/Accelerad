@@ -17,7 +17,8 @@
 using namespace optix;
 
 /* Contex variables */
-rtBuffer<PointDirection, 1>     cluster_buffer; /* input */
+//rtBuffer<PointDirection, 1>     cluster_buffer; /* input */
+rtDeclareVariable(PointDirectionBuffer, cluster_buffer, , ); /* input */
 rtBuffer<AmbientSample, 3>      amb_samp_buffer; /* ambient sample output */
 rtDeclareVariable(rtObject,     top_object, , );
 rtDeclareVariable(unsigned int, radiance_ray_type, , );
