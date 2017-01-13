@@ -12,6 +12,7 @@
 
 #define GAMMA  2.2f
 #define LUMINOUS_EFFICACY 179.0f
+#define VT_ODS		'o'		/* omni-directional stereo */
 
 using namespace optix;
 
@@ -28,6 +29,9 @@ rtDeclareVariable(float2, clip, , ); /* Fore and aft clipping planes (-vo, -va) 
 rtDeclareVariable(float, vdist, , ); /* Focal length */
 rtDeclareVariable(float, dstrpix, , ); /* Pixel sample jitter (-pj) */
 rtDeclareVariable(unsigned int, do_irrad, , ); /* Calculate irradiance (-i) */
+#ifdef VT_ODS
+rtDeclareVariable(float, ipd, , ) = 0.07f; /* inter-pupillary distance (this is between 0.055m and 0.07m on most humans) */
+#endif
 
 rtDeclareVariable(int2, task_position, , ); /* Position of task area (-T) */
 rtDeclareVariable(float, task_angle, , ) = 0.0f; /* Opening angle of task area in radians (-T) */
@@ -85,6 +89,14 @@ RT_PROGRAM void ray_generator()
 	if (camera == VT_PAR) /* parallel view */
 		ray_origin += d.x*U + d.y*V;
 	float3 ray_direction = getViewDirection(d);
+#ifdef VT_ODS
+	if (camera == VT_ODS) {
+		float dy = ipd * (d.y < 0 ? 0.5f : -0.5f);
+		float az = d.x * fov.x * (M_PIf / 180.0f);
+		ray_origin.x += cosf(az) * dy;
+		ray_origin.y += sinf(az) * dy;
+	}
+#endif
 
 	if (dot(ray_direction, ray_direction) > 0) {
 		ray_origin += clip.x * ray_direction;
@@ -223,6 +235,16 @@ RT_METHOD float3 getViewDirection(float2 d)
 		z = (1.0f - dd) / (1.0f + dd);
 		d *= 1.0f + z;
 	}
+#ifdef VT_ODS
+	else if (camera == VT_ODS) { /* omni-directional stereo */
+		d.y *= 2.0f;
+		d.y += d.y < 0 ? 0.5f : -0.5f;
+		d *= fov * (M_PIf / 180.0f); // d.x = azimuth, d.y = altitude
+		z = cosf(d.x) * cosf(d.y);
+		d.x = sinf(d.x) * cosf(d.y);
+		d.y = sinf(d.y);
+	}
+#endif
 
 	return d.x*U + d.y*V + z*W;
 }

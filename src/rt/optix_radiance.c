@@ -104,7 +104,10 @@ static RTvariable backvis_var = NULL, irrad_var = NULL;
 static RTvariable dstrsrc_var = NULL, srcsizerat_var = NULL, directvis_var = NULL;
 static RTvariable specthresh_var = NULL, specjitter_var = NULL;
 static RTvariable minweight_var = NULL, maxdepth_var = NULL;
-static RTvariable camera_type, camera_eye, camera_u, camera_v, camera_w, camera_fov, camera_shift, camera_clip, camera_vdist;
+static RTvariable camera_type = NULL, camera_eye = NULL, camera_u = NULL, camera_v = NULL, camera_w = NULL, camera_fov = NULL, camera_shift = NULL, camera_clip = NULL, camera_vdist = NULL;
+#ifdef VT_ODS
+static RTvariable camera_ipd = NULL;
+#endif
 static RTremotedevice remote_handle = NULL;
 static RTgeometryinstance instance_handle = NULL;
 static RTgeometry mesh_handle = NULL;
@@ -350,6 +353,9 @@ void destroyContext(const RTcontext context)
 	}
 	avsum_var = navsum_var = NULL;
 	camera_frame = camera_type = camera_eye = camera_u = camera_v = camera_w = camera_fov = camera_shift = camera_clip = camera_vdist = NULL;
+#ifdef VT_ODS
+	camera_ipd = NULL;
+#endif
 }
 
 #ifdef CONTRIB
@@ -490,6 +496,9 @@ static void applyRadianceSettings(const RTcontext context, const VIEW* view, con
 		camera_shift = applyContextVariable2f(context, "shift", (float)view->hoff, (float)view->voff); // -vs, -vl
 		camera_clip  = applyContextVariable2f(context, "clip", (float)view->vfore, (float)view->vaft); // -vo, -va
 		camera_vdist = applyContextVariable1f(context, "vdist", (float)view->vdist);
+#ifdef VT_ODS
+		camera_ipd   = applyContextVariable1f(context, "ipd", (float)view->ipd); // -vi
+#endif
 	}
 	else if (imm_irrad)
 		applyContextVariable1ui(context, "imm_irrad", imm_irrad); // -I
@@ -543,6 +552,9 @@ void updateCamera( const RTcontext context, const VIEW* view )
 	RT_CHECK_ERROR(rtVariableSet2f(camera_shift, (float)view->hoff, (float)view->voff)); // -vs, -vl
 	RT_CHECK_ERROR(rtVariableSet2f(camera_clip, (float)view->vfore, (float)view->vaft)); // -vo, -va
 	RT_CHECK_ERROR(rtVariableSet1f(camera_vdist, (float)view->vdist));
+#ifdef VT_ODS
+	RT_CHECK_ERROR(rtVariableSet1f(camera_ipd, (float)view->ipd)); // -vi
+#endif
 }
 
 static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RTgeometry* mesh, RTgeometryinstance* instance)

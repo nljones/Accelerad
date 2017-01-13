@@ -1226,6 +1226,9 @@ specview(				/* get proper view spec from vs */
 	case VT_HEM:
 	case VT_PLS:
 	case VT_CYL:
+#ifdef VT_ODS
+	case VT_ODS:
+#endif
 		viewtype = *vs++;
 		break;
 	default:
@@ -1287,6 +1290,9 @@ specview(				/* get proper view spec from vs */
 			cp = addarg(cp, "-vh 180 -vv 180");
 			break;
 		case VT_CYL:
+#ifdef VT_ODS
+		case VT_ODS:
+#endif
 			cp = addarg(cp, "-vh 180 -vv 90");
 			break;
 		}
