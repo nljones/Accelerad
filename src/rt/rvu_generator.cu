@@ -31,6 +31,7 @@ rtDeclareVariable(float, dstrpix, , ); /* Pixel sample jitter (-pj) */
 rtDeclareVariable(unsigned int, do_irrad, , ); /* Calculate irradiance (-i) */
 #ifdef VT_ODS
 rtDeclareVariable(float, ipd, , ) = 0.07f; /* inter-pupillary distance (this is between 0.055m and 0.07m on most humans) */
+rtDeclareVariable(float3, gaze, , ); /* gaze direction (may be different from W) */
 #endif
 
 rtDeclareVariable(int2, task_position, , ); /* Position of task area (-T) */
@@ -71,7 +72,7 @@ rtDeclareVariable(uint2, launch_dim, rtLaunchDim, );
 RT_METHOD float3 getViewDirection(float2 d);
 RT_METHOD int splane_normal(const float3 &e1, const float3 &e2, float3 &n);
 RT_METHOD float getSolidAngle();
-RT_METHOD float getPositionIndex(const float3 &dir);
+RT_METHOD float getPositionIndex(const float3 &dir, const float3 &forward);
 RT_METHOD int inTask(const int2 &position, const float &angle, const float3 &ray_direction);
 RT_METHOD void tint(unsigned int &color, const unsigned int component);
 
@@ -169,9 +170,14 @@ RT_PROGRAM void ray_generator()
 	}
 	else {
 		metrics.avlum = luminance * metrics.omega;
-		const float WdotD = dot(W, ray_direction);
+#ifdef VT_ODS
+		float3 gaze_dir = dot(gaze, gaze) < FTINY ? W : gaze;
+#else
+		float3 gaze_dir = W;
+#endif
+		const float WdotD = dot(gaze_dir, ray_direction);
 		if (WdotD > 0.0f) {
-			float guth = getPositionIndex(ray_direction);
+			float guth = getPositionIndex(ray_direction, gaze_dir);
 			metrics.ev = luminance * metrics.omega * WdotD;
 			metrics.dgp = (metric)luminance * luminance * metrics.omega / (guth * guth);
 		}
@@ -292,14 +298,14 @@ RT_METHOD float getSolidAngle()
 }
 
 /* From get_posindex in evalglare.c */
-RT_METHOD float getPositionIndex(const float3 &dir)
+RT_METHOD float getPositionIndex(const float3 &dir, const float3 &forward)
 {
 	float3 up = normalize(V); // TODO Not necessarily
-	float3 hv = cross(W, up);
-	float phi = acosf(dot(cross(W, hv), dir)) - M_PI_2f;
+	float3 hv = cross(forward, up);
+	float phi = acosf(dot(cross(forward, hv), dir)) - M_PI_2f;
 	float teta = M_PI_2f - acosf(dot(hv, dir));
-	float sigma = acosf(dot(W, dir));
-	hv = normalize(normalize(dir) / cosf(sigma) - W);
+	float sigma = acosf(dot(forward, dir));
+	hv = normalize(normalize(dir) / cosf(sigma) - forward);
 	float tau = acosf(dot(up, hv));
 	tau *= 180.0f / M_PIf;
 	sigma *= 180.0f / M_PIf;

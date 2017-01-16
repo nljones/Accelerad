@@ -1290,11 +1290,13 @@ specview(				/* get proper view spec from vs */
 			cp = addarg(cp, "-vh 180 -vv 180");
 			break;
 		case VT_CYL:
-#ifdef VT_ODS
-		case VT_ODS:
-#endif
 			cp = addarg(cp, "-vh 180 -vv 90");
 			break;
+#ifdef VT_ODS
+		case VT_ODS:
+			cp = addarg(cp, "-vh 360 -vv 180");
+			break;
+#endif
 		}
 	} else {
 		while (!isspace(*vs))		/* else skip id */
