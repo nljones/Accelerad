@@ -112,8 +112,8 @@ RT_PROGRAM void ambient_sample_camera()
 	//if ( new_prd.distance * ap->d < 1.0f )		/* new/closer distance? */ //TODO where did this value come from?
 		amb_samp_buffer[index].d = 1.0f / prd.distance;
 	//if (!n) {			/* record first vertex & value */
-		if ( prd.distance > 10.0f * maxarad ) // 10 * thescene.cusize
-			prd.distance = 10.0f * maxarad;
+		if (prd.distance > 50.0f * maxarad + 1000.0f) // 10 * thescene.cusize + 1000
+			prd.distance = 50.0f * maxarad + 1000.0f;
 		amb_samp_buffer[index].p = cluster.pos + rdir * prd.distance;
 		amb_samp_buffer[index].v = prd.result; // only one AmbientSample, otherwise would need +=
 	//} else {			/* else update recorded value */

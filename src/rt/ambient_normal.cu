@@ -820,8 +820,8 @@ RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const int& i, const int&
 	if (!n || new_prd.distance * ap->d < 1.0f )		/* new/closer distance? */
 		ap->d = 1.0f / new_prd.distance;
 	if (!n) {			/* record first vertex & value */
-		if ( new_prd.distance > 10.0f * maxarad ) // 10 * thescene.cusize
-			new_prd.distance = 10.0f * maxarad;
+		if (new_prd.distance > 50.0f * maxarad + 1000.0f) // 10 * thescene.cusize + 1000
+			new_prd.distance = 50.0f * maxarad + 1000.0f;
 		ap->p = hit + rdir * new_prd.distance;
 		ap->v = new_prd.result; // only one AmbientSample, otherwise would need +=
 #ifdef DAYSIM_COMPATIBLE

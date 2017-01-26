@@ -243,7 +243,7 @@ double  y
 		direc[1] = z*v->vdir[1] + x*v->hvec[1] + y*v->vvec[1];
 		direc[2] = z*v->vdir[2] + x*v->hvec[2] + y*v->vvec[2];
 		VSUM(orig, v->vp, direc, v->vfore);
-		dy = v->ipd * (y < 0 ? 0.5f : -0.5f);
+		dy = v->ipd * (y < 0 ? -0.5f : 0.5f);
 		direc[0] += cos(d) * dy;
 		direc[1] += sin(d) * dy;
 		d = normalize(direc);
