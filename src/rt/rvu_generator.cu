@@ -92,7 +92,7 @@ RT_PROGRAM void ray_generator()
 	float3 ray_direction = getViewDirection(d);
 #ifdef VT_ODS
 	if (camera == VT_ODS) {
-		float dy = ipd * (d.y < 0 ? -0.5f : 0.5f);
+		float dy = ipd * (d.y < 0 ? 0.5f : -0.5f);
 		float az = d.x * fov.x * (M_PIf / 180.0f);
 		ray_origin.x += cosf(az) * dy;
 		ray_origin.y += sinf(az) * dy;
