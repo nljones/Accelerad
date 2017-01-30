@@ -231,7 +231,7 @@ double  y
 		VSUM(orig, v->vp, direc, v->vfore);
 		return(v->vaft > FTINY ? v->vaft - v->vfore : 0.0);
 #ifdef VT_ODS
-	case VT_ODS:
+	case VT_ODS:			/* omni-directional stereo */
 		y *= 2.0;
 		y += y < 0 ? 0.5 : -0.5;
 		dy = y * v->vert * (PI / 180.0);
@@ -293,9 +293,6 @@ FVECT  p
 			ip[2] = d;
 		ip[2] -= v->vfore;
 		break;
-#ifdef VT_ODS
-	case VT_ODS:
-#endif
 	case VT_CYL:			/* cylindrical panorama */
 		d = DOT(disp,v->hvec);
 		d2 = DOT(disp,v->vdir);
@@ -332,6 +329,33 @@ FVECT  p
 		ip[0] += DOT(disp,v->hvec)/((1. + d)*sqrt(v->hn2));
 		ip[1] += DOT(disp,v->vvec)/((1. + d)*sqrt(v->vn2));
 		return;
+#ifdef VT_ODS
+	case VT_ODS:			/* omni-directional stereo */
+		d = DOT(disp, v->vvec);
+		VSUM(disp, disp, v->vvec, -d);
+		d2 = 2 * VLEN(disp);
+		if (d2 < v->ipd) { /* inside circle */
+			ip[2] = -1.0;
+			return;
+		}
+		d2 = asin(v->ipd / d2);
+		spinvector(disp, disp, v->vvec, -d2); /* negative for left eye */
+		VSUM(disp, disp, v->vvec, d);
+
+		d = DOT(disp, v->hvec);
+		d2 = DOT(disp, v->vdir);
+		ip[0] = 180.0 / PI * atan2(d, d2) / v->horiz + 0.5 - v->hoff;
+		ip[1] = 0.5 - v->voff;
+		ip[2] = normalize(disp) - v->vfore;
+		d = DOT(disp, v->vvec);
+		if (d > FTINY || d < -FTINY) {
+			d = (180.0 / PI)*asin(d) / d;
+			ip[1] += DOT(disp, v->vvec)*d / v->vert;
+		}
+		/* use left eye */
+		ip[1] = ip[1] * 0.5 + 0.5;
+		return;
+#endif
 	}
 	ip[0] = DOT(disp,v->hvec)/v->hn2 + 0.5 - v->hoff;
 	ip[1] = DOT(disp,v->vvec)/v->vn2 + 0.5 - v->voff;
