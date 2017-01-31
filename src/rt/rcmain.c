@@ -190,7 +190,7 @@ main(int argc, char *argv[])
 	clock_t rcontrib_clock; // Timer in clock cycles for short jobs
 #endif
 
-#if defined ACCELERAD_DEBUG && defined _WIN32
+#if defined ACCELERAD && defined _WIN32
 	/* Set maximum number of files that may be opened simultaneously */
 	_setmaxstdio(2048);
 #endif

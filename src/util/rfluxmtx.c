@@ -18,6 +18,8 @@ static const char RCSid[] = "$Id$";
 #include "triangulate.h"
 #include "platform.h"
 
+#include "accelerad.h"
+
 #define MAXRCARG	512
 
 char		*progname;		/* global argv[0] */
@@ -1265,6 +1267,13 @@ main(int argc, char *argv[])
 			if (!argv[a][2]) goto userr;
 			na = (argv[a][2] == 'e') | (argv[a][2] == 'a') ? 4 : 2;
 			break;
+#ifdef ACCELERAD
+		case 'g':		/* special case */
+		case 't':		/* special case */
+			if (argv[a][2]) goto userr;
+			na = 2;
+			break;
+#endif
 		default:		/* anything else is verbotten */
 			goto userr;
 		}
