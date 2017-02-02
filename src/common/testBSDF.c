@@ -21,11 +21,13 @@ Usage(const char *prog)
 	printf("Usage: %s [bsdf_directory]\n", prog);
 	printf("Input commands:\n");
 	printf("  L bsdf.xml\t\t\t Load (make active) given BSDF input file\n");
+	printf("  i\t\t\t\t Report general information (metadata)\n");
+	printf("  c\t\t\t\t Report diffuse and specular components\n");
 	printf("  q theta_i phi_i theta_o phi_o\t Query BSDF for given path (CIE-XYZ)\n");
-	printf("  s N theta phi\t\t\t Generate N ray directions at given incidence\n");
-	printf("  h theta phi\t\t\t Report hemispherical total at given incidence\n");
-	printf("  r theta phi\t\t\t Report hemispherical reflection at given incidence\n");
-	printf("  t theta phi\t\t\t Report hemispherical transmission at given incidence\n");
+	printf("  s[r|t][s|d] N theta phi\t Generate N ray directions & colors at given incidence\n");
+	printf("  h[s|d] theta phi\t\t Report hemispherical scattering at given incidence\n");
+	printf("  r[s|d] theta phi\t\t Report hemispherical reflection at given incidence\n");
+	printf("  t[s|d] theta phi\t\t Report hemispherical transmission at given incidence\n");
 	printf("  a theta phi [t2 p2]\t\t Report resolution (in proj. steradians) for given direction(s)\n");
 	printf("  ^D\t\t\t\t Quit program\n");
 }
@@ -40,6 +42,16 @@ vec_from_deg(FVECT v, double theta, double phi)
 	v[0] *= cos(phi);
 	v[1] *= sin(phi);
 	v[2] = cos(theta);
+}
+
+static void
+printXYZ(const char *intro, const SDValue *vp)
+{
+	printf("%s%.3e %.3e %.3e\n", intro,
+			vp->spec.cx/vp->spec.cy*vp->cieY,
+			vp->cieY,
+			(1.-vp->spec.cx-vp->spec.cy)/
+			vp->spec.cy*vp->cieY);
 }
 
 int
@@ -59,13 +71,13 @@ main(int argc, char *argv[])
 	SDretainSet = SDretainBSDFs;		/* keep BSDFs in memory */
 
 						/* loop on command */
-	while (fgets(inp, sizeof(inp), stdin) != NULL) {
+	while (fgets(inp, sizeof(inp), stdin)) {
 		int	sflags = SDsampAll;
 		char	*cp = inp;
 		char	*cp2;
 		FVECT	vin, vout;
 		double	proja[2];
-		int	n;
+		int	n, i;
 		SDValue	val;
 		
 		while (isspace(*cp)) cp++;
@@ -85,53 +97,94 @@ main(int argc, char *argv[])
 				SDfreeCache(bsdf);
 			bsdf = SDcacheFile(path);
 			continue;
+		case 'I':			/* report general info. */
+			if (!bsdf)
+				goto noBSDFerr;
+			printf("Material: '%s'\n", bsdf->matn);
+			printf("Manufacturer: '%s'\n", bsdf->makr);
+			printf("Width, Height, Thickness (m): %.4e, %.4e, %.4e\n",
+					bsdf->dim[0], bsdf->dim[1], bsdf->dim[2]);
+			printf("Has geometry: %s\n", bsdf->mgf ? "yes" : "no");
+			continue;
+		case 'C':			/* report constant values */
+			if (!bsdf)
+				goto noBSDFerr;
+			if (bsdf->rf)
+				printf("Peak front hemispherical reflectance: %.3e\n",
+						bsdf->rLambFront.cieY +
+						bsdf->rf->maxHemi);
+			if (bsdf->rb)
+				printf("Peak back hemispherical reflectance: %.3e\n",
+						bsdf->rLambBack.cieY +
+						bsdf->rb->maxHemi);
+			if (bsdf->tf)
+				printf("Peak front hemispherical transmittance: %.3e\n",
+						bsdf->tLamb.cieY + bsdf->tf->maxHemi);
+			if (bsdf->tb)
+				printf("Peak back hemispherical transmittance: %.3e\n",
+						bsdf->tLamb.cieY + bsdf->tb->maxHemi);
+			printXYZ("Diffuse Front Reflectance: ", &bsdf->rLambFront);
+			printXYZ("Diffuse Back Reflectance: ", &bsdf->rLambBack);
+			printXYZ("Diffuse Transmittance: ", &bsdf->tLamb);
+			continue;
 		case 'Q':			/* query BSDF value */
-			if (bsdf == NULL)
+			if (!bsdf)
 				goto noBSDFerr;
 			if (!*sskip2(cp,4))
 				break;
 			vec_from_deg(vin, atof(sskip2(cp,1)), atof(sskip2(cp,2)));
 			vec_from_deg(vout, atof(sskip2(cp,3)), atof(sskip2(cp,4)));
-			if (!SDreportError(SDevalBSDF(&val, vout, vin, bsdf), stderr)) {
-				c_ccvt(&val.spec, C_CSXY);
-				printf("%.3e %.3e %.3e\n",
-						val.spec.cx/val.spec.cy*val.cieY,
-						val.cieY,
-						(1.-val.spec.cx-val.spec.cy)/
-						val.spec.cy*val.cieY);
-			}
+			if (!SDreportError(SDevalBSDF(&val, vout, vin, bsdf), stderr))
+				printXYZ("", &val);
 			continue;
 		case 'S':			/* sample BSDF */
-			if (bsdf == NULL)
+			if (!bsdf)
 				goto noBSDFerr;
 			if (!*sskip2(cp,3))
 				break;
-			n = atoi(sskip2(cp,1));
+			if (toupper(cp[1]) == 'R') {
+				sflags &= ~SDsampT;
+				++cp;
+			} else if (toupper(cp[1]) == 'T') {
+				sflags &= ~SDsampR;
+				++cp;
+			}
+			if (toupper(cp[1]) == 'S')
+				sflags &= ~SDsampDf;
+			else if (toupper(cp[1]) == 'D')
+				sflags &= ~SDsampSp;
+			i = n = atoi(sskip2(cp,1));
 			vec_from_deg(vin, atof(sskip2(cp,2)), atof(sskip2(cp,3)));
-			while (n-- > 0) {
-				if (SDreportError(SDsampBSDF(&val, vin,
-						rand()*(1./(RAND_MAX+.5)),
+			while (i-- > 0) {
+				VCOPY(vout, vin);
+				if (SDreportError(SDsampBSDF(&val, vout,
+						(i+rand()*(1./(RAND_MAX+.5)))/(double)n,
 						sflags, bsdf), stderr))
 					break;
-				printf("%.8f %.8f %.8f\n", vin[0], vin[1], vin[2]);
+				printf("%.8f %.8f %.8f ", vout[0], vout[1], vout[2]);
+				printXYZ("", &val);
 			}
 			continue;
-		case 'H':			/* hemispherical totals */
+		case 'H':			/* hemispherical values */
 		case 'R':
 		case 'T':
-			if (bsdf == NULL)
+			if (!bsdf)
 				goto noBSDFerr;
 			if (!*sskip2(cp,2))
 				break;
-			if (tolower(*cp) == 'r')
+			if (toupper(cp[0]) == 'R')
 				sflags &= ~SDsampT;
-			else if (tolower(*cp) == 't')
+			else if (toupper(cp[0]) == 'T')
 				sflags &= ~SDsampR;
+			if (toupper(cp[1]) == 'S')
+				sflags &= ~SDsampDf;
+			else if (toupper(cp[1]) == 'D')
+				sflags &= ~SDsampSp;
 			vec_from_deg(vin, atof(sskip2(cp,1)), atof(sskip2(cp,2)));
 			printf("%.4e\n", SDdirectHemi(vin, sflags, bsdf));
 			continue;
 		case 'A':			/* resolution in proj. steradians */
-			if (bsdf == NULL)
+			if (!bsdf)
 				goto noBSDFerr;
 			if (!*sskip2(cp,2))
 				break;
@@ -150,7 +203,7 @@ main(int argc, char *argv[])
 		Usage(argv[0]);
 		continue;
 noBSDFerr:
-		fprintf(stderr, "%s: need to use 'L' command to load BSDF\n", argv[0]);
+		fprintf(stderr, "%s: First, use 'L' command to load BSDF\n", argv[0]);
 	}
 	return 0;
 }

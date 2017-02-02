@@ -202,31 +202,30 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		if (nl) lumL /= nl;
 	}
 	else {
-		double lum_thresh = 5.0; // Max 100
 		avlum /= omega;
 		lumV /= omegaV;
 		if (nt) lumT /= omegaT;
 		if (nh) lumH /= omegaH;
 		if (nl) lumL /= omegaL;
 
-		if (nt)
-			lum_thresh *= lumT;
-		else
-			lum_thresh *= lumV;
+		if (ev > FTINY) { // if (ev > 380) {
+			/* Calculate DGP */
+			double lum_thresh = 5.0; // Max 100
+			if (nt)
+				lum_thresh *= lumT;
+			else
+				lum_thresh *= lumV;
 
-		for (i = 0u; i < size; i++) {
-			if (metrics[i].omega >= 0.0f && metrics[i].avlum > lum_thresh * metrics[i].omega) {
-				dgp += metrics[i].dgp;
-			}
+			for (i = 0u; i < size; i++)
+				if (metrics[i].omega >= 0.0f && metrics[i].avlum > lum_thresh * metrics[i].omega)
+					dgp += metrics[i].dgp;
+
+			dgp = 5.87e-5 * ev + 0.092 * log10(1 + dgp / pow(ev, 1.87)) + 0.159;
+			if (dgp > 1.0) dgp = 1.0;
+			if (ev < 1000) /* low light correction */
+				dgp *= exp(0.024 * ev - 4) / (1 + exp(0.024 * ev - 4));
+			//dgp /= 1.1 - 0.5 * age / 100.0; /* age correction */
 		}
-
-		//if (ev > 380) {
-		dgp = 5.87e-5 * ev + 0.092 * log10(1 + dgp / pow(ev, 1.87)) + 0.159;
-		if (dgp > 1.0) dgp = 1.0;
-		if (ev < 1000) /* low light correction */
-			dgp *= exp(0.024 * ev - 4) / (1 + exp(0.024 * ev - 4));
-		//dgp /= 1.1 - 0.5 * age / 100.0; /* age correction */
-		//}
 	}
 	if (nh && nl) cr = lumH / lumL;
 	RT_CHECK_ERROR(rtBufferUnmap(metrics_buffer));
