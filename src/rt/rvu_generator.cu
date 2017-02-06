@@ -364,6 +364,8 @@ RT_PROGRAM void exception()
 	rtPrintExceptionDetails();
 #endif
 	color_buffer[launch_index] = 0xffffffff;
+	if (!frame)
+		direct_buffer[launch_index] = make_float3(0.0f);
 	Metrics metrics;
 	metrics.omega = -1.0f;
 	metrics.ev = rtGetExceptionCode();

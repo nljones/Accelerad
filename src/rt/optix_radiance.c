@@ -425,6 +425,7 @@ void setupKernel(const RTcontext context, const VIEW* view, LUTAB* modifiers, co
 
 void updateModel(const RTcontext context, LUTAB* modifiers)
 {
+	if (!context) return;
 	createGeometryInstance(context, modifiers, &mesh_handle, &instance_handle);
 	RT_CHECK_ERROR(rtAccelerationMarkDirty(acceleration_handle));
 }
