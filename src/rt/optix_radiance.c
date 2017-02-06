@@ -106,7 +106,7 @@ static RTvariable specthresh_var = NULL, specjitter_var = NULL;
 static RTvariable minweight_var = NULL, maxdepth_var = NULL;
 static RTvariable camera_type = NULL, camera_eye = NULL, camera_u = NULL, camera_v = NULL, camera_w = NULL, camera_fov = NULL, camera_shift = NULL, camera_clip = NULL, camera_vdist = NULL;
 #ifdef VT_ODS
-static RTvariable camera_ipd = NULL, camera_gaze = NULL;
+static RTvariable camera_ipd = NULL;
 #endif
 static RTremotedevice remote_handle = NULL;
 static RTgeometryinstance instance_handle = NULL;
@@ -354,7 +354,7 @@ void destroyContext(const RTcontext context)
 	avsum_var = navsum_var = NULL;
 	camera_frame = camera_type = camera_eye = camera_u = camera_v = camera_w = camera_fov = camera_shift = camera_clip = camera_vdist = NULL;
 #ifdef VT_ODS
-	camera_ipd = camera_gaze = NULL;
+	camera_ipd = NULL;
 #endif
 }
 
@@ -498,7 +498,6 @@ static void applyRadianceSettings(const RTcontext context, const VIEW* view, con
 		camera_vdist = applyContextVariable1f(context, "vdist", (float)view->vdist);
 #ifdef VT_ODS
 		camera_ipd   = applyContextVariable1f(context, "ipd", (float)view->ipd); // -vi
-		camera_gaze  = applyContextVariable3f(context, "gaze", 0.0f, 0.0f, 0.0f); // gaze direction (0 to use W)
 #endif
 	}
 	else if (imm_irrad)
@@ -2432,20 +2431,5 @@ int setMaxDepth(const int depth)
 	}
 	return changed;
 }
-
-#ifdef VT_ODS
-void setGaze(const VIEW* view, double angle)
-{
-	if (angle > FTINY || angle < -FTINY) {
-		FVECT gaze, normal;
-		VCOPY(normal, view->vvec);
-		normalize(normal);
-		spinvector(gaze, view->vdir, normal, angle);
-		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet3f(camera_gaze, (float)gaze[0], (float)gaze[1], (float)gaze[2]));
-	}
-	else
-		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet3f(camera_gaze, 0.0f, 0.0f, 0.0f));
-}
-#endif
 
 #endif /* ACCELERAD */

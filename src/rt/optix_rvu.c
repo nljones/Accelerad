@@ -44,6 +44,9 @@ static int makeFalseColorMap(const RTcontext context);
 /* Handles to objects used repeatedly in animation */
 static RTvariable greyscale_var = NULL, exposure_var = NULL, scale_var = NULL, tonemap_var = NULL, decades_var = NULL, mask_var = NULL;
 static RTvariable task_position = NULL, task_angle = NULL, high_position = NULL, high_angle = NULL, low_position = NULL, low_angle = NULL, position_flags = NULL;
+#ifdef VT_ODS
+static RTvariable camera_gaze = NULL;
+#endif
 static RTbuffer metrics_buffer = NULL, direct_buffer = NULL, diffuse_buffer = NULL;
 
 void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const double alarm, void fpaint(int, int, int, int, const unsigned char *), void fplot(double *))
@@ -123,6 +126,10 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		low_position = applyContextVariable2i(context, "low_position", xl, yl);
 		low_angle = applyContextVariable1f(context, "low_angle", (float)omegal);
 		position_flags = applyContextVariable1ui(context, "flags", 0u);
+
+#ifdef VT_ODS
+		camera_gaze = applyContextVariable3f(context, "gaze", 0.0f, 0.0f, 0.0f); // gaze direction (0 to use W)
+#endif
 
 #ifdef SAVE_METRICS
 		sprintf(errmsg, "%s.csv", octname);
@@ -288,6 +295,9 @@ void endOptix()
 	buffer_handle = NULL;
 #ifdef RAY_COUNT
 	ray_count_buffer_handle = NULL;
+#endif
+#ifdef VT_ODS
+	camera_gaze = NULL;
 #endif
 }
 
@@ -499,4 +509,20 @@ void setAreaFlags(const unsigned int flags)
 	RTcontext context = context_handle;
 	RT_CHECK_ERROR(rtVariableSet1ui(position_flags, flags));
 }
+
+#ifdef VT_ODS
+void setGaze(const VIEW* view, double angle)
+{
+	if (angle > FTINY || angle < -FTINY) {
+		FVECT gaze, normal;
+		VCOPY(normal, view->vvec);
+		normalize(normal);
+		spinvector(gaze, view->vdir, normal, angle);
+		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet3f(camera_gaze, (float)gaze[0], (float)gaze[1], (float)gaze[2]));
+	}
+	else
+		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet3f(camera_gaze, 0.0f, 0.0f, 0.0f));
+}
+#endif
+
 #endif /* ACCELERAD_RT */

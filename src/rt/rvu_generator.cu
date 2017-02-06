@@ -16,6 +16,8 @@
 
 using namespace optix;
 
+#define angle(a, b)	acosf(clamp(dot(a, b), -1.0f, 1.0f))
+
 /* Contex variables */
 rtDeclareVariable(unsigned int, frame, , ); /* Current frame number, starting from zero */
 rtDeclareVariable(unsigned int, camera, , ); /* Camera type (-vt) */
@@ -286,8 +288,7 @@ RT_METHOD float getSolidAngle()
 		return 0.0f;
 	float ang = 0.0f;
 	for (i = 0; i < 4; i++) {
-		float a = dot(n[i], n[(i + 1) % 4]);
-		ang += M_PIf - fabsf(acosf(clamp(a, -1.0f, 1.0f)));
+		ang += M_PIf - fabsf(angle(n[i], n[(i + 1) % 4]));
 	}
 	ang = ang - 2.0f * M_PIf;
 	if ((ang > (2.0f * M_PIf)) || ang < 0) {
@@ -302,19 +303,19 @@ RT_METHOD float getPositionIndex(const float3 &dir, const float3 &forward)
 {
 	float3 up = normalize(V); // TODO Not necessarily
 	float3 hv = cross(forward, up);
-	float phi = acosf(dot(cross(forward, hv), dir)) - M_PI_2f;
-	float teta = M_PI_2f - acosf(dot(hv, dir));
-	float sigma = acosf(dot(forward, dir));
+	float phi = angle(cross(forward, hv), dir) - M_PI_2f;
+	float teta = M_PI_2f - angle(hv, dir);
+	float sigma = angle(forward, dir);
 	hv = normalize(normalize(dir) / cosf(sigma) - forward);
-	float tau = acosf(dot(up, hv));
+	float tau = angle(up, hv);
 	tau *= 180.0f / M_PIf;
 	sigma *= 180.0f / M_PIf;
 
-	if (phi < FTINY)
+	if (phi == 0.0f)
 		phi = FTINY;
 	if (sigma <= 0)
 		sigma = -sigma;
-	if (teta < FTINY)
+	if (teta == 0.0f)
 		teta = FTINY;
 
 	float posindex = expf((35.2f - 0.31889f * tau - 1.22f * expf(-2.0f * tau / 9.0f)) / 1000.0f * sigma + (21.0f + 0.26667f * tau - 0.002963f * tau * tau) / 100000.0f * sigma * sigma);
@@ -343,7 +344,7 @@ RT_METHOD int inTask(const int2 &position, const float &angle, const float3 &ray
 {
 	float2 d = shift + make_float2(position) / make_float2(launch_dim) - 0.5f;
 	float3 task_dir = getViewDirection(d);
-	float r_actual = acosf(dot(task_dir, ray_direction));
+	float r_actual = angle(task_dir, ray_direction);
 	return r_actual <= angle;
 }
 
