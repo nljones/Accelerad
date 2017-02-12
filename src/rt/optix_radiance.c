@@ -49,23 +49,23 @@ static void checkRemoteDevice(RTremotedevice remote);
 static void createRemoteDevice(RTremotedevice* remote);
 static void applyRadianceSettings(const RTcontext context, const VIEW* view, const unsigned int imm_irrad);
 static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RTgeometry* mesh, RTgeometryinstance* instance);
-static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* parent, const OBJECT index, LUTAB* modifiers);
-static void createFace(OBJREC* rec, OBJREC* parent);
+static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, LUTAB* modifiers);
+static void createFace(const RTcontext context, OBJREC* rec, LUTAB* modifiers);
 static __inline void createTriangle(OBJREC *material, const int a, const int b, const int c);
 #ifdef TRIANGULATE
 static int createTriangles(const FACE *face, OBJREC* material);
 static int addTriangle(const Vert2_list *tp, int a, int b, int c);
 #endif /* TRIANGULATE */
-static void createSphere(OBJREC* rec, OBJREC* parent);
-static void createCone(OBJREC* rec, OBJREC* parent);
-static void createMesh(OBJREC* rec, OBJREC* parent);
+static void createSphere(const RTcontext context, OBJREC* rec, LUTAB* modifiers);
+static void createCone(const RTcontext context, OBJREC* rec, LUTAB* modifiers);
+static void createMesh(const RTcontext context, OBJREC* rec, LUTAB* modifiers);
 static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec, LUTAB* modifiers);
 static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec, LUTAB* modifiers);
 static RTmaterial createLightMaterial(const RTcontext context, OBJREC* rec, LUTAB* modifiers);
 #ifdef ANTIMATTER
 static RTmaterial createClipMaterial(const RTcontext context, OBJREC* rec);
 #endif
-static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, OBJREC* parent, LUTAB* modifiers);
+static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, LUTAB* modifiers);
 static OBJREC* findFunction(OBJREC *o);
 static int createFunction(const RTcontext context, OBJREC* rec);
 static int createTexture(const RTcontext context, OBJREC* rec);
@@ -562,7 +562,7 @@ static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RT
 {
 	unsigned int i;
 	OBJECT on;
-	OBJREC* rec, *parent;
+	OBJREC *rec;
 
 	/* Timers */
 	clock_t geometry_clock;
@@ -629,12 +629,8 @@ static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RT
 		buffer_entry_index[on] = -1;
 
 		rec = objptr(on);
-		if (rec->omod != OVOID)
-			parent = objptr(rec->omod);
-		else
-			parent = NULL;
-
-		addRadianceObject(context, rec, parent, on, modifiers);
+		if (!ismodifier(rec->otype))
+			addRadianceObject(context, rec, modifiers);
 	}
 
 	free( buffer_entry_index );
@@ -774,9 +770,12 @@ memerr:
 	error(SYSTEM, "out of memory in createGeometryInstance");
 }
 
-static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* parent, const OBJECT index, LUTAB* modifiers)
+static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 {
+	const OBJECT index = objndx(rec);
 	int alternate = -1;
+
+	if (buffer_entry_index[index] != -1) return index; /* Already done */
 
 	switch (rec->otype) {
 	case MAT_PLASTIC: // Plastic material
@@ -818,24 +817,24 @@ static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* pare
 		break;
 #endif
 	case OBJ_FACE: // Typical polygons
-		createFace(rec, parent);
+		createFace(context, rec, modifiers);
 		break;
 	case OBJ_SPHERE: // Sphere
 	case OBJ_BUBBLE: // Inverted sphere
-		createSphere(rec, parent);
+		createSphere(context, rec, modifiers);
 		break;
 	case OBJ_CONE: // Cone
 	case OBJ_CUP: // Inverted cone
 	case OBJ_CYLINDER: // Cylinder
 	case OBJ_TUBE: // Inverted cylinder
 	case OBJ_RING: // Disk
-		createCone(rec, parent);
+		createCone(context, rec, modifiers);
 		break;
 	case OBJ_MESH: // Mesh from file
-		createMesh(rec, parent);
+		createMesh(context, rec, modifiers);
 		break;
 	case OBJ_SOURCE:
-		insertArraydl(sources, createDistantLight(context, rec, parent, modifiers));
+		insertArraydl(sources, createDistantLight(context, rec, modifiers));
 		break;
 	//case MAT_TFUNC: // bumpmap function
 	case PAT_BFUNC: // brightness function, used for sky brightness
@@ -858,11 +857,12 @@ static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* pare
 		printObject(rec);
 		break;
 	case MOD_ALIAS:
-		if (rec->oargs.nsargs) {
-			if (rec->oargs.nsargs > 1)
-				objerror(rec, INTERNAL, "too many string arguments");
-			addRadianceObject(context, objptr(lastmod(objndx(rec), rec->oargs.sarg[0])), objptr(rec->omod), index, modifiers); // TODO necessary?
-		}
+		//if (rec->oargs.nsargs) {
+		//	if (rec->oargs.nsargs > 1)
+		//		objerror(rec, INTERNAL, "too many string arguments");
+		//	fprintf(stderr, "Got alias %s %s\n", rec->oname, rec->oargs.sarg[0]);
+		//	addRadianceObject(context, objptr(lastmod(objndx(rec), rec->oargs.sarg[0])), objptr(rec->omod), modifiers); // TODO necessary?
+		//}
 		// Otherwise it's a pass-through (do nothing)
 		break;
 	default:
@@ -871,15 +871,17 @@ static void addRadianceObject(const RTcontext context, OBJREC* rec, OBJREC* pare
 #endif
 		break;
 	}
+	return index;
 }
 
-static void createFace(OBJREC* rec, OBJREC* parent)
+static void createFace(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 {
 	int j, k;
 	FACE* face = getface(rec);
-	OBJREC* material = findmaterial(parent);
+	OBJREC* material = findmaterial(rec);
 	if (material == NULL)
 		objerror(rec, USER, "missing material");
+	addRadianceObject(context, material, modifiers);
 #ifdef TRIANGULATE
 	/* Triangulate the face */
 	if (!createTriangles(face, material)) {
@@ -893,7 +895,9 @@ static void createFace(OBJREC* rec, OBJREC* parent)
 #endif /* TRIANGULATE */
 
 	/* Write the vertices to the buffers */
-	material = findFunction(parent); // TODO can there be multiple parent functions?
+	material = findFunction(rec); // TODO can there be multiple parent functions?
+	if (material)
+		addRadianceObject(context, material, modifiers);
 	for (j = 0; j < face->nv; j++) {
 		RREAL *va = VERTEX(face, j);
 		insertArray3f(vertices, (float)va[0], (float)va[1], (float)va[2]);
@@ -1024,15 +1028,16 @@ static int addTriangle( const Vert2_list *tp, int a, int b, int c )
 }
 #endif /* TRIANGULATE */
 
-static void createSphere(OBJREC* rec, OBJREC* parent)
+static void createSphere(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 {
 	unsigned int i, j, steps;
 	int direction = rec->otype == OBJ_SPHERE ? 1 : -1; // Sphere or Bubble
 	double radius;
 	FVECT x, y, z;
-	OBJREC* material = findmaterial(parent);
+	OBJREC* material = findmaterial(rec);
 	if (material == NULL)
 		objerror(rec, USER, "missing material");
+	addRadianceObject(context, material, modifiers);
 
 	// Check radius
 	if (rec->oargs.nfargs < 4)
@@ -1140,7 +1145,7 @@ sphmemerr:
 	error(SYSTEM, "out of memory in createSphere");
 }
 
-static void createCone(OBJREC* rec, OBJREC* parent)
+static void createCone(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 {
 	unsigned int i, j, steps;
 	int isCone, direction;
@@ -1148,9 +1153,10 @@ static void createCone(OBJREC* rec, OBJREC* parent)
 	FVECT u, v, n;
 	CONE* cone = getcone(rec, 0);
 	if (cone == NULL) return;
-	OBJREC* material = findmaterial(parent);
+	OBJREC* material = findmaterial(rec);
 	if (material == NULL)
 		objerror(rec, USER, "missing material");
+	addRadianceObject(context, material, modifiers);
 
 	// Get orthonormal basis
 	if (!getperpendicular(u, cone->ad, 0))
@@ -1223,22 +1229,23 @@ static void createCone(OBJREC* rec, OBJREC* parent)
 	freecone(rec);
 }
 
-static void createMesh(OBJREC* rec, OBJREC* parent)
+static void createMesh(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 {
 	int j, k;
-	OBJREC* material;
 	MESHINST *meshinst = getmeshinst(rec, IO_ALL);
 	unsigned int vertex_index_mesh = vertex_index_0; //TODO what if not all patches are full?
 	for (j = 0; j < meshinst->msh->npatches; j++) {
 		MESHPATCH *pp = &(meshinst->msh)->patch[j];
-		if (parent) {
-			material = findmaterial(parent);
+		OBJREC* material = findmaterial(rec);
+		if (material) {
+			addRadianceObject(context, material, modifiers);
 		}
 		else if (!pp->trimat) {
 			OBJECT mo = pp->solemat;
 			if (mo != OVOID)
 				mo += meshinst->msh->mat0;
 			material = findmaterial(objptr(mo));
+			addRadianceObject(context, material, modifiers);
 		}
 
 		/* Write the indices to the buffers */
@@ -1248,6 +1255,7 @@ static void createMesh(OBJREC* rec, OBJREC* parent)
 				if (mo != OVOID)
 					mo += meshinst->msh->mat0;
 				material = findmaterial(objptr(mo));
+				addRadianceObject(context, material, modifiers);
 			}
 			createTriangle(material, vertex_index_0 + pp->tri[k].v1, vertex_index_0 + pp->tri[k].v2, vertex_index_0 + pp->tri[k].v3);
 		}
@@ -1258,6 +1266,7 @@ static void createMesh(OBJREC* rec, OBJREC* parent)
 				if (mo != OVOID)
 					mo += meshinst->msh->mat0;
 				material = findmaterial(objptr(mo));
+				addRadianceObject(context, material, modifiers);
 			}
 			createTriangle(material, vertex_index_mesh + pp->j1tri[k].v1j, vertex_index_0 + pp->j1tri[k].v2, vertex_index_0 + pp->j1tri[k].v3);
 		}
@@ -1268,6 +1277,7 @@ static void createMesh(OBJREC* rec, OBJREC* parent)
 				if (mo != OVOID)
 					mo += meshinst->msh->mat0;
 				material = findmaterial(objptr(mo));
+				addRadianceObject(context, material, modifiers);
 			}
 			createTriangle(material, vertex_index_mesh + pp->j2tri[k].v1j, vertex_index_mesh + pp->j2tri[k].v2j, vertex_index_0 + pp->j2tri[k].v3);
 		}
@@ -1566,8 +1576,10 @@ static RTmaterial createLightMaterial(const RTcontext context, OBJREC* rec, LUTA
 #endif
 
 	/* Check for a parent function. */
-	if ((mat = findFunction(rec))) // TODO can there be multiple parent functions?
+	if ((mat = findFunction(rec))) { // TODO can there be multiple parent functions?
+		addRadianceObject(context, mat, modifiers);
 		applyMaterialVariable1i(context, material, "function", buffer_entry_index[objndx(mat)]);
+	}
 	else
 		applyMaterialVariable1i(context, material, "function", RT_PROGRAM_ID_NULL);
 
@@ -1665,14 +1677,14 @@ static RTmaterial createClipMaterial(const RTcontext context, OBJREC* rec)
 }
 #endif
 
-static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, OBJREC* parent, LUTAB* modifiers)
+static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 {
 	SRCREC source;
 	OBJREC* material;
 	DistantLight light;
 
 	ssetsrc(&source, rec);
-	material = findmaterial(parent);
+	material = findmaterial(rec);
 	if (material == NULL)
 		objerror(rec, USER, "missing material");
 	array2cuda3(light.color, material->oargs.farg); // TODO these are given in RGB radiance value (watts/steradian/m2)
@@ -1685,8 +1697,10 @@ static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, OBJ
 #endif /* CONTRIB */
 
 	/* Check for a parent function. */
-	if ((material = findFunction(parent))) // TODO can there be multiple parent functions?
+	if ((material = findFunction(rec))) { // TODO can there be multiple parent functions?
+		addRadianceObject(context, material, modifiers);
 		light.function = buffer_entry_index[objndx(material)];
+	}
 	else
 		light.function = RT_PROGRAM_ID_NULL;
 
