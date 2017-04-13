@@ -77,7 +77,7 @@ rtDeclareVariable(int,          ambounce, , );	/* Ambient bounces (ab) */
 rtDeclareVariable(float,        ambacc, , );	/* Ambient accuracy (aa). This value will approximately equal the error from indirect illuminance interpolation */
 rtDeclareVariable(int,          ambdiv, , );	/* Ambient divisions (ad) */
 rtDeclareVariable(int,          ambdiv_final, , ); /* Number of ambient divisions for final-pass fill (ag) */
-rtDeclareVariable(int,          ambssamp, , );	/* Ambient super-samples (as) */
+//rtDeclareVariable(int,          ambssamp, , );	/* Ambient super-samples (as) */
 #ifdef OLDAMB
 rtDeclareVariable(float,        maxarad, , );	/* maximum ambient radius */
 rtDeclareVariable(float,        minarad, , );	/* minimum ambient radius */

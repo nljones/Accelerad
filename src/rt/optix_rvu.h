@@ -33,6 +33,7 @@ extern int setDirectSampling(const double ratio);
 extern int setDirectVisibility(const int vis);
 extern int setSpecularThreshold(const double threshold);
 extern int setSpecularJitter(const double jitter);
+extern int setAmbientBounces(const int bounces);
 extern int setMinWeight(const double weight);
 extern int setMaxDepth(const int depth);
 

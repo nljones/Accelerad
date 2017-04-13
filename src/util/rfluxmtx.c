@@ -26,7 +26,12 @@ char		*progname;		/* global argv[0] */
 
 int		verbose = 0;		/* verbose mode (< 0 no warnings) */
 
+#ifdef ACCELERAD
+#define ACCEL_CHARS	10		/* length of "accelerad_" string */
+char		*rcarg[MAXRCARG + 1] = { "accelerad_rcontrib", "-fo+" };
+#else
 char		*rcarg[MAXRCARG+1] = {"rcontrib", "-fo+"};
+#endif
 int		nrcargs = 2;
 
 const char	overflowerr[] = "%s: too many arguments!\n";
@@ -1334,6 +1339,10 @@ main(int argc, char *argv[])
 	if (load_scene(argv[a], add_recv_object) < 0)
 		return(1);
 	finish_receiver();
+#ifdef ACCELERAD
+	if (system("accelerad_rcontrib -version")) /* check existance of accelerad_rcontrib */
+		rcarg[0] += ACCEL_CHARS;
+#endif
 	if (sendfn == NULL) {		/* pass-through mode? */
 		CHECKARGC(1);		/* add octree */
 		rcarg[nrcargs++] = oconv_command(argc-a, argv+a);

@@ -47,10 +47,8 @@ endif()
 add_executable(bsdf2rad	bsdf2rad.c bsdfrep.c bsdfinterp.c)
 target_link_libraries(bsdf2rad rtrad)
 
-if(BUILD_TESTING)
-  add_executable(bsdfquery bsdfquery.c bsdfrep.c bsdfinterp.c)
-  target_link_libraries(bsdfquery rtrad)
-endif()
+add_executable(bsdfquery bsdfquery.c bsdfrep.c bsdfinterp.c)
+target_link_libraries(bsdfquery rtrad)
 
 add_executable(bsdf2ttree bsdf2ttree.c bsdfrep.c bsdfinterp.c)
 target_link_libraries(bsdf2ttree rtrad)
@@ -73,7 +71,7 @@ install(TARGETS
 	bsdf2ttree bsdf2klems pkgBSDF epw2wea
   RUNTIME DESTINATION bin)
 
-INSTALL(FILES source.cal tilt.cal lamp.tab window.cal
+INSTALL(FILES source.cal tilt.cal lamp.tab window.cal bsdf2rad.cal
   DESTINATION lib)
 
 if (NOT WIN32)

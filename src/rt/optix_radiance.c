@@ -103,6 +103,7 @@ RTvariable camera_frame = NULL;
 static RTvariable backvis_var = NULL, irrad_var = NULL;
 static RTvariable dstrsrc_var = NULL, srcsizerat_var = NULL, directvis_var = NULL;
 static RTvariable specthresh_var = NULL, specjitter_var = NULL;
+static RTvariable ambounce_var = NULL;
 static RTvariable minweight_var = NULL, maxdepth_var = NULL;
 static RTvariable camera_type = NULL, camera_eye = NULL, camera_u = NULL, camera_v = NULL, camera_w = NULL, camera_fov = NULL, camera_shift = NULL, camera_clip = NULL, camera_vdist = NULL;
 #ifdef VT_ODS
@@ -460,7 +461,7 @@ static void applyRadianceSettings(const RTcontext context, const VIEW* view, con
 	/* Set ambient parameters */
 	applyContextVariable3f( context, "ambval", ambval[0], ambval[1], ambval[2] ); // -av
 	applyContextVariable1i( context, "ambvwt", ambvwt ); // -aw, zero by default
-	applyContextVariable1i( context, "ambounce", ambounce ); // -ab
+	ambounce_var = applyContextVariable1i(context, "ambounce", ambounce); // -ab
 	//applyContextVariable1i( context, "ambres", ambres ); // -ar
 	applyContextVariable1f(context, "ambacc", (float)ambacc); // -aa
 	applyContextVariable1i( context, "ambdiv", ambdiv ); // -ad
@@ -1576,10 +1577,8 @@ static RTmaterial createLightMaterial(const RTcontext context, OBJREC* rec, LUTA
 #endif
 
 	/* Check for a parent function. */
-	if ((mat = findFunction(rec))) { // TODO can there be multiple parent functions?
-		addRadianceObject(context, mat, modifiers);
-		applyMaterialVariable1i(context, material, "function", buffer_entry_index[objndx(mat)]);
-	}
+	if ((mat = findFunction(rec))) // TODO can there be multiple parent functions?
+		applyMaterialVariable1i(context, material, "function", buffer_entry_index[addRadianceObject(context, mat, modifiers)]);
 	else
 		applyMaterialVariable1i(context, material, "function", RT_PROGRAM_ID_NULL);
 
@@ -1697,10 +1696,8 @@ static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, LUT
 #endif /* CONTRIB */
 
 	/* Check for a parent function. */
-	if ((material = findFunction(rec))) { // TODO can there be multiple parent functions?
-		addRadianceObject(context, material, modifiers);
-		light.function = buffer_entry_index[objndx(material)];
-	}
+	if ((material = findFunction(rec))) // TODO can there be multiple parent functions?
+		light.function = buffer_entry_index[addRadianceObject(context, material, modifiers)];
 	else
 		light.function = RT_PROGRAM_ID_NULL;
 
@@ -2423,6 +2420,16 @@ int setSpecularJitter(const double jitter)
 	if (changed = (specjitter != jitter)) {
 		specjitter = jitter;
 		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1f(specjitter_var, (float)jitter));
+	}
+	return changed;
+}
+
+int setAmbientBounces(const int bounces)
+{
+	int changed;
+	if (changed = (ambounce != bounces)) {
+		ambounce = bounces;
+		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1i(ambounce_var, bounces));
 	}
 	return changed;
 }
