@@ -173,6 +173,7 @@ resample:
 static float *
 getambdiffs(AMBHEMI *hp)
 {
+	const double	normf = 1./bright(hp->acoef);
 	float	*earr = (float *)calloc(hp->ns*hp->ns, sizeof(float));
 	float	*ep;
 	AMBSAMP	*ap;
@@ -186,20 +187,20 @@ getambdiffs(AMBHEMI *hp)
 	    for (j = 0; j < hp->ns; j++, ap++, ep++) {
 		b = bright(ap[0].v);
 		if (i) {		/* from above */
-			d2 = b - bright(ap[-hp->ns].v);
+			d2 = normf*(b - bright(ap[-hp->ns].v));
 			d2 *= d2;
 			ep[0] += d2;
 			ep[-hp->ns] += d2;
 		}
 		if (!j) continue;
 					/* from behind */
-		d2 = b - bright(ap[-1].v);
+		d2 = normf*(b - bright(ap[-1].v));
 		d2 *= d2;
 		ep[0] += d2;
 		ep[-1] += d2;
 		if (!i) continue;
 					/* diagonal */
-		d2 = b - bright(ap[-hp->ns-1].v);
+		d2 = normf*(b - bright(ap[-hp->ns-1].v));
 		d2 *= d2;
 		ep[0] += d2;
 		ep[-hp->ns-1] += d2;
@@ -243,7 +244,7 @@ ambsupersamp(AMBHEMI *hp, int cnt)
 			goto done;	/* nothing left to do */
 		nss = *ep/e2rem*cnt + frandom();
 		for (n = 1; n <= nss && ambsample(hp,i,j,n); n++)
-			--cnt;
+			if (!--cnt) goto done;
 		e2rem -= *ep++;		/* update remainder */
 	}
 done:
@@ -264,6 +265,9 @@ samp_hemi(				/* sample indirect hemisphere */
 	AMBHEMI	*hp;
 	double	d;
 	int	n, i, j;
+					/* insignificance check */
+	if (bright(rcol) <= FTINY)
+		return(NULL);
 					/* set number of divisions */
 	if (ambacc <= FTINY &&
 			wt > (d = 0.8*intens(rcol)*r->rweight/(ambdiv*minweight)))

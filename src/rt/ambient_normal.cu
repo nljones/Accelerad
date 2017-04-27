@@ -462,7 +462,9 @@ RT_METHOD int samp_hemi(
 	const float3& hit
 )
 {
-	int	j;
+					/* insignificance check */
+	if (bright(*rcol) <= FTINY)
+		return 0;
 					/* set number of divisions */
 #ifndef AMB_PARALLEL
 	float d;
@@ -524,7 +526,7 @@ RT_METHOD int samp_hemi(
 		optix::Matrix<3,3> hesscol;	/* compute first vertical edge */
 		float3 gradcol;
 
-	    for ( j = 0; j < hp->ns; j++ ) {
+	    for (int j = 0; j < hp->ns; j++ ) {
 			hp->sampOK += ambsample(hp, &current, i, j, 0, normal, hit);
 			current.v.y = bright( current.v ); /* relative Y channel from here on... */
 
@@ -609,7 +611,7 @@ RT_METHOD int samp_hemi(
 #else /* AMB_SAVE_MEM */
 					/* sample divisions */
 	for (i = hp->ns; i--; )
-	    for (j = hp->ns; j--; )
+	    for (int j = hp->ns; j--; )
 			hp->sampOK += ambsample(hp, &ambsam(i, j), i, j, 0, normal, hit);
 #endif /* AMB_SAVE_MEM */
 	*rcol = hp->acol;
@@ -854,26 +856,28 @@ RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const int& i, const int&
 /* Estimate errors based on ambient division differences */
 RT_METHOD void getambdiffs(AMBHEMI *hp)
 {
+	const float normf = 1.0f / bright(hp->acoef);
+
 	/* compute squared neighbor diffs */
 	for (unsigned int i = 0u; i < hp->ns; i++)
 		for (unsigned int j = 0u; j < hp->ns; j++) {
 			earr(i, j) = 0.0f;
 			float b = bright(ambsam(i, j).v);
 			if (i) {		/* from above */
-				float d2 = b - bright(ambsam(i - 1, j).v);
+				float d2 = normf * (b - bright(ambsam(i - 1, j).v));
 				d2 *= d2;
 				earr(i, j) += d2;
 				earr(i - 1, j) += d2;
 			}
 			if (!j) continue;
 			/* from behind */
-			float d2 = b - bright(ambsam(i, j - 1).v);
+			float d2 = normf * (b - bright(ambsam(i, j - 1).v));
 			d2 *= d2;
 			earr(i, j) += d2;
 			earr(i, j - 1) += d2;
 			if (!i) continue;
 			/* diagonal */
-			d2 = b - bright(ambsam(i - 1, j - 1).v);
+			d2 = normf * (b - bright(ambsam(i - 1, j - 1).v));
 			d2 *= d2;
 			earr(i, j) += d2;
 			earr(i - 1, j - 1) += d2;
@@ -911,7 +915,7 @@ RT_METHOD void ambsupersamp(AMBHEMI *hp, int cnt, const float3& normal, const fl
 				return;	/* nothing left to do */
 			int nss = *ep / e2rem * cnt + curand_uniform( prd.state );
 			for (int n = 1; n <= nss && ambsample(hp, &ambsam(i, j), i, j, n, normal, hit); n++)
-				--cnt;
+				if (!--cnt) return;
 			e2rem -= *ep++;		/* update remainder */
 		}
 }
