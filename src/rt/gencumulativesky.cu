@@ -1,7 +1,8 @@
 /*
- * Copyright (c) 2013-2017 Nathaniel Jones
- * Massachusetts Institute of Technology
+ *  gencumulativesky.cu - program for gencumulativesky distribution on GPUs.
  */
+
+#include "accelerad_copyright.h"
 
 #include <optix_world.h>
 

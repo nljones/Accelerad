@@ -1,7 +1,8 @@
 /*
- * Copyright (c) 2013-2017 Nathaniel Jones
- * Massachusetts Institute of Technology
+ *  cuda_adaptive_seeding.cu - routines for adaptive seeding on GPUs.
  */
+
+#include "accelerad_copyright.h"
 
 #include <stdio.h>
 #include <stdlib.h>

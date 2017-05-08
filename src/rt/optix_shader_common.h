@@ -1,7 +1,10 @@
 /*
- * Copyright (c) 2013-2016 Nathaniel Jones
- * Massachusetts Institute of Technology
+ *  optix_shader_common.h - shader routines for ray tracing on GPUs.
  */
+
+#pragma once
+
+#include "accelerad_copyright.h"
 
 #include "optix_common.h"
 #ifdef CONTRIB_DOUBLE

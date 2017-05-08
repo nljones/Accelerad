@@ -1,7 +1,10 @@
 /*
- * Copyright (c) 2013-2015 Nathaniel Jones
- * Massachusetts Institute of Technology
+ *  optix_rvu.h - declarations for interactive view generation on GPUs.
  */
+
+#pragma once
+
+#include "accelerad_copyright.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -1,7 +1,8 @@
 /*
- * Copyright (c) 2013-2017 Nathaniel Jones
- * Massachusetts Institute of Technology
+ *  background.cu - miss program for ray tracing on GPUs.
  */
+
+#include "accelerad_copyright.h"
 
 //#define RT_USE_TEMPLATED_RTCALLABLEPROGRAM
 #include <optix_world.h>

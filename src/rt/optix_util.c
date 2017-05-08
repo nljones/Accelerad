@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2013-2017 Nathaniel Jones
- * Massachusetts Institute of Technology
+ *  optix_util.c - common routines for simulations on GPUs.
  */
 
-#include <stdio.h>
+#include "accelerad_copyright.h"
 
-#include <standard.h> /* TODO just get the includes that are required? */
+#include "rtio.h"
+#include "rterror.h"
 #include "paths.h" /* Required for R_OK argument to getpath() */
 
 #include "optix_radiance.h"

@@ -1,7 +1,8 @@
 /*
- * Copyright (c) 2013-2017 Nathaniel Jones
- * Massachusetts Institute of Technology
+ *  optix_util.c - routines for interactive view generation on GPUs.
  */
+
+#include "accelerad_copyright.h"
 
 #include "ray.h"
 #include "optix_radiance.h"

@@ -1,10 +1,10 @@
 /*
- * Copyright (c) 2013-2017 Nathaniel Jones
- * Massachusetts Institute of Technology
+ *  isotropsky.cu - program for isotropic sky distribution on GPUs.
  */
 
+#include "accelerad_copyright.h"
+
 #include <optix_world.h>
-//#include "optix_shader_common.h"
 
 struct Transform
 {

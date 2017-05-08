@@ -1,10 +1,11 @@
 /*
- * Copyright (c) 2013-2016 Nathaniel Jones
- * Massachusetts Institute of Technology
+ *  optix_shader_daysim.h - shader routines for generating daylight coefficients on GPUs.
  */
 
 #ifndef OPTIX_DAYSIM_HEADER
 #define OPTIX_DAYSIM_HEADER
+
+#include "accelerad_copyright.h"
 
 #ifdef DAYSIM_COMPATIBLE
 typedef uint3 DaysimCoef;

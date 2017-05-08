@@ -1,9 +1,9 @@
 /*
- * Copyright (c) 2013-2017 Nathaniel Jones
- * Massachusetts Institute of Technology
+ *  optix_rtrace.c - routines for individual ray tracing on GPUs.
  */
 
-#include <standard.h> /* TODO just get the includes that are required? */
+#include "accelerad_copyright.h"
+
 #include "ray.h"
 
 #include "optix_radiance.h"

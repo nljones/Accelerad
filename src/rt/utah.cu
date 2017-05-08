@@ -1,7 +1,8 @@
 /*
- * Copyright (c) 2013-2017 Nathaniel Jones
- * Massachusetts Institute of Technology
+ *  utah.cu - program for Utah sky distribution on GPUs.
  */
+
+#include "accelerad_copyright.h"
 
 #include <optix_world.h>
 #include "optix_shader_common.h"

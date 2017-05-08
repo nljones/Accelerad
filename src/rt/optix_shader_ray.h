@@ -1,7 +1,10 @@
 /*
- * Copyright (c) 2013-2016 Nathaniel Jones
- * Massachusetts Institute of Technology
+ *  optix_shader_ray.h - structures and routines for ray types on GPUs.
  */
+
+#pragma once
+
+#include "accelerad_copyright.h"
 
 #include "optix_shader_daysim.h"
 #include "optix_shader_random.h"

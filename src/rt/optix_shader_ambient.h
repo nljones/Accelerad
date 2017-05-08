@@ -1,7 +1,10 @@
 /*
- * Copyright (c) 2013-2016 Nathaniel Jones
- * Massachusetts Institute of Technology
+ *  optix_shader_ambient.h - shader routines for ambient sampling on GPUs.
  */
+
+#pragma once
+
+#include "accelerad_copyright.h"
 
 #ifndef OLDAMB
 #define	DCSCALE		11585.2f		/* (1<<13)*sqrt(2) */

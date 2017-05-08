@@ -1,9 +1,10 @@
 /*
- * Copyright (c) 2013-2016 Nathaniel Jones
- * Massachusetts Institute of Technology
+ *  optix_shader_contrib.h - shader routines for generating contribution coefficients on GPUs.
  */
 
 #pragma once
+
+#include "accelerad_copyright.h"
 
 #ifdef CONTRIB_DOUBLE
 #include "optix_double.h"

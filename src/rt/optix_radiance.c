@@ -1,17 +1,16 @@
 /*
- * Copyright (c) 2013-2017 Nathaniel Jones
- * Massachusetts Institute of Technology
+ *  optix_radiance.c - routines for setting up simulations on GPUs.
  */
 
-#include <standard.h> /* TODO just get the includes that are required? */
-#include <object.h>
-#include <otypes.h>
+#include "accelerad_copyright.h"
+
 #include "ray.h"
+#include "otypes.h"
 #include "source.h"
 #include "ambient.h"
-#include <face.h>
-#include <cone.h>
-#include <mesh.h>
+#include "face.h"
+#include "cone.h"
+#include "mesh.h"
 #include "data.h"
 #include "bsdf.h"
 #include "random.h"

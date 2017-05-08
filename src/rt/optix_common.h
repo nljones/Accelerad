@@ -1,9 +1,10 @@
 /*
- * Copyright (c) 2013-2017 Nathaniel Jones
- * Massachusetts Institute of Technology
+ *  optix_common.h - structures for transferring data between the CPU and GPU.
  */
 
 #pragma once
+
+#include "accelerad_copyright.h"
 
 #include <optixu_vector_types.h>
 

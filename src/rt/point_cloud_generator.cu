@@ -1,7 +1,8 @@
 /*
- * Copyright (c) 2013-2017 Nathaniel Jones
- * Massachusetts Institute of Technology
+ *  point_cloud_generator.cu - entry point for geometry sampling for image generation on GPUs.
  */
+
+#include "accelerad_copyright.h"
 
 #include <optix_world.h>
 #include "optix_shader_common.h"

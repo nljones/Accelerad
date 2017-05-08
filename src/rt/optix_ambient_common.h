@@ -1,7 +1,10 @@
 /*
- * Copyright (c) 2013-2016 Nathaniel Jones
- * Massachusetts Institute of Technology
+ *  optix_ambient_common.h - definitinos and structures for ambient sampling on GPUs.
  */
+
+#pragma once
+
+#include "accelerad_copyright.h"
 
 #ifndef OLDAMB
 

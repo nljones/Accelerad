@@ -1,11 +1,14 @@
 /*
- * Copyright (c) 2013-2017 Nathaniel Jones
- * Massachusetts Institute of Technology
+ *  optix_radiance.h - declarations for simulations on GPUs.
  */
 
-#include <fvect.h>
-#include <view.h>
-#include <color.h>
+#pragma once
+
+#include "accelerad_copyright.h"
+
+#include "fvect.h"
+#include "view.h"
+#include "color.h"
 #include <inttypes.h>
 #include "lookup.h"
 

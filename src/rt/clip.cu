@@ -1,7 +1,8 @@
 /*
- * Copyright (c) 2013-2017 Nathaniel Jones
- * Massachusetts Institute of Technology
+ *  clip.cu - hit programs for antimatter on GPUs.
  */
+
+#include "accelerad_copyright.h"
 
 #include <optix.h>
 #include <optixu/optixu_math_namespace.h>

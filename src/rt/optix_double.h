@@ -1,10 +1,11 @@
 /*
- * Copyright (c) 2013-2016 Nathaniel Jones
- * Massachusetts Institute of Technology
+ *  optix_double.h - declaration for operations on double vectors on GPUs.
  */
 
 #ifndef OPTIX_DOUBLE_HEADER
 #define OPTIX_DOUBLE_HEADER
+
+#include "accelerad_copyright.h"
 
 __forceinline__ RT_HOSTDEVICE double3 make_double3(const double d)
 {

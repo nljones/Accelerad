@@ -1,9 +1,10 @@
 /*
-* Copyright (c) 2013-2016 Nathaniel Jones
-* Massachusetts Institute of Technology
-*/
+ *  optix_point_common.h - declarations and structures for geometry sampling on GPUs.
+ */
 
 #pragma once
+
+#include "accelerad_copyright.h"
 
 #include <optixu_vector_types.h>
 

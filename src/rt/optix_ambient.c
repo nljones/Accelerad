@@ -1,7 +1,8 @@
 /*
- * Copyright (c) 2013-2017 Nathaniel Jones
- * Massachusetts Institute of Technology
+ *  optix_ambient.c - routines for irradiance caching on GPUs.
  */
+
+#include "accelerad_copyright.h"
 
 #include "ray.h" // required by ambient.h
 #include "ambient.h"

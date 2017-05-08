@@ -1,3 +1,8 @@
+/*
+ *  triangle_mesh.cu - intersection program for triangles on GPUs.
+ */
+
+#include "accelerad_copyright.h"
 
 /*
  * Copyright (c) 2008 - 2009 NVIDIA Corporation.  All rights reserved.

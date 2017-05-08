@@ -1,10 +1,11 @@
 /*
- * Copyright (c) 2013-2016 Nathaniel Jones
- * Massachusetts Institute of Technology
+ *  optix_shader_random.h - shader routines for generating random numbers on GPUs.
  */
 
 #ifndef OPTIX_RANDOM_HEADER
 #define OPTIX_RANDOM_HEADER
+
+#include "accelerad_copyright.h"
 
 #define RANDOM
 #ifdef RANDOM
