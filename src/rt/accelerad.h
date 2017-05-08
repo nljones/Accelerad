@@ -11,7 +11,7 @@
 #define ACCELERAD_RT
 #endif
 /* Compiler setting to allow debugging of OptiX ray tracing */
-#define ACCELERAD_DEBUG
+//#define ACCELERAD_DEBUG
 #endif
 
 #ifndef DAYSIM

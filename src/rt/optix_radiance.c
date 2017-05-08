@@ -29,6 +29,8 @@
 #include "triangulate.h"
 #endif /* TRIANGULATE */
 
+#define BLANK	-1	/* No index provided */
+
 #define EXPECTED_VERTICES	64
 #define EXPECTED_TRIANGLES	64
 #define EXPECTED_MATERIALS	8
@@ -627,7 +629,7 @@ static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RT
 	/* Get the scene geometry as a list of triangles. */
 	for (on = 0; on < nobjects; on++) {
 		/* By default, no buffer entry is refered to. */
-		buffer_entry_index[on] = -1;
+		buffer_entry_index[on] = BLANK;
 
 		rec = objptr(on);
 		if (!ismodifier(rec->otype))
@@ -776,7 +778,7 @@ static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, LUTAB* mod
 	const OBJECT index = objndx(rec);
 	int alternate = -1;
 
-	if (buffer_entry_index[index] != -1) return index; /* Already done */
+	if (buffer_entry_index[index] != BLANK) return index; /* Already done */
 
 	switch (rec->otype) {
 	case MAT_PLASTIC: // Plastic material
@@ -2240,9 +2242,10 @@ static void applyContribution(const RTcontext context, const RTmaterial material
 			}
 			else if (light) {
 				/* Check for a existing program. */
-				RTmaterial mat = materials->array[buffer_entry_index[objndx(rec)]];
+				int mat_index = buffer_entry_index[objndx(rec)];
+				RTmaterial mat = (mat_index == BLANK) ? NULL : materials->array[mat_index];
 				light->contrib_index = mp->start_bin;
-				if (mat) {
+				if (mat) { /* In case this material has also already been used for a surface, we can reuse the function here */
 					RTvariable var;
 					RT_CHECK_ERROR(rtMaterialQueryVariable(mat, cfunc, &var));
 					RT_CHECK_ERROR(rtVariableGet1i(var, &light->contrib_function));
