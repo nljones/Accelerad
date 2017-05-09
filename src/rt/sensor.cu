@@ -6,7 +6,7 @@
 
 #include <optix_world.h>
 #include "optix_shader_common.h"
-#include "optiX_shader_ray.h"
+#include "optix_shader_ray.h"
 #ifdef CONTRIB_DOUBLE
 #include "optix_double.h"
 #endif

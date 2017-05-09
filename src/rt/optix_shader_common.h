@@ -41,13 +41,13 @@
 #ifdef CONTRIB_DOUBLE
 typedef double3 contrib3;
 typedef double4 contrib4;
-#define make_contrib3(...) make_double3(##__VA_ARGS__)
-#define make_contrib4(...) make_double4(##__VA_ARGS__)
+#define make_contrib3(...) make_double3(__VA_ARGS__)
+#define make_contrib4(...) make_double4(__VA_ARGS__)
 #else
 typedef float3 contrib3;
 typedef float4 contrib4;
-#define make_contrib3(...) make_float3(##__VA_ARGS__)
-#define make_contrib4(...) make_float4(##__VA_ARGS__)
+#define make_contrib3(...) make_float3(__VA_ARGS__)
+#define make_contrib4(...) make_float4(__VA_ARGS__)
 #endif
 
 #ifdef __CUDACC__

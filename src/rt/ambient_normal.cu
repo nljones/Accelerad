@@ -8,7 +8,7 @@
 #include <optixu/optixu_math_namespace.h>
 #include <optixu/optixu_matrix_namespace.h>
 #include "optix_shader_common.h"
-#include "optiX_shader_ray.h"
+#include "optix_shader_ray.h"
 #include "optix_shader_ambient.h"
 #include "optix_ambient_common.h"
 #ifdef CONTRIB_DOUBLE
