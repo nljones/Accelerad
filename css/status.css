@@ -1,0 +1,41 @@
+@charset "UTF-8";
+/* Implementation lists */
+.separate {
+	float:none;
+}
+ul.statuslist, ol.statuslist {
+    width:100%;
+    float:left;
+    clear:both;
+	padding:0px;
+	-webkit-padding-start: 0px;
+    display:block;
+}
+li.status {
+	width:80px;
+	margin:3px;
+	padding-left:10px;
+	padding-right:10px;
+	padding-top:5px;
+	padding-bottom:5px;
+	list-style: none;
+    display:block;
+    float:left;
+}
+li.implemented {
+	background-color:rgba(0,0,0,.1);
+}
+li.unimplemented {
+	color:#9E6364;
+	background-color:rgba(255,96,96,.4);
+}
+li.partial {
+	background-color:rgba(255,96,0,.2);
+}
+li.never {
+	color:#fafafa;
+	background-color:#747474;
+}
+li.key {
+	width:186px;
+}

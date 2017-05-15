@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en-US">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Accelerad Documentation</title>
+  <meta name="author" content="Nathaniel Jones" />
+  <meta name="copyright" content="Copyright (c) 2017 Nathaniel Jones" />
+  <meta name="description" content="Documentation for Accelerad daylighting simulation tool for fast global illumination simulation on graphics hardware" />
+  <meta name="keywords" content="Documentation, Accelerad, Radiance, Graphics Hardware, GPU, Daylighting, Building Simulation, Building Energy Performance Simulation, Ray Tracing, Nathaniel Jones, Massachusetts Institute of Technology, Architecture, Sustainable Design Lab">
+  <link href="https://architecture.mit.edu/sites/all/themes/sap_arch/favicon.ico" rel="shortcut icon" type="image/vnd.microsoft.icon" />
+  <link href="css/style.css" rel="stylesheet" type="text/css" />
+  <link href="css/status.css" rel="stylesheet" type="text/css" />
+  <!-- Google Analytics tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-42900627-4', 'auto');
+  ga('send', 'pageview');
+
+</script>
+</head>
+
+<body>
+<!-- Main Container -->
+<div class="container"> 
+  <!-- Navigation -->
+  <header> <a href="index.html">
+    <h4 class="logo">Accelerad</h4>
+    </a>
+    <nav>
+      <ul class="navigation">
+        <li><a href="index.html">ABOUT</a></li>
+        <li><a href="documentation.html" class="current">DOCUMENTATION</a></li>
+        <li><a href="publications.html">PUBLICATIONS</a></li>
+        <li><a href="help.html">HELP</a></li>
+      </ul>
+    </nav>
+  </header>
+  <!-- Hero Section -->
+  <div>
+  <section class="about">
+	<div>
+		<h3>Contents</h3>
+		<ul>
+        	<li><a href="#gettingstarted">Getting Started</a><ul>
+            	<li><a href="#beforeyoubegin">Before you begin</a></li>
+				<li><a href="#confirm">Confirm that Accelerad runs on your computer</a></li>
+				<li><a href="#workflow">Use Accelerad in your workflow</a></li>
+            </ul></li>
+			<li><a href="#releasenotes">Release Notes</a><ul>
+				<li><a href="#radianceversions">Radiance versions</a></li>
+				<li><a href="#filedependencies">Missing files from RAYPATH</a></li>
+				<li><a href="#missingdll">Missing library files (.dll, .so, and .dylib)</a></li>
+				<li><a href="#drivercrash">Graphics driver crashes</a></li>
+				<li><a href="#olderhardware">Older graphics hardware</a></li>
+				<li><a href="#disable">Disabling GPU acceleration</a></li>
+				<li><a href="#distancetoorigin">Distance to origin</a></li>
+				<li><a href="#highlow">Unexpected high and low values</a></li>
+				<li><a href="#irradaincecaching">Irradiance caching in rtrace
+				<li><a href="#bsdf">BSDF use</a></li>
+            </ul></li>
+			<li><a href="#commandline">Command Line Arguments</a></li>
+			<li><a href="#limitations">Current Limitations</a></li>
+        </ul>
+    </div>
+
+	<a name="gettingstarted"></a><h3>Getting Started</h3>
+
+	<a name="beforeyoubegin"></a><h4>Before you begin</h4>
+	<p>The Accelerad implementations of <em>rpict</em> and <em>rtrace</em> are intended to replace the standard versions that come with the default installation of Radiance. Before you install Accelerad:</p>
+
+	<ol type="1">
+    	<li>Verify that you have a <a href="https://developer.nvidia.com/cuda-gpus" target="_blank">CUDA-enabled GPU</a> with compute capability 2.0 to 6.1. If you are unsure what GPU you have:
+        <ul>
+        	<li>On Windows, right click on Computer and select <em>Properties</em> &gt; <em>Device Manager</em> &gt; <em>Display adapters</em>.</li>
+			<li>On Linux, use the command <tt>lshw -C display</tt> to list devices.</li>
+            <li>On Mac, choose <em>About this Mac</em> from the Apple menu and click on the <em>Displays</em> tab.</li>
+        </ul></li>
+		<li>Download and install <a href="https://github.com/NREL/Radiance/releases" target="_blank">Radiance</a> if it is not already present.</li>
+		<li>Download and install the latest <a href="http://www.nvidia.com/Download/index.aspx" target="_blank">graphics driver</a> for your GPU.</li>
+		<li>On Mac, you will also need to download and install the latest <a href="http://www.nvidia.com/object/mac-driver-archive.html" target="_blank">CUDA driver</a>.</li>
+	</ol>
+    
+    <a name="confirm"></a><h4>Confirm that Accelerad runs on your computer</h4>
+    <p>To confirm that Accelerad is successfully installed on your computer, try running the included Windows .bat or Unix .sh files in the demo folder. Running <em>test_accelerad_rpict</em> should produce a high dynamic range image file named <em>test_rpict.hdr</em>. Running <em>test_accelerad_rtrace</em> should produce a tabular set of data in a file named <em>test_rtrace.txt</em>. Running <em>test_accelerad_rcontrib</em> should produce a tabular set of data in a file named <em>test_rcontrib.txt</em>.</p>
+    
+    <p>On Linux and Mac, it will first be necessary to add the Accelerad <em>bin</em> folder to the PATH and LD_LIBRARY_PATH environment variables. It will also be necessary and to add the Accelerad <em>lib</em> folder to the RAYPATH environment variable. On Windows, this will be done automatically by the installer. On Linux or Mac, add the following to the end of your <em>~/.profile</em> file and edit the paths as necessary if you choose a custom install location:</p>
+    
+    <blockquote><tt>
+    	export PATH=/usr/local/accelerad/bin:$PATH<br />
+		export RAYPATH=/usr/local/accelerad/lib:$RAYPATH<br />
+		export LD_LIBRARY_PATH=/usr/local/accelerad/bin:$LD_LIBRARY_PATH
+    </tt></blockquote>
+    
+    <a name="workflow"></a><h4>Use Accelerad in your workflow</h4>
+	<p>This suite contains Accelerad versions of several Radiance programs:</p>
+
+	<table width="100%">
+		<tr>
+			<th><div align="left">The Accelerad program ...</div></th>
+			<th><div align="left">... replaces the Radiance program ...</div></th>
+		</tr>
+		<tr>
+			<td><em>accelerad_rpict</em></td>
+			<td><em><a href="http://radsite.lbl.gov/radiance/man_html/rpict.1.html" target="_blank">rpict</a></em></td>
+		</tr>
+		<tr>
+			<td><em>accelerad_rtrace</em></td>
+			<td><em><a href="http://radsite.lbl.gov/radiance/man_html/rtrace.1.html" target="_blank">rtrace</a></em></td>
+		</tr>
+		<tr>
+			<td><em>accelerad_rcontrib</em></td>
+			<td><em><a href="https://www.radiance-online.org/learning/documentation/manual-pages/pdfs/rcontrib.pdf/view" target="_blank">rcontrib</a></em></td>
+		</tr>
+		<tr>
+			<td><em>accelerad_rfluxmtx</em></td>
+			<td><em><a href="https://www.radiance-online.org/learning/documentation/manual-pages/pdfs/rfluxmtx.pdf/view" target="_blank">rfluxmtx</a></em></td>
+		</tr>
+		<tr>
+			<td><em>accelerad_genBSDF</em></td>
+			<td><em><a href="http://radsite.lbl.gov/radiance/man_html/genBSDF.1.html" target="_blank">genBSDF</a></em></td>
+		</tr>
+	</table>
+	
+	<p>For Windows, these programs are installed by default to <em>C:\Program Files\Accelerad\bin</em>. However, different Radiance tools have different expectations about where Radiance programs will be found. Depending on the tools you use, <strong>you may need to move or rename some files</strong>. You can run Accelerad in one of three ways:</p>
+    
+	<p><strong>Within an application:</strong> In your applications that use one of the above Radiance programs, change the paths to refer to the corresponding Accelerad program.</p>
+    
+    <p><strong>Replace the original programs:</strong> If your application does not allow you to edit the Radiance application names:</p>
+    
+    	<ol type="1">
+			<li>Copy the contents of the Accelerad <em>bin</em> folder into your Radiance <em>bin</em> folder.</li>
+            <li>In the Radiance <em>bin</em> folder, rename the Accelerad programs with the names of the corresponding Radiance programs and replace the original program files. You may want to keep backup copies of the original Radiance files elsewhere.</li>
+            <li>Copy the .ptx files from the Accelerad <em>lib</em> folder to the Radiance <em>lib</em> folder.</li>
+        </ol>
+
+	  <p><strong>From the command line:</strong> If you use Radiance from the command line, you can simply address your commands to the Accelerad programs instead of the corresponding Radiance programs. Be sure that the Accelerad <em>bin</em> and <em>lib</em> folder are found in your PATH and RAYPATH environment variables, respectively. On Linux and Mac, the Accelerad <em>bin</em> folder must also be found in the LD_LIBRARY_PATH environment variable.</p>
+
+    <a name="releasenotes"></a><h3>Release Notes</h3>
+    
+    <a name="radianceversions"></a><h4>Radiance versions</h4>
+	<p>Accelerad is designed to mimic the behaviour of Radiance and has been tested in comparison with Radiance 5.0.a.12. A number of other sources exist for the Radiance executables, including DIVA, DAYSIM, and IES VE. However, these distributions may not be updated as frequently and have not been tested with Accelerad.</p>
+    
+    <a name="filedependencies"></a><h4>Missing files from RAYPATH</h4>
+	<p>Accelerad locates certain files using Radiance’s RAYPATH environment variable. The message &ldquo;File &lt;filename&gt; not found in RAYPATH&rdquo; indicates that the folder containing the required file has not been added to the RAYPATH.</p>
+    <p>In Windows, this error may occur when Accelerad is installed for all users but another Radiance installation has been performed for the current user. In this case, the current user's RAYPATH will override the system RAYPATH created for all users by the Accelerad installer.</p>
+	<p>To edit the RAYPATH in Windows, right click on <em>My Computer</em> &gt; <em>Properties</em> &gt; <em>Advanced system settings</em> &gt; <em>Environment Variables</em>. The RAYPATH variable may be in either the user variables or system variables set, but should not be in both. On Linux and Mac, environment variables can be edited in the hidden <em>~/.profile</em> file. Make sure that the RAYPATH variable contains paths to both the Accelerad <em>lib</em> and Radiance <em>lib</em> folders. The exact appearance will vary depending on the Radiance installations present, but a typical RAYPTH value looks like:</p>
+    
+    <ul>
+    	<li>Windows<br />
+			<tt>.;C:\Program Files\Accelerad\lib;C:\Program Files\Radiance\lib</tt></li>
+    	<li>Linux and Mac<br />
+			<tt>.:/usr/local/accelerad/lib:/usr/local/radiance/lib</tt></li>
+    </ul>            
+    
+    <a name="missingdll"></a><h4>Missing library files (.dll, .so, and .dylib)</h4>
+    <p>If you do not have Visual Studio 2013 installed on your Windows computer, you may see a message that &ldquo;The program can’t start because MSVCR120.dll is missing from your computer.&rdquo; You can <a href="http://www.microsoft.com/en-us/download/details.aspx?id=40784" target="_blank">download an installer</a> for the missing file.</p>
+    
+    <p>Linux and Mac computers may complain of missing .so or .dylib files if the Accelerad <em>bin</em> folder has not been added to the LD_LIBRARY_PATH environment variable. The path can be added by editing the <em>~/.profile</em> file.</p>
+    
+	<a name="drivercrash"></a><h4>Graphics driver crashes</h4>
+	<p>If you use a GPU that is not in Tesla Compute Cluster (TCC) mode with Windows, you may experience an unresponsive screen leading to <a href="https://msdn.microsoft.com/en-us/library/windows/hardware/ff570087(v=vs.85).aspx" target="_blank">timeout detection and recovery</a> (TDR) while running the software. This will be accompanied by a message saying &ldquo;Display driver stopped responding and has recovered&rdquo; similar to the one below.</p>
+    
+    <img src="images/tdr.png" alt="TDR error message" style="display: block; margin-left: auto; margin-right: auto;"/>
+    
+    <p>By default, the Windows OS will end processes on the GPU (essentially rebooting it) after two seconds of unresponsiveness, which can happen when the GPU is processing a large amount of data. Possible remedies include:</p>
+    <ul>
+    	<li>Use a smaller non-zero <em>-t</em> argument (1.5 suggested). After the number of seconds indicated by <em>-t</em>, Accelerad briefly stops scheduling work on the GPU and waits for previously scheduled work to finish, allowing the GPU to be more responsive to the OS.</li>
+        <li>If more than one graphics card is available, set <a href="http://www.acceleware.com/blog/cudavisibledevices-masking-gpus" target="_blank">CUDA_VISIBLE_DEVICES</a> to use only the GPUs that are not connected to monitors.</li>
+		<li>Increase the TDR delay by adding a <a href="http://msdn.microsoft.com/en-us/library/windows/hardware/ff569918(v=vs.85).aspx" target="_blank">registry key</a> and restarting your computer. This is not recommended for novices.</li>
+		<li>Test on a more powerful graphics card or a card which is not connected to a monitor. Tesla cards or other cards with TCC mode enabled are not affected by TDR.</li>
+    </ul>
+
+    <a name="olderhardware"></a><h4>Older graphics hardware</h4>
+	<p>Accelerad is targeted toward newer graphics hardware with large numbers of compute cores; however, it is compatible with older graphics hardware with CUDA compute capability 2.0 or greater. On older hardware, Accelerad will not necessarily run faster than Radiance and may even run slower due to setup time on the GPU.</p>
+    
+    <a name="disable"></a><h4>Disabling GPU acceleration</h4>
+    <p>You can reproduce the normal behavior of Radiance on the CPU in Accelerad by providing the argument <em>-g 0</em> to either <em>accelerad_rpict</em> or <em>accelerad_rtrace</em>. When this argument is given, Accelerad will not use the GPU for any calculations, and normal Radiance algorithms will be used.</p>
+    
+    <a name="distancetoorigin"></a><h4>Distance to origin</h4>
+    <p>Because ray intersection calculations on the GPU use single-precision floating point arithmetic, some imprecision is likely for geometry that is located far from the origin. In particular, this can lead to stack overflow errors, which appear as warning messages. Additionally, warnings will appear as red pixels in <em>accelerad_rpict</em>. Accelerad makes an effort to avoid these issues, but the result is that surfaces far from the origin may appear incorrectly. As a solution, scale the model in meters and position the model so that relevant geometry is less than 100 meters from the origin.</p>
+    
+    <a name="highlow"></a><h4>Unexpected high and low values</h4>
+    <p>Accelerad flags computation errors with brightly-colored results. If you see results with much higher radiance values than expected, check the command-line output for error warnings. Most commonly, these indicate stack overflow and can be corrected by increasing the <em>-g</em> parameter.</p>
+    <p>Low or patchy radiance results may indicate insufficient ambient coverage. You may correct this by varying the ambient parameters, including the additional <a href="#commandline">Accelerad command line arguments</a>.</p>
+
+    <a name="irradaincecaching"></a><h4>Irradiance caching in rtrace</h4>
+    <p>This release features an experimental version of parallel irradiance caching in <em>accelerad_rtrace</em>. This algorithm works well in outdoor environments, but is known to undersample diffuse lighting in many-bounce paths. To turn off irradiance caching in either <em>accelerad_rtrace</em> or <em>accelerad_rpict</em>, set the ambient accuracy <em>-aa</em> to zero.</p>
+
+    <a name="bsdf"></a><h4>BSDF Use</h4>
+    <p>Accelerad includes <em>accelerad_rcontrib</em>, which can be used to create bidirectional scattering distribution functions (BSDFs) by <em>rtfluxmtx</em> or <em>genBSDF</em>. However, the current versions of accelerad_rtrace, accelerad_rpict, and accelerad_rcontrib do not take BSDF files as input. <a href="https://www.radiance-online.org/learning/tutorials/Tutorial-ThreePhaseMethod.pdf" target="_blank">Three-phase method</a> simulations using Accelerad produce accurate results because this simulation type does not cast rays through the BSDF material. However, <a href="https://www.radiance-online.org/learning/tutorials/fivephasetutorialfiles/Tutorial-FivePhaseMethod_v2.pdf" target="_blank">five-phase method</a> simulations may produce lower illuminance results in Accelerad because interreflection of the direct solar component within the BSDF material is not taken into account.</p>
+
+	<a name="commandline"></a><h3>Command Line Arguments</h3>
+	<p>In addition to the command line arguments typically used by <a href="http://radsite.lbl.gov/radiance/man_html/rpict.1.html" target="_blank"><em>rpict</em></a> and <a href="http://radsite.lbl.gov/radiance/man_html/rtrace.1.html" target="_blank"><em>rtrace</em></a>, Accelerad introduces optional new command line arguments required for the GPU implementation of certain algorithms. These new parameters are summarized below:</p>
+
+	<table width="100%">
+		<tr><th width="20%">Argument</th><th width="68%">Description</th><th width="12%"><div align="right">Default Value</div></th></tr>
+		<tr><td><tt>-g <em>size</em></tt></td>
+        	<td>Hint to set the GPU thread stack size to <em>size</em> bytes. A value of zero will cause the Accelerad programs to revert to normal Radiance behavior without using the GPU.</td>
+            <td><div align="right">4096</div></td></tr>
+		<tr><td><tt>-al <em>stride</em></tt></td>
+        	<td>Set the spacing between seed point pixels for ambient sampling to <em>stride</em> in rpict only. A value of zero will cause all pixels to be considered. This option is ignored when the <em>-az</em> option is used.</td>
+            <td><div align="right">0</div></td></tr>
+		<tr><td><tt>-ag <em>N</em></tt></td>
+        	<td>Set number of ambient divisions for final gather infill to <em>N</em>. When <em>-aa</em> is non-zero, <em>N</em> ambient samples will be taken at points not covered by the precomputed irradiance cache. A value of -1 will cause the value to be copied from <em>-ad</em>.</td>
+            <td><div align="right">-1</div></td></tr>
+		<tr><td><tt>-az <em>res</em></tt></td>
+        	<td>Set the number of seeds points for ambient samples to take around the circumference of a sphere based at the view point to <em>res</em> in rpict only. A value of zero will cause view-dependent seeding to be used instead. Thus, zero should not be used in combination with the <em>-S</em> option in which a view file changes the view direction from between frames.</td>
+            <td><div align="right">0</div></td></tr>
+		<!--<tr><td><tt>-ay <em>N</em></tt>
+        	</td><td>Set the number of bounces for ambient sampling to <em>N</em></td>
+            <td>16</td></tr>-->
+		<tr><td><tt>-ac <em>N</em></tt></td>
+        	<td>Set the number of k-means clusters for ambient calculation to <em>N</em>.</td>
+            <td><div align="right">4096</div></td></tr>
+		<tr><td><tt>-an <em>N</em></tt></td>
+        	<td>Set the maximum number of k-means iterations to <em>N</em>. Larger values can cause k-means calculation to take longer but will generate more accurate ambient results.</td>
+            <td><div align="right">100</div></td></tr>
+		<tr><td><tt>-at <em>thresh</em></tt></td>
+        	<td>Set the k-means threshold to <em>thresh</em>. This is the fraction of seeds that must change cluster in order for k-means iteration to continue. Smaller values can cause k-means calculation to take longer but will generate more accurate ambient results.</td>
+            <td><div align="right">0.05</div></td></tr>
+		<tr><td><tt>-ax <em>wt</em></tt></td>
+        	<td>Set the weighting factor for position in k-means error calculation to <em>wt</em>. Small values concentrate more ambient calculations around edges where ambient gradients are likely to be large.</td>
+            <td><div align="right">1.0</div></td></tr>
+		<tr><td><tt>-t <em>sec</em></tt></td>
+        	<td>Set the time between progress reports to <em>sec</em>. Fractional values of <em>sec</em> are supported and support is added for rtrace. A value of zero turns automatic reporting off.</td>
+            <td><div align="right">0.0</div></td></tr>
+	</table>
+    
+	<a name="limitations"></a><h3>Current Limitations</h3>
+	<p>The purpose of this project is to demonstrate the feasibility of performing Radiance-style simulations on the GPU by implementing a variety of commonly-used simulation and material parameters. This section lists the status of Radiance parameters and objects in Accelerad according to the following key:</p>
+    
+	<div class="separate">
+    <ul class="statuslist">
+<li class="status implemented key">Implemented</li>
+<li class="status partial key">Partially Implemented</li>
+<li class="status unimplemented key">Not yet Implemented</li>
+<li class="status never key">Unnecessary</li>
+	</ul>
+	</div>
+    
+    <p>The table below lists currently supported parameters. Unsupported parameters will be ignored. Hover over a parameter for details.</p>
+    
+	<div class="separate">
+    <ul class="statuslist">
+<li title="-aa&#13;Implemented since version 0 beta" class="status implemented">-aa</li>
+<li title="-ab&#13;Implemented since version 0 beta" class="status implemented">-ab</li>
+<li title="-ad&#13;Implemented since version 0 beta&#13;Values greater than 1024 supported since version 0.3 beta" class="status implemented">-ad</li>
+<li title="-ae&#13;Implemented since version 0.5 beta" class="status implemented">-ae</li>
+<li title="-aE&#13;Implemented since version 0.5 beta" class="status implemented">-aE</li>
+<li title="-af&#13;Implemented since version 0 beta" class="status implemented">-af</li>
+<li title="-ai&#13;Implemented since version 0.5 beta" class="status implemented">-ai</li>
+<li title="-aI&#13;Implemented since version 0.5 beta" class="status implemented">-aI</li>
+<li title="-am&#13;Not yet implemented" class="status unimplemented">-am</li>
+<li title="-ap&#13;Not yet implemented" class="status unimplemented">-ap</li>
+<li title="-ar&#13;Implemented since version 0 beta" class="status implemented">-ar</li>
+<li title="-as&#13;Implemented since version 0.4 beta" class="status implemented">-as</li>
+<li title="-av&#13;Implemented since version 0 beta" class="status implemented">-av</li>
+<li title="-aw&#13;Implemented since version 0 beta" class="status implemented">-aw</li>
+<li title="-bv&#13;Implemented since version 0 beta" class="status implemented">-bv</li>
+<li title="-dc&#13;Not required in parallel calculation" class="status never">-dc</li>
+<li title="-dj&#13;Implemented since version 0 beta" class="status implemented">-dj</li>
+<li title="-dp&#13;Not required in parallel calculation" class="status never">-dp</li>
+<li title="-dr&#13;Not required in parallel calculation" class="status never">-dr</li>
+<li title="-ds&#13;Implemented since version 0 beta" class="status implemented">-ds</li>
+<li title="-dt&#13;Not required in parallel calculation" class="status never">-dt</li>
+<li title="-dv&#13;Implemented since version 0 beta" class="status implemented">-dv</li>
+<li title="-e&#13;Implemented since version 0.2 beta" class="status implemented">-e</li>
+<li title="-h&#13;Implemented since version 0 beta&#13;rtrace only" class="status implemented">-h</li>
+<li title="-i&#13;Implemented since version 0 beta" class="status implemented">-i</li>
+<li title="-I&#13;Implemented since version 0.1 beta&#13;rtrace only" class="status implemented">-I</li>
+<li title="-ld&#13;Implemented since version 0.1 beta&#13;rtrace only" class="status implemented">-ld</li>
+<li title="-lr&#13;Implemented since version 0 beta" class="status implemented">-lr</li>
+<li title="-lw&#13;Implemented since version 0 beta" class="status implemented">-lw</li>
+<li title="-ma&#13;Not yet implemented" class="status unimplemented">-ma</li>
+<li title="-me&#13;Not yet implemented" class="status unimplemented">-me</li>
+<li title="-mg&#13;Not yet implemented" class="status unimplemented">-mg</li>
+<li title="-ms&#13;Not yet implemented" class="status unimplemented">-ms</li>
+<li title="-n&#13;Program-level parallelism is not compatible with GPU parallelism&#13;rtrace only" class="status never">-n</li>
+<li title="-o&#13;rpict: Implemented since version 0 beta&#13;rtrace: Implemented since version 0 for in combination with o, d, v, w, l&#13;            Not yet implemented in combination with V, W, L, c, p, n, N, s, m, M, t, T" class="status partial">-o</li>
+<li title="-pa&#13;Implemented since version 0 beta&#13;rpict only" class="status implemented">-pa</li>
+<li title="-pd&#13;Implemented since version 0.4 beta&#13;rpict only" class="status implemented">-pd</li>
+<li title="-pj&#13;Implemented since version 0 beta&#13;rpict only" class="status implemented">-pj</li>
+<li title="-pm&#13;Implemented since version 0.4 beta&#13;rpict only" class="status implemented">-pm</li>
+<li title="-ps&#13;Pixel sampling is unnecessary for parallel calculations" class="status never">-ps</li>
+<li title="-pt&#13;Pixel sampling is unnecessary for parallel calculations" class="status never">-pt</li>
+<li title="-r&#13;Recovery is unnecessary for parallel calculations&#13;rpict only" class="status never">-r</li>
+<li title="-ro&#13;Recovery is unnecessary for parallel calculations&#13;rpict only" class="status never">-ro</li>
+<li title="-S&#13;Implemented since version 0 beta&#13;rpict only" class="status implemented">-S</li>
+<li title="-ss&#13;Implemented since version 0 beta&#13;rpict only" class="status implemented">-ss</li>
+<li title="-st&#13;Implemented since version 0 beta&#13;rpict only" class="status implemented">-st</li>
+<li title="-t&#13;Implemented since version 0 beta&#13;Available for rpict and rtrace&#13;Supports non-integer values" class="status implemented">-t</li>
+<li title="-u&#13;Implemented since version 0.4 beta" class="status implemented">-u</li>
+<li title="-va&#13;Implemented since version 0 beta&#13;rpict only" class="status implemented">-va</li>
+<li title="-vd&#13;Implemented since version 0 beta&#13;rpict only" class="status implemented">-vd</li>
+<li title="-vf&#13;Implemented since version 0 beta&#13;rpict only" class="status implemented">-vf</li>
+<li title="-vh&#13;Implemented since version 0 beta&#13;rpict only" class="status implemented">-vh</li>
+<li title="-vl&#13;Implemented since version 0 beta&#13;rpict only" class="status implemented">-vl</li>
+<li title="-vo&#13;Implemented since version 0 beta&#13;rpict only" class="status implemented">-vo</li>
+<li title="-vp&#13;Implemented since version 0 beta&#13;rpict only" class="status implemented">-vp</li>
+<li title="-vs&#13;Implemented since version 0 beta&#13;rpict only" class="status implemented">-vs</li>
+<li title="-vt&#13;Implemented since version 0 beta&#13;rpict only" class="status implemented">-vt</li>
+<li title="-vu&#13;Implemented since version 0 beta&#13;rpict only" class="status implemented">-vu</li>
+<li title="-vv&#13;Implemented since version 0 beta&#13;rpict only" class="status implemented">-vv</li>
+<li title="-w&#13;Implemented since version 0 beta" class="status implemented">-w</li>
+<li title="-x&#13;Implemented since version 0 beta&#13;Required by rpict, recommended for rtrace" class="status implemented">-x</li>
+<li title="-y&#13;Implemented since version 0 beta&#13;Required by rpict, recommended for rtrace" class="status implemented">-y</li>
+<li title="-z&#13;Implemented since version 0 beta&#13;rpict only" class="status implemented">-z</li>
+	</ul>
+	</div>
+    
+    <p>The status of each of the Radiance object types are listed below. Unsupported surface types, textures, and patterns will be ignored. Surfaces assigned unsupported materials will also be ignored. Hover over a type for details.</p>
+    
+	<div class="separate">
+    <ul class="statuslist">
+<li title="alias&#13;Implemented since version 0.3 beta" class="status implemented">alias</li>
+<li title="antimatter&#13;Implemented since version 0.5 beta&#13;First string argument must be void&#13;String arguments cannot be aliases" class="status partial">antimatter</li>
+<li title="brightdata&#13;Supported when using corr, flatcorr, boxcorr, or cylcorr from source.cal" class="status partial">brightdata</li>
+<li title="brightfunc&#13;Supported when using skybright.cal, perezlum.cal, utah.cal, isotrop_sky.cal, or output from GenCumulativeSky" class="status partial">brightfunc</li>
+<li title="brighttext&#13;Not yet implemented" class="status unimplemented">brighttext</li>
+<li title="BRTDfunc&#13;Not yet implemented" class="status unimplemented">BRTDfunc</li>
+<li title="BSDF&#13;Not yet implemented" class="status unimplemented">BSDF</li>
+<li title="bubble&#13;Implemented since version 0.3 beta" class="status implemented">bubble</li>
+<li title="colordata&#13;Not yet implemented" class="status unimplemented">colordata</li>
+<li title="colorfunc&#13;Implemented since version 0.5 beta&#13;Supported when using utah.cal" class="status partial">colorfunc</li>
+<li title="colorpict&#13;Not yet implemented" class="status unimplemented">colorpict</li>
+<li title="colortext&#13;Not yet implemented" class="status unimplemented">colortext</li>
+<li title="cone&#13;Implemented since version 0.4 beta" class="status implemented">cone</li>
+<li title="cup&#13;Implemented since version 0.4 beta" class="status implemented">cup</li>
+<li title="cylinder&#13;Implemented since version 0.4 beta" class="status implemented">cylinder</li>
+<li title="dielectric&#13;Rendered with algorithms for glass" class="status partial">dielectric</li>
+<li title="glass&#13;Implemented since version 0 beta" class="status implemented">glass</li>
+<li title="glow&#13;Implemented since version 0 beta" class="status implemented">glow</li>
+<li title="illum&#13;Implemented since version 0.4 beta" class="status implemented">illum</li>
+<li title="instance&#13;Not yet implemented" class="status unimplemented">instance</li>
+<li title="interface&#13;Not yet implemented" class="status unimplemented">interface</li>
+<li title="light&#13;Implemented since version 0 beta" class="status implemented">light</li>
+<li title="mesh&#13;Implemented since version 0.2 beta" class="status implemented">mesh</li>
+<li title="metal&#13;Implemented since version 0 beta" class="status implemented">metal</li>
+<li title="metal2&#13;Not yet implemented" class="status unimplemented">metal2</li>
+<li title="metdata&#13;Not yet implemented" class="status unimplemented">metdata</li>
+<li title="metfunc&#13;Not yet implemented" class="status unimplemented">metfunc</li>
+<li title="mirror&#13;Not yet implemented" class="status unimplemented">mirror</li>
+<li title="mist&#13;Not yet implemented" class="status unimplemented">mist</li>
+<li title="mixdata&#13;Not yet implemented" class="status unimplemented">mixdata</li>
+<li title="mixfunc&#13;Not yet implemented" class="status unimplemented">mixfunc</li>
+<li title="mixpict&#13;Not yet implemented" class="status unimplemented">mixpict</li>
+<li title="mixtext&#13;Not yet implemented" class="status unimplemented">mixtext</li>
+<li title="plasdata&#13;Not yet implemented" class="status unimplemented">plasdata</li>
+<li title="plasfunc&#13;Not yet implemented" class="status unimplemented">plasfunc</li>
+<li title="plastic&#13;Implemented since version 0 beta" class="status implemented">plastic</li>
+<li title="plastic2&#13;Not yet implemented" class="status unimplemented">plastic2</li>
+<li title="polygon&#13;Implemented since version 0 beta" class="status implemented">polygon</li>
+<li title="prism1&#13;Not yet implemented" class="status unimplemented">prism1</li>
+<li title="prism2&#13;Not yet implemented" class="status unimplemented">prism2</li>
+<li title="ring&#13;Implemented since version 0.4 beta" class="status implemented">ring</li>
+<li title="source&#13;Implemented since version 0 beta" class="status implemented">source</li>
+<li title="sphere&#13;Implemented since version 0.3 beta" class="status implemented">sphere</li>
+<li title="spotlight&#13;Implemented since version 0 beta" class="status implemented">spotlight</li>
+<li title="texdata&#13;Not yet implemented" class="status unimplemented">texdata</li>
+<li title="texfunc&#13;Only tmesh.cal is supported" class="status partial">texfunc</li>
+<li title="trans&#13;Implemented since version 0 beta" class="status implemented">trans</li>
+<li title="trans2&#13;Not yet implemented" class="status unimplemented">trans2</li>
+<li title="transdata&#13;Not yet implemented" class="status unimplemented">transdata</li>
+<li title="transfunc&#13;Not yet implemented" class="status unimplemented">transfunc</li>
+<li title="tube&#13;Implemented since version 0.4 beta" class="status implemented">tube</li>
+    </ul>
+	</div>
+  </section>
+  <div class="copyright">&copy;2017 Nathaniel Jones
+  <br/>
+  Last updated 5/15/17</div>
+</div>
+</body>
+</html>
+

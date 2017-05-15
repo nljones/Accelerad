@@ -1,5 +1,130 @@
-<html>
+<!doctype html>
+<html lang="en-US">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accelerad</title>
+<meta name="author" content="Nathaniel Jones" />
+<meta name="copyright" content="Copyright (c) 2017 Nathaniel Jones" />
+<meta name="description" content="Accelerad daylighting simulation tool for fast global illumination simulation on graphics hardware" />
+<meta name="keywords" content="Accelerad, Radiance, Graphics Hardware, GPU, Daylighting, Building Simulation, Building Energy Performance Simulation, Ray Tracing, Nathaniel Jones, Massachusetts Institute of Technology, Architecture, Sustainable Design Lab">
+<link href="https://architecture.mit.edu/sites/all/themes/sap_arch/favicon.ico" rel="shortcut icon" type="image/vnd.microsoft.icon" />
+<link href="css/style.css" rel="stylesheet" type="text/css">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.6.3/css/font-awesome.css" rel="stylesheet" type="text/css"/>
+<!-- Google Analytics tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-42900627-4', 'auto');
+  ga('send', 'pageview');
+
+</script>
+</head>
 <body>
-Under construction.
+<!-- Main Container -->
+<div class="container"> 
+  <!-- Navigation -->
+  <header> <a href="index.html">
+    <h4 class="logo">Accelerad</h4>
+    </a>
+    <nav>
+      <ul class="navigation">
+        <li><a href="index.html" class="current">ABOUT</a></li>
+        <li><a href="documentation.html">DOCUMENTATION</a></li>
+        <li><a href="publications.html">PUBLICATIONS</a></li>
+        <li><a href="help.html">HELP</a></li>
+      </ul>
+    </nav>
+  </header>
+  <!-- Hero Section -->
+  <section class="hero" id="hero">
+    <h2 class="hero_header">Accelerad</h2>
+    <p class="tagline">Daylighting Simulation on the GPU</p>
+  </section>
+  <!-- About Section -->
+  <section class="about" id="about">
+    <h2 class="hidden">About</h2>
+    <p class="text_column"><strong>Accelerad</strong> is a free suite of programs for fast and accurate lighting and daylighting analysis and visualization. It was developed by <a href="https://nljones.github.io/" target="_blank">Nathaniel Jones</a> at the <a href="http://mit.edu/sustainabledesignlab/" target="_blank">MIT Sustainable Design Lab</a> and modeled after the popular <a href="http://www.radiance-online.org/" target="_blank">Radiance</a> software suite developed by <a href="http://www.anyhere.com/" target="_blank">Greg Ward</a> at <a href="http://www.lbl.gov/" target="_blank">Lawrence Berkeley National Laboratory</a>. In order to allow for smooth adoption among Radiance users and software developers, Accelerad maintains compatibility with Radiance file formats, materials, and command-line arguments.</p>
+    <p class="text_column"><strong>Parallelism</strong> makes Accelerad up to forty times faster using <a href="http://www.nvidia.com/object/optix.html" target="_blank">OptiX&trade;</a>, a ray tracing engine built for the graphics processing unit (GPU). Accelerad is ideal for simulations that would be impractical to carry out on CPUs because of their size, such as <a href="http://radsite.lbl.gov/radiance/man_html/rpict.1.html" target="_blank">rpict</a> renderings with large numbers of ambient bounces or <a href="http://radsite.lbl.gov/radiance/man_html/rtrace.1.html" target="_blank">rtrace</a> calculations over many thousands of sensor points. New compatibility with <a href="https://www.radiance-online.org/learning/documentation/manual-pages/pdfs/rcontrib.pdf/view" target="_blank">rcontrib</a> allows fast simulation of annual climate-based daylighting metrics throgh <a href="https://www.radiance-online.org/learning/tutorials/Tutorial-ThreePhaseMethod.pdf" target="_blank">three-phase</a> and <a href="https://www.radiance-online.org/learning/tutorials/fivephasetutorialfiles/Tutorial-FivePhaseMethod_v2.pdf" target="_blank">five-phase</a> simulations.</p>
+	<p class="text_column"><strong>AcceleradRT</strong>, the next generation in daylighting simulation, is an interactive interface for real-time daylighting, glare, and visual comfort analysis. <a href="rt.html">AcceleradRT</a> uses progressive path tracing to provide daylighitng simulation results in real time with validated accuracy. It includes <a href="rt.html#vr">AcceleradVR</a>, an immersive visualization interface compatible with most virtual reality headsets. AcceleradRT is currently available for beta testing to <a href="rt.html#register">registed Accelerad users</a>.</p>
+  </section>
+  <!-- Stats Gallery Section -->
+  <div class="gallery">
+    <div class="thumbnail">
+      <a href="http://www.ibpsa.org/proceedings/eSimPapers/2014/4B.3.pdf" target="_blank">
+      <h1 class="stats">rtrace</h1>
+      <h4>20x faster</h4>
+      <p>on Tesla K40 accelerator</p></a>
+    </div>
+    <div class="thumbnail">
+      <a href="http://dx.doi.org/10.1016/j.buildenv.2016.08.023" target="_blank">
+      <h1 class="stats">rpict</h1>
+      <h4>44x faster</h4>
+      <p>on two Tesla K40 accelerators</p></a>
+    </div>
+    <div class="thumbnail">
+      <a href="https://nljones.github.io/publications/Validated_Interactive_Daylighting_Analysis_for_Architectural_Design.pdf" target="_blank">
+      <h1 class="stats">rcontrib</h1>
+      <h4>25x faster</h4>
+      <p>on two Tesla K40 accelerators</p></a>
+    </div>
+    <div class="thumbnail">
+      <a href="http://mit.edu/sustainabledesignlab/publications/1121-Jones01.pdf" target="_blank">
+      <h1 class="stats">AcceleradRT</h1>
+      <h4>real-time performance</h4>
+      <p>on Quadro K4000</p></a>
+    </div>
+  </div>
+  <!-- More Info Section -->
+  <footer>
+    <article class="footer_column">
+      <h3>What's Included</h3>
+      <ul>
+    	<li>Accelerad versions of
+        <ul>
+          <li><a href="http://radsite.lbl.gov/radiance/man_html/rpict.1.html" target="_blank">rpict</a></li>
+          <li><a href="http://radsite.lbl.gov/radiance/man_html/rtrace.1.html" target="_blank">rtrace</a></li>
+          <li><a href="https://www.radiance-online.org/learning/documentation/manual-pages/pdfs/rcontrib.pdf/view" target="_blank">rcontrib</a></li>
+          <li><a href="https://www.radiance-online.org/learning/documentation/manual-pages/pdfs/rfluxmtx.pdf/view" target="_blank">rfluxmtx</a></li>
+          <li><a href="http://radsite.lbl.gov/radiance/man_html/genBSDF.1.html" target="_blank">genBSDF</a></li>
+        </ul></li>
+        <li>Required CUDA<sup>&reg;</sup> and OptiX&trade; libraries</li>
+        <li>Documentation</li>
+        <li>Demo files</li>
+        <li><a href="accelerad_eula.html">End user license agreement</a></li>
+      </ul>
+    </article>
+    <article class="footer_column">
+      <h3>System Requirements</h3>
+      <ul>
+        <li>One of these operating systems
+        <ul>
+          <li>Windows</li>
+          <li>Linux</li>
+          <li>Mac OS X</li>
+        </ul></li>
+        <li>A <a href="https://developer.nvidia.com/cuda-gpus" target="_blank">CUDA-enabled GPU</a> with compute capability 2.0 to 6.1 (latest)</li>
+      </ul>
+    </article>
+  </footer>
+  <!-- Stats Gallery Section -->
+  <div class="gallery">
+    <div class="button_holder">
+      <a href="https://github.com/nljones/Accelerad/releases/latest"><div class="button"><i class="fa fa-download"></i> Download</div></a>
+    </div>
+    <div class="button_holder">
+      <a href="https://github.com/nljones/Accelerad"><div class="button"><i class="fa fa-github"></i> GitHub</div></a>
+    </div>
+  </div>
+  <!-- Copyrights Section -->
+  <div class="copyright">&copy;2017 Nathaniel Jones
+  <br/>
+  Last updated 5/15/17</div>
+</div>
+<!-- Main Container Ends -->
 </body>
 </html>

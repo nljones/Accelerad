@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en-US">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AcceleradRT</title>
+  <meta name="author" content="Nathaniel Jones" />
+  <meta name="copyright" content="Copyright (c) 2017 Nathaniel Jones" />
+  <meta name="description" content="Documentation for AcceleradRT interactive daylighting simulation tool for fast global illumination simulation on graphics hardware" />
+  <meta name="keywords" content="Documentation, Accelerad, AcceleradRT, Radiance, Graphics Hardware, GPU, Real Time, Interactive, Daylighting, Building Simulation, Building Energy Performance Simulation, Ray Tracing, Nathaniel Jones, Massachusetts Institute of Technology, Architecture, Sustainable Design Lab">
+  <link href="https://architecture.mit.edu/sites/all/themes/sap_arch/favicon.ico" rel="shortcut icon" type="image/vnd.microsoft.icon" />
+  <link href="css/style.css" rel="stylesheet" type="text/css" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.6.3/css/font-awesome.css" rel="stylesheet" type="text/css"/>
+  <!-- Google Analytics tracking -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-42900627-4', 'auto');
+  ga('send', 'pageview');
+
+</script>
+</head>
+
+<body>
+<!-- Main Container -->
+<div class="container"> 
+  <!-- Navigation -->
+  <header> <a href="index.html">
+    <h4 class="logo">Accelerad</h4>
+    </a>
+    <nav>
+      <ul class="navigation">
+        <li><a href="index.html">ABOUT</a></li>
+        <li><a href="documentation.html">DOCUMENTATION</a></li>
+        <li><a href="publications.html">PUBLICATIONS</a></li>
+        <li><a href="help.html">HELP</a></li>
+      </ul>
+    </nav>
+  </header>
+  <!-- Hero Section -->
+  <div>
+  <section class="about">
+	<div>
+      <h3>AcceleradRT</h3>
+      
+      <p>Introducing Accelerad's real-time interface for glare and visual discomfort prediction: <strong>AcceleradRT</strong>, is the first major departure from Accelerad's method of porting Radiance functionality to the GPU. Instead, AcceleradRT adds new functions and combines the capabilities of other programs such as <a href="http://radsite.lbl.gov/radiance/man_html/rpict.1.html" target="_blank">rpict</a>, <a href="http://radsite.lbl.gov/radiance/man_html/rvu.1.html" target="_blank">rvu</a>, <a href="https://www.radiance-online.org/learning/documentation/manual-pages/pdfs/evalglare.pdf/view" target="_blank">evalglare</a>, and <a href="http://tbleicher.github.io/wxfalsecolor/" target="_blank">wxfalsecolor</a> with GPU acceleration.</p>
+      
+      <div class="aspect-ratio">
+      <iframe src="https://www.youtube.com/embed/WfVHIHMTXY0" frameborder="0" allowfullscreen></iframe>
+      </div>
+      
+      <p>In AcceleradRT, you can:</p>
+      
+      <ul>
+        <li>Change the view position and direction using intuitive mouse and scroll wheel navigation.</li>
+        <li>Change view live updates of vertical eye illuminance (E<sub>v</sub>) and daylight glare probability (DGP).</li>
+        <li>Select task areas (<img src="images/ta.png" alt="" width="16px" height="16px" />) and contrast areas (<img src="images/crhigh.png" alt="" width="16px" height="16px" /> and <img src="images/crlow.png" alt="" width="16px" height="16px" />) for luminance or illuminance measurement.</li>
+        <li>Adjust exposure settings (<img src="images/exposure.png" alt="" width="16px" height="16px" />), rendering settings (<img src="images/settings.png" alt="" width="16px" height="16px" />), and camera settings (<img src="images/view.png" alt="" width="16px" height="16px" />).</li>
+        <li>Save high-dynamic range (HDR) images at any point while progressive rendering runs (<img src="images/save_as.png" alt="" width="16px" height="16px" />).</li>
+        <li>Adjust the false color scale (command line only):
+          <ul>
+            <li><tt>-s maximum</tt>, set <tt>-s 0</tt> to turn off false color.</li>
+            <li><tt>-log decades</tt>, set <tt>-log 0</tt> for linear scale.</li>
+            <li><tt>-mask minimum</tt>, set <tt>-mask 0</tt> to turn off masking.</li>
+          </ul>
+        </li>
+      </ul>
+      
+      <p>AcceleradRT is still in development, and additional features will be added.</p>
+      
+      <a name="vr"></a><h3>AcceleradVR</h3>
+
+      <p>AcceleradRT includes an experimental feature, <strong>AcceleradVR</strong>, for experiencing the luminous environment in virtual reality. AcceleradVR uses third party software to stream AcceleradRT's real-time rendering to a smart phone. The stereo image can be viewed with any VR headset, including <a href="https://vr.google.com/cardboard/" target="_blank">Google cardboard</a>. Use head movement, your keyboard, or any USB game controller to move through your virtual space.</p>
+      
+      <div class="aspect-ratio">
+      <iframe src="https://www.youtube.com/embed/8ILSd5s5IsE" frameborder="0" allowfullscreen></iframe>
+      </div>
+      
+      <p>Put on your 3D glasses! This early test video will take you on a walk-through and fly-through of Gund Hall on the Harvard campus. Use a virtual reality headset to best experience the real-time falsecolor rendering.</p>
+      
+      <div class="aspect-ratio">
+      <iframe src="https://www.youtube.com/embed/fVQyM4ky7Vs" frameborder="0" allowfullscreen></iframe>
+      </div>
+    
+  <!-- More Info Section -->
+  <footer>
+    <article class="footer_column">
+      <h3>What's Included</h3>
+      <ul>
+    	<li>AcceleradRT</li>
+        <li>Required Qt and Qwt libraries</li>
+        <li>Demo files</li>
+        <li><a href="acceleradrt_eula.html">End user license agreement</a></li>
+      </ul>
+    </article>
+    <article class="footer_column">
+      <h3>System Requirements</h3>
+      <ul>
+        <li>Windows</li>
+        <li>Accelerad version 0.6 beta</li>
+        <li>A <a href="https://developer.nvidia.com/cuda-gpus" target="_blank">CUDA-enabled GPU</a> with compute capability 2.0 to 6.1 (latest)</li>
+        <li>For AcceleradVR
+          <ul>
+            <li><a href="https://vr.google.com/cardboard/" target="_blank">Google cardboard</a> or other VR headset</li>
+            <li><a href="https://www.trinusvirtualreality.com/" target="_blank">TrinusVR</a> or other screen sharing app</li>
+            <li>USB game controller, joystick, or keyboard</li>
+          </ul>
+        </li>
+      </ul>
+    </article>
+  </footer>
+  <!-- Stats Gallery Section -->
+  <div class="gallery">
+    <h1>Registration link coming soon</h1>
+    <!-- <a href="https://docs.google.com/forms/d/1Aye5DAYSXoWHG0YITbYyE9V-k3FvuzM8sQHHr0bxJQ4/viewform"><div class="button"><i class="fa fa-pencil"></i> Register</div></a>-->
+  </div>
+  <!-- Copyrights Section -->
+  <div class="copyright">&copy;2017 Nathaniel Jones
+  <br/>
+  Last updated 5/15/17</div>
+</div>
+<!-- Main Container Ends -->
+</body>
+</html>
