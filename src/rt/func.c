@@ -103,8 +103,6 @@ set_eparams(char *prms)
 				goto bad_params;
 			*cpd++ = *prms++;
 		}
-		if (cpd == vname)
-			goto bad_params;
 		*cpd = '\0';
 		while (isspace(*prms)) prms++;
 		if (*prms++ != '=')
@@ -116,6 +114,7 @@ set_eparams(char *prms)
 		prms += (*prms == ',') | (*prms == ';');
 		varset(vname, '=', value);
 	}
+	eclock++;		/* notify expression evaluator */
 	return;
 bad_params:
 	sprintf(errmsg, "bad parameter list '%s'", last_params);

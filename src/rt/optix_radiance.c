@@ -2359,7 +2359,7 @@ static void printObject(OBJREC* rec)
 int setBackfaceVisibility(const int back)
 {
 	int changed;
-	if (changed = (backvis != back)) {
+	if ((changed = (backvis != back))) {
 		backvis = back;
 		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1ui(backvis_var, (unsigned int)back));
 	}
@@ -2369,7 +2369,7 @@ int setBackfaceVisibility(const int back)
 int setIrradiance(const int irrad)
 {
 	int changed;
-	if (changed = (do_irrad != irrad)) {
+	if ((changed = (do_irrad != irrad))) {
 		do_irrad = irrad;
 		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1ui(irrad_var, (unsigned int)irrad));
 	}
@@ -2379,7 +2379,7 @@ int setIrradiance(const int irrad)
 int setDirectJitter(const double jitter)
 {
 	int changed;
-	if (changed = (dstrsrc != jitter)) {
+	if ((changed = (dstrsrc != jitter))) {
 		dstrsrc = jitter;
 		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1f(dstrsrc_var, (float)jitter));
 	}
@@ -2389,7 +2389,7 @@ int setDirectJitter(const double jitter)
 int setDirectSampling(const double ratio)
 {
 	int changed;
-	if (changed = (srcsizerat != ratio)) {
+	if ((changed = (srcsizerat != ratio))) {
 		srcsizerat = ratio;
 		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1f(srcsizerat_var, (float)ratio));
 	}
@@ -2399,7 +2399,7 @@ int setDirectSampling(const double ratio)
 int setDirectVisibility(const int vis)
 {
 	int changed;
-	if (changed = (directvis != vis)) {
+	if ((changed = (directvis != vis))) {
 		directvis = vis;
 		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1i(directvis_var, vis));
 	}
@@ -2409,7 +2409,7 @@ int setDirectVisibility(const int vis)
 int setSpecularThreshold(const double threshold)
 {
 	int changed;
-	if (changed = (specthresh != threshold)) {
+	if ((changed = (specthresh != threshold))) {
 		specthresh = threshold;
 		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1f(specthresh_var, (float)threshold));
 	}
@@ -2419,7 +2419,7 @@ int setSpecularThreshold(const double threshold)
 int setSpecularJitter(const double jitter)
 {
 	int changed;
-	if (changed = (specjitter != jitter)) {
+	if ((changed = (specjitter != jitter))) {
 		specjitter = jitter;
 		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1f(specjitter_var, (float)jitter));
 	}
@@ -2429,7 +2429,7 @@ int setSpecularJitter(const double jitter)
 int setAmbientBounces(const int bounces)
 {
 	int changed;
-	if (changed = (ambounce != bounces)) {
+	if ((changed = (ambounce != bounces))) {
 		ambounce = bounces;
 		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1i(ambounce_var, bounces));
 	}
@@ -2439,7 +2439,7 @@ int setAmbientBounces(const int bounces)
 int setMinWeight(const double weight)
 {
 	int changed;
-	if (changed = (minweight != weight)) {
+	if ((changed = (minweight != weight))) {
 		minweight = weight;
 		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1f(minweight_var, (float)weight));
 	}
@@ -2449,7 +2449,7 @@ int setMinWeight(const double weight)
 int setMaxDepth(const int depth)
 {
 	int changed;
-	if (changed = (maxdepth != depth)) {
+	if ((changed = (maxdepth != depth))) {
 		maxdepth = depth;
 		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1i(maxdepth_var, depth));
 	}

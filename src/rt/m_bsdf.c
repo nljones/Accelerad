@@ -23,11 +23,10 @@ static const char RCSid[] = "$Id$";
  *  (opposite the surface normal) to bypass any intervening geometry.
  *  Translation only affects scattered, non-source-directed samples.
  *  A non-zero thickness has the further side-effect that an unscattered
- *  (view) ray will pass right through our material if it has any
- *  non-diffuse transmission, making the BSDF surface invisible.  This
- *  shows the proxied geometry instead. Thickness has the further
- *  effect of turning off reflection on the hidden side so that rays
- *  heading in the opposite direction pass unimpeded through the BSDF
+ *  (view) ray will pass right through our material, making the BSDF
+ *  surface invisible and showing the proxied geometry instead. Thickness
+ *  has the further effect of turning off reflection on the reverse side so
+ *  rays heading in the opposite direction pass unimpeded through the BSDF
  *  surface.  A paired surface may be placed on the opposide side of
  *  the detail geometry, less than this thickness away, if a two-way
  *  proxy is desired.  Note that the sign of the thickness is important.
@@ -36,6 +35,11 @@ static const char RCSid[] = "$Id$";
  *  hides geometry in front of the surface when rays hit from behind,
  *  and applies only the transmission and backside reflectance properties.
  *  Reflection is ignored on the hidden side, as those rays pass through.
+ *	When thickness is set to zero, shadow rays will be blocked unless
+ *  a BTDF has a strong "through" component in the source direction.
+ *  A separate test prevents over-counting by dropping specular & ambient
+ *  samples that are too close to this "through" direction.  The same
+ *  restriction applies for the proxy case (thickness != 0).
  *	The "up" vector for the BSDF is given by three variables, defined
  *  (along with the thickness) by the named function file, or '.' if none.
  *  Together with the surface normal, this defines the local coordinate
@@ -43,7 +47,7 @@ static const char RCSid[] = "$Id$";
  *	We do not reorient the surface, so if the BSDF has no back-side
  *  reflectance and none is given in the real arguments, a BSDF surface
  *  with zero thickness will appear black when viewed from behind
- *  unless backface visibility is off.
+ *  unless backface visibility is on, when it becomes invisible.
  *	The diffuse arguments are added to components in the BSDF file,
  *  not multiplied.  However, patterns affect this material as a multiplier
  *  on everything except non-diffuse reflection.
@@ -59,7 +63,7 @@ static const char RCSid[] = "$Id$";
 /*
  * Note that our reverse ray-tracing process means that the positions
  * of incoming and outgoing vectors may be reversed in our calls
- * to the BSDF library.  This is fine, since the bidirectional nature
+ * to the BSDF library.  This is usually fine, since the bidirectional nature
  * of the BSDF (that's what the 'B' stands for) means it all works out.
  */
 
@@ -72,12 +76,96 @@ typedef struct {
 	RREAL	toloc[3][3];	/* world to local BSDF coords */
 	RREAL	fromloc[3][3];	/* local BSDF coords to world */
 	double	thick;		/* surface thickness */
+	COLOR	cthru;		/* "through" component multiplier */
 	SDData	*sd;		/* loaded BSDF data */
 	COLOR	rdiff;		/* diffuse reflection */
 	COLOR	tdiff;		/* diffuse transmission */
 }  BSDFDAT;		/* BSDF material data */
 
 #define	cvt_sdcolor(cv, svp)	ccy2rgb(&(svp)->spec, (svp)->cieY, cv)
+
+/* Compute "through" component color */
+static void
+compute_through(BSDFDAT *ndp)
+{
+#define NDIR2CHECK	13
+	static const float	dir2check[NDIR2CHECK][2] = {
+					{0, 0},
+					{-0.8, 0},
+					{0, 0.8},
+					{0, -0.8},
+					{0.8, 0},
+					{-0.8, 0.8},
+					{-0.8, -0.8},
+					{0.8, 0.8},
+					{0.8, -0.8},
+					{-1.6, 0},
+					{0, 1.6},
+					{0, -1.6},
+					{1.6, 0},
+				};
+	const double	peak_over = 2.0;
+	SDSpectralDF	*dfp;
+	FVECT		pdir;
+	double		tomega, srchrad;
+	COLOR		vpeak, vsum;
+	int		nsum, i;
+	SDError		ec;
+
+	setcolor(ndp->cthru, .0, .0, .0);	/* starting assumption */
+
+	if (ndp->pr->rod > 0)
+		dfp = (ndp->sd->tf != NULL) ? ndp->sd->tf : ndp->sd->tb;
+	else
+		dfp = (ndp->sd->tb != NULL) ? ndp->sd->tb : ndp->sd->tf;
+
+	if (dfp == NULL)
+		return;				/* no specular transmission */
+	if (bright(ndp->pr->pcol) <= FTINY)
+		return;				/* pattern is black, here */
+	srchrad = sqrt(dfp->minProjSA);		/* else search for peak */
+	setcolor(vpeak, .0, .0, .0);
+	setcolor(vsum, .0, .0, .0);
+	nsum = 0;
+	for (i = 0; i < NDIR2CHECK; i++) {
+		FVECT	tdir;
+		SDValue	sv;
+		COLOR	vcol;
+		tdir[0] = -ndp->vray[0] + dir2check[i][0]*srchrad;
+		tdir[1] = -ndp->vray[1] + dir2check[i][1]*srchrad;
+		tdir[2] = -ndp->vray[2];
+		normalize(tdir);
+		ec = SDevalBSDF(&sv, tdir, ndp->vray, ndp->sd);
+		if (ec)
+			goto baderror;
+		cvt_sdcolor(vcol, &sv);
+		addcolor(vsum, vcol);
+		++nsum;
+		if (bright(vcol) > bright(vpeak)) {
+			copycolor(vpeak, vcol);
+			VCOPY(pdir, tdir);
+		}
+	}
+	ec = SDsizeBSDF(&tomega, pdir, ndp->vray, SDqueryMin, ndp->sd);
+	if (ec)
+		goto baderror;
+	if (tomega > 1.5*dfp->minProjSA)
+		return;				/* not really a peak? */
+	if ((bright(vpeak) - ndp->sd->tLamb.cieY*(1./PI))*tomega <= .007)
+		return;				/* < 0.7% transmission */
+	for (i = 3; i--; )			/* remove peak from average */
+		colval(vsum,i) -= colval(vpeak,i);
+	--nsum;
+	if (peak_over*bright(vsum) >= nsum*bright(vpeak))
+		return;				/* not peaky enough */
+	copycolor(ndp->cthru, vpeak);		/* else use it */
+	scalecolor(ndp->cthru, tomega);
+	multcolor(ndp->cthru, ndp->pr->pcol);	/* modify by pattern */
+	return;
+baderror:
+	objerror(ndp->mp, USER, transSDError(ec));
+#undef NDIR2CHECK
+}
 
 /* Jitter ray sample according to projected solid angle and specjitter */
 static void
@@ -99,7 +187,7 @@ direct_specular_OK(COLOR cval, FVECT ldir, double omega, BSDFDAT *ndp)
 {
 	int	nsamp, ok = 0;
 	FVECT	vsrc, vsmp, vjit;
-	double	tomega;
+	double	tomega, tomega2;
 	double	sf, tsr, sd[2];
 	COLOR	csmp, cdiff;
 	double	diffY;
@@ -139,7 +227,8 @@ direct_specular_OK(COLOR cval, FVECT ldir, double omega, BSDFDAT *ndp)
 	if (ec)
 		goto baderror;
 					/* check indirect over-counting */
-	if (ndp->thick != 0 && ndp->pr->crtype & (SPECULAR|AMBIENT)
+	if ((ndp->thick != 0 || bright(ndp->cthru) > FTINY)
+				&& ndp->pr->crtype & (SPECULAR|AMBIENT)
 				&& (vsrc[2] > 0) ^ (ndp->vray[2] > 0)) {
 		double	dx = vsrc[0] + ndp->vray[0];
 		double	dy = vsrc[1] + ndp->vray[1];
@@ -163,20 +252,21 @@ direct_specular_OK(COLOR cval, FVECT ldir, double omega, BSDFDAT *ndp)
 			multisamp(sd, 2, (i + frandom())/(double)nsamp);
 			vsmp[0] += (sd[0] - .5)*sf;
 			vsmp[1] += (sd[1] - .5)*sf;
-			if (normalize(vsmp) == 0) {
-				--nsamp;
-				continue;
-			}
+			normalize(vsmp);
 		}
 		bsdf_jitter(vjit, ndp, tsr);
-					/* compute BSDF */
+					/* check for variable resolution */
+		ec = SDsizeBSDF(&tomega2, vjit, vsmp, SDqueryMin, ndp->sd);
+		if (ec)
+			goto baderror;
+		if (tomega2 < .12*tomega)
+			continue;	/* not safe to include */
+					/* else compute BSDF */
 		ec = SDevalBSDF(&sv, vjit, vsmp, ndp->sd);
 		if (ec)
 			goto baderror;
-		if (sv.cieY - diffY <= FTINY) {
-			addcolor(cval, cdiff);
+		if (sv.cieY - diffY <= FTINY)
 			continue;	/* no specular part */
-		}
 		cvt_sdcolor(csmp, &sv);
 		addcolor(cval, csmp);	/* else average it in */
 		++ok;
@@ -185,7 +275,7 @@ direct_specular_OK(COLOR cval, FVECT ldir, double omega, BSDFDAT *ndp)
 		setcolor(cval, .0, .0, .0);
 		return(0);		/* no valid specular samples */
 	}
-	sf = 1./(double)nsamp;
+	sf = 1./(double)ok;
 	scalecolor(cval, sf);
 					/* subtract diffuse contribution */
 	for (i = 3*(diffY > FTINY); i--; )
@@ -470,19 +560,14 @@ m_bsdf(OBJREC *m, RAY *r)
 	nd.thick = evalue(mf->ep[0]);
 	if ((-FTINY <= nd.thick) & (nd.thick <= FTINY))
 		nd.thick = .0;
-						/* check shadow */
-	if (r->crtype & SHADOW) {
-		if (nd.thick != 0)
-			raytrans(r);		/* pass-through */
-		return(1);			/* or shadow */
-	}
 						/* check backface visibility */
 	if (!hitfront & !backvis) {
 		raytrans(r);
 		return(1);
 	}
 						/* check other rays to pass */
-	if (nd.thick != 0 && (!(r->crtype & (SPECULAR|AMBIENT)) ||
+	if (nd.thick != 0 && (r->crtype & SHADOW ||
+				!(r->crtype & (SPECULAR|AMBIENT)) ||
 				(nd.thick > 0) ^ hitfront)) {
 		raytrans(r);			/* hide our proxy */
 		return(1);
@@ -491,6 +576,9 @@ m_bsdf(OBJREC *m, RAY *r)
 	nd.pr = r;
 						/* get BSDF data */
 	nd.sd = loadBSDF(m->oargs.sarg[1]);
+						/* early shadow check */
+	if (r->crtype & SHADOW && (nd.sd->tf == NULL) & (nd.sd->tb == NULL))
+		return(1);
 						/* diffuse reflectance */
 	if (hitfront) {
 		cvt_sdcolor(nd.rdiff, &nd.sd->rLambFront);
@@ -544,14 +632,25 @@ m_bsdf(OBJREC *m, RAY *r)
 		nd.vray[2] = -r->rdir[2];
 		ec = SDmapDir(nd.vray, nd.toloc, nd.vray);
 	}
-	if (!ec)
-		ec = SDinvXform(nd.fromloc, nd.toloc);
 	if (ec) {
 		objerror(m, WARNING, "Illegal orientation vector");
 		return(1);
 	}
-						/* determine BSDF resolution */
-	ec = SDsizeBSDF(nd.sr_vpsa, nd.vray, NULL, SDqueryMin+SDqueryMax, nd.sd);
+	compute_through(&nd);			/* compute through component */
+	if (r->crtype & SHADOW) {
+		RAY	tr;			/* attempt to pass shadow ray */
+		if (rayorigin(&tr, TRANS, r, nd.cthru) < 0)
+			return(1);		/* blocked */
+		VCOPY(tr.rdir, r->rdir);
+		rayvalue(&tr);			/* transmit with scaling */
+		multcolor(tr.rcol, tr.rcoef);
+		copycolor(r->rcol, tr.rcol);
+		return(1);			/* we're done */
+	}
+	ec = SDinvXform(nd.fromloc, nd.toloc);
+	if (!ec)				/* determine BSDF resolution */
+		ec = SDsizeBSDF(nd.sr_vpsa, nd.vray, NULL,
+					SDqueryMin+SDqueryMax, nd.sd);
 	if (ec)
 		objerror(m, USER, transSDError(ec));
 
