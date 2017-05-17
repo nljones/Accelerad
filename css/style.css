@@ -209,13 +209,14 @@ footer .footer_column p {
 	margin-right: 20px;
 }
 .button_holder {
-	width: 50%;
+	width: 33%;
 	text-align: center;
 	float: left;
 	margin-top: 30px;	
 }
 .button {
-	width: 300px;
+	width: 80%;
+	max-width: 300px;
 	margin-top: auto;
 	margin-right: auto;
 	margin-bottom: auto;
@@ -341,9 +342,6 @@ nav ul li {
 	text-align: center;
 	float: left;
 	margin-top: 30px;	
-}
-.button {
-	width: 200px;
 }
 }
 
