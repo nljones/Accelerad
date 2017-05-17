@@ -752,6 +752,12 @@ void MainWindow::showViewDialog()
     {
     m_viewDialogUi->cylindrical->setChecked(true);
     }
+#ifdef VT_ODS
+  else if (ourview.type == VT_ODS)
+  {
+	  m_viewDialogUi->ods->setChecked(true);
+  }
+#endif
 
   m_viewDialogUi->viewX->setText(QString::number(ourview.vp[0]));
   m_viewDialogUi->viewY->setText(QString::number(ourview.vp[1]));
@@ -816,6 +822,13 @@ void MainWindow::adjustView()
     nv.type = VT_CYL;
     changed = true;
     }
+#ifdef VT_ODS
+  if (m_viewDialogUi->ods->isChecked() && nv.type != VT_ODS)
+  {
+	  nv.type = VT_ODS;
+	  changed = true;
+  }
+#endif
 
   //viewpoint
   if(m_viewDialogUi->viewX->isModified())
