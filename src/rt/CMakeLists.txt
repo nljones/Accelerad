@@ -1,36 +1,33 @@
 set(VERSION_FILE "${radiance_BINARY_DIR}/src/rt/Version.c")
 create_version_file("${VERSION_FILE}")
 
+# NLJ addition: Simplify PTX file names
+macro(PTX_SHROTEN ptx_short_names ptx_names)
+  foreach(file ${ptx_names})
+    get_filename_component(file_path "${file}" PATH)
+    get_filename_component(file_name "${file}" NAME_WE)
+	string(REGEX REPLACE "^cuda_compile_ptx_[0-9]*_?generated_" "" file_name "${file_name}")
+	#string(REGEX REPLACE "\\.cu\\." "\\." file_name "${new_file}")
+	set(new_file "${file_path}/${file_name}.ptx")
+	add_custom_command(OUTPUT ${new_file} COMMAND ${CMAKE_COMMAND} -E copy "${file}" "${new_file}" DEPENDS "${file}")
+	list(APPEND "${ptx_short_names}" "${new_file}")
+  endforeach()
+endmacro()
+
 # NLJ addition: OPTIX compiler flag
 option(OptiX_USE "Include the option to use optix when compiling." ON)
 
-if(WIN32)
-
-  add_library(radiance
-    ambcomp.c ambient.c ambio.c aniso.c ashikhmin.c data.c daysim.c dielectric.c fprism.c freeobjmem.c 
-    func.c glass.c initotypes.c m_alias.c m_brdf.c m_bsdf.c m_clip.c m_direct.c
-    m_mirror.c m_mist.c mx_func.c mx_data.c noise3.c normal.c o_face.c o_cone.c
-    o_instance.c o_mesh.c p_data.c p_func.c preload.c raytrace.c renderopts.c
-    source.c sphere.c srcobstr.c srcsupp.c srcsamp.c t_data.c t_func.c text.c
-    pmapsrc.c pmapmat.c pmaprand.c pmapio.c 
-    pmapbias.c pmapparm.c pmapamb.c pmapray.c pmapopt.c 
-    pmapdata.c pmapdiag.c pmaptype.c pmutil.c pmcontrib2.c
-    "${VERSION_FILE}" virtuals.c)
-
-else()
-
-  add_library(radiance
-      ambcomp.c ambient.c ambio.c aniso.c ashikhmin.c data.c daysim.c dielectric.c fprism.c freeobjmem.c 
-      func.c glass.c initotypes.c m_alias.c m_brdf.c m_bsdf.c m_clip.c m_direct.c
-      m_mirror.c m_mist.c mx_func.c mx_data.c noise3.c normal.c o_face.c o_cone.c
-      o_instance.c o_mesh.c p_data.c p_func.c preload.c raytrace.c renderopts.c
-      source.c sphere.c srcobstr.c srcsupp.c srcsamp.c t_data.c t_func.c text.c
-      pmap.c pmapsrc.c pmapmat.c pmaprand.c pmapio.c 
-      pmapbias.c pmapparm.c pmapcontrib.c pmapamb.c pmapray.c pmapopt.c 
-      pmapdata.c pmapdiag.c pmaptype.c pmutil.c pmcontrib2.c
-      "${VERSION_FILE}" virtuals.c)
-
-endif()
+add_library(radiance
+	ambcomp.c ambient.c ambio.c aniso.c ashikhmin.c data.c daysim.c dielectric.c fprism.c freeobjmem.c 
+      	func.c glass.c initotypes.c m_alias.c m_brdf.c m_bsdf.c m_clip.c m_direct.c
+      	m_mirror.c m_mist.c mx_func.c mx_data.c noise3.c normal.c o_face.c o_cone.c
+      	o_instance.c o_mesh.c p_data.c p_func.c preload.c raytrace.c renderopts.c
+      	source.c sphere.c srcobstr.c srcsupp.c srcsamp.c t_data.c t_func.c text.c
+      	pmap.c pmapsrc.c pmapmat.c pmaprand.c pmapio.c 
+      	pmapbias.c pmapparm.c pmapcontrib.c pmapamb.c pmapray.c pmapopt.c 
+      	pmapdata.c pmapdiag.c pmaptype.c pmutil.c pmcontrib2.c
+		../common/random.h ../common/platform.h func.c
+      	"${VERSION_FILE}" virtuals.c ../common/paths.c)
 
 if(WIN32)
   set(rayp_SOURCES raypwin.c)
@@ -60,11 +57,11 @@ if(OptiX_USE)
 
   # Suggest a path to the OptiX SDK directory.
   # This line is taken from FindOptiX.cmake,
-  # located in C:\ProgramData\NVIDIA Corporation\OptiX SDK 3.9.1\SDK\CMake.
+  # located in C:\ProgramData\NVIDIA Corporation\OptiX SDK 3.9.2\SDK\CMake.
   if(WIN32)
-    set(OptiX_INSTALL_DIR "C:/ProgramData/NVIDIA Corporation/OptiX SDK 3.9.1" CACHE PATH "Path to OptiX installed location.")
+    set(OptiX_INSTALL_DIR "C:/ProgramData/NVIDIA Corporation/OptiX SDK 3.9.2" CACHE PATH "Path to OptiX installed location.")
   else()
-    set(OptiX_INSTALL_DIR "~/NVIDIA-OptiX-SDK-3.9.1-linux64" CACHE PATH "Path to OptiX installed location.")
+    set(OptiX_INSTALL_DIR "~/NVIDIA-OptiX-SDK-3.9.2-linux64" CACHE PATH "Path to OptiX installed location.")
   endif()
 
   # Add OptiX CMake files to the module path
@@ -138,16 +135,23 @@ if(OptiX_USE)
     ambient_records.cu ambient_normal.cu ambient_sample_generator.cu ambient_cloud_generator.cu
     point_cloud_normal.cu hemisphere_generator.cu)
 
+  # Remove the prefix "cuda_compile_ptx_generated_" from PTX files.
+  PTX_SHROTEN(PTX_files_rtrace "${generated_PTX_files_rtrace}")
+  PTX_SHROTEN(PTX_files_rpict "${generated_PTX_files_rpict}")
+  PTX_SHROTEN(PTX_files_rcontrib "${generated_PTX_files_rcontrib}")
+  PTX_SHROTEN(PTX_files_rvu "${generated_PTX_files_rvu}")
+  PTX_SHROTEN(PTX_files "${generated_PTX_files}")
+
   # Include source wrappers for OptiX and CUDA.
   # The empty blank.cpp file forces g++ to be used as the linker on Linux.
   set(ACCELERAD_LIBRARY accelerad)
-  add_library(${ACCELERAD_LIBRARY} optix_radiance.c optix_ambient.c optix_util.c blank.cpp ${generated_CUDA_files} ${generated_PTX_files})
+  add_library(${ACCELERAD_LIBRARY} optix_radiance.c optix_ambient.c optix_util.c blank.cpp ${generated_CUDA_files} ${PTX_files})
 
   # Set source to be included in executables
-  set(ACCELERAD_rtrace_files optix_rtrace.c ${generated_PTX_files_rtrace})
-  set(ACCELERAD_rpict_files optix_rpict.c ${generated_PTX_files_rpict})
-  set(ACCELERAD_rcontrib_files optix_rcontrib.c ${generated_PTX_files_rcontrib})
-  set(ACCELERAD_rvu_files optix_rvu.c ${generated_PTX_files_rvu})
+  set(ACCELERAD_rtrace_files optix_rtrace.c ${PTX_files_rtrace})
+  set(ACCELERAD_rpict_files optix_rpict.c ${PTX_files_rpict})
+  set(ACCELERAD_rcontrib_files optix_rcontrib.c ${PTX_files_rcontrib})
+  set(ACCELERAD_rvu_files optix_rvu.c ${PTX_files_rvu})
 endif()
 
 add_executable(rtrace rtmain.c rtrace.c duphead.c persist.c ${ACCELERAD_rtrace_files})
@@ -162,17 +166,12 @@ target_link_libraries(lookamb rtrad)
 add_executable(rcontrib rcmain.c rcontrib.c rc2.c rc3.c ${ACCELERAD_rcontrib_files})
 target_link_libraries(rcontrib ${ACCELERAD_LIBRARY} ${optix_LIBRARY} ${CUDA_CUDART_LIBRARY} radiance rtrad)
 
-if(NOT WIN32)
-  add_executable(mkpmap mkpmap.c)
-  target_link_libraries(mkpmap radiance rtrad)
-  add_executable(pmapdump pmapdump.c pmaptype.c pmapparm.c)
-  target_link_libraries(pmapdump radiance rtrad)
-endif()
+add_executable(mkpmap mkpmap.c)
+target_link_libraries(mkpmap radiance rtrad)
+add_executable(pmapdump pmapdump.c pmaptype.c pmapparm.c)
+target_link_libraries(pmapdump raycalls radiance rtrad)
 
-set(targets_to_install lookamb radiance raycalls rtrace rpict rcontrib)
-if(NOT WIN32)
-  set(targets_to_install ${targets_to_install} mkpmap pmapdump)
-endif()
+set(targets_to_install lookamb radiance raycalls rtrace rpict rcontrib mkpmap pmapdump)
 
 if(X11_FOUND)
   set(X11_SOURCES x11.c x11twind.c)
@@ -214,12 +213,12 @@ if(NOT BUILD_HEADLESS)
   get_target_property(GIF_PLUGIN Qt5::QGifPlugin LOCATION)
   get_target_property(ICO_PLUGIN Qt5::QICOPlugin LOCATION)
   get_target_property(JPEG_PLUGIN Qt5::QJpegPlugin LOCATION)
-  get_target_property(MNG_PLUGIN Qt5::QMngPlugin LOCATION)
+  #get_target_property(MNG_PLUGIN Qt5::QMngPlugin LOCATION)
   get_target_property(TIFF_PLUGIN Qt5::QTiffPlugin LOCATION)
   install(PROGRAMS "${GIF_PLUGIN}" DESTINATION bin/plugins/imageformats)
   install(PROGRAMS "${ICO_PLUGIN}" DESTINATION bin/plugins/imageformats)
   install(PROGRAMS "${JPEG_PLUGIN}" DESTINATION bin/plugins/imageformats)
-  install(PROGRAMS "${MNG_PLUGIN}" DESTINATION bin/plugins/imageformats)
+  #install(PROGRAMS "${MNG_PLUGIN}" DESTINATION bin/plugins/imageformats)
   install(PROGRAMS "${TIFF_PLUGIN}" DESTINATION bin/plugins/imageformats)
   install(FILES ${CMAKE_SOURCE_DIR}/InstallRules/qt.conf DESTINATION bin)
 

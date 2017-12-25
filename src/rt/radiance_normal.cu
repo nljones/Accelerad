@@ -405,8 +405,15 @@ RT_PROGRAM void closest_hit_radiance()
 	/* diffuse reflection */
 	nd.rdiff = 1.0f - nd.trans - nd.rspec;
 
-	if (!(nd.specfl & SP_PURE && nd.rdiff <= FTINY && nd.tdiff <= FTINY)) { /* not 100% pure specular */
-
+	if (nd.specfl & SP_PURE && nd.rdiff <= FTINY && nd.tdiff <= FTINY) { /* 100% pure specular */
+#ifdef TRANSMISSION
+		if (mirtest > transtest + FTINY)
+			prd.distance = mirdist;
+		else
+#endif
+			prd.distance = transdist;
+	}
+	else { /* not 100% pure specular */
 		/* checks *BLT flags */
 		if (!(nd.specfl & SP_PURE))
 			result += gaussamp(&nd);
@@ -503,19 +510,19 @@ RT_PROGRAM void closest_hit_radiance()
 				}
 		}
 #endif /* LIGHTS */
-	}
 
-	/* check distance */
-	float d = bright( result );
+		/* check distance */
+		float d = bright( result );
 #ifdef TRANSMISSION
-	if (transtest > d)
-		prd.distance = transdist;
-	else
+		if (transtest > d)
+			prd.distance = transdist;
+		else
 #endif
-	if (mirtest > d)
-		prd.distance = mirdist;
-	else
-		prd.distance = t_hit;
+		if (mirtest > d)
+			prd.distance = mirdist;
+		else
+			prd.distance = t_hit;
+	}
 
 	// pass the color back up the tree
 	prd.result = result;

@@ -1,7 +1,7 @@
 #ifndef lint
 static const char RCSid[] = "$Id$";
 #endif
-/* EVALGLARE V1.31
+/* EVALGLARE V2.00
  * Evalglare Software License, Version 2.0
  *
  * Copyright (c) 1995 - 2016 Fraunhofer ISE, EPFL.
@@ -312,9 +312,23 @@ changed masking threshold to 0.05 cd/m2
    */
 /* evalglare.c, v1.31 2016/08/02  bug removal: default output did not calculate the amout of glare sources before and therefore no_glaresources was set to zero causing dgi,ugr being set to zero as well. Now renumbering of the glare sources and calculation of the amount of glare sources is done for all output versions. 
    */
+/* evalglare.c, v2.00 2016/11/15  add of a second fast calculation mode for annual calculations, activted by -2. Output: dgp,ugr 
+   */
+/* evalglare.c, v2.01 2016/11/16  change of -2 option (now -2 dir_illum). External provision of the direct illuminance necessary, since the sun interpolation of daysim is causing problems in calculation of the background luminance. 
+   */
+/* evalglare.c, v2.02 2017/02/28  change of warning message, when invalid exposure setting is found. Reason: tab removal is not in all cases the right measure - it depends which tool caused the invalid exposure entry   */
+
+/* evalglare.c, v2.03 2017/08/12  ad of -O option - disk replacement by providing luminance, not documented
+remove some minor memory leakages, clean up initialization by C. Reetz
+  */
+
+
+ 
+#ifndef EVALGLARE  
 #define EVALGLARE
+#endif
 #define PROGNAME "evalglare"
-#define VERSION "1.31 release 02.08.2016 by EPFL, J.Wienold"
+#define VERSION "2.03 release 12.08.2017 by EPFL, J.Wienold"
 #define RELEASENAME PROGNAME " " VERSION
 
 
@@ -1201,7 +1215,13 @@ float get_ugr(pict * p, double lum_backg, int igs, int posindex_2)
 		}
 	}
 	ugr = 8 * log10(0.25 / lum_backg * sum_glare);
-
+        if (sum_glare==0) {
+        ugr=0.0;
+        } 
+        if (lum_backg<=0) {
+        ugr=-99.0;
+        }
+        
 	return ugr;
 
 }
@@ -1376,9 +1396,9 @@ int main(int argc, char **argv)
 		i_split, posindex_2, task_lum, checkfile, rval, i, i_max, x, y,x2,y2,x_zone,y_zone, i_z1, i_z2,
 		igs, actual_igs, lastpixelwas_gs, icol, xt, yt, change,checkpixels, before_igs, sgs, splithigh,uniform_gs,x_max, y_max,y_mid,
 		detail_out, posindex_picture, non_cos_lb, rx, ry, rmx,rmy,apply_disability,band_calc,band_color,masking,i_mask,no_glaresources,force;
-	double  lum_total_max,age_corr_factor,age,dgp_ext,dgp,low_light_corr,omega_cos_contr, setvalue, lum_ideal, E_v_contr, sigma,om,delta_E,
+	double  LUM_replace,lum_total_max,age_corr_factor,age,dgp_ext,dgp,low_light_corr,omega_cos_contr, setvalue, lum_ideal, E_v_contr, sigma,om,delta_E,
 		E_vl_ext, lum_max, new_lum_max, r_center, ugp, ugr_exp, dgi_mod,lum_a, pgsv,E_v_mask,pgsv_sat,angle_disk,dist,n_corner_px,zero_corner_px,
-		search_pix, a1, a2, a3, a4, a5, c3, c1, c2, r_split, max_angle,r_actual,lum_actual,
+		search_pix, a1, a2, a3, a4, a5, c3, c1, c2, r_split, max_angle,r_actual,lum_actual,dir_ill,
 		omegat, sang, E_v, E_v2, E_v_dir, avlum, act_lum, ang, angle_z1, angle_z2,per_95_band,per_75_band,pos,
 		l_max, lum_backg, lum_backg_cos, omega_sources, lum_sources,per_75_mask,per_95_mask,per_75_z1,per_95_z1,per_75_z2,per_95_z2,
 		lum, lum_source,teta,Lveil_cie,Lveil_cie_sum,disability_thresh,u_r,u_g,u_b,band_angle,band_avlum,
@@ -1390,43 +1410,49 @@ int main(int argc, char **argv)
 	float lum_task, lum_thres, dgi,  vcp, cgi, ugr, limit, dgr, 
 		abs_max, Lveil;
 	char maskfile[500],file_out[500], file_out2[500], version[500];
-	char *cline;
+	char *cline = NULL;
 	VIEW userview = STDVIEW;
 	int gotuserview = 0;
-	struct muc_rvar* s_mask;
+	struct muc_rvar* s_mask = NULL;
+	struct muc_rvar* s_band = NULL;
+	struct muc_rvar* s_z1 = NULL;
+	struct muc_rvar* s_z2 = NULL;
+	struct muc_rvar* s_noposweight = NULL;
+	struct muc_rvar* s_posweight = NULL;
+	struct muc_rvar* s_posweight2 = NULL;
+
+	// initializing variables ....
+	Lveil = lum_backg_cos = 0;
+	dgi = ugr = ugp = ugr_exp = dgi_mod = cgi = dgr = vcp = 0.0;
+	lum_task = lum_thres = limit = 0;
 	s_mask = muc_rvar_create();
-        muc_rvar_set_dim(s_mask, 1);
+	muc_rvar_set_dim(s_mask, 1);
 	muc_rvar_clear(s_mask);
-	struct muc_rvar* s_band;
 	s_band = muc_rvar_create();
-        muc_rvar_set_dim(s_band, 1);
+	muc_rvar_set_dim(s_band, 1);
 	muc_rvar_clear(s_band);
-	struct muc_rvar* s_z1;
 	s_z1 = muc_rvar_create();
-        muc_rvar_set_dim(s_z1, 1);
+	muc_rvar_set_dim(s_z1, 1);
 	muc_rvar_clear(s_z1);
 
-	struct muc_rvar* s_z2;
 	s_z2 = muc_rvar_create();
-        muc_rvar_set_dim(s_z2, 1);
+	muc_rvar_set_dim(s_z2, 1);
 	muc_rvar_clear(s_z2);
 
-	struct muc_rvar* s_noposweight;
 	s_noposweight = muc_rvar_create();
-        muc_rvar_set_dim(s_noposweight, 1);
+	muc_rvar_set_dim(s_noposweight, 1);
 	muc_rvar_clear(s_noposweight);
  
-	struct muc_rvar* s_posweight;
 	s_posweight = muc_rvar_create();
-        muc_rvar_set_dim(s_posweight, 1);
+	muc_rvar_set_dim(s_posweight, 1);
 	muc_rvar_clear(s_posweight);
 
-	struct muc_rvar* s_posweight2;
 	s_posweight2 = muc_rvar_create();
-        muc_rvar_set_dim(s_posweight2, 1);
+	muc_rvar_set_dim(s_posweight2, 1);
 	muc_rvar_clear(s_posweight2);
 
 	/*set required user view parameters to invalid values*/
+        dir_ill=0.0;
         delta_E=0.0;
         no_glaresources=0;
         n_corner_px=0;
@@ -1529,6 +1555,7 @@ int main(int argc, char **argv)
 	omega_mask=0.0;
 	i_mask=0;
         actual_igs=0;
+	LUM_replace=0;
 /* command line for output picture*/
 
 	cline = (char *) malloc(CLINEMAX+1);
@@ -1667,6 +1694,17 @@ int main(int argc, char **argv)
 			strcpy(file_out2, argv[++i]);
 /*			printf("max lum set to %f\n",new_lum_max);*/
 			break;
+		case 'O':
+			img_corr = 1;
+			set_lum_max2 = 3;
+			x_disk = atoi(argv[++i]);
+			y_disk = atoi(argv[++i]);
+			angle_disk = atof(argv[++i]);
+			LUM_replace = atof(argv[++i]);
+			strcpy(file_out2, argv[++i]);
+/*			printf("max lum set to %f\n",new_lum_max);*/
+			break;
+
 
 		case 'n':
 			non_cos_lb = 0;
@@ -1739,6 +1777,10 @@ int main(int argc, char **argv)
 		case '1':
 			output = 1;
 			break;
+		case '2':
+			output = 2;
+			dir_ill = atof(argv[++i]);
+			break;
 
 		case 'v':
 			if (argv[i][2] == '\0') {
@@ -1770,9 +1812,14 @@ int main(int argc, char **argv)
 
 /*fast calculation, if gendgp_profile is used: No Vertical illuminance calculation, only dgp is calculated*/
 
-if (output == 1 && ext_vill == 1) {
+if (output == 1 && ext_vill == 1 ) {
                        calcfast=1;
 		       }
+		       
+if (output == 2 && ext_vill == 1 ) {
+                       calcfast=2;
+		       }
+		       
 /*masking and zoning cannot be applied at the same time*/
 
 if (masking ==1 && zones >0) {
@@ -2061,8 +2108,10 @@ if (cut_view==2) {
  	lum_pos_mean= lum_pos_mean/sang;
  	lum_pos2_mean= lum_pos2_mean/sang;
 
-	if (set_lum_max2 >= 1 && E_v_contr > 0 && (E_vl_ext - E_v) > 0) {
+	// XXX: sure this works? I'd suggest parenthesis.
+	if ((set_lum_max2 >= 1 && E_v_contr > 0 && (E_vl_ext - E_v) > 0) || set_lum_max2==3) {
 
+		if (set_lum_max2<3){
 		lum_ideal = (E_vl_ext - E_v + E_v_contr) / omega_cos_contr;
 		if (set_lum_max2 == 2 && lum_ideal >= 2e9) {
 		printf("warning! luminance of replacement pixels would be larger than 2e9 cd/m2. Value set to 2e9cd/m2!\n") ;
@@ -2073,6 +2122,8 @@ if (cut_view==2) {
 		}
 		printf("change luminance values!! lum_ideal,setvalue,E_vl_ext,E_v,E_v_contr %f  %f %f %f %f\n",
 			 lum_ideal, setvalue, E_vl_ext, E_v, E_v_contr);
+			  }else{setvalue=LUM_replace;
+			 }
 
             
 		for (x = 0; x < pict_get_xsize(p); x++)
@@ -2092,7 +2143,7 @@ if (cut_view==2) {
 							pict_get_color(p, x, y)[BLU] =
 								setvalue / 179.0;
 
-						}else{ if(set_lum_max2 ==2 ) {
+						}else{ if(set_lum_max2 >1 ) {
 							r_actual =acos(DOT(pict_get_cached_dir(p, x_disk, y_disk), pict_get_cached_dir(p, x, y))) * 2;
 							if (x_disk == x && y_disk==y ) r_actual=0.0;
 
@@ -2105,9 +2156,7 @@ if (cut_view==2) {
 							pict_get_color(p, x, y)[BLU] =
 								setvalue / 179.0;
 			                               
-			                               }
-						 		
-						
+			                               }						
 						}
 						}
 					}
@@ -2223,9 +2272,12 @@ if (cut_view==1) {
 /* 	pict_write(p,"firstscan.pic");   */
 
 
-if (calcfast == 1 || search_pix <= 1.0) {
+
+
+if (calcfast ==1 || search_pix <= 1.0 || calcfast == 2 ) {
    skip_second_scan=1;
    }
+  
 
 /* second glare source scan: combine glare sources facing each other */
 	change = 1;
@@ -2400,7 +2452,7 @@ if (calcfast == 1 || search_pix <= 1.0) {
 
 /* calculation of direct vertical illuminance for CGI and for disability glare, coloring glare sources*/
 
-	if (calcfast == 0) {
+	if (calcfast == 0 || calcfast == 2) {
 	for (x = 0; x < pict_get_xsize(p); x++)
 		for (y = 0; y < pict_get_ysize(p); y++) {
 			if (pict_get_hangle(p, x, y, p->view.vdir, p->view.vup, &ang)) {
@@ -2824,8 +2876,15 @@ if (calcfast == 0) {
 				if (E_vl_ext < 1000) {
 				low_light_corr=1.0*exp(0.024*E_vl_ext-4)/(1+exp(0.024*E_vl_ext-4)); } else {low_light_corr=1.0 ;} 
 				dgp =low_light_corr*dgp;
-       				dgp =age_corr_factor*dgp;
-		printf("%f\n", dgp);
+
+                     if (calcfast == 2) {
+                     
+                         lum_backg_cos=(E_vl_ext-dir_ill)/3.1415927;
+  	                 ugr = get_ugr(p, lum_backg_cos, igs, posindex_2);
+ 		         printf("%f %f \n", dgp,ugr);
+                     }else{      
+		         printf("%f\n", dgp);
+		}
 	}
 
 
@@ -2862,15 +2921,33 @@ has to be re-written from scratch....
 	}
 
 
-
+	pict_free(p);
+	pict_free(pm);
+	muc_rvar_free(s_mask);
+	muc_rvar_free(s_band);
+	muc_rvar_free(s_z1);
+	muc_rvar_free(s_z2);
+	muc_rvar_free(s_noposweight);
+	muc_rvar_free(s_posweight);
+	muc_rvar_free(s_posweight2);
+	free(cline);
 	return EXIT_SUCCESS;
-	exit(0);
 
   userr:
 	fprintf(stderr,
 			"Usage: %s [-s][-d][-c picture][-t xpos ypos angle] [-T xpos ypos angle] [-b fact] [-r angle] [-y] [-Y lum] [-i Ev] [-I Ev ymax ymin] [-v] picfile\n",
 			progname);
-	exit(1);
+	pict_free(p);
+	pict_free(pm);
+	muc_rvar_free(s_mask);
+	muc_rvar_free(s_band);
+	muc_rvar_free(s_z1);
+	muc_rvar_free(s_z2);
+	muc_rvar_free(s_noposweight);
+	muc_rvar_free(s_posweight);
+	muc_rvar_free(s_posweight2);
+	free(cline);
+	return 1;
 }
 
 

@@ -39,7 +39,7 @@ using namespace optix;
 #endif /* AMB_SAVE_MEM */
 
 typedef struct {
-	int	ns;		/* number of samples per axis */
+	unsigned int	ns;		/* number of samples per axis */
 	int	sampOK;		/* acquired full sample set? */
 	float3	acoef;		/* division contribution coefficient */
 	float3	acol;		/* accumulated color */
@@ -129,7 +129,7 @@ RT_METHOD int check_overlap( const float3& normal, const float3& hit );
 RT_METHOD int plugaleak( const AmbientRecord* record, const float3& anorm, const float3& normal, const float3& hit, float ang );
 #endif
 RT_METHOD int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit );
-RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const int& i, const int& j, const int& n, const float3& normal, const float3& hit);
+RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const unsigned int& i, const unsigned int& j, const unsigned int& n, const float3& normal, const float3& hit);
 #ifdef AMB_SAVE_MEM
 RT_METHOD int samp_hemi(AMBHEMI *hp, float3 *rcol, float wt, optix::Matrix<2, 3> *uv, float2 *ra, float2 *pg, float2 *dg, unsigned int *crlp, const float3& normal, const float3& hit);
 #else /* AMB_SAVE_MEM */
@@ -394,8 +394,8 @@ RT_METHOD int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *ra, float
 		crlp = NULL;
 	}
 				/* relative Y channel from here on... */
-	for (int i = 0; i < hp.ns; i++)
-		for (int j = 0; j < hp.ns; j++) {
+	for (unsigned int i = 0; i < hp.ns; i++)
+		for (unsigned int j = 0; j < hp.ns; j++) {
 			AmbientSample *ap = &ambsam(i, j);
 			ap->v.y = bright(ap->v) * d + K;
 		}
@@ -472,8 +472,8 @@ RT_METHOD int samp_hemi(
 	if (ambacc <= FTINY && wt > (d = 0.8f * fmaxf(*rcol) * wt / (ambdiv*minweight))) //TODO second wt should be radiance ray weight
 		wt = d;			/* avoid ray termination */
 #endif
-	int n = sqrtf(ambdiv * wt) + 0.5f;
-	int i = 1 + 5 * (ambacc > FTINY);	/* minimum number of samples */
+	unsigned int n = sqrtf(ambdiv * wt) + 0.5f;
+	unsigned int i = 1 + 5 * (ambacc > FTINY);	/* minimum number of samples */
 	if (n < i)
 		n = i;
 					/* allocate sampling array */
@@ -527,7 +527,7 @@ RT_METHOD int samp_hemi(
 		optix::Matrix<3,3> hesscol;	/* compute first vertical edge */
 		float3 gradcol;
 
-	    for (int j = 0; j < hp->ns; j++ ) {
+	    for (unsigned int j = 0; j < hp->ns; j++ ) {
 			hp->sampOK += ambsample(hp, &current, i, j, 0, normal, hit);
 			current.v.y = bright( current.v ); /* relative Y channel from here on... */
 
@@ -612,7 +612,7 @@ RT_METHOD int samp_hemi(
 #else /* AMB_SAVE_MEM */
 					/* sample divisions */
 	for (i = hp->ns; i--; )
-	    for (int j = hp->ns; j--; )
+		for (unsigned int j = hp->ns; j--;)
 			hp->sampOK += ambsample(hp, &ambsam(i, j), i, j, 0, normal, hit);
 #endif /* AMB_SAVE_MEM */
 	*rcol = hp->acol;
@@ -730,7 +730,7 @@ RT_METHOD int samp_hemi(
 	return( 1 );			/* all is well */
 }
 
-RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const int& i, const int& j, const int& n, const float3& normal, const float3& hit)
+RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const unsigned int& i, const unsigned int& j, const unsigned int& n, const float3& normal, const float3& hit)
 {
 #ifdef AMB_PARALLEL
 	if (!n) {
@@ -1045,7 +1045,6 @@ RT_METHOD void ambHessian( AMBHEMI *hp, optix::Matrix<2,3> *uv, float2 *ra, floa
 	hessian.setRow( 1, gradient );
 	hessian.setRow( 2, gradient );
 	FFTRI fftr;
-	int i, j;
 					/* be sure to assign unit vectors */
 	uv->setRow( 0, hp->ux );
 	uv->setRow( 1, hp->uy );
@@ -1064,7 +1063,7 @@ RT_METHOD void ambHessian( AMBHEMI *hp, optix::Matrix<2,3> *uv, float2 *ra, floa
 	//	memset(gradient, 0, sizeof(gradient));
 	//}
 					/* compute first row of edges */
-	for (j = 0; j < hp->ns-1; j++) {
+	for (unsigned int j = 0; j < hp->ns-1; j++) {
 		comp_fftri(&fftr, &ambsam(0, j), &ambsam(0, j + 1), hit);
 		if (ra != NULL)
 			hessrow(j) = comp_hessian( &fftr, normal );
@@ -1072,7 +1071,7 @@ RT_METHOD void ambHessian( AMBHEMI *hp, optix::Matrix<2,3> *uv, float2 *ra, floa
 			gradrow(j) = comp_gradient( &fftr, normal );
 	}
 					/* sum each row of triangles */
-	for (i = 0; i < hp->ns-1; i++) {
+	for (unsigned int i = 0; i < hp->ns - 1; i++) {
 	    optix::Matrix<3,3> hesscol;	/* compute first vertical edge */
 	    float3 gradcol;
 		comp_fftri(&fftr, &ambsam(i, 0), &ambsam(i + 1, 0), hit);
@@ -1080,7 +1079,7 @@ RT_METHOD void ambHessian( AMBHEMI *hp, optix::Matrix<2,3> *uv, float2 *ra, floa
 			hesscol = comp_hessian( &fftr, normal );
 		if (pg != NULL)
 			gradcol = comp_gradient( &fftr, normal );
-	    for (j = 0; j < hp->ns-1; j++) {
+		for (unsigned int j = 0; j < hp->ns - 1; j++) {
 			optix::Matrix<3,3> hessdia;	/* compute triangle contributions */
 			float3 graddia;
 			float backg = back_ambval(&ambsam(i, j), &ambsam(i, j + 1), &ambsam(i + 1, j));
@@ -1136,8 +1135,8 @@ RT_METHOD void ambHessian( AMBHEMI *hp, optix::Matrix<2,3> *uv, float2 *ra, floa
 RT_METHOD void ambdirgrad( AMBHEMI *hp, const float3& u, const float3& v, float2 *dg, const float3& normal, const float3& hit )
 {
 	float2 dgsum = make_float2( 0.0f );	/* sum values times -tan(theta) */
-	for (int i = 0; i < hp->ns; i++)
-		for (int j = 0; j < hp->ns; j++) {
+	for (unsigned int i = 0; i < hp->ns; i++)
+		for (unsigned int j = 0; j < hp->ns; j++) {
 			AmbientSample *ap = &ambsam(i, j);
 					/* use vector for azimuth + 90deg */
 			float3 vd = ap->p - hit;
@@ -1161,13 +1160,12 @@ RT_METHOD unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, const flo
 	const float ang_step = ang_res / ( (int)( 16.0f * M_1_PIf * ang_res ) + ( 1.01f ) );
 	float avg_d = 0.0f;
 	unsigned int flgs = 0u;
-	int i, j;
 					/* don't bother for a few samples */
 	if (hp->ns < 8)
 		return(0u);
 					/* check distances overhead */
-	for ( i = hp->ns * 3 / 4; i-- > hp->ns>>2; )
-	    for ( j = hp->ns * 3 / 4; j-- > hp->ns>>2; )
+	for (unsigned int i = hp->ns * 3 / 4; i-- > hp->ns >> 2;)
+		for (unsigned int j = hp->ns * 3 / 4; j-- > hp->ns >> 2;)
 			avg_d += ambsam(i, j).d;
 	avg_d *= 4.0f / ( hp->ns * hp->ns );
 	if ( avg_d * r.x >= 1.0f )		/* ceiling too low for corral? */
@@ -1175,8 +1173,8 @@ RT_METHOD unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, const flo
 	if ( avg_d >= max_d )		/* insurance */
 		return(0u);
 					/* else circle around perimeter */
-	for ( i = 0; i < hp->ns; i++ )
-	    for ( j = 0; j < hp->ns; j += !i|(i==hp->ns-1) ? 1 : hp->ns-1 ) {
+	for (unsigned int i = 0; i < hp->ns; i++)
+		for (unsigned int j = 0; j < hp->ns; j += !i | (i == hp->ns - 1) ? 1 : hp->ns - 1) {
 			AmbientSample *ap = &ambsam(i, j);
 			if ( ( ap->d <= FTINY ) | ( ap->d >= max_d ) )
 				continue;	/* too far or too near */

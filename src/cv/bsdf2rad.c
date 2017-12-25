@@ -13,9 +13,12 @@ static const char RCSid[] = "$Id$";
 #include "resolu.h"
 #include "bsdfrep.h"
 
+#ifndef NINCIDENT
 #define NINCIDENT	37		/* number of samples/hemisphere */
-
+#endif
+#ifndef GRIDSTEP
 #define	GRIDSTEP	2		/* our grid step size */
+#endif
 #define SAMPRES		(GRIDRES/GRIDSTEP)
 
 int	front_comp = 0;			/* front component flags (SDsamp*) */
@@ -24,7 +27,7 @@ double	overall_min = 1./PI;		/* overall minimum BSDF value */
 double	min_log10;			/* smallest log10 value for plotting */
 double	overall_max = .0;		/* overall maximum BSDF value */
 
-char	ourTempDir[TEMPLEN] = "";	/* our temporary directory */
+char	ourTempDir[TEMPLEN+1] = "";	/* our temporary directory */
 
 const char	frpref[] = "rf";
 const char	ftpref[] = "tf";
@@ -77,7 +80,7 @@ cvt_sposition(FVECT sp, const FVECT iv, int inc_side)
 static char *
 tfile_name(const char *prefix, const char *suffix, int i)
 {
-	static char	buf[128];
+	static char	buf[256];
 
 	if (!ourTempDir[0]) {		/* create temporary directory */
 		mktemp(strcpy(ourTempDir,TEMPLATE));
@@ -275,6 +278,7 @@ put_mirror_arrow(const FVECT origin, const FVECT nrm)
 {
 	const double	arrow_len = 1.2*bsdf_rad;
 	const double	tip_len = 0.2*bsdf_rad;
+	static int	cnt = 1;
 	FVECT		refl;
 	int		i;
 
@@ -282,20 +286,20 @@ put_mirror_arrow(const FVECT origin, const FVECT nrm)
 	refl[1] = 2.*nrm[2]*nrm[1];
 	refl[2] = 2.*nrm[2]*nrm[2] - 1.;
 
-	printf("\n# Mirror arrow\n");
-	printf("\nshaft_mat cylinder inc_dir\n0\n0\n7");
+	printf("\n# Mirror arrow #%d\n", cnt);
+	printf("\nshaft_mat cylinder inc_dir%d\n0\n0\n7", cnt);
 	printf("\n\t%f %f %f\n\t%f %f %f\n\t%f\n",
 			origin[0], origin[1], origin[2]+arrow_len,
 			origin[0], origin[1], origin[2],
 			arrow_rad);
-	printf("\nshaft_mat cylinder mir_dir\n0\n0\n7");
+	printf("\nshaft_mat cylinder mir_dir%d\n0\n0\n7", cnt);
 	printf("\n\t%f %f %f\n\t%f %f %f\n\t%f\n",
 			origin[0], origin[1], origin[2],
 			origin[0] + arrow_len*refl[0],
 			origin[1] + arrow_len*refl[1],
 			origin[2] + arrow_len*refl[2],
 			arrow_rad);
-	printf("\ntip_mat cone mir_tip\n0\n0\n8");
+	printf("\ntip_mat cone mir_tip%d\n0\n0\n8", cnt);
 	printf("\n\t%f %f %f\n\t%f %f %f\n\t%f 0\n",
 			origin[0] + (arrow_len-.5*tip_len)*refl[0],
 			origin[1] + (arrow_len-.5*tip_len)*refl[1],
@@ -304,6 +308,7 @@ put_mirror_arrow(const FVECT origin, const FVECT nrm)
 			origin[1] + (arrow_len+.5*tip_len)*refl[1],
 			origin[2] + (arrow_len+.5*tip_len)*refl[2],
 			2.*arrow_rad);
+	++cnt;
 }
 
 /* Put out transmitted direction arrow for the given incident vector */
@@ -312,19 +317,21 @@ put_trans_arrow(const FVECT origin)
 {
 	const double	arrow_len = 1.2*bsdf_rad;
 	const double	tip_len = 0.2*bsdf_rad;
+	static int	cnt = 1;
 	int		i;
 
-	printf("\n# Transmission arrow\n");
-	printf("\nshaft_mat cylinder trans_dir\n0\n0\n7");
+	printf("\n# Transmission arrow #%d\n", cnt);
+	printf("\nshaft_mat cylinder trans_dir%d\n0\n0\n7", cnt);
 	printf("\n\t%f %f %f\n\t%f %f %f\n\t%f\n",
 			origin[0], origin[1], origin[2],
 			origin[0], origin[1], origin[2]-arrow_len,
 			arrow_rad);
-	printf("\ntip_mat cone trans_tip\n0\n0\n8");
+	printf("\ntip_mat cone trans_tip%d\n0\n0\n8", cnt);
 	printf("\n\t%f %f %f\n\t%f %f %f\n\t%f 0\n",
 			origin[0], origin[1], origin[2]-arrow_len+.5*tip_len,
 			origin[0], origin[1], origin[2]-arrow_len-.5*tip_len,
-			2.*arrow_rad);	
+			2.*arrow_rad);
+	++cnt;
 }
 
 /* Compute rotation (x,y,z) => (xp,yp,zp) */
@@ -513,7 +520,7 @@ put_hemispheres(void)
 	if (front_comp) {
 		printf(
 "\n!genrev %s Front \"R*sin(A*t)\" \"R*cos(A*t)\" %d -e \"R:%g;A:%f\" -s | xform -t %g 0 0\n",
-				sph_fmat, nsegs, sph_rad, 0.495*PI, sph_xoffset);
+				sph_fmat, nsegs, sph_rad, 0.5*PI, sph_xoffset);
 		printf("\nvoid brighttext front_text\n3 helvet.fnt . FRONT\n0\n");
 		printf("12\n\t%f %f 0\n\t%f 0 0\n\t0 %f 0\n\t.01 1 -.1\n",
 				-.22*sph_rad + sph_xoffset, -1.4*sph_rad,
@@ -529,7 +536,7 @@ put_hemispheres(void)
 	if (back_comp) {
 		printf(
 "\n!genrev %s Back \"R*cos(A*t)\" \"R*sin(A*t)\" %d -e \"R:%g;A:%f\" -s | xform -t %g 0 0\n",
-				sph_bmat, nsegs, sph_rad, 0.495*PI, -sph_xoffset);
+				sph_bmat, nsegs, sph_rad, 0.5*PI, -sph_xoffset);
 		printf("\nvoid brighttext back_text\n3 helvet.fnt . BACK\n0\n");
 		printf("12\n\t%f %f 0\n\t%f 0 0\n\t0 %f 0\n\t.01 1 -.1\n",
 				-.22*sph_rad - sph_xoffset, -1.4*sph_rad,

@@ -15,6 +15,8 @@ falsecolor \- make a false color RADIANCE picture
 ][
 .B "\-s scale"
 ][
+.B "\-d digits"
+][
 .B "\-l label"
 ][
 .B "\-n ndivs"
@@ -60,6 +62,11 @@ For a logarithmic rather than a linear mapping, the
 option can be used, where
 .I decades
 is the number of decades below the maximum scale desired.
+.PP 
+The 
+.I \-d 
+option controls the max number of decimal places printed for legend
+entries. The default is 3 decimal places.
 .PP 
 A legend is produced for the new image with a label given by the
 .I \-l
@@ -167,6 +174,8 @@ falsecolor \-i irrad.hdr \-p rad.hdr \-cl \-log 2 \-l Lux > lux.hdr
 Greg Ward
 .br 
 Axel Jacobs (Perl translation and \-pal options)
+.br
+David Geisler-Moroder & Stephen Wasilewski (Legend additions and improvements)
 .SH "ACKNOWLEDGEMENT"
 Work on this program was initiated and sponsored by the LESO
 group at EPFL in Switzerland. The 'eco' palette was sponsored by Foster + Partners in London.

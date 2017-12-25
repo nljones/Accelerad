@@ -668,8 +668,9 @@ void printException(const RTexception type, const int count, const char* locatio
 void ptxFile( char* path, const char* name )
 {
 	char* fp;
-	sprintf( path, "cuda_compile_ptx_generated_%s.cu.ptx", name );
-	fp = getpath( path, getenv("RAYPATH"), R_OK );
+	//sprintf( path, "cuda_compile_ptx_generated_%s.cu.ptx", name );
+	sprintf(path, "%s.ptx", name);
+	fp = getpath(path, getenv("RAYPATH"), R_OK);
 	if ( fp )
 		sprintf(path, "%s", fp);
 	else {
