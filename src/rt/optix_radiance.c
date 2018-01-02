@@ -423,6 +423,8 @@ void setupKernel(const RTcontext context, const VIEW* view, LUTAB* modifiers, co
 		else
 			setupAmbientCache( context, 0u ); // only need level 0 for final gather
 	}
+	else
+		RT_CHECK_ERROR(rtContextSetEntryPointCount(context, 1u));
 }
 
 void updateModel(const RTcontext context, LUTAB* modifiers)
@@ -662,6 +664,14 @@ static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RT
 	}
 	RT_CHECK_ERROR(rtGeometrySetPrimitiveCount(*mesh, (unsigned int)traingles->count));
 
+	/* Check that there is at least one material for context validation. */
+	if (!materials->count) {
+		RTmaterial null_material;
+		RT_CHECK_ERROR(rtMaterialCreate(context, &null_material));
+		insertArraym(materials, null_material);
+		use_ambient = calc_ambient = 0u;
+	}
+
 	/* Create the geometry instance containing the geometry. */
 	if (!*instance) {
 		RT_CHECK_ERROR(rtGeometryInstanceCreate(context, instance));
@@ -880,6 +890,8 @@ static void createFace(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 {
 	int j, k;
 	FACE* face = getface(rec);
+	if (face->area == 0.0)
+		goto facedone;
 	OBJREC* material = findmaterial(rec);
 	if (material == NULL)
 		objerror(rec, USER, "missing material");
