@@ -1182,6 +1182,14 @@ main(int argc, char *argv[])
 	FILE	*rcfp;
 	int	nsbins;
 	int	a, i;
+#ifdef ACCELERAD
+	char	nametest[128];
+#if defined(_WIN32) || defined(_WIN64)
+	char	nulldest[4] = "NUL";
+#else
+	char	nulldest[10] = "/dev/null";
+#endif
+#endif
 					/* screen rcontrib options */
 	progname = argv[0];
 	for (a = 1; a < argc-2; a++) {
@@ -1342,7 +1350,8 @@ main(int argc, char *argv[])
 		return(1);
 	finish_receiver();
 #ifdef ACCELERAD
-	if (system("accelerad_rcontrib -version")) /* check existance of accelerad_rcontrib */
+	sprintf(nametest, "%s -version > %s 2>&1", rcarg[0], nulldest);
+	if (system(nametest)) /* check existance of accelerad_rcontrib */
 		rcarg[0] += ACCEL_CHARS;
 #endif
 	if (sendfn == NULL) {		/* pass-through mode? */
