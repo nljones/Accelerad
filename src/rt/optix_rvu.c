@@ -511,9 +511,9 @@ void setAreaFlags(const unsigned int flags)
 	RT_CHECK_ERROR(rtVariableSet1ui(position_flags, flags));
 }
 
-#ifdef VT_ODS
 void setGaze(const VIEW* view, double angle)
 {
+#ifdef VT_ODS
 	if (angle > FTINY || angle < -FTINY) {
 		FVECT gaze, normal;
 		VCOPY(normal, view->vvec);
@@ -523,7 +523,7 @@ void setGaze(const VIEW* view, double angle)
 	}
 	else
 		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet3f(camera_gaze, 0.0f, 0.0f, 0.0f));
-}
 #endif
+}
 
 #endif /* ACCELERAD_RT */

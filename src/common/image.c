@@ -76,6 +76,9 @@ VIEW  *v
 			return(ill_horiz);
 		if (v->vert >= 180.0-FTINY)
 			return(ill_vert);
+#ifdef VT_ODS
+	case VT_ODS:
+#endif
 		v->hn2 = v->horiz * (PI/180.0);
 		v->vn2 = 2.0 * tan(v->vert*(PI/180.0/2.0));
 		break;
@@ -108,6 +111,9 @@ VIEW  *v
 	default:
 		return("unknown view type");
 	}
+#ifdef VT_ODS
+	if (v->type != VT_ODS)
+#endif
 	if (v->type != VT_ANG && v->type != VT_PLS) {
 		if (v->type != VT_CYL) {
 			v->hvec[0] *= v->hn2;
@@ -152,6 +158,9 @@ double  y
 )
 {
 	double	d, z;
+#ifdef VT_ODS
+	double dy;
+#endif
 	
 	x += v->hoff - 0.5;
 	y += v->voff - 0.5;
@@ -221,6 +230,25 @@ double  y
 		direc[2] = z*v->vdir[2] + x*v->hvec[2] + y*v->vvec[2];
 		VSUM(orig, v->vp, direc, v->vfore);
 		return(v->vaft > FTINY ? v->vaft - v->vfore : 0.0);
+#ifdef VT_ODS
+	case VT_ODS:			/* omni-directional stereo */
+		y *= 2.0;
+		y += y < 0 ? 0.5 : -0.5;
+		dy = y * v->vert * (PI / 180.0);
+		d = x * v->horiz * (PI / 180.0);
+		z = cos(d) * cos(dy);
+		x = sin(d) * cos(dy);
+		y = sin(dy);
+		direc[0] = z*v->vdir[0] + x*v->hvec[0] + y*v->vvec[0];
+		direc[1] = z*v->vdir[1] + x*v->hvec[1] + y*v->vvec[1];
+		direc[2] = z*v->vdir[2] + x*v->hvec[2] + y*v->vvec[2];
+		VSUM(orig, v->vp, direc, v->vfore);
+		dy = v->ipd * (y < 0 ? 0.5f : -0.5f);
+		direc[0] += cos(d) * dy;
+		direc[1] += sin(d) * dy;
+		d = normalize(direc);
+		return(v->vaft > FTINY ? (v->vaft - v->vfore)*d : 0.0);
+#endif
 	}
 	return(-1.0);
 }
@@ -301,6 +329,33 @@ FVECT  p
 		ip[0] += DOT(disp,v->hvec)/((1. + d)*sqrt(v->hn2));
 		ip[1] += DOT(disp,v->vvec)/((1. + d)*sqrt(v->vn2));
 		return;
+#ifdef VT_ODS
+	case VT_ODS:			/* omni-directional stereo */
+		d = DOT(disp, v->vvec);
+		VSUM(disp, disp, v->vvec, -d);
+		d2 = 2 * VLEN(disp);
+		if (d2 < v->ipd) { /* inside circle */
+			ip[2] = -1.0;
+			return;
+		}
+		d2 = asin(v->ipd / d2);
+		spinvector(disp, disp, v->vvec, -d2); /* negative for left eye */
+		VSUM(disp, disp, v->vvec, d);
+
+		d = DOT(disp, v->hvec);
+		d2 = DOT(disp, v->vdir);
+		ip[0] = 180.0 / PI * atan2(d, d2) / v->horiz + 0.5 - v->hoff;
+		ip[1] = 0.5 - v->voff;
+		ip[2] = normalize(disp) - v->vfore;
+		d = DOT(disp, v->vvec);
+		if (d > FTINY || d < -FTINY) {
+			d = (180.0 / PI)*asin(d) / d;
+			ip[1] += DOT(disp, v->vvec)*d / v->vert;
+		}
+		/* use left eye */
+		ip[1] = ip[1] * 0.5 + 0.5;
+		return;
+#endif
 	}
 	ip[0] = DOT(disp,v->hvec)/v->hn2 + 0.5 - v->hoff;
 	ip[1] = DOT(disp,v->vvec)/v->vn2 + 0.5 - v->voff;
@@ -422,6 +477,12 @@ char  *av[]
 		check(3,"f");
 		v->voff = atof(av[1]);
 		return(1);
+#ifdef VT_ODS
+	case 'i':			/* inter-pupillary distance */
+		check(3, "f");
+		v->ipd = atof(av[1]);
+		return(1);
+#endif
 	default:
 		return(-1);
 	}

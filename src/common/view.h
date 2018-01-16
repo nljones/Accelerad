@@ -21,6 +21,7 @@ extern "C" {
 #define  VT_HEM		'h'		/* hemispherical fisheye */
 #define  VT_PLS		's'		/* planispheric fisheye */
 #define  VT_CYL		'c'		/* cylindrical panorama */
+#define  VT_ODS		'o'		/* omni-directional stereo */
 
 typedef struct {
 	int  type;		/* view type */
@@ -38,15 +39,24 @@ typedef struct {
 	FVECT  vvec;		/* computed vertical image vector */
 	double  hn2;		/* DOT(hvec,hvec) */
 	double  vn2;		/* DOT(vvec,vvec) */
+#ifdef VT_ODS
+	double  ipd;		/* inter-pupillary distance */
+#endif
 } VIEW;			/* view parameters */
 
 extern VIEW  stdview;
 
 #define  viewaspect(v)	sqrt((v)->vn2/(v)->hn2)
 
+#ifdef VT_ODS
+#define  STDVIEW	{VT_PER,{0.,0.,0.},{0.,1.,0.},{0.,0.,1.}, \
+				1.,45.,45.,0.,0.,0.,0., \
+				{0.,0.,0.},{0.,0.,0.},0.,0.,0.07}
+#else
 #define  STDVIEW	{VT_PER,{0.,0.,0.},{0.,1.,0.},{0.,0.,1.}, \
 				1.,45.,45.,0.,0.,0.,0., \
 				{0.,0.,0.},{0.,0.,0.},0.,0.}
+#endif
 
 #define  VIEWSTR	"VIEW="
 #define  VIEWSTRL	5
