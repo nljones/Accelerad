@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: sun.h,v 2.2 2014/07/30 17:30:27 greg Exp $ */
 /*
  * Header file for solar position calculations
  */

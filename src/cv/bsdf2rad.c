@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: bsdf2rad.c,v 2.33 2017/10/02 22:11:32 greg Exp $";
 #endif
 /*
  *  Plot 3-D BSDF output based on scattering interpolant or XML representation

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: fputword.c,v 3.9 2011/06/22 16:55:35 greg Exp $";
 #endif
 /*
  * Write word to stream, quoting as necessary

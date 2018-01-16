@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: m_clip.c,v 2.12 2017/04/08 00:09:35 greg Exp $";
 #endif
 /*
  *  m_clip.c - routine for clipped (cut) objects.

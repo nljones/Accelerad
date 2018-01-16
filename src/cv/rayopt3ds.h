@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: rayopt3ds.h,v 2.1 2011/02/18 00:40:25 greg Exp $ */
 /*-------------------------------------------------------------------------
 
 		 Triangle Bounder/Smoother for POV-Ray

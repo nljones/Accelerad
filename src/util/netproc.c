@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: netproc.c,v 2.17 2010/03/15 21:31:50 greg Exp $";
 #endif
 /*
  * Parallel network process handling routines

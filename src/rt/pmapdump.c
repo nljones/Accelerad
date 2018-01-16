@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: pmapdump.c,v 2.9 2017/12/09 18:40:43 rschregle Exp $";
 #endif
 
 /* 
@@ -12,7 +12,7 @@ static const char RCSid[] = "$Id$";
        supported by the Swiss National Science Foundation (SNSF, #147053)
    ======================================================================
    
-   $Id$
+   $Id: pmapdump.c,v 2.9 2017/12/09 18:40:43 rschregle Exp $
 */
 
 
@@ -25,7 +25,7 @@ static const char RCSid[] = "$Id$";
 #include "random.h"
 #include "math.h"
 
-#define PMAPDUMP_REC "$Revision$"   
+#define PMAPDUMP_REC "$Revision: 2.9 $"   
 
 
 /* Defaults */

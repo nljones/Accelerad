@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: genclock.c,v 2.5 2003/06/08 12:03:09 schorsch Exp $";
 #endif
 /*
  * Generate an analog clock.

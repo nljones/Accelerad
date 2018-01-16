@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: ra_skel.c,v 2.13 2006/03/10 19:40:13 schorsch Exp $";
 #endif
 /*
  *  Skeletal 24-bit image conversion program.  Replace "skel"

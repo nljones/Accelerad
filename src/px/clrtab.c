@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: clrtab.c,v 2.19 2011/05/20 02:06:39 greg Exp $";
 #endif
 /*
  * Simple median-cut color quantization based on colortab.c

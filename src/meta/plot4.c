@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: plot4.c,v 1.4 2003/11/15 02:13:37 schorsch Exp $";
 #endif
 /*
  *  plot4.c - program to put four metafile pages onto one.

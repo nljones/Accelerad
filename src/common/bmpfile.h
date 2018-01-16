@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: bmpfile.h,v 2.8 2017/09/05 18:41:22 greg Exp $ */
 /*
  *  Windows and OS/2 BMP file support
  */

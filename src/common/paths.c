@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: paths.c,v 2.5 2016/03/06 01:13:17 schorsch Exp $";
 #endif
 /*
  * Find a writeable tempfile directory.

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: duphead.c,v 2.7 2003/10/22 02:06:35 greg Exp $";
 #endif
 /*
  * Duplicate header on stdout.

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: pkgBSDF.c,v 2.7 2015/08/18 15:23:38 greg Exp $";
 #endif
 /*
  * Take BSDF XML file and generate a referencing Radiance object

@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# RCSid $Id$
+# RCSid $Id: falsecolor.pl,v 2.12 2017/09/25 18:48:11 greg Exp $
 
 use warnings;
 use strict;

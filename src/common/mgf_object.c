@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: mgf_object.c,v 3.1 2011/02/18 00:40:25 greg Exp $";
 #endif
 /*
  * Header file for tracking hierarchical object names

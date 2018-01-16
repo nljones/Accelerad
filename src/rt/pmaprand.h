@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: pmaprand.h,v 2.8 2017/08/14 21:12:10 rschregle Exp $ */
 
 /* 
    ======================================================================
@@ -10,7 +10,7 @@
        supported by the Swiss National Science Foundation (SNSF, #147053)
    ======================================================================
    
-   $Id$
+   $Id: pmaprand.h,v 2.8 2017/08/14 21:12:10 rschregle Exp $
 */
 
 

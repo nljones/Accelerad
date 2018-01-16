@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: netproc.h,v 2.8 2004/03/26 21:36:19 schorsch Exp $ */
 /*
  * Header file for network processing routines
  */

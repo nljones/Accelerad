@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: histo.c,v 1.5 2008/04/18 16:32:27 greg Exp $";
 #endif
 /*
  * Compute a histogram from input data

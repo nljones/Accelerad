@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# RCSid $Id$
+# RCSid $Id: genambpos.pl,v 2.10 2016/04/20 20:57:57 greg Exp $
 #
 # Visualize ambient positions and gradients
 #

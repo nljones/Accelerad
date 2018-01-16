@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid: $Id$
+# RCSid: $Id: raddepend.csh,v 2.8 2008/08/25 04:50:32 greg Exp $
 #
 # Find scene dependencies in this directory
 #

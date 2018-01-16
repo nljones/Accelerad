@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: wordfile.c,v 2.23 2016/05/13 16:24:26 greg Exp $";
 #endif
 /*
  * Load whitespace separated words from a file into an array.

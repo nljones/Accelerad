@@ -8,7 +8,7 @@
        supported by the Swiss National Science Foundation (SNSF, #147053)
    ======================================================================   
    
-   $Id$
+   $Id: oocmorton.h,v 2.1 2016/05/17 17:39:47 rschregle Exp $
 */
 
 #ifndef OOC_MORTON_H

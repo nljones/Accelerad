@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: mgf_context.c,v 3.2 2012/05/17 17:10:23 greg Exp $";
 #endif
 /*
  * Context handlers

@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: setscan.h,v 2.3 2003/06/27 11:32:12 schorsch Exp $ */
 /*
  * Defines for programs using setscan()
  */

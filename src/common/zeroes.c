@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: zeroes.c,v 2.5 2003/07/17 09:21:29 schorsch Exp $";
 #endif
 /*
  *  zeroes.c - compute roots for various equations.

@@ -1,4 +1,4 @@
-{ RCSid $Id$ }
+{ RCSid $Id: WGMDaniso.cal,v 1.1 2014/03/24 20:51:16 greg Exp $ }
 { Ward-Geisler-Moroder-Duer anisotropic BRDF model }
 
 			{ Parameters (change these) }

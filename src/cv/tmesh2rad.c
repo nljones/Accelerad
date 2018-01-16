@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: tmesh2rad.c,v 2.17 2014/04/11 20:27:23 greg Exp $";
 #endif
 /*
  * Convert a trianglular mesh into a Radiance description.

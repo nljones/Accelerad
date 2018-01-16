@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid $Id$
+# RCSid $Id: pbilat.csh,v 1.3 2008/11/10 19:08:19 greg Exp $
 #
 # Bilateral Filter (fixed parameters for now)
 #

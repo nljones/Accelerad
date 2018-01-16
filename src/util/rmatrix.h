@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: rmatrix.h,v 2.8 2017/08/28 15:59:46 greg Exp $ */
 /*
  * Header file for general matrix routines.
  */

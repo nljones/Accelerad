@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: pcwarp.c,v 3.5 2008/11/10 19:08:19 greg Exp $";
 #endif
 /*
  * Warp colors in Radiance picture to correct for input/output changes.

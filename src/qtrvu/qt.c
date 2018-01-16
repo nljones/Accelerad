@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: qt.c,v 1.1 2011/10/22 22:38:10 greg Exp $";
 #endif
 /*
  *  qt.c - driver for qt

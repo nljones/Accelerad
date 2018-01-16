@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: vwrays.c,v 3.18 2016/08/18 00:52:48 greg Exp $";
 #endif
 /*
  * Compute rays corresponding to a given picture or view.

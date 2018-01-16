@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: cgraph.c,v 1.2 2003/11/15 02:13:36 schorsch Exp $";
 #endif
 /*
  *  cgraph.c - routines for sending graphs to tty's.

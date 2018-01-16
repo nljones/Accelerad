@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: rhd_x11.c,v 3.45 2016/04/28 16:28:20 greg Exp $";
 #endif
 /*
  * X11 driver for holodeck display.

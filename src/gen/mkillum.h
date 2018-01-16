@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: mkillum.h,v 2.20 2013/08/11 02:57:49 greg Exp $ */
 /*
  * Common definitions for mkillum
  */

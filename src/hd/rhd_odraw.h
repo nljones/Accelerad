@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: rhd_odraw.h,v 3.14 2011/05/20 02:06:39 greg Exp $ */
 /*
  * Header for OpenGL cone drawing routines with depth buffer checks.
  *

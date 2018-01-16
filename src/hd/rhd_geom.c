@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: rhd_geom.c,v 3.14 2004/01/01 11:21:55 schorsch Exp $";
 #endif
 /*
  * Geometry drawing operations for OpenGL driver.

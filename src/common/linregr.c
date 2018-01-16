@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: linregr.c,v 2.4 2003/02/25 02:47:21 greg Exp $";
 #endif
 /*
  * Basic linear regression calculation.

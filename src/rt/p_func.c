@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: p_func.c,v 2.8 2014/07/08 18:25:00 greg Exp $";
 #endif
 /*
  *  p_func.c - routine for procedural patterns.

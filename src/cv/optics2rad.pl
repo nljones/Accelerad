@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# RCSid $Id$
+# RCSid $Id: optics2rad.pl,v 1.1 2013/11/20 18:23:02 greg Exp $
 #
 # Convert Optics 5 output to correct Radiance input
 #

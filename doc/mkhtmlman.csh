@@ -1,5 +1,5 @@
 #!/bin/csh -fe
-# RCSid $Id$
+# RCSid $Id: mkhtmlman.csh,v 1.1 2005/10/26 23:56:21 greg Exp $
 #
 # Build man pages in HTML for Radiance website
 #

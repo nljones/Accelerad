@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: bsdfrbf.c,v 2.30 2016/12/06 23:39:54 greg Exp $";
 #endif
 /*
  * Radial basis function representation for BSDF data.

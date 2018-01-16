@@ -1,4 +1,4 @@
-# RCSid: $Id$
+# RCSid: $Id: do_file.tcl,v 2.24 2017/09/07 00:02:07 greg Exp $
 #
 # Choose the Rad Input File to work on.
 #

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: ra_hexbit.c,v 3.3 2004/03/28 20:33:14 schorsch Exp $";
 #endif
 /*
  * Create a 4x1 hex bitmap from a Radiance picture.

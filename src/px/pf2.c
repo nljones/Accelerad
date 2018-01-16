@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: pf2.c,v 2.7 2004/03/28 20:33:14 schorsch Exp $";
 #endif
 /*
  *  pf2.c - routines used by pfilt.

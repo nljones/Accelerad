@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: sphere.c,v 2.8 2014/07/08 18:25:00 greg Exp $";
 #endif
 /*
  *  sphere.c - compute ray intersection with spheres.

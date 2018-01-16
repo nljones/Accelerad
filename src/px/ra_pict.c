@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: ra_pict.c,v 2.10 2004/03/28 20:33:14 schorsch Exp $";
 #endif
 /*		Convert an Radiance image to APPLE pict format.
  *

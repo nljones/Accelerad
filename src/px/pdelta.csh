@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid: $Id$
+# RCSid: $Id: pdelta.csh,v 3.3 2008/11/10 19:08:19 greg Exp $
 #
 # Compute 1976 CIE Lab deltaE* between two Radiance pictures
 #

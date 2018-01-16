@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: init2otypes.c,v 2.3 2004/03/27 12:41:45 schorsch Exp $";
 #endif
 /*
  * Initialize ofun[] list for bounding box checker

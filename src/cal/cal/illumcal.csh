@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid: $Id$
+# RCSid: $Id: illumcal.csh,v 1.2 2006/04/05 06:22:29 greg Exp $
 #
 # Compute color characteristics of light sources
 #

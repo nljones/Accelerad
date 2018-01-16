@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: ccolor.h,v 3.8 2016/01/23 18:58:35 greg Exp $ */
 /*
  *  Header file for spectral colors.
  *

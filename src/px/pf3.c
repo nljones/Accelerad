@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: pf3.c,v 2.18 2004/03/28 20:33:14 schorsch Exp $";
 #endif
 /*
  *  pf3.c - routines for gaussian and box filtering

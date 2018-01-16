@@ -7,7 +7,7 @@
    supported by the Swiss National Science Foundation (SNSF, #147053)
    ==================================================================
    
-   $Id$
+   $Id: pmapooc.h,v 1.1 2016/05/18 08:22:45 rschregle Exp $
 */
 
 

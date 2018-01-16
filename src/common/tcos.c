@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: tcos.c,v 3.10 2013/07/12 05:16:02 greg Exp $";
 #endif
 /*
  * Table-based cosine approximation.

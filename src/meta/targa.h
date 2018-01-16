@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: targa.h,v 1.2 2003/07/14 22:24:00 schorsch Exp $ */
 /*
  *  tardev.h - header file for reading and writing Targa format files.
  *

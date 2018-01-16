@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: getlibpath.c,v 2.6 2013/12/19 16:38:12 greg Exp $";
 #endif
 /*
  * Return Radiance library search path

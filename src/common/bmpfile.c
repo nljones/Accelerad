@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: bmpfile.c,v 2.19 2017/09/05 17:19:42 greg Exp $";
 #endif
 /*
  *  Windows and OS/2 BMP file support

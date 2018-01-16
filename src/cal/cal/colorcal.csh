@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid: $Id$
+# RCSid: $Id: colorcal.csh,v 1.1 2003/02/22 02:07:21 greg Exp $
 #
 # Compute CIE chromaticities from spectral reflectance data
 #

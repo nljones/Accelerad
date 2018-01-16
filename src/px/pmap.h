@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: pmap.h,v 2.4 2004/03/28 20:33:14 schorsch Exp $ */
 /* Pmap return codes */
 #ifndef _RAD_PMAP_H_
 #define _RAD_PMAP_H_

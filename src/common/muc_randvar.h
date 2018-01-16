@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: muc_randvar.h,v 2.1 2016/07/14 17:32:12 greg Exp $ */
 /*
 **	Author: Christian Reetz (chr@riap.de)
 */

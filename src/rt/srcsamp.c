@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: srcsamp.c,v 2.19 2014/07/15 23:44:53 greg Exp $";
 #endif
 /*
  * Source sampling routines

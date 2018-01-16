@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: instance.c,v 2.12 2016/03/22 03:56:17 greg Exp $";
 #endif
 /*
  *  instance.c - routines for octree objects.

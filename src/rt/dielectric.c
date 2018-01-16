@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: dielectric.c,v 2.28 2015/10/28 15:45:58 greg Exp $";
 #endif
 /*
  *  dielectric.c - shading function for transparent materials.

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: rpiece.c,v 2.56 2013/12/05 03:02:56 greg Exp $";
 #endif
 /*
  * Generate sections of a picture.

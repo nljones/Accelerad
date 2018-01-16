@@ -1,4 +1,4 @@
-{ RCSid $Id$ }
+{ RCSid $Id: disk2square.cal,v 2.4 2015/03/27 18:58:06 greg Exp $ }
 {
 	Convert between unit square and disk, using Shirley-Chiu mapping
 

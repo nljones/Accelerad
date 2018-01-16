@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: tmaptiff.h,v 3.6 2011/05/20 02:06:38 greg Exp $ */
 /*
  *  tmaptiff.h
  *

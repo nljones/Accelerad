@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: m_direct.c,v 2.15 2014/07/08 18:25:00 greg Exp $";
 #endif
 /*
  * Routines for light-redirecting materials and

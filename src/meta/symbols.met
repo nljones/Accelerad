@@ -1,4 +1,4 @@
-# RCSid $Id$
+# RCSid $Id: symbols.met,v 1.1 2015/10/12 20:10:50 greg Exp $
 O   0 `triangle
 l 100     0     0 16383     0 
 l   0     0     0  8192 16383 

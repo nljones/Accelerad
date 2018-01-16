@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: psplot.h,v 1.1 2003/11/15 02:13:37 schorsch Exp $ */
 /*
  *   Structures for line segment output to dot matrix printers
  */

@@ -1,4 +1,4 @@
-{ RCSid $Id$ }
+{ RCSid $Id: LaFortune.cal,v 1.2 2014/03/18 19:03:41 greg Exp $ }
 { LaFortune reflectance model with N lobes }
 
 	{ Sample parameters (change these) }

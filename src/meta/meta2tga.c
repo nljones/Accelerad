@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: meta2tga.c,v 1.6 2004/02/04 18:49:24 greg Exp $";
 #endif
 /*
  *  Program to convert meta-files to Targa 8-bit color-mapped format

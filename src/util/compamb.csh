@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid: $Id$
+# RCSid: $Id: compamb.csh,v 3.7 2008/08/25 04:50:32 greg Exp $
 #
 # Compute best ambient value for a scene and append to rad input file
 #

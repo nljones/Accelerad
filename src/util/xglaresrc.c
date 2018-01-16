@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: xglaresrc.c,v 2.9 2004/03/26 23:34:24 schorsch Exp $";
 #endif
 /*
  *  Circle sources in a displayed image.

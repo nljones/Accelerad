@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: rpmain.c,v 2.18 2016/03/10 18:25:46 schorsch Exp $";
 #endif
 /*
  *  rpmain.c - main for rpict batch rendering program
@@ -19,7 +19,6 @@ static const char	RCSid[] = "$Id$";
 #include  "paths.h"
 #include  "view.h"
 #include  "pmapray.h"
-
 
 					/* persistent processes define */
 #ifdef  F_SETLKW

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: ra_gif.c,v 2.12 2011/05/20 02:06:39 greg Exp $";
 #endif
 /*
  * Convert from Radiance picture file to Compuserve GIF.

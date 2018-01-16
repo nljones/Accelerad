@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: readfargs.c,v 2.11 2014/06/12 22:12:20 greg Exp $";
 #endif
 /*
  * Allocate, read and free object arguments

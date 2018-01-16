@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid: $Id$
+# RCSid: $Id: pacuity.csh,v 3.6 2008/11/10 19:08:19 greg Exp $
 #
 # Adjust picture acuity according to human visual abilities
 #

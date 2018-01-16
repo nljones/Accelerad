@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: trans.h,v 2.4 2003/11/15 17:54:06 schorsch Exp $ */
 /*
  * Translator definitions
  *

@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: lookup.h,v 2.15 2011/02/18 00:40:25 greg Exp $ */
 /*
  * Header file for general associative table lookup routines
  */

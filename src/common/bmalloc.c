@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: bmalloc.c,v 2.9 2004/10/23 18:55:52 schorsch Exp $";
 #endif
 /*
  * Bmalloc provides basic memory allocation without overhead (no free lists).

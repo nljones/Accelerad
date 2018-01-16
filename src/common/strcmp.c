@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: strcmp.c,v 2.3 2003/02/25 02:47:22 greg Exp $";
 #endif
 /*
  * String comparison routine optimized for use with savestr.c

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- RCSid $Id$ -->
+<!-- RCSid $Id: WINDOW6BSDFt.xml,v 2.1 2015/02/13 20:49:59 greg Exp $ -->
 <WindowElement xmlns="http://windows.lbl.gov" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://windows.lbl.gov/BSDF-v1.4.xsd">
 <WindowElementType>System</WindowElementType>
 <FileType>BSDF</FileType>

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: pmblur2.c,v 2.5 2012/10/13 05:18:18 greg Exp $";
 #endif
 /*
  *  pmblur2.c - program to computer better motion blur from ranimove frames.

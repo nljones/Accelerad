@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: pic.h,v 2.4 2004/03/28 20:33:14 schorsch Exp $ */
 /* the following three structures are used by ciq */
 
 #ifndef _RAD_PIC_H_

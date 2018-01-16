@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid: $Id$
+# RCSid: $Id: help2roff.csh,v 3.1 2003/02/22 02:07:30 greg Exp $
 # Convert Tcl/Tk help file (used by gethelp.tcl) to troff/nroff format
 # for printing.
 #

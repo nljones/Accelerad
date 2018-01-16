@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: object.h,v 2.22 2014/05/11 21:37:40 greg Exp $ */
 /*
  *  object.h - header file for routines using objects and object sets.
  *

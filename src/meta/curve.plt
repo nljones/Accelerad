@@ -1,4 +1,4 @@
-# RCSid $Id$
+# RCSid $Id: curve.plt,v 1.1 2015/10/12 20:10:50 greg Exp $
 #
 #	This file defines a standard curve plot,
 #	where a curve is represented by special

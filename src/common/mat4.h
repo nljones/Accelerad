@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: mat4.h,v 2.12 2003/07/14 22:23:59 schorsch Exp $ */
 /*
  * Definitions for 4x4 matrix operations
  */

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: colortab.c,v 2.12 2016/03/18 22:52:05 schorsch Exp $";
 #endif
 /*
  * colortab.c - allocate and control dynamic color table.

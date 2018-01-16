@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: copyright.h,v 3.2 2008/12/06 01:08:53 greg Exp $ */
 /* ====================================================================
  * The Radiance Software License, Version 1.0
  *

@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: rhd_qtree.h,v 3.19 2011/05/20 02:06:39 greg Exp $ */
 /*
  * Quadtree data structures for holodeck display drivers.
  */

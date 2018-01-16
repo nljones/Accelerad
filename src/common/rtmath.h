@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: rtmath.h,v 3.12 2016/03/10 18:56:34 schorsch Exp $ */
 /*
  * Header for Radiance vector and math routines
  */

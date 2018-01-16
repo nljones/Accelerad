@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid $Id$
+# RCSid $Id: optics2rad.csh,v 2.3 2008/08/25 04:50:31 greg Exp $
 #
 # Convert Optics 5 output to correct Radiance input
 #

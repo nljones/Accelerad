@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: pict.h,v 2.4 2003/07/14 22:24:00 schorsch Exp $ */
 /*
  Header file for ra_pict.h
 */

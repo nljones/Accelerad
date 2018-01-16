@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: freeobjmem.c,v 2.9 2013/12/09 17:56:25 greg Exp $";
 #endif
 /*
  * Free memory associated with object(s)

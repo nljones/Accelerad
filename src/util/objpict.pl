@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# RCSid $Id$
+# RCSid $Id: objpict.pl,v 2.1 2013/12/04 20:07:07 greg Exp $
 #
 # Make a nice multi-view picture of an object
 # Command line arguments contain materials and object files

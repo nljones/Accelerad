@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: rtprocess.h,v 3.16 2016/03/06 01:13:17 schorsch Exp $ */
 /*
  *   rtprocess.h 
  *   Routines to communicate with separate process via dual pipes

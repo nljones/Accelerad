@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: ra_tiff.c,v 2.34 2010/12/04 00:24:43 greg Exp $";
 #endif
 /*
  *  Program to convert between RADIANCE and TIFF files.

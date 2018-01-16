@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: tmerrmsg.h,v 3.6 2003/06/27 06:53:22 greg Exp $ */
 /*
  * Error messages for tone mapping functions.
  * Included exclusively in "tonemap.c".

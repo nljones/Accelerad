@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# RCSid $Id$
+# RCSid $Id: genBSDF.pl,v 2.78 2017/06/19 03:45:57 greg Exp $
 #
 # Compute BSDF based on geometry and material description
 #

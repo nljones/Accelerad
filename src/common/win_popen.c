@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: win_popen.c,v 1.5 2011/10/05 17:20:55 greg Exp $";
 #endif
 /*
 Replacement for the posix popen() on Windows

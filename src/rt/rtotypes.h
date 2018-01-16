@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: rtotypes.h,v 1.4 2012/07/29 19:01:39 greg Exp $ */
 /*
  * External functions implementing Radiance object types
  */

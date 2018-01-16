@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: rtio.h,v 3.14 2016/12/13 18:38:35 greg Exp $ */
 /*
  *	Radiance i/o and string routines
  */

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: mksource.c,v 2.8 2014/03/06 00:42:21 greg Exp $";
 #endif
 /*
  * Generate distant sources corresponding to the given environment map

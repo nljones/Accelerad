@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: random.h,v 2.23 2016/03/06 01:13:17 schorsch Exp $ */
 /*
  *  random.h - header file for random(3) and urand() function.
  */

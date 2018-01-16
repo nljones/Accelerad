@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: rhdisp.h,v 3.17 2011/05/20 02:06:39 greg Exp $ */
 /*
  * Header for holodeck display drivers.
  */

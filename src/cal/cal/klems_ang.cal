@@ -1,4 +1,4 @@
-{ RCSid $Id$ }
+{ RCSid $Id: klems_ang.cal,v 1.2 2016/01/14 18:12:27 greg Exp $ }
 {
 	Compute central Klems direction vector from kbin (1-145)
 

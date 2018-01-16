@@ -1,5 +1,5 @@
 #!/bin/csh -fe
-# RCSid: $Id$
+# RCSid: $Id: tradinstall.csh,v 2.9 2015/10/20 15:51:58 greg Exp $
 # Install correct version of trad for wish or wish4.0
 #
 set instdir = $1

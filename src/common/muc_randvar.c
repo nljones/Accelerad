@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: muc_randvar.c,v 2.1 2016/07/14 17:32:12 greg Exp $";
 #endif
 #include <stdio.h>
 #include <stdlib.h>

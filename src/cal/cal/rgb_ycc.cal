@@ -1,4 +1,4 @@
-{ RCSid $Id$ }
+{ RCSid $Id: rgb_ycc.cal,v 1.1 2004/11/25 14:44:57 greg Exp $ }
 {
 	Convert between RGB and YCbCr color spaces
 

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: gethomedir.c,v 1.2 2016/03/06 01:13:17 schorsch Exp $";
 #endif
 /*
  *  gethomedir.c - search for a users home directory

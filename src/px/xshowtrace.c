@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: xshowtrace.c,v 2.13 2014/04/11 20:27:23 greg Exp $";
 #endif
 /*
  *  Display an image and watch the rays get traced.

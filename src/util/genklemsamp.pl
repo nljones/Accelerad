@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# RCSid $Id$
+# RCSid $Id: genklemsamp.pl,v 2.13 2016/02/28 00:28:36 greg Exp $
 #
 # Sample Klems (full) directions impinging on surface(s)
 #

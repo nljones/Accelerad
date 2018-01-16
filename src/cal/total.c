@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: total.c,v 1.13 2016/08/18 00:52:47 greg Exp $";
 #endif
 /*
  *  total.c - program to reduce columns of data.

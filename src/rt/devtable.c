@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: devtable.c,v 2.9 2016/03/19 12:51:36 schorsch Exp $";
 #endif
 /*
  *  devtable.c - device table for rview.

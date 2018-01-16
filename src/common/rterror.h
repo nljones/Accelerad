@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: rterror.h,v 3.3 2017/05/08 16:58:52 greg Exp $ */
 /*
  * Header for Radiance error-handling routines
  */

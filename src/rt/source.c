@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: source.c,v 2.67 2016/02/23 12:42:41 rschregle Exp $";
 #endif
 /*
  *  source.c - routines dealing with illumination sources.

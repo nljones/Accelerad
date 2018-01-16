@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: lampcolor.c,v 2.10 2004/03/18 05:22:00 greg Exp $";
 #endif
 /*
  * Program to convert lamp color from table and compute radiance.

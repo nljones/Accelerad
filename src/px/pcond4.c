@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: pcond4.c,v 3.20 2015/08/21 05:48:28 greg Exp $";
 #endif
 /*
  * Routines for veiling glare and loss of acuity.

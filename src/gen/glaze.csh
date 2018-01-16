@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid: $Id$
+# RCSid: $Id: glaze.csh,v 2.8 2009/11/05 19:00:50 greg Exp $
 #
 # Complex glazing model (goes with glaze1.cal and glaze2.cal)
 #
@@ -190,7 +190,7 @@ endif
 echo ""
 echo "############################################"
 echo "# Glazing produced by Radiance glaze script"
-echo '# $Revision$'
+echo '# $Revision: 2.8 $'
 if ($?gfiles) then
 	echo "# Loaded: $gfiles:q"
 	echo -n "# " ; date

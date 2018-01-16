@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: expand.c,v 1.4 2003/11/15 02:13:36 schorsch Exp $";
 #endif
 /*
  *   Expansion routine for command implementation

@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid: $Id$
+# RCSid: $Id: psquish.csh,v 3.5 2008/11/10 19:08:19 greg Exp $
 set Lmin=.0001		# minimum visible world luminance
 set Ldmin=1		# minimum display luminance
 set Ldmax=100		# maximum display luminance

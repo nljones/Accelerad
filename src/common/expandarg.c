@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: expandarg.c,v 2.10 2016/03/21 19:06:08 greg Exp $";
 #endif
 /*
  * Get additional command arguments from file or environment.

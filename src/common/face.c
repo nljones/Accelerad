@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: face.c,v 2.13 2016/09/16 15:09:21 greg Exp $";
 #endif
 /*
  *  face.c - routines dealing with polygonal faces.

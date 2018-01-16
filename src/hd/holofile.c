@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: holofile.c,v 3.60 2016/03/06 01:13:17 schorsch Exp $";
 #endif
 /*
  * Routines for managing holodeck files

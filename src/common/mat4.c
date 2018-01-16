@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: mat4.c,v 2.4 2003/02/25 02:47:21 greg Exp $";
 #endif
 /*
  *  mat4.c - routines dealing with 4 X 4 homogeneous transformation matrices.

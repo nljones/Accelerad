@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: bbox.c,v 2.7 2016/09/16 15:09:21 greg Exp $";
 #endif
 /*
  *  bbox.c - routines for bounding box computation.

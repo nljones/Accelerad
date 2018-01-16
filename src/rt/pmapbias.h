@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: pmapbias.h,v 2.5 2016/05/17 17:39:47 rschregle Exp $ */
 
 /* 
    ==================================================================
@@ -12,7 +12,7 @@
    (c) Fraunhofer Institute for Solar Energy Systems
    ==================================================================
       
-   $Id$
+   $Id: pmapbias.h,v 2.5 2016/05/17 17:39:47 rschregle Exp $
 */
 
 

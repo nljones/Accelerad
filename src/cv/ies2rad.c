@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: ies2rad.c,v 2.27 2015/08/01 23:27:04 greg Exp $";
 #endif
 /*
  * Convert IES luminaire data to Radiance description

@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: paths.h,v 2.30 2017/07/10 20:15:18 greg Exp $ */
 /*
  * Definitions for paths on different machines
  */

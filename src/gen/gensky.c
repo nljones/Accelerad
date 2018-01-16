@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: gensky.c,v 2.26 2014/07/30 17:30:27 greg Exp $";
 #endif
 /*
  *  gensky.c - program to generate sky functions.

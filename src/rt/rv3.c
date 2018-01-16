@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: rv3.c,v 2.40 2015/05/26 10:00:47 greg Exp $";
 #endif
 /*
  *  rv3.c - miscellaneous routines for rview.
@@ -14,7 +14,6 @@ static const char	RCSid[] = "$Id$";
 #include  "ray.h"
 #include  "rpaint.h"
 #include  "random.h"
-
 
 #ifndef WFLUSH
 #define WFLUSH		64		/* flush after this many primary rays */
@@ -33,7 +32,6 @@ static const char	RCSid[] = "$Id$";
 extern int	ray_pnprocs;
 
 static RNUMBER  niflush;		/* flushes since newimage() */
-
 
 int
 getrect(				/* get a box */

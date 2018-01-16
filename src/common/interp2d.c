@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: interp2d.c,v 2.14 2014/06/06 00:56:42 greg Exp $";
 #endif
 /*
  * General interpolation method for unstructured values on 2-D plane.

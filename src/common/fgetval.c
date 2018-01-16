@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: fgetval.c,v 2.8 2004/03/28 20:33:12 schorsch Exp $";
 #endif
 /*
  * Read white space separated values from stream

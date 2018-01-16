@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: objset.c,v 2.17 2015/04/28 16:56:10 greg Exp $";
 #endif
 /*
  *  objset.c - routines for maintaining object sets.

@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: holo.h,v 3.28 2011/05/20 02:06:39 greg Exp $ */
 /*
  * Header file for holodeck programs
  *

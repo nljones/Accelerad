@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid: $Id$
+# RCSid: $Id: pdfblur.csh,v 2.6 2005/01/18 01:37:43 greg Exp $
 #
 # Generate views for depth-of-field blurring on picture
 #

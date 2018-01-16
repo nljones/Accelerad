@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid: $Id$
+# RCSid: $Id: markpath.csh,v 2.2 2004/01/01 19:44:07 greg Exp $
 #
 # Put right trianglar markers down a path at the given intervals.
 # Use with replmarks to place regular-sized objects along a path.

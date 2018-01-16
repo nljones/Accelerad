@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: mkillum.c,v 2.42 2016/09/15 22:34:41 greg Exp $";
 #endif
 /*
  * Make illum sources for optimizing rendering process

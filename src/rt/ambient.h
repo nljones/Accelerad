@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: ambient.h,v 2.24 2015/05/21 12:25:53 greg Exp $ */
 /*
  * Common definitions for interreflection routines.
  *

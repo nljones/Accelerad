@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: x11twind.c,v 2.9 2003/06/30 14:59:13 schorsch Exp $";
 #endif
 /*
  *  x11twind.c - routines for X11 text windows.

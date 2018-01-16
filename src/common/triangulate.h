@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: triangulate.h,v 2.3 2014/02/07 18:58:40 greg Exp $ */
 /*
  *  triangulate.h
  *  

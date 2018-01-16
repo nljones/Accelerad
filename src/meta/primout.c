@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: primout.c,v 1.2 2003/11/15 02:13:37 schorsch Exp $";
 #endif
 /*
  *  Routines for primitive output

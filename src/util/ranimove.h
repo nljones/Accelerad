@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: ranimove.h,v 3.10 2012/10/05 01:03:22 greg Exp $ */
 /*
  *  ranimove.h
  *

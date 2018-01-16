@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid: $Id$
+# RCSid: $Id: objview.csh,v 2.12 2009/01/13 22:19:25 greg Exp $
 #
 # Make a nice view of an object
 # Arguments are scene input files

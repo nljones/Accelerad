@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: calcomp.h,v 2.22 2008/05/01 16:42:05 greg Exp $ */
 /*
  *  calcomp.h - header file for expression parser.
  */

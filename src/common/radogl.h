@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: radogl.h,v 3.13 2016/03/06 01:13:17 schorsch Exp $ */
 /*
  * Header file for Radiance - OpenGL routines.
  */

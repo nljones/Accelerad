@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: face.h,v 2.6 2003/06/27 06:53:21 greg Exp $ */
 /*
  *  face.h - header for routines using polygonal faces.
  */

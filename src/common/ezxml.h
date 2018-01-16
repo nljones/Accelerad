@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: ezxml.h,v 2.4 2015/04/02 16:40:32 greg Exp $ */
 /* ezxml.h
  *
  * Copyright 2004-2006 Aaron Voisine <aaron@voisine.org>

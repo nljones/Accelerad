@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: xmeta.c,v 1.5 2007/11/21 18:51:05 greg Exp $";
 #endif
 /*
  *  Program to output meta-files to X window system.

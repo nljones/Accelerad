@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: rhd_glx1.c,v 3.9 2016/04/28 16:28:20 greg Exp $";
 #endif
 /*
  * OpenGL GLX driver for holodeck display.

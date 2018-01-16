@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: rcontrib.h,v 2.15 2016/09/12 20:31:34 greg Exp $ */
 
 /*
  * Header file for rcontrib modules

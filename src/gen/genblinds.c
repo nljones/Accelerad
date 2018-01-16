@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: genblinds.c,v 2.13 2015/08/01 23:27:04 greg Exp $";
 #endif
 /*
  *  genblind2.c - make some curved or flat venetian blinds.

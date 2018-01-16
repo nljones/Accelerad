@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: pmapmat.h,v 2.12 2016/02/23 12:42:41 rschregle Exp $ */
 /* 
    ======================================================================
    Photon map support routines for scattering by materials. 

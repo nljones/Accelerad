@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: o_face.c,v 2.5 2004/03/30 16:13:00 schorsch Exp $";
 #endif
 /*
  *  o_face.c - routines for creating octrees for polygonal faces.

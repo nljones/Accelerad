@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: renderopts.c,v 2.18 2016/03/21 19:06:08 greg Exp $";
 #endif
 /*
  *  renderopts.c - process common rendering options

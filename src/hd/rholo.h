@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: rholo.h,v 3.26 2016/03/21 19:06:08 greg Exp $ */
 /*
  * Header file for rholo program
  */

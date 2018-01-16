@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: x11icon.h,v 2.1 2003/02/22 02:07:29 greg Exp $ */
 #define x11icon_width 60
 #define x11icon_height 37
 static char x11icon_bits[] = {

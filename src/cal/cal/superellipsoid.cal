@@ -1,4 +1,4 @@
-{ RCSid $Id$ }
+{ RCSid $Id: superellipsoid.cal,v 1.1 2013/12/07 01:56:28 greg Exp $ }
 {
 	Calculate superellipsoid surface
 	using parametric formulation taken

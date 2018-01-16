@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: rhdisp3.c,v 3.16 2004/06/08 19:48:30 greg Exp $";
 #endif
 /*
  * Holodeck beam support for display process

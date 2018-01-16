@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: gencat.c,v 2.6 2007/09/20 21:28:35 greg Exp $";
 #endif
 /*****************************************************************************
   This program is to make series of right triangles forming hyperbolic cosin

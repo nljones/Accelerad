@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: calc.c,v 1.8 2013/12/19 16:56:31 greg Exp $";
 #endif
 /*
  *  calc.c - simple algebraic desk calculator program.

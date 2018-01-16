@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: glass.c,v 2.26 2015/10/28 15:45:58 greg Exp $";
 #endif
 /*
  *  glass.c - simpler shading function for thin glass surfaces.

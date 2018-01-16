@@ -1,4 +1,4 @@
-# RCSid $Id$
+# RCSid $Id: boxw.plt,v 1.1 2015/10/12 20:10:50 greg Exp $
 #
 #	Box and Whisker Plot.
 #	This file represents a single curve with error

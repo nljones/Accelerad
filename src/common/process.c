@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: process.c,v 2.8 2004/09/17 21:43:49 greg Exp $";
 #endif
 /*
  * Routines to communicate with separate process via dual pipes

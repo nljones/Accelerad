@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: rpaint.h,v 2.12 2016/03/06 01:13:18 schorsch Exp $ */
 /*
  *  rpaint.h - header file for image painting.
  */

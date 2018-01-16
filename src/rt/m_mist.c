@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: m_mist.c,v 2.18 2014/07/08 18:25:00 greg Exp $";
 #endif
 /*
  * Mist volumetric material.

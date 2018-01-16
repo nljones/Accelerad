@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: ccyrgb.c,v 3.4 2012/05/17 17:11:33 greg Exp $";
 #endif
 /*
  * Convert MGF color to RGB representation

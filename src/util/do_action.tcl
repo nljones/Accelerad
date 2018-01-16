@@ -1,4 +1,4 @@
-# RCSid: $Id$
+# RCSid: $Id: do_action.tcl,v 2.13 2012/06/01 22:55:14 greg Exp $
 #
 # Action screen for trad
 #

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: viewbeams.c,v 3.7 2004/01/01 11:21:55 schorsch Exp $";
 #endif
 /*
  * Convert view to beam list.

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: rholo2l.c,v 3.17 2016/03/04 02:48:14 greg Exp $";
 #endif
 /*
  * Routines for local rtrace execution

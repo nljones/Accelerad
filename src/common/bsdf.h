@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: bsdf.h,v 2.26 2018/01/05 21:00:24 greg Exp $ */
 /*
  *  bsdf.h
  *  
@@ -84,7 +84,7 @@ extern const SDCDst	SDemptyCD;	/* empty distribution */
 typedef struct SDComp_s	SDComponent;
 
 /* Methods needed to handle BSDF components (nothing is optional) */
-typedef const struct {
+typedef struct {
 					/* return non-diffuse BSDF */
 	int		(*getBSDFs)(float coef[SDmaxCh], const FVECT outVec,
 				    const FVECT inVec, SDComponent *sdc);
@@ -104,7 +104,7 @@ typedef const struct {
 /* Structure to hold a spectral BSDF component (typedef SDComponent above) */
 struct SDComp_s {
 	C_COLOR		cspec[SDmaxCh];	/* component spectral bases */
-	SDFunc		*func;		/* methods for this component */
+	const SDFunc	*func;		/* methods for this component */
 	void		*dist;		/* loaded distribution data */
 	SDCDst		*cdList;	/* cumulative distribution cache */
 };

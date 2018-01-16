@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: tonemap.h,v 3.26 2011/05/20 02:06:38 greg Exp $ */
 /*
  * Header file for tone mapping functions.
  *

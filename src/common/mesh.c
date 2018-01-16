@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: mesh.c,v 2.28 2017/03/01 21:51:38 greg Exp $";
 #endif
 /*
  * Mesh support routines

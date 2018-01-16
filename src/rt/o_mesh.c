@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: o_mesh.c,v 2.14 2014/07/08 18:25:00 greg Exp $";
 #endif
 /*
  *  Routines for computing ray intersections with meshes.

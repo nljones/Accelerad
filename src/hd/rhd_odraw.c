@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: rhd_odraw.c,v 3.18 2011/05/20 02:06:39 greg Exp $";
 #endif
 /*
  * Routines for drawing samples using depth buffer checks.

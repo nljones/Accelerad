@@ -1,4 +1,4 @@
-# RCSid: $Id$
+# RCSid: $Id: do_results.tcl,v 2.9 2011/10/26 20:06:17 greg Exp $
 #
 # Results screen for trad
 #

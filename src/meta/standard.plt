@@ -1,4 +1,4 @@
-# RCSid $Id$
+# RCSid $Id: standard.plt,v 1.1 2015/10/12 20:10:50 greg Exp $
 #
 #  Standard variable and function definitions.
 #

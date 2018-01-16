@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: ealloc.c,v 2.9 2004/03/28 20:33:12 schorsch Exp $";
 #endif
 /*
  *  ealloc.c - memory routines which call quit on error.

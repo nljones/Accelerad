@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: pcond3.c,v 3.17 2017/11/30 18:43:05 greg Exp $";
 #endif
 /*
  * Routines for computing and applying brightness mapping.

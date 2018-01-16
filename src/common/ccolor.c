@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: ccolor.c,v 3.11 2017/04/13 00:42:01 greg Exp $";
 #endif
 /*
  * Spectral color handling routines

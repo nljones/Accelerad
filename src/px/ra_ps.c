@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: ra_ps.c,v 2.28 2004/03/28 20:33:14 schorsch Exp $";
 #endif
 /*
  *  Radiance picture to PostScript file translator -- one way!

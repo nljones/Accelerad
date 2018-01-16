@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: rpict.c,v 2.90 2015/04/22 20:28:16 rschregle Exp $";
 #endif
 /*
  *  rpict.c - routines and variables for picture generation.
@@ -236,13 +236,11 @@ report(int dummy)		/* report progress */
 	
 	tlastrept = time((time_t *)NULL);
 
-/* PMAP: Get photon map bias compensation statistics */
+	/* PMAP: Get photon map bias compensation statistics */
 	pmapBiasCompReport(bcStat);
 	
 	sprintf(errmsg, "%lu rays, %s%4.2f%% after %5.4f hours\n",
 			nrays, bcStat, pctdone, (tlastrept-tstart)/3600.0);
-
-			
 	eputs(errmsg);
 }
 #endif

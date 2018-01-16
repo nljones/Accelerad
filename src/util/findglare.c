@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: findglare.c,v 2.14 2014/07/29 21:36:08 greg Exp $";
 #endif
 /*
  * Find glare sources in a scene or image.

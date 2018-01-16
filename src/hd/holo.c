@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: holo.c,v 3.23 2017/03/29 01:10:23 greg Exp $";
 #endif
 /*
  * Routines for converting holodeck coordinates, etc.

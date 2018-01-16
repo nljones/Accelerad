@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: rglsurf.c,v 3.13 2012/04/25 22:21:06 greg Exp $";
 #endif
 /*
  * Convert Radiance -> OpenGL surfaces.

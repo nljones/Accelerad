@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid $Id$
+# RCSid $Id: genambpos.csh,v 3.2 2004/05/17 16:35:14 greg Exp $
 
 # Mark ambient locations 
 #

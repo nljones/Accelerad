@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: erf.c,v 3.2 2013/08/03 17:53:46 greg Exp $";
 #endif
 #ifndef lint
 static	char sccsid[] = "@(#)erf.c 1.1 87/12/21 SMI"; /* from UCB 4.1 12/25/82 */

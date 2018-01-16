@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: lookamb.c,v 2.16 2015/08/02 01:32:15 greg Exp $";
 #endif
 /*
  *  lookamb.c - program to examine ambient components.

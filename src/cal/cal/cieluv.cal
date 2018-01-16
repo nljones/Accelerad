@@ -1,4 +1,4 @@
-{ RCSid $Id$ }
+{ RCSid $Id: cieluv.cal,v 1.4 2015/06/18 00:12:18 greg Exp $ }
 {
 	Compute Luv color space and color differences from XYZ primaries.
 

@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: ray.h,v 2.38 2015/02/24 19:39:27 greg Exp $ */
 /*
  *  ray.h - header file for routines using rays.
  */

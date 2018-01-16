@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: glare.h,v 2.7 2008/05/01 16:42:06 greg Exp $ */
 /*
  * Common data structures for glare source finding routines
  */

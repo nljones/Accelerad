@@ -1,4 +1,4 @@
-{ RCSid $Id$ }
+{ RCSid $Id: uniq_rgb.cal,v 1.1 2014/08/28 16:37:04 greg Exp $ }
 {
 	Generate unique (distinguishable) RGB colors.
 

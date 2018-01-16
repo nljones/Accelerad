@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: rtmisc.h,v 3.6 2004/03/28 20:33:12 schorsch Exp $ */
 /*
  *	Miscellaneous Radiance definitions
  */

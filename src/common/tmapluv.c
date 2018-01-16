@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: tmapluv.c,v 3.16 2011/05/20 02:06:38 greg Exp $";
 #endif
 /*
  * Routines for tone-mapping LogLuv encoded pixels.

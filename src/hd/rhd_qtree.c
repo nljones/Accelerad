@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: rhd_qtree.c,v 3.27 2011/05/20 02:06:39 greg Exp $";
 #endif
 /*
  * Quadtree driver support routines.

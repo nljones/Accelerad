@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: platform.h,v 3.15 2016/12/22 17:07:46 greg Exp $ */
 /*
  *  platform.h - header file for platform specific definitions
  */

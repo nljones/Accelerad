@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: vars.h,v 2.7 2003/07/30 10:11:06 schorsch Exp $ */
 /*
  *  Header for programs that load variable files.
  */

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: persist.c,v 2.44 2016/03/06 01:13:18 schorsch Exp $";
 #endif
 /*
  * Routines for persistent rtrace and rpict processes.

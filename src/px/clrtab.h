@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: clrtab.h,v 2.2 2011/05/20 02:06:39 greg Exp $ */
 /* color table routines
 */
 

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: xf.c,v 2.7 2003/06/27 22:27:45 greg Exp $";
 #endif
 /*
  *  xf.c - routines to convert transform arguments into 4X4 matrix.

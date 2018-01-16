@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: rglsrc.c,v 3.6 2003/11/14 17:22:06 schorsch Exp $";
 #endif
 /*
  * Routines for handling OpenGL light sources

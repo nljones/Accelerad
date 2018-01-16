@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: mgraph.h,v 1.3 2003/11/15 02:13:37 schorsch Exp $ */
 /*
  *  mgraph.h - header file for graphing routines.
  *

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: myhostname.c,v 2.8 2016/03/06 01:13:17 schorsch Exp $";
 #endif
 /*
  * Query system for host name

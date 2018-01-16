@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid $Id$
+# RCSid $Id: fieldcomb.csh,v 2.7 2008/11/10 19:08:19 greg Exp $
 #
 # Combine alternate lines in full frames for field rendering
 #

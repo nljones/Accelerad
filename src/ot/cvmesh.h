@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: cvmesh.h,v 2.6 2014/01/24 01:26:44 greg Exp $ */
 /*
  *  Header for Radiance triangle mesh conversion
  *

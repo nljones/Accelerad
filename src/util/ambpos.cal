@@ -1,4 +1,4 @@
-{ RCSid $Id$ }
+{ RCSid $Id: ambpos.cal,v 2.4 2014/09/03 14:05:55 greg Exp $ }
 {
 	Compute patterns for ambient position markers
 }

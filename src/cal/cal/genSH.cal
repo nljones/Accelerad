@@ -1,4 +1,4 @@
-{ RCSid $Id$ }
+{ RCSid $Id: genSH.cal,v 1.1 2005/02/16 15:51:45 greg Exp $ }
 {
 	Synthesize light probe using Spherical Harmonic coefficients
 

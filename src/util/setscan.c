@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: setscan.c,v 2.4 2004/03/26 23:34:23 schorsch Exp $";
 #endif
 /*
  * Convert angle ranges of the form a-b:s,c to discrete values

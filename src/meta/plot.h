@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: plot.h,v 1.4 2003/11/15 02:13:37 schorsch Exp $ */
 /*
  *   Definitions for plotting routines
  */

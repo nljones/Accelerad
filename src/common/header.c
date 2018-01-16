@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: header.c,v 2.31 2017/05/10 18:02:08 greg Exp $";
 #endif
 /*
  *  header.c - routines for reading and writing information headers.

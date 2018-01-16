@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: glarendx.c,v 2.11 2014/04/11 20:27:23 greg Exp $";
 #endif
 /*
  * Compute Glare Index given by program name or -t option:

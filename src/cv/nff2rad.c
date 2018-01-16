@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: nff2rad.c,v 2.7 2003/11/15 17:54:06 schorsch Exp $";
 #endif
 /*
  * Convert Neutral File Format input to Radiance scene description.
@@ -590,10 +590,13 @@ fmterr:
 	exit(1);
 }
 /***********************************************************************
- * $Author$ (Mark VandeWettering, drizzle.cs.uoregon.edu)
- * $Revision$
- * $Date$
+ * $Author: schorsch $ (Mark VandeWettering, drizzle.cs.uoregon.edu)
+ * $Revision: 2.7 $
+ * $Date: 2003/11/15 17:54:06 $
  * $Log: nff2rad.c,v $
+ * Revision 2.7  2003/11/15 17:54:06  schorsch
+ * Continued ANSIfication and reduced compile warnings.
+ *
  * Revision 2.6  2003/07/27 22:12:01  schorsch
  * Added grouping parens to reduce ambiguity warnings.
  *

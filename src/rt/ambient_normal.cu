@@ -140,7 +140,7 @@ RT_METHOD void ambsupersamp(AMBHEMI *hp, int cnt, const float3& normal, const fl
 RT_METHOD int samp_hemi( AMBHEMI *hp, float3 *rcol, float wt, const float3& normal, const float3& hit );
 RT_METHOD void ambHessian( AMBHEMI *hp, optix::Matrix<2,3> *uv, float2 *ra, float2 *pg, const float3& normal, const float3& hit );
 RT_METHOD void ambdirgrad( AMBHEMI *hp, const float3& u, const float3& v, float2 *dg, const float3& normal, const float3& hit );
-RT_METHOD unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, const float2& r, const float3& normal, const float3& hit );
+RT_METHOD unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, const float2& r, const float3& hit );
 #endif /* AMB_SAVE_MEM */
 RT_METHOD float back_ambval( const AmbientSample *n1, const AmbientSample *n2, const AmbientSample *n3 );
 RT_METHOD void comp_fftri( FFTRI *ftp, const AmbientSample *n0, const AmbientSample *n1, const float3& hit );
@@ -433,7 +433,7 @@ RT_METHOD int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *ra, float
 #ifdef CORRAL
 					/* flag encroached directions */
 		if (crlp != NULL)
-			*crlp = ambcorral( &hp, uv, *ra * ambacc, normal, hit );
+			*crlp = ambcorral( &hp, uv, *ra * ambacc, hit );
 #endif /* CORRAL */
 		if (pg != NULL) {	/* cap gradient if necessary */
 			d = pg->x*pg->x * ra->x*ra->x + pg->y*pg->y * ra->y*ra->y;
@@ -692,19 +692,6 @@ RT_METHOD int samp_hemi(
 					float ang = atan2f( u.y, u.x );	/* else set direction flags */
 					for ( float a1 = ang - ang_res; a1 <= ang + ang_res; a1 += ang_step )
 						flgs |= 1L<<(int)( 16.0f * M_1_PIf * ( a1 + 2.0f * M_PIf * ( a1 < 0.0f ) ) );
-				}
-						/* add low-angle incident (< 20deg) */
-				if ( fabsf( dot( ray.direction, normal ) ) <= 0.342f ) {
-					const float2 u = *uv * ray.direction;
-					if ( ( r.x*r.x * u.x*u.x + r.y*r.y * u.y*u.y ) > t_hit * t_hit ) {
-						float ang = atan2f( -u.y, -u.x );
-						ang += 2.0f * M_PIf * ( ang < 0.0f );
-						ang *= 16.0f * M_1_PIf;
-						if ( ( ang < 0.5f ) | ( ang >= 31.5f ) )
-							flgs |= 0x80000001;
-						else
-							flgs |= 3L<<(int)( ang - 0.5f );
-					}
 				}
 				*crlp = flgs;
 			}
@@ -1153,7 +1140,7 @@ RT_METHOD void ambdirgrad( AMBHEMI *hp, const float3& u, const float3& v, float2
 }
 
 /* Compute potential light leak direction flags for cache value */
-RT_METHOD unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, const float2& r, const float3& normal, const float3& hit )
+RT_METHOD unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, const float2& r, const float3& hit )
 {
 	const float max_d = 1.0f / ( minarad * ambacc + 0.001f );
 	const float ang_res = M_PI_2f / hp->ns;
@@ -1185,19 +1172,6 @@ RT_METHOD unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, const flo
 			for ( float a1 = ang - ang_res; a1 <= ang + ang_res; a1 += ang_step )
 				flgs |= 1L<<(int)( 16.0f * M_1_PIf * ( a1 + 2.0f * M_PIf * ( a1 < 0.0f ) ) );
 	    }
-					/* add low-angle incident (< 20deg) */
-	if ( fabsf( dot( ray.direction, normal ) ) <= 0.342f ) {
-		const float2 u = *uv * ray.direction;
-		if ( ( r.x*r.x * u.x*u.x + r.y*r.y * u.y*u.y ) > t_hit * t_hit ) {
-			float ang = atan2f( -u.y, -u.x );
-			ang += 2.0f * M_PIf * ( ang < 0.0f );
-			ang *= 16.0f * M_1_PIf;
-			if ( ( ang < 0.5f ) | ( ang >= 31.5f ) )
-				flgs |= 0x80000001;
-			else
-				flgs |= 3L<<(int)( ang - 0.5f );
-		}
-	}
 	return(flgs);
 }
 #endif /* AMB_SAVE_MEM */

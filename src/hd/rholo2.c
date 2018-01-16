@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: rholo2.c,v 3.29 2016/03/21 19:06:08 greg Exp $";
 #endif
 /*
  * Rtrace support routines for holodeck rendering

@@ -1,4 +1,4 @@
-{ RCSid $Id$ }
+{ RCSid $Id: root.cal,v 1.3 2011/10/11 15:40:54 greg Exp $ }
 {
 	root.cal - calculate zeroes of functions using Newton's method.
 

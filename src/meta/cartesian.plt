@@ -1,4 +1,4 @@
-# RCSid $Id$
+# RCSid $Id: cartesian.plt,v 1.1 2015/10/12 20:10:50 greg Exp $
 #
 # Defaults for Cartesian plots
 #

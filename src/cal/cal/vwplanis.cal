@@ -1,4 +1,4 @@
-{ RCSid $Id$ }
+{ RCSid $Id: vwplanis.cal,v 1.1 2008/02/24 23:04:44 greg Exp $ }
 {
 	Generate rays for a planisphere (a.k.a. stereographic)
 	view projection.  This is a type of fisheye projection

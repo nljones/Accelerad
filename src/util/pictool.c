@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: pictool.c,v 2.4 2017/05/18 02:25:27 greg Exp $";
 #endif
 #include "pictool.h"
 #include "g3sphere.h"

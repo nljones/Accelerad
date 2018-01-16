@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: vect3ds.h,v 2.1 2011/02/18 00:40:25 greg Exp $ */
 #ifndef _MGF_VECT_H_
 #define _MGF_VECT_H_
 #ifdef __cplusplus

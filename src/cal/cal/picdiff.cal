@@ -1,4 +1,4 @@
-{ RCSid $Id$ }
+{ RCSid $Id: picdiff.cal,v 1.2 2011/11/30 21:26:39 greg Exp $ }
 {
 	Compute difference between luminance of two images.
 	Display towards red where first image is brighter,

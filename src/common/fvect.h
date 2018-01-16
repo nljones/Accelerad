@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: fvect.h,v 2.18 2015/05/21 05:54:54 greg Exp $ */
 /*
  * Declarations for floating-point vector operations.
  */

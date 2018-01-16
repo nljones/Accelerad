@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: oconv.h,v 2.1 2004/03/27 12:41:45 schorsch Exp $ */
 /*
  *  Header for oconv support routines
  *

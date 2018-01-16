@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: cone.h,v 2.8 2005/09/23 19:04:52 greg Exp $ */
 /*
  *  cone.h - header file for cones (cones, cylinders, rings, cups, tubes).
  *

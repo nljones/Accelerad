@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: pcompos.c,v 2.35 2016/02/02 18:02:32 greg Exp $";
 #endif
 /*
  *  pcompos.c - program to composite pictures.

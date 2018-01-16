@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: virtuals.c,v 2.22 2015/05/22 11:20:43 greg Exp $";
 #endif
 /*
  * Routines for simulating virtual light sources

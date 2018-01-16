@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: loadbsdf.c,v 3.11 2016/03/22 03:56:17 greg Exp $";
 #endif
 /*
  * Simple interface for loading BSDF, Radiance-specific search

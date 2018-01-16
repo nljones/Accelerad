@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: source.h,v 2.19 2014/09/15 00:54:39 greg Exp $ */
 /*
  *  source.h - header file for ray tracing sources.
  *

@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: x11raster.h,v 2.5 2011/05/20 02:06:39 greg Exp $ */
 /*
  * x11raster.h - header file for X routines using images.
  *

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: pmapgen.c,v 2.4 2004/03/28 20:33:14 schorsch Exp $";
 #endif
 /*
  * pmapgen.c: general routines for 2-D perspective mappings.

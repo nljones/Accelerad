@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: meta2bmp.c,v 1.2 2005/09/19 12:48:09 schorsch Exp $";
 #endif
 /*
  *  Program to convert meta-files to BMP 8-bit color-mapped format

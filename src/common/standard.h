@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: standard.h,v 2.31 2003/06/27 06:53:22 greg Exp $ */
 /*
  *	Collected includes required by many Radiance callers
  */

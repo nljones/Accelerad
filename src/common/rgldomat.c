@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: rgldomat.c,v 3.4 2003/11/14 17:22:06 schorsch Exp $";
 #endif
 /*
  * Invocation routines for Radiance -> OpenGL materials.

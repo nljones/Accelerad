@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: mx3.h,v 2.6 2004/03/28 20:33:14 schorsch Exp $ */
 #ifndef _RAD_MX3_H_
 #define _RAD_MX3_H_
 

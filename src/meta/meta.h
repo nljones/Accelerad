@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: meta.h,v 1.11 2016/03/06 01:13:17 schorsch Exp $ */
 /*
  *   Standard meta-file definitions and limits
  */

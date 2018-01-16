@@ -1,4 +1,4 @@
-{ RCSid $Id$ }
+{ RCSid $Id: rayinit.cal,v 2.16 2013/10/08 18:59:44 greg Exp $ }
 {
 	Initialization file for Radiance.
 

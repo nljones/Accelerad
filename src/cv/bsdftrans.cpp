@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: bsdftrans.cpp,v 2.4 2016/03/05 19:21:12 schorsch Exp $";
 #endif
 /*
  * Compute mass transport plan for RBF lobes

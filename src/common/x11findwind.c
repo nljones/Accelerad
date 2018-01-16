@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: x11findwind.c,v 2.6 2004/07/04 12:08:47 schorsch Exp $";
 #endif
 /*
  * find a window by its name under X

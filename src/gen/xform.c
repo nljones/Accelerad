@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: xform.c,v 2.50 2016/03/04 00:21:21 greg Exp $";
 #endif
 /*
  *  xform.c - program to transform object files.

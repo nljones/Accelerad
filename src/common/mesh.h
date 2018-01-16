@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: mesh.h,v 2.15 2012/11/06 01:04:23 greg Exp $ */
 /*
  * Header for compact triangle mesh geometry
  *

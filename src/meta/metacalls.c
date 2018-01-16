@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: metacalls.c,v 1.5 2004/03/22 02:24:23 greg Exp $";
 #endif
 /*
  *  metacalls.c - functional interface to metafile.

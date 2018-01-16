@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: plocate.c,v 2.3 2003/02/25 02:47:21 greg Exp $";
 #endif
 /*
  *  plocate.c - routine to locate 3D vector w.r.t. box.

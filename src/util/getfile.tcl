@@ -1,4 +1,4 @@
-# RCSid: $Id$
+# RCSid: $Id: getfile.tcl,v 2.3 2012/06/03 20:13:51 greg Exp $
 #
 # Usage: getfile [-win w] [-grab] [-perm] [-glob pattern] [-view proc] [-send proc]
 #

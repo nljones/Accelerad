@@ -1,4 +1,4 @@
-{ RCSid $Id$ }
+{ RCSid $Id: reinhartb.cal,v 2.6 2015/03/27 18:58:06 greg Exp $ }
 {
 	Compute Reinhart high-density sky patch bin (rbin)
 

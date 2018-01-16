@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# RCSid $Id$
+# RCSid $Id: objview.pl,v 2.3 2017/08/11 21:39:52 greg Exp $
 #
 # Make a nice view of an object
 # Arguments are scene input files

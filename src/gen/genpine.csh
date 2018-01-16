@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid: $Id$
+# RCSid: $Id: genpine.csh,v 2.4 2011/01/24 04:28:06 greg Exp $
 #
 # Generate a tree
 # Pine version 2

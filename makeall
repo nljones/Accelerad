@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid $Id$
+# RCSid $Id: makeall,v 1.28 2012/06/29 16:18:02 greg Exp $
 # 
 # Make all the Radiance programs
 #

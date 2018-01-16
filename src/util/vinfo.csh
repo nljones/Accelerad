@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid: $Id$
+# RCSid: $Id: vinfo.csh,v 3.2 2004/11/19 23:00:49 greg Exp $
 #
 # Edit information header in Radiance file
 #

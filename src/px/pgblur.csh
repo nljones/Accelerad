@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid $Id$
+# RCSid $Id: pgblur.csh,v 1.2 2008/11/10 19:08:19 greg Exp $
 #
 # Apply Gaussian blur without resizing image
 # More efficient than straight pfilt for large blurs

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: rplot.c,v 1.3 2003/11/15 02:13:37 schorsch Exp $";
 #endif
 /*
  *   Plotting routines for meta-files to raster files

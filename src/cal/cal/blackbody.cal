@@ -1,4 +1,4 @@
-{ RCSid $Id$ }
+{ RCSid $Id: blackbody.cal,v 1.3 2005/05/23 22:13:56 greg Exp $ }
 {
 	Plank's formula for black body radiation spectrum
 }

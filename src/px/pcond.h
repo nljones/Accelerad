@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: pcond.h,v 3.15 2017/11/30 18:43:05 greg Exp $ */
 /*
  * Header file for picture file conditioning.
  */

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: rayfifo.c,v 2.4 2009/12/13 19:13:04 greg Exp $";
 #endif
 /*
  *  rayfifo.c - parallelize ray queue that respects order

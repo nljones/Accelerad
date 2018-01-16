@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: rhdobj.h,v 3.9 2005/01/07 20:33:02 greg Exp $ */
 /*
  * Header file for object display routines for rholo drivers.
  */

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: rhdisp.c,v 3.54 2016/08/18 00:52:48 greg Exp $";
 #endif
 /*
  * Holodeck display process.

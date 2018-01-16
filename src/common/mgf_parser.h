@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: mgf_parser.h,v 3.1 2011/02/18 00:40:25 greg Exp $ */
 /*
  * Header file for MGF interpreter
  */

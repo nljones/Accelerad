@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: mx_func.c,v 2.9 2014/07/08 18:25:00 greg Exp $";
 #endif
 /*
  *  mx_func.c - routine for mixture functions.

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: getpath.c,v 2.19 2016/03/06 01:13:17 schorsch Exp $";
 #endif
 /*
  *  getpath.c - function to search for file in a list of directories

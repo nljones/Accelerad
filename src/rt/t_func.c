@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: t_func.c,v 2.10 2014/07/08 18:25:00 greg Exp $";
 #endif
 /*
  *  t_func.c - routine for procedural textures.

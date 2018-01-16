@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: devmain.c,v 2.5 2016/08/18 00:52:48 greg Exp $";
 #endif
 /*
  *  devmain.c - main for independent drivers.

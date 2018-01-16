@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: cmatrix.h,v 2.7 2015/05/04 20:53:21 greg Exp $ */
 /*
  * Color matrix routine declarations.
  *

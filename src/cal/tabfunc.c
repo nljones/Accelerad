@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: tabfunc.c,v 1.6 2005/11/12 06:14:51 greg Exp $";
 #endif
 /*
  * Put tabular data into functions suitable for cal programs.

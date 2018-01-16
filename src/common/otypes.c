@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: otypes.c,v 2.6 2013/03/09 19:20:31 greg Exp $";
 #endif
 /*
  * Object type lookup and error reporting

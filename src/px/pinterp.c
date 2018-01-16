@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: pinterp.c,v 2.45 2013/05/20 21:52:06 greg Exp $";
 #endif
 /*
  * Interpolate and extrapolate pictures with different view parameters.

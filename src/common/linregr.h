@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: linregr.h,v 2.6 2003/06/27 06:53:21 greg Exp $ */
 /*
  * Header file for linear regression calculation.
  */

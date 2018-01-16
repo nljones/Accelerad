@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: getbbox.c,v 2.6 2004/03/27 12:41:45 schorsch Exp $";
 #endif
 /*
  *  getbbox.c - compute bounding box for scene files

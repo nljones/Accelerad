@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: bsdfrep.h,v 2.24 2016/01/30 01:31:57 greg Exp $ */
 /*
  * Definitions for BSDF representation used to interpolate measured data.
  *

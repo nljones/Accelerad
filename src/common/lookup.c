@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: lookup.c,v 2.19 2014/02/09 00:08:18 greg Exp $";
 #endif
 /*
  * Table lookup routines

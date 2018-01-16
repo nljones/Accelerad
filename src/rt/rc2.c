@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: rc2.c,v 2.22 2017/02/07 16:48:14 greg Exp $";
 #endif
 /*
  * Accumulate ray contributions for a set of materials

@@ -1,5 +1,5 @@
 #ifndef lint
-static char RCSid[]="$Id$";
+static char RCSid[]="$Id: win_process.c,v 3.13 2016/03/28 16:59:38 schorsch Exp $";
 #endif
 /*
  * Routines to communicate with separate process via dual pipes.

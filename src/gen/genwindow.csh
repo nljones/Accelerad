@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid: $Id$
+# RCSid: $Id: genwindow.csh,v 2.2 2003/02/22 02:07:23 greg Exp $
 #
 #  Generate source description for window with venetian blinds.
 #

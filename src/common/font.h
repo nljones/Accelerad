@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: font.h,v 2.7 2003/06/27 06:53:21 greg Exp $ */
 /*
  * Header file for font handling routines
  */

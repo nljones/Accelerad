@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: rholo3.c,v 3.43 2010/09/30 14:10:19 greg Exp $";
 #endif
 /*
  * Routines for tracking beam compuatations

@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: data.h,v 2.7 2003/06/27 06:53:22 greg Exp $ */
 /*
  * Header for data file loading and computation routines.
  */

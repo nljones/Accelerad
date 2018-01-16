@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid: $Id$
+# RCSid: $Id: vlpic.csh,v 3.4 2008/08/25 04:50:32 greg Exp $
 #
 # Compute falsecolor image of visibility level
 # using the wacky formulas of Werner Adrian.

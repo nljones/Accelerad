@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid: $Id$
+# RCSid: $Id: ivpict.csh,v 2.3 2008/11/10 19:08:19 greg Exp $
 #
 # Render requested Instant View
 #

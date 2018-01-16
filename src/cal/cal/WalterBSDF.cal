@@ -1,4 +1,4 @@
-{ RCSid $Id$ }
+{ RCSid $Id: WalterBSDF.cal,v 1.1 2014/03/19 19:06:20 greg Exp $ }
 {
 	Isotropic BSDF model by Walter et al.
 }

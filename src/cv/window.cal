@@ -1,4 +1,4 @@
-{ RCSid $Id$ }
+{ RCSid $Id: window.cal,v 2.1 2006/05/19 03:50:13 greg Exp $ }
 {
 	The following calculation uses the BRTDfunc type to reproduce the
 	calculation used by LBL's Optics 5 program for the transmittance

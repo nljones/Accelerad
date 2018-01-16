@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: initotypes.c,v 2.4 2004/03/27 12:41:45 schorsch Exp $";
 #endif
 /*
  * Initialize ofun[] list for octree generator

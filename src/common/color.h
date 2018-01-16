@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: color.h,v 2.34 2015/03/26 15:40:32 greg Exp $ */
 /*
  *  color.h - header for routines using pixel color values.
  *

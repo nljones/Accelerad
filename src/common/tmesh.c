@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: tmesh.c,v 2.5 2006/03/02 17:16:56 greg Exp $";
 #endif
 /*
  * Compute and print barycentric coordinates for triangle meshes

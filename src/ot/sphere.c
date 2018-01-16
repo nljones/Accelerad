@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: sphere.c,v 2.6 2016/04/20 18:51:35 greg Exp $";
 #endif
 /*
  *  sphere.c - routines for creating octrees for spheres.

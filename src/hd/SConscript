@@ -1,3 +1,5 @@
+from __future__ import division, print_function, unicode_literals
+
 import os
 
 Import('env')
@@ -101,12 +103,12 @@ if env.has_key('X11INCLUDE'):
 				# oglsh
 				('ogls', ogl_common,
 				 rgllibs+['rtrad', 'GLU','GL','X11','Xext'] + mlib,
-				 'rhd_ogls', 'rhd_ogl.c' ['-DSTEREO']),
+				 'rhd_ogls', 'rhd_ogl.c', ['-DSTEREO']),
 					
 				# oglsoh
 				('oglso', [rhdobj] + ogl_common,
 				 rgllibs+['rtrad', 'GLU','GL','X11','Xext'] + mlib,
-				 'rhd_oglso', 'rhd_ogl.c' ['-DDOBJ', '-DSTEREO']),
+				 'rhd_oglso', 'rhd_ogl.c', ['-DDOBJ', '-DSTEREO']),
 					)
 			for p in GLHDI:
 				make_hdi(p)
@@ -114,3 +116,4 @@ if env.has_key('X11INCLUDE'):
 
 
 # vim: set syntax=python:
+# vi: set ts=4 sw=4 :

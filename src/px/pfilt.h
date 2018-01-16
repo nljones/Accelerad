@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: pfilt.h,v 2.1 2004/03/29 00:34:23 schorsch Exp $ */
 /*
  * Header file for picture filtering
  */

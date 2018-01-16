@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: noise3.c,v 2.13 2013/10/08 18:59:44 greg Exp $";
 #endif
 /*
  *  noise3.c - noise functions for random textures.

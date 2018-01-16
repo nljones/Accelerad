@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: writemesh.c,v 2.6 2004/04/29 14:36:49 greg Exp $";
 #endif
 /*
  *  Routines for writing compiled mesh to a file stream

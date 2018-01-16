@@ -1,4 +1,4 @@
-# RCSid: $Id$
+# RCSid: $Id: do_options.tcl,v 2.10 2015/05/26 12:39:25 greg Exp $
 #
 # Options screen for trad
 #

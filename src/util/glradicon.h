@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: glradicon.h,v 3.1 2003/02/22 02:07:30 greg Exp $ */
 #define glradicon_width 78
 #define glradicon_height 40
 static unsigned char glradicon_bits[] = {

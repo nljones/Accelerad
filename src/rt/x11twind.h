@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: x11twind.h,v 2.6 2003/06/27 06:53:23 greg Exp $ */
 /*
  *  xtwind.h - header for X text window routines.
  *

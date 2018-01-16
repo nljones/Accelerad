@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: modobject.c,v 2.17 2013/12/09 18:17:13 greg Exp $";
 #endif
 /*
  *  Routines for tracking object modifiers

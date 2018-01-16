@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# RCSid $Id$
+# RCSid $Id: genskyvec.pl,v 2.10 2016/12/12 17:40:07 greg Exp $
 #
 # Generate Reinhart vector for a given sky description
 #

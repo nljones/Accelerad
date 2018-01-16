@@ -1,4 +1,4 @@
-{ RCSid $Id$ }
+{ RCSid $Id: trans.cal,v 1.2 2003/10/08 17:10:53 greg Exp $ }
 {
 	These formulas give exact results from the infinite
 	series solution for an uncoated pane of glass.

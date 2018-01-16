@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid: $Id$
+# RCSid: $Id: debugcal.csh,v 2.7 2013/12/19 16:56:31 greg Exp $
 #
 # Script to debug cal files for Radiance
 #

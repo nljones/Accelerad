@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: maxheap.h,v 2.2 2015/08/18 15:02:53 greg Exp $ */
 /*
 **	Author: Christian Reetz (chr@riap.de)
 */

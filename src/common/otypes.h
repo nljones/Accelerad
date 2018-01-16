@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: otypes.h,v 2.17 2012/07/29 19:01:39 greg Exp $ */
 /*
  *  otypes.h - defines for object types.
  */

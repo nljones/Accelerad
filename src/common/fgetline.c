@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: fgetline.c,v 2.9 2016/03/04 00:21:21 greg Exp $";
 #endif
 /*
  * fgetline.c - read line with escaped newlines.

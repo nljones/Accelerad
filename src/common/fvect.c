@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: fvect.c,v 2.24 2015/07/23 18:22:26 greg Exp $";
 #endif
 /*
  *  fvect.c - routines for floating-point vector calculations

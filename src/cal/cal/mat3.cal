@@ -1,4 +1,4 @@
-{ RCSid $Id$ }
+{ RCSid $Id: mat3.cal,v 1.2 2009/03/24 01:41:40 greg Exp $ }
 {
 	3x3 Matrix operations
 }

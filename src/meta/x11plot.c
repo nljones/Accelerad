@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: x11plot.c,v 1.4 2007/11/21 18:51:05 greg Exp $";
 #endif
 /*
  *   X window plotting functions

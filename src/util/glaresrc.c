@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: glaresrc.c,v 2.6 2006/05/29 16:47:54 greg Exp $";
 #endif
 /*
  * Gather samples and compute glare sources.

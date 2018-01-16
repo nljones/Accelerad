@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: error.c,v 2.10 2003/07/27 22:12:01 schorsch Exp $";
 #endif
 /*
  *  error.c - standard error reporting function

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: wrapBSDF.c,v 2.22 2017/02/14 19:58:37 greg Exp $";
 #endif
 /*
  * Wrap BSDF data in valid WINDOW XML file

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: ambio.c,v 2.12 2017/01/27 22:00:49 greg Exp $";
 #endif
 /*
  * Read and write portable ambient values

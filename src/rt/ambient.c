@@ -1,4 +1,4 @@
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: ambient.c,v 2.105 2018/01/09 05:01:15 greg Exp $";
 /*
  *  ambient.c - routines dealing with ambient (inter-reflected) component.
  *
@@ -12,8 +12,10 @@ static const char	RCSid[] = "$Id$";
 #include  "platform.h"
 #include  "ray.h"
 #include  "otypes.h"
+#include  "otspecial.h"
 #include  "resolu.h"
 #include  "ambient.h"
+#include  "source.h"
 #include  "random.h"
 #include  "pmapamb.h"
 
@@ -389,7 +391,6 @@ multambient(		/* compute ambient component & multiply by coef. */
 
 		/* PMAP: add in caustic */
 		addcolor(aval, caustic);
-
 		return;
 	}
 	
@@ -424,7 +425,7 @@ dumbamb:					/* return global value */
 		return;
 	}
 	
-	l = bright(ambval);			/* average in computations */
+	l = bright(ambval);			/* average in computations */	
 	if (l > FTINY) {
 		d = (log(l)*(double)ambvwt + avsum) /
 				(double)(ambvwt + navsum);
@@ -477,7 +478,8 @@ plugaleak(RAY *r, AMBVAL *ap, FVECT anorm, double ang)
 	VSUM(rtst.rdir, vdif, anorm, t[1]);	/* further dist. > plane */
 	rtst.rmax = normalize(rtst.rdir);	/* short ray test */
 	while (localhit(&rtst, &thescene)) {	/* check for occluder */
-		if (rtst.ro->omod != OVOID &&
+		OBJREC	*m = findmaterial(rtst.ro);
+		if (m != NULL && !istransp(m->otype) && !isBSDFproxy(m) &&
 				(rtst.clipset == NULL ||
 					!inset(rtst.clipset, rtst.ro->omod)))
 			return(1);		/* plug light leak */
@@ -822,12 +824,12 @@ multambient(		/* compute ambient component & multiply by coef. */
 		rdepth--;
 		if (d <= FTINY)
 			goto dumbamb;
-		copycolor(aval, acol);
+		copycolor(aval, acol);		
 #ifdef DAYSIM
 		daysimCopy(daylightCoef, dcAcol);
 #endif
-
-		/* PMAP: add in caustic */
+	
+	   /* PMAP: add in caustic */
 		addcolor(aval, caustic);	
 		return;
 	}
@@ -852,7 +854,7 @@ multambient(		/* compute ambient component & multiply by coef. */
 		daysimScale(dcAcol, d);
 		daysimMult(daylightCoef, dcAcol);
 #endif
-
+		
 		/* PMAP: add in caustic */
 		addcolor(aval, caustic);	
 		return;
@@ -873,7 +875,7 @@ multambient(		/* compute ambient component & multiply by coef. */
 #endif
 
 		/* PMAP: add in caustic */
-		addcolor(aval, caustic);	
+		addcolor(aval, caustic);			
 		return;
 	}
 	

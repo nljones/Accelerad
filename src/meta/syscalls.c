@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: syscalls.c,v 1.4 2003/08/01 14:14:24 schorsch Exp $";
 #endif
 /*
  *  System calls for meta-file routines

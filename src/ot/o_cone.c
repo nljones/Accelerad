@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: o_cone.c,v 2.7 2016/04/21 00:40:35 greg Exp $";
 #endif
 /*
  *  o_cone.c - routines for intersecting cubes with cones.

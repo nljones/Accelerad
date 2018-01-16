@@ -1,4 +1,4 @@
-{ RCSid $Id$ }
+{ RCSid $Id: bsdf2rad.cal,v 2.6 2017/04/11 18:26:55 greg Exp $ }
 {
 	Calculation of false color scale for bsdf2rad.
 

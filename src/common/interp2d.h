@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: interp2d.h,v 2.9 2013/02/15 19:15:16 greg Exp $ */
 /*
  * Header for interpolation of anisotropic samples on 2-D plane.
  *

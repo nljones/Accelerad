@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: multisamp.c,v 2.5 2003/06/07 12:50:20 schorsch Exp $";
 #endif
 /*
  * Binary space partitioning curve for multidimensional sampling.

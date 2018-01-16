@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: clip.c,v 2.5 2003/06/26 00:58:09 schorsch Exp $";
 #endif
 /*
  *  clip.c - routine to clip 3D line segments to a box.

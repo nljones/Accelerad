@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: tmesh.h,v 2.5 2003/06/26 00:58:09 schorsch Exp $ */
 /*
  * Header file for triangle mesh routines using barycentric coordinates
  */

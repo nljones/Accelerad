@@ -1,4 +1,4 @@
-{ RCSid $Id$ }
+{ RCSid $Id: vwparab.cal,v 1.2 2008/02/24 23:04:44 greg Exp $ }
 {
 	Generate rays for a parabolic view projection --
 	i.e., a round image that when projected downwards

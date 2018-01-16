@@ -1,4 +1,4 @@
-# RCSid: $Id$
+# RCSid: $Id: do_scene.tcl,v 2.5 2012/06/01 22:55:14 greg Exp $
 #
 # Track octree and scene files
 #

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: srcdraw.c,v 2.17 2014/07/08 18:25:00 greg Exp $";
 #endif
 /*
  * Draw small sources into image in case we missed them.

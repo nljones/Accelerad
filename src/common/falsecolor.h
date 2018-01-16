@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: falsecolor.h,v 3.4 2011/05/20 02:06:38 greg Exp $ */
 /*
  * Header file for false color tone-mapping.
  *

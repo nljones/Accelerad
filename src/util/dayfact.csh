@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid: $Id$
+# RCSid: $Id: dayfact.csh,v 2.9 2008/11/10 19:08:19 greg Exp $
 #
 # Interactive script to calculate daylight factors
 #

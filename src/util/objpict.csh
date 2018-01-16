@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid: $Id$
+# RCSid: $Id: objpict.csh,v 2.7 2009/07/22 17:48:07 greg Exp $
 #
 # Make a nice multi-view picture of an object
 # Command line arguments contain materials and object files

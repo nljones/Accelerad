@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: pmapcontrib.h,v 2.5 2016/05/17 17:39:47 rschregle Exp $ */
 
 /* 
    ==================================================================
@@ -9,7 +9,7 @@
    supported by the Swiss National Science Foundation (SNSF, #147053)
    ==================================================================
    
-   $Id$
+   $Id: pmapcontrib.h,v 2.5 2016/05/17 17:39:47 rschregle Exp $
 */
 
 #ifndef PMAPCONTRIB_H

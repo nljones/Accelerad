@@ -1,4 +1,4 @@
-{ RCSid: $Id$ }
+{ RCSid: $Id: tmesh.cal,v 2.2 2004/03/11 23:16:01 greg Exp $ }
 {
 	Interpolate triangle-mesh values using barycentric coordinates.
 

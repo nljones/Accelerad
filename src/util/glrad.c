@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: glrad.c,v 3.26 2016/04/28 16:28:20 greg Exp $";
 #endif
 /*
  * Program to display Radiance scene using OpenGL.

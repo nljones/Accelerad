@@ -1,4 +1,4 @@
-# RCSid $Id$
+# RCSid $Id: scatter.plt,v 1.1 2015/10/12 20:10:50 greg Exp $
 #
 #	This file defines a standard scatter plot,
 #	where a curve is represented by special

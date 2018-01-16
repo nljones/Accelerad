@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: urind.c,v 2.4 2003/07/17 09:21:29 schorsch Exp $";
 #endif
 /*
  * Compute pseudo-asyncronous entry point for urand(3)

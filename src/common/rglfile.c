@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: rglfile.c,v 3.11 2004/03/28 20:33:12 schorsch Exp $";
 #endif
 /*
  * Load Radiance object(s) and create OpenGL display lists

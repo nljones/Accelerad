@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid: $Id$
+# RCSid: $Id: objline.csh,v 2.6 2008/11/30 19:56:02 greg Exp $
 # Create four standard views of scene and present as line drawings
 #
 set oblqxf="-rz 45 -ry 45"

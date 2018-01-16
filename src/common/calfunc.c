@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: calfunc.c,v 2.18 2015/08/01 23:27:04 greg Exp $";
 #endif
 /*
  *  calfunc.c - routines for calcomp using functions.

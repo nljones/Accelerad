@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: evalglare.c,v 2.7 2017/08/12 15:11:09 greg Exp $";
 #endif
 /* EVALGLARE V2.00
  * Evalglare Software License, Version 2.0

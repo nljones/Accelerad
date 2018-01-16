@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: func.h,v 2.10 2015/05/20 12:58:31 greg Exp $ */
 /*
  * Header file for modifiers using function files.
  *

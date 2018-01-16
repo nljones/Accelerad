@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: pflip.c,v 2.10 2012/05/17 17:36:14 greg Exp $";
 #endif
 /*
  * flip picture file horizontally and/or vertically

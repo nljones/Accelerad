@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: ra_bmp.c,v 2.11 2011/05/20 02:06:39 greg Exp $";
 #endif
 /*
  *  program to convert between RADIANCE and Windows BMP file

@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: mgvars.h,v 1.4 2003/11/15 02:13:37 schorsch Exp $ */
 /*
  *  mgvars.h - header file for graphing routines using variables.
  *

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: o_instance.c,v 2.9 2014/07/08 18:25:00 greg Exp $";
 #endif
 /*
  *  o_instance.c - routines for computing ray intersections with octrees.

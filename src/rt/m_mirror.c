@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: m_mirror.c,v 2.19 2016/06/06 16:22:46 greg Exp $";
 #endif
 /*
  * Routines for mirror material supporting virtual light sources

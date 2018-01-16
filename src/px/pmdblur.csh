@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid $Id$
+# RCSid $Id: pmdblur.csh,v 3.1 2005/01/18 03:59:41 greg Exp $
 #
 # Generate views for motion and depth blurring on picture
 #

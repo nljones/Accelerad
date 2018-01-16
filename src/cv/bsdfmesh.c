@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: bsdfmesh.c,v 2.39 2017/10/06 00:23:09 greg Exp $";
 #endif
 /*
  * Create BSDF advection mesh from radial basis functions.

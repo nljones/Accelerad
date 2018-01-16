@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: pictool.h,v 2.3 2016/07/14 17:32:12 greg Exp $ */
 #ifndef	__PICTOOL_H
 #define __PICTOOL_H
 

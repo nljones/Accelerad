@@ -1,4 +1,4 @@
-/* RCSid $Id$ */
+/* RCSid $Id: tmprivat.h,v 3.24 2011/05/20 02:06:38 greg Exp $ */
 /*
  * Private header file for tone mapping routines.
  */

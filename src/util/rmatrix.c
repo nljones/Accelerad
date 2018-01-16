@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: rmatrix.c,v 2.25 2017/08/28 15:59:46 greg Exp $";
 #endif
 /*
  * General matrix operations.

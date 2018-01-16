@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid: $Id$
+# RCSid: $Id: xyzimage.csh,v 2.5 2008/08/25 04:50:32 greg Exp $
 #
 # Display one or more CIE XYZE pictures using ximage
 #

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: mgf2rad.c,v 2.31 2016/10/03 18:16:45 greg Exp $";
 #endif
 /*
  * Convert MGF (Materials and Geometry Format) to Radiance

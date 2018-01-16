@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: writeoct.c,v 2.7 2004/11/09 16:09:20 greg Exp $";
 #endif
 /*
  *  writeoct.c - routines for writing octree information to stdout.

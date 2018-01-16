@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id$";
+static const char RCSid[] = "$Id: sceneio.c,v 2.5 2011/09/22 02:15:56 greg Exp $";
 #endif
 /*
  *  Portable, binary Radiance i/o routines.

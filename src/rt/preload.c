@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: preload.c,v 2.14 2017/07/14 23:19:32 greg Exp $";
 #endif
 /*
  * Preload associated object structures to maximize memory sharing.

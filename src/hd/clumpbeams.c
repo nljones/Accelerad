@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: clumpbeams.c,v 3.8 2004/01/01 11:21:55 schorsch Exp $";
 #endif
 /*
  * Bundle holodeck beams together into clumps.

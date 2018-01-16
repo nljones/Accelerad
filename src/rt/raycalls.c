@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: raycalls.c,v 2.22 2016/11/02 22:09:14 greg Exp $";
 #endif
 /*
  *  raycalls.c - interface for running Radiance rendering as a library

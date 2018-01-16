@@ -1,4 +1,4 @@
-/* RCSid: $Id$ */
+/* RCSid: $Id: rast.h,v 1.2 2003/07/14 22:24:00 schorsch Exp $ */
 /*
  *   Structures for line segment output to raster files
  */

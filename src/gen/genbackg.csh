@@ -1,5 +1,5 @@
 #!/bin/csh -f
-# RCSid: $Id$
+# RCSid: $Id: genbackg.csh,v 2.2 2008/08/25 04:50:32 greg Exp $
 #
 # Generate height field to surround a mesh with an irregular border
 #

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id$";
+static const char	RCSid[] = "$Id: mgf_parser.c,v 3.1 2011/02/18 00:40:25 greg Exp $";
 #endif
 /*
  * Parse an MGF file, converting or discarding unsupported entities
