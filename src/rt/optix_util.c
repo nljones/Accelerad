@@ -5,7 +5,6 @@
 #include "accelerad_copyright.h"
 
 #include "rtio.h"
-#include "rterror.h"
 #include "paths.h" /* Required for R_OK argument to getpath() */
 
 #include "optix_radiance.h"
@@ -103,7 +102,7 @@ static void runKernelImpl(const RTcontext context, const unsigned int entry, con
 	RT_CHECK_ERROR( rtContextCompile( context ) ); // This should happen automatically when necessary.
 	kernel_clock = clock() - kernel_clock;
 	if (kernel_clock > 1)
-		vprintf("OptiX compile time: %" PRIu64 " milliseconds.\n", MILLISECONDS(kernel_clock));
+		vprintf("OptiX compile %u time: %" PRIu64 " milliseconds.\n", entry, MILLISECONDS(kernel_clock));
 #endif
 
 	/* Start timers */
@@ -129,7 +128,7 @@ static void runKernelImpl(const RTcontext context, const unsigned int entry, con
 	/* Stop timers */
 	kernel_clock = clock() - kernel_clock;
 	kernel_time = time((time_t *)NULL) - kernel_time;
-	mprintf("OptiX kernel time: %" PRIu64 " milliseconds (%" PRIu64 " seconds).\n", MILLISECONDS(kernel_clock), kernel_time);
+	mprintf("OptiX kernel %u time: %" PRIu64 " milliseconds (%" PRIu64 " seconds).\n", entry, MILLISECONDS(kernel_clock), kernel_time);
 #ifdef CUMULTATIVE_TIME
 	cumulative_millis += MILLISECONDS(kernel_clock);
 	mprintf("OptiX kernel cumulative time: %" PRIu64 " milliseconds.\n", cumulative_millis);
@@ -143,13 +142,8 @@ static void runKernelImpl(const RTcontext context, const unsigned int entry, con
 
 void printRayTracingTime(const time_t time, const clock_t clock)
 {
-	/* Check if warnings are printed */
-	if (!erract[WARNING].pf)
-		return;
-
 	/* Print the given elapsed time for ray tracing */
-	sprintf(errmsg, "ray tracing time: %" PRIu64 " milliseconds (%" PRIu64 " seconds).\n", MILLISECONDS(clock), time);
-	(*erract[WARNING].pf)(errmsg);
+	mprintf("ray tracing time: %" PRIu64 " milliseconds (%" PRIu64 " seconds).\n", MILLISECONDS(clock), time);
 }
 
 /* Helper functions */

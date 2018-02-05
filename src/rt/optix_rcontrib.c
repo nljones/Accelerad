@@ -53,7 +53,7 @@ void contribOptix(const size_t width, const size_t height, const unsigned int im
 #else
 	const size_t bytes_per_row = sizeof(float4) * bins * width;
 #endif
-	const size_t rows_per_segment = bytes_per_row ? fmin(height, INT_MAX / bytes_per_row) : height; // Limit imposed by OptiX
+	const size_t rows_per_segment = bytes_per_row ? MIN(height, INT_MAX / bytes_per_row) : height; // Limit imposed by OptiX
 	if (!rows_per_segment)
 		error(USER, "Too many rays per row. Use a smaller -x.");
 
@@ -117,7 +117,7 @@ void contribOptix(const size_t width, const size_t height, const unsigned int im
 #endif
 
 	for (start = 0u; start < height; start += rows_per_segment) {
-		const size_t rows = fmin(height - start, rows_per_segment);
+		const size_t rows = MIN(height - start, rows_per_segment);
 		const size_t segment_size = rows * width;
 
 		if (segment_start)

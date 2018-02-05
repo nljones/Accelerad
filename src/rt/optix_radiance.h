@@ -11,6 +11,7 @@
 #include "color.h"
 #include <inttypes.h>
 #include "lookup.h"
+#include "rterror.h"
 
 #include <optix_world.h>
 #include "optix_common.h"
@@ -105,8 +106,10 @@ typedef enum
 #endif
 
 /* Print statements */
-#define mprintf(format, ...) \
-	do { if (erract[WARNING].pf) fprintf(stderr, format, ##__VA_ARGS__); } while(0)
+#define mprintf(format, ...) do {	\
+	if (erract[WARNING].pf) {		\
+		sprintf(errmsg, format, ##__VA_ARGS__);	\
+		(*erract[WARNING].pf)(errmsg); } } while(0)
 
 #ifdef ACCELERAD_DEBUG /* Print extra statements */
 #define vprintf(format, ...)	mprintf(format, ##__VA_ARGS__)
@@ -119,6 +122,11 @@ typedef enum
 #define MILLISECONDS(c)	((c) * 1000uLL / CLOCKS_PER_SEC)
 #else
 #define MILLISECONDS(c)	((c) * 1000uL / CLOCKS_PER_SEC)
+#endif
+
+/* Math */
+#ifndef MIN
+#define MIN(a,b)	(((a)<(b))?(a):(b))
 #endif
 
 /* Resizeable array structures */
