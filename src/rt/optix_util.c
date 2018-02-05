@@ -98,11 +98,13 @@ static void runKernelImpl(const RTcontext context, const unsigned int entry, con
 
 	/* Validate and compile if necessary */
 	RT_CHECK_ERROR( rtContextValidate( context ) );
+#ifdef DEBUG_OPTIX
 	kernel_clock = clock();
 	RT_CHECK_ERROR( rtContextCompile( context ) ); // This should happen automatically when necessary.
 	kernel_clock = clock() - kernel_clock;
 	if (kernel_clock > 1)
 		vprintf("OptiX compile time: %" PRIu64 " milliseconds.\n", MILLISECONDS(kernel_clock));
+#endif
 
 	/* Start timers */
 	kernel_time = time((time_t *)NULL);

@@ -147,7 +147,17 @@ if(OptiX_USE)
   if(NOT PASSED_FIRST_CONFIGURE)
     ENSURE_NVCC_FLAG("--use_fast_math")
     ENSURE_NVCC_FLAG("--gpu-architecture sm_20")
+    #ENSURE_NVCC_FLAG("-rdc true")
     ENSURE_NVCC_FLAG("-Xptxas -v")
+	
+    if (CUDA_VERSION VERSION_LESS "3.0")
+      ENSURE_NVCC_FLAG("--keep")
+    endif()
+    if( APPLE )
+      # Undef'ing __BLOCKS__ for OSX builds.  This is due to a name clash between OSX 10.6
+      # C headers and CUDA headers
+      ENSURE_NVCC_FLAG("-U__BLOCKS__")
+    endif()
 	
     # Now that everything is done, indicate that we have finished configuring at least once.
     # We use this variable to set certain defaults only on the first pass, so that we don't
@@ -164,21 +174,61 @@ if(OptiX_USE)
   # This is a macro found in FindCUDA.cmake that compiles the listed
   # CUDA files into OBJ files with the prefix "cuda_compile_generated_"
   # in a subdirectory of the directory specified by CUDA_GENERATED_OUTPUT_DIR.
-  CUDA_COMPILE(generated_CUDA_files cuda_adaptive_seeding.cu cuda_kmeans.cu)
+  CUDA_COMPILE(generated_CUDA_files
+    cuda_adaptive_seeding.cu
+    cuda_kmeans.cu
+  )
 
   # Compile the OptiX CUDA files to PTX format.
   # This is a macro found in FindCUDA.cmake that compiles the listed
   # CUDA files into PTX files with the prefix "cuda_compile_ptx_generated_"
   # in the directory specified by CUDA_GENERATED_OUTPUT_DIR.
-  CUDA_COMPILE_PTX(generated_PTX_files_rtrace sensor.cu sensor_cloud_generator.cu irradiance_intersect.cu)
-  CUDA_COMPILE_PTX(generated_PTX_files_rpict camera.cu point_cloud_generator.cu)
-  CUDA_COMPILE_PTX(generated_PTX_files_rcontrib rcontrib_generator.cu tregenza.cu reinhart.cu klems_full.cu)
-  CUDA_COMPILE_PTX(generated_PTX_files_rvu rvu_generator.cu diffuse_normal.cu)
+  CUDA_COMPILE_PTX(generated_PTX_files_rtrace
+    sensor.cu
+    sensor_cloud_generator.cu
+    irradiance_intersect.cu
+  )
+  CUDA_COMPILE_PTX(generated_PTX_files_rpict
+    camera.cu
+    point_cloud_generator.cu
+  )
+  CUDA_COMPILE_PTX(generated_PTX_files_rcontrib
+    rcontrib_generator.cu
+  )
+  CUDA_COMPILE_PTX(generated_PTX_files_rvu
+    diffuse_normal.cu
+    rvu_generator.cu
+  )
   CUDA_COMPILE_PTX(generated_PTX_files
-    triangle_mesh.cu background.cu skybright.cu perezlum.cu isotropsky.cu utah.cu gencumulativesky.cu
-    radiance_normal.cu radiance_glass.cu radiance_light.cu source.cu fisheye.cu clip.cu
-    ambient_records.cu ambient_normal.cu ambient_sample_generator.cu ambient_cloud_generator.cu
-    point_cloud_normal.cu hemisphere_generator.cu)
+    ambient_cloud_generator.cu
+    ambient_normal.cu
+    ambient_records.cu
+    ambient_sample_generator.cu
+    background.cu
+    clip.cu
+    hemisphere_generator.cu
+    point_cloud_normal.cu
+    radiance_normal.cu
+    radiance_glass.cu
+    radiance_light.cu
+    source.cu
+    triangle_mesh.cu
+  )
+  CUDA_COMPILE_PTX(generated_PTX_files_callable
+    fisheye.cu
+    gencumulativesky.cu
+    isotropsky.cu
+    perezlum.cu
+    skybright.cu
+    utah.cu
+    OPTIONS "-rdc true"
+  )
+  CUDA_COMPILE_PTX(generated_PTX_files_rcontrib_callable
+    tregenza.cu
+    reinhart.cu
+    klems_full.cu
+    OPTIONS "-rdc true"
+  )
 
   # Remove the prefix "cuda_compile_ptx_generated_" from PTX files.
   PTX_SHROTEN(PTX_files_rtrace "${generated_PTX_files_rtrace}")
@@ -186,6 +236,8 @@ if(OptiX_USE)
   PTX_SHROTEN(PTX_files_rcontrib "${generated_PTX_files_rcontrib}")
   PTX_SHROTEN(PTX_files_rvu "${generated_PTX_files_rvu}")
   PTX_SHROTEN(PTX_files "${generated_PTX_files}")
+  PTX_SHROTEN(PTX_files_callable "${generated_PTX_files_callable}")
+  PTX_SHROTEN(PTX_files_rcontrib_callable "${generated_PTX_files_rcontrib_callable}")
 
   # Include source wrappers for OptiX and CUDA.
   # The empty blank.cpp file forces g++ to be used as the linker on Linux.
@@ -197,6 +249,10 @@ if(OptiX_USE)
   set(ACCELERAD_rpict_files optix_rpict.c ${PTX_files_rpict})
   set(ACCELERAD_rcontrib_files optix_rcontrib.c ${PTX_files_rcontrib})
   set(ACCELERAD_rvu_files optix_rvu.c ${PTX_files_rvu})
+  
+  # Set build targets that build separately (for CUDA 8+)
+  add_custom_target(accelerad_callable ALL SOURCES ${PTX_files_callable})
+  add_custom_target(rcontrib_callable ALL SOURCES ${PTX_files_rcontrib_callable})
 endif()
 
 add_executable(rtrace rtmain.c rtrace.c duphead.c persist.c ${ACCELERAD_rtrace_files})

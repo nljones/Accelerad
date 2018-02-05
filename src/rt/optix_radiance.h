@@ -26,7 +26,7 @@
 /* Enable features on CPU side */
 #define TIMEOUT_CALLBACK /* Interupt OptiX kernel periodically to refresh screen */
 //#define CUMULTATIVE_TIME /* Track cumulative timing of OptiX kernel functions */
-#define DEBUG_OPTIX /* Catch unexptected OptiX exceptions */
+#define DEBUG_OPTIX /* Catch unexptected OptiX exceptions. Creates a big slow down with OptiX 4.0.0 and above. */
 //#define REPORT_GPU_STATE /* Report verbose GPU details */
 #define ITERATIVE_IC /* Iterative irradiance cache calculation */
 
