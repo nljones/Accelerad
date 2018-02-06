@@ -820,10 +820,8 @@ static size_t chooseAmbientLocations(const RTcontext context, const unsigned int
 		for (i = 0u; i < cluster_count; i += clusters_per_segment) {
 			size_t current_count = min(cluster_count - i, clusters_per_segment);
 
-			if (i != (unsigned int)i) {
-				sprintf(errmsg, "segment offset %" PRIu64 " out of range", i);
-				error(USER, errmsg); // To get here, size of cluster_buffer must also be out of range, which should already have triggered an error
-			}
+			if (i != (unsigned int)i)
+				eprintf(USER, "segment offset %" PRIu64 " out of range", i); // To get here, size of cluster_buffer must also be out of range, which should already have triggered an error
 			RT_CHECK_ERROR(rtVariableSet1ui(segment_var, (unsigned int)i));
 
 			/* Run kernel to gerate more seed points from cluster centers */

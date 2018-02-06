@@ -106,6 +106,9 @@ typedef enum
 #endif
 
 /* Print statements */
+#define eprintf(etype, format, ...) do {	\
+	sprintf(errmsg, format, ##__VA_ARGS__);	\
+	error(etype, errmsg); } while(0)
 #define mprintf(format, ...) do {	\
 	if (erract[WARNING].pf) {		\
 		sprintf(errmsg, format, ##__VA_ARGS__);	\

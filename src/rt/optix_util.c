@@ -558,8 +558,7 @@ void handleError( const RTcontext context, const RTresult code, const char* file
 {
 	const char* message;
 	rtContextGetErrorString( context, code, &message ); // This function allows context to be null.
-	sprintf( errmsg, "%s\n(%s:%d)", message, file, line );
-	error( etype, errmsg );
+	eprintf(etype, "%s\n(%s:%d)", message, file, line);
 }
 
 #ifdef DEBUG_OPTIX
@@ -669,10 +668,8 @@ void ptxFile( char* path, const char* name )
 	fp = getpath(path, getenv("RAYPATH"), R_OK);
 	if ( fp )
 		sprintf(path, "%s", fp);
-	else {
-		sprintf(errmsg, "File %s not found in RAYPATH.", path );
-		error(SYSTEM, errmsg);
-	}
+	else
+		eprintf(SYSTEM, "File %s not found in RAYPATH.", path);
 	//sprintf( path, "%s/cuda_compile_ptx_generated_%s.cu.ptx", optix_ptx_dir, name );
 	//mprintf("Referencing %s\n", path);
 }

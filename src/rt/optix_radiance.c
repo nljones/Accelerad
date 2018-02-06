@@ -66,7 +66,7 @@ static RTmaterial createLightMaterial(const RTcontext context, OBJREC* rec, LUTA
 #ifdef ANTIMATTER
 static RTmaterial createClipMaterial(const RTcontext context, OBJREC* rec);
 #endif
-static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, LUTAB* modifiers);
+static void createDistantLight(const RTcontext context, OBJREC* rec, LUTAB* modifiers);
 static OBJREC* findFunction(OBJREC *o);
 static int createFunction(const RTcontext context, OBJREC* rec);
 static int createTexture(const RTcontext context, OBJREC* rec);
@@ -171,11 +171,9 @@ static void checkDevices()
 	/* Check driver version */
 	cudaDriverGetVersion(&driver);
 	cudaRuntimeGetVersion(&runtime);
-	if (driver < runtime) {
-		sprintf(errmsg, "Current graphics driver %d.%d.%d does not support runtime %d.%d.%d. Update your graphics driver.",
+	if (driver < runtime)
+		eprintf(SYSTEM, "Current graphics driver %d.%d.%d does not support runtime %d.%d.%d. Update your graphics driver.",
 			driver / 1000, (driver % 100) / 10, driver % 10, runtime / 1000, (runtime % 100) / 10, runtime % 10);
-		error(SYSTEM, errmsg);
-	}
 
 	RT_CHECK_WARN_NO_CONTEXT(rtGetVersion(&version));
 	RT_CHECK_ERROR_NO_CONTEXT(rtDeviceGetDeviceCount(&device_count)); // This will return an error if no supported devices are found
@@ -639,14 +637,10 @@ static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RT
 	free( buffer_entry_index );
 
 	/* Check for overflow */
-	if (traingles->count > UINT_MAX) {
-		sprintf(errmsg, "Number of triangles %" PRIu64 " is greater than maximum %u.", traingles->count, UINT_MAX);
-		error(USER, errmsg);
-	}
-	if (materials->count > INT_MAX) {
-		sprintf(errmsg, "Number of materials %" PRIu64 " is greater than maximum %u.", materials->count, INT_MAX);
-		error(USER, errmsg);
-	}
+	if (traingles->count > UINT_MAX)
+		eprintf(USER, "Number of triangles %" PRIu64 " is greater than maximum %u.", traingles->count, UINT_MAX);
+	if (materials->count > INT_MAX)
+		eprintf(USER, "Number of materials %" PRIu64 " is greater than maximum %u.", materials->count, INT_MAX);
 
 	/* Create the geometry reference for OptiX. */
 	if (!*mesh) {
@@ -845,7 +839,7 @@ static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, LUTAB* mod
 		createMesh(context, rec, modifiers);
 		break;
 	case OBJ_SOURCE:
-		insertArraydl(sources, createDistantLight(context, rec, modifiers));
+		createDistantLight(context, rec, modifiers);
 		break;
 	//case MAT_TFUNC: // bumpmap function
 	case PAT_BFUNC: // brightness function, used for sky brightness
@@ -892,8 +886,10 @@ static void createFace(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 	if (face->area == 0.0)
 		goto facedone;
 	OBJREC* material = findmaterial(rec);
-	if (material == NULL)
-		objerror(rec, USER, "missing material");
+	if (!material) {
+		objerror(rec, WARNING, "missing material");
+		goto facedone;
+	}
 	addRadianceObject(context, material, modifiers);
 #ifdef TRIANGULATE
 	/* Triangulate the face */
@@ -1006,7 +1002,7 @@ static int createTriangles(const FACE *face, OBJREC *material)
 #endif /* LIGHTS */
 		Vert2_list	*v2l = polyAlloc(face->nv);
 		if (v2l == NULL)	/* out of memory */
-			return(0);
+			error(SYSTEM, "out of memory in polyAlloc");
 		if (face->norm[face->ax] > 0)	/* maintain winding direction */
 			for (i = v2l->nv; i--; ) {
 				v2l->v[i].mX = VERTEX(face, i)[(face->ax + 1) % 3];
@@ -1048,8 +1044,10 @@ static void createSphere(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 	double radius;
 	FVECT x, y, z;
 	OBJREC* material = findmaterial(rec);
-	if (material == NULL)
-		objerror(rec, USER, "missing material");
+	if (!material) {
+		objerror(rec, WARNING, "missing material");
+		return;
+	}
 	addRadianceObject(context, material, modifiers);
 
 	// Check radius
@@ -1089,8 +1087,12 @@ static void createSphere(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 	insertArray3f(sph_vertices, 0.0f, 0.0f, 1.0f);
 	insertArray3f(sph_vertices, 0.0f, 0.0f,-1.0f);
 
-	if (rec->oargs.nfargs > 4)
-		steps = (unsigned int)rec->oargs.farg[4];
+	if (rec->oargs.nfargs > 4) {
+		const double numsteps = rec->oargs.farg[4];
+		if (numsteps < 0)
+			objerror(rec, USER, "resolution too low");
+		steps = (unsigned int)numsteps;
+	}
 	else
 		steps = DEFAULT_SPHERE_STEPS;
 
@@ -1165,10 +1167,12 @@ static void createCone(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 	double theta, sphi, cphi;
 	FVECT u, v, n;
 	CONE* cone = getcone(rec, 0);
-	if (cone == NULL) return;
+	if (!cone) return;
 	OBJREC* material = findmaterial(rec);
-	if (material == NULL)
-		objerror(rec, USER, "missing material");
+	if (!material) {
+		objerror(rec, WARNING, "missing material");
+		goto conedone;
+	}
 	addRadianceObject(context, material, modifiers);
 
 	// Get orthonormal basis
@@ -1179,12 +1183,14 @@ static void createCone(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 	isCone = rec->otype != OBJ_CYLINDER && rec->otype != OBJ_TUBE;
 	direction = (rec->otype == OBJ_CUP || rec->otype == OBJ_TUBE) ? -1 : 1;
 
-	if (rec->oargs.nfargs > 7 + isCone) // TODO oconv won't allow extra arguments
-		steps = (unsigned int)rec->oargs.farg[7 + isCone];
+	if (rec->oargs.nfargs > 7 + isCone) { // TODO oconv won't allow extra arguments
+		const double numsteps = rec->oargs.farg[7 + isCone];
+		if (numsteps < 3)
+			objerror(rec, USER, "resolution too low");
+		steps = (unsigned int)numsteps;
+	}
 	else
 		steps = DEFAULT_CONE_STEPS;
-	if (steps < 3)
-		objerror(rec, USER, "resolution too low");
 	
 	// Check that cone is closed
 	if (isCone)
@@ -1239,6 +1245,7 @@ static void createCone(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 		insertArray2f(tex_coords, 0.0f, 0.0f);
 	}
 	vertex_index_0 += steps * 2;
+conedone:
 	freecone(rec);
 }
 
@@ -1688,16 +1695,17 @@ static RTmaterial createClipMaterial(const RTcontext context, OBJREC* rec)
 }
 #endif
 
-static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
+static void createDistantLight(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 {
 	SRCREC source;
-	OBJREC* material;
 	DistantLight light;
+	OBJREC* material = findmaterial(rec);
+	if (!material) {
+		objerror(rec, WARNING, "missing material");
+		return;
+	}
 
 	ssetsrc(&source, rec);
-	material = findmaterial(rec);
-	if (material == NULL)
-		objerror(rec, USER, "missing material");
 	array2cuda3(light.color, material->oargs.farg); // TODO these are given in RGB radiance value (watts/steradian/m2)
 	array2cuda3(light.pos, source.sloc);
 	light.solid_angle = source.ss2;
@@ -1713,7 +1721,7 @@ static DistantLight createDistantLight(const RTcontext context, OBJREC* rec, LUT
 	else
 		light.function = RT_PROGRAM_ID_NULL;
 
-	return light;
+	insertArraydl(sources, light);
 }
 
 static OBJREC* findFunction(OBJREC *o)
@@ -2023,17 +2031,15 @@ static int createGenCumulativeSky(const RTcontext context, char* filename, RTpro
 	char  *fname, *line;
 	FILE  *fp;
 	int success = 0;
-	const char *header = "{ This .cal file was generated automatically by GenCumulativeSky }";
+	char header[] = "{ This .cal file was generated automatically by GenCumulativeSky }";
 	size_t length = strlen(header);
 
 	if ((fname = getpath(filename, getrlibpath(), R_OK)) == NULL) {
-		//sprintf(errmsg, "cannot find function file \"%s\"", filename);
-		//error(SYSTEM, errmsg);
+		//eprintf(SYSTEM, "cannot find function file \"%s\"", filename);
 		return 0;
 	}
 	if ((fp = fopen(fname, "r")) == NULL) {
-		//sprintf(errmsg, "cannot open file \"%s\"", filename);
-		//error(SYSTEM, errmsg);
+		//eprintf(SYSTEM, "cannot open file \"%s\"", filename);
 		return 0;
 	}
 
@@ -2103,8 +2109,7 @@ static int createGenCumulativeSky(const RTcontext context, char* filename, RTpro
 	return success;
 
 gencumerr:
-	sprintf(errmsg, "bad format in \"%s\"", filename);
-	error(USER, errmsg);
+	eprintf(USER, "bad format in \"%s\"", filename);
 	return 0;
 }
 
@@ -2178,8 +2183,7 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 	//eprint(mp->binv, stderr); vprintf("\n");
 	bin_func = findSymbol(mp->binv);
 	if (!bin_func) {
-		sprintf(errmsg, "Undefined bin function for modifier %s\n", mp->modname);
-		error(WARNING, errmsg);
+		eprintf(WARNING, "Undefined bin function for modifier %s\n", mp->modname);
 		return RT_PROGRAM_ID_NULL;
 	}
 
@@ -2205,8 +2209,7 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 				orientation[i++] = (float)(evalue(child));
 			}
 			if (child != NULL || i != count) {
-				sprintf(errmsg, "Bad arguments to bin function %s for modifier %s\n", bin_func, mp->modname);
-				error(WARNING, errmsg);
+				eprintf(WARNING, "Bad arguments to bin function %s for modifier %s\n", bin_func, mp->modname);
 				return RT_PROGRAM_ID_NULL;
 			}
 		}
@@ -2217,8 +2220,7 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 		case 'W': orientation[0] = 1.0f; orientation[5] = 1.0f; break;
 		case 'D': orientation[2] = -1.0f; orientation[4] = 1.0f; break;
 		default:
-			sprintf(errmsg, "Undefined bin function %s for modifier %s\n", bin_func, mp->modname);
-			error(WARNING, errmsg);
+			eprintf(WARNING, "Undefined bin function %s for modifier %s\n", bin_func, mp->modname);
 			return RT_PROGRAM_ID_NULL;
 		}
 
@@ -2229,8 +2231,7 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 		applyProgramVariable1i(context, program, "RHS", (int)eval("RHS")); // Coordinate system handedness
 	}
 	else {
-		sprintf(errmsg, "Unrecognized bin function for modifier %s\n", mp->modname);
-		error(WARNING, errmsg);
+		eprintf(WARNING, "Unrecognized bin function for modifier %s\n", mp->modname);
 		return RT_PROGRAM_ID_NULL;
 	}
 
