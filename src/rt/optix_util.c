@@ -45,7 +45,7 @@ void printContextInfo( const RTcontext context )
 	RT_CHECK_WARN(rtContextGetDeviceCount(context, &device_count));
 	devices = (int*)malloc(sizeof(int) * device_count);
 	if (device_count && !devices)
-		error(SYSTEM, "out of memory in printContextInfo");
+		error(INTERNAL, "out of memory in printContextInfo");
 	RT_CHECK_WARN(rtContextGetDevices(context, devices));
 
 	//RT_CHECK_ERROR( rtContextGetRunningState( context, &value ) );
@@ -396,13 +396,16 @@ void copyToBufferdl(const RTcontext context, const RTbuffer buffer, const Distan
 	RT_CHECK_ERROR(rtBufferUnmap(buffer));
 }
 
-void initArrayi(IntArray *a, const size_t initialSize)
+IntArray* initArrayi(const size_t initialSize)
 {
-	a->array = (int *)malloc(initialSize * sizeof(int));
-	if (a->array == NULL)
-		error(SYSTEM, "out of memory in initArrayi");
+	IntArray *a = (IntArray *)malloc(sizeof(IntArray));
+	int *array = (int *)malloc(initialSize * sizeof(int));
+	if (!a || !array)
+		eprintf(SYSTEM, "out of memory in initArrayi, need %" PRIu64 " bytes", sizeof(IntArray) + initialSize * sizeof(int));
+	a->array = array;
 	a->count = 0;
 	a->size = initialSize;
+	return a;
 }
 
 int insertArrayi(IntArray *a, const int element)
@@ -411,7 +414,7 @@ int insertArrayi(IntArray *a, const int element)
 		a->size *= 2;
 		a->array = (int *)realloc(a->array, a->size * sizeof(int));
 		if (a->array == NULL)
-			error(SYSTEM, "out of memory in insertArrayi");
+			eprintf(SYSTEM, "out of memory in insertArrayi, need %" PRIu64 " bytes", a->size * sizeof(int));
 	}
 	return a->array[a->count++] = element;
 }
@@ -422,7 +425,7 @@ int insertArray2i(IntArray *a, const int x, const int y)
 		a->size *= 2;
 		a->array = (int *)realloc(a->array, a->size * sizeof(int));
 		if (a->array == NULL)
-			error(SYSTEM, "out of memory in insertArray2i");
+			eprintf(SYSTEM, "out of memory in insertArray2i, need %" PRIu64 " bytes", a->size * sizeof(int));
 	}
 	a->array[a->count++] = x;
 	return a->array[a->count++] = y;
@@ -434,7 +437,7 @@ int insertArray3i(IntArray *a, const int x, const int y, const int z)
 		a->size *= 2;
 		a->array = (int *)realloc(a->array, a->size * sizeof(int));
 		if (a->array == NULL)
-			error(SYSTEM, "out of memory in insertArray3i");
+			eprintf(SYSTEM, "out of memory in insertArray3i, need %" PRIu64 " bytes", a->size * sizeof(int));
 	}
 	a->array[a->count++] = x;
 	a->array[a->count++] = y;
@@ -444,17 +447,19 @@ int insertArray3i(IntArray *a, const int x, const int y, const int z)
 void freeArrayi(IntArray *a)
 {
 	free(a->array);
-	a->array = NULL;
-	a->count = a->size = 0;
+	free(a);
 }
 
-void initArrayf(FloatArray *a, const size_t initialSize)
+FloatArray* initArrayf(const size_t initialSize)
 {
-	a->array = (float *)malloc(initialSize * sizeof(float));
-	if (a->array == NULL)
-		error(SYSTEM, "out of memory in initArrayi");
+	FloatArray *a = (FloatArray *)malloc(sizeof(FloatArray));
+	float *array = (float *)malloc(initialSize * sizeof(float));
+	if (!a || !array)
+		eprintf(SYSTEM, "out of memory in initArrayf, need %" PRIu64 " bytes", sizeof(FloatArray) + initialSize * sizeof(float));
+	a->array = array;
 	a->count = 0;
 	a->size = initialSize;
+	return a;
 }
 
 float insertArrayf(FloatArray *a, const float element)
@@ -463,7 +468,7 @@ float insertArrayf(FloatArray *a, const float element)
 		a->size *= 2;
 		a->array = (float *)realloc(a->array, a->size * sizeof(float));
 		if (a->array == NULL)
-			error(SYSTEM, "out of memory in insertArrayf");
+			eprintf(SYSTEM, "out of memory in insertArrayf, need %" PRIu64 " bytes", a->size * sizeof(float));
 	}
 	return a->array[a->count++] = element;
 }
@@ -474,7 +479,7 @@ float insertArray2f(FloatArray *a, const float x, const float y)
 		a->size *= 2;
 		a->array = (float *)realloc(a->array, a->size * sizeof(float));
 		if (a->array == NULL)
-			error(SYSTEM, "out of memory in insertArray2f");
+			eprintf(SYSTEM, "out of memory in insertArray2f, need %" PRIu64 " bytes", a->size * sizeof(float));
 	}
 	a->array[a->count++] = x;
 	return a->array[a->count++] = y;
@@ -486,7 +491,7 @@ float insertArray3f(FloatArray *a, const float x, const float y, const float z)
 		a->size *= 2;
 		a->array = (float *)realloc(a->array, a->size * sizeof(float));
 		if (a->array == NULL)
-			error(SYSTEM, "out of memory in insertArray3f");
+			eprintf(SYSTEM, "out of memory in insertArray3f, need %" PRIu64 " bytes", a->size * sizeof(float));
 	}
 	a->array[a->count++] = x;
 	a->array[a->count++] = y;
@@ -496,44 +501,48 @@ float insertArray3f(FloatArray *a, const float x, const float y, const float z)
 void freeArrayf(FloatArray *a)
 {
 	free(a->array);
-	a->array = NULL;
-	a->count = a->size = 0;
+	free(a);
 }
 
-void initArraym(MaterialArray *a, const size_t initialSize)
+PoniterArray* initArrayp(const size_t initialSize)
 {
-	a->array = (RTmaterial *)malloc(initialSize * sizeof(RTmaterial));
-	if (a->array == NULL)
-		error(SYSTEM, "out of memory in initArraym");
+	PoniterArray *a = (PoniterArray *)malloc(sizeof(PoniterArray));
+	void **array = (void**)malloc(initialSize * sizeof(void*));
+	if (!a || !array)
+		eprintf(SYSTEM, "out of memory in initArrayp, need %" PRIu64 " bytes", sizeof(PoniterArray) + initialSize * sizeof(void*));
+	a->array = array;
 	a->count = 0;
 	a->size = initialSize;
+	return a;
 }
 
-RTmaterial insertArraym(MaterialArray *a, const RTmaterial element)
+void* insertArrayp(PoniterArray *a, void *element)
 {
 	if (a->count == a->size) {
 		a->size *= 2;
-		a->array = (RTmaterial *)realloc(a->array, a->size * sizeof(RTmaterial));
+		a->array = (void**)realloc(a->array, a->size * sizeof(void*));
 		if (a->array == NULL)
-			error(SYSTEM, "out of memory in insertArraym");
+			eprintf(SYSTEM, "out of memory in insertArrayp, need %" PRIu64 " bytes", a->size * sizeof(void*));
 	}
 	return a->array[a->count++] = element;
 }
 
-void freeArraym(MaterialArray *a)
+void freeArrayp(PoniterArray *a)
 {
 	free(a->array);
-	a->array = NULL;
-	a->count = a->size = 0;
+	free(a);
 }
 
-void initArraydl(DistantLightArray *a, const size_t initialSize)
+DistantLightArray* initArraydl(const size_t initialSize)
 {
-	a->array = (DistantLight *)malloc(initialSize * sizeof(DistantLight));
-	if (a->array == NULL)
-		error(SYSTEM, "out of memory in initArraydl");
+	DistantLightArray *a = (DistantLightArray *)malloc(sizeof(DistantLightArray));
+	DistantLight *array = (DistantLight *)malloc(initialSize * sizeof(DistantLight));
+	if (!a || !array)
+		eprintf(SYSTEM, "out of memory in initArraydl, need %" PRIu64 " bytes", sizeof(DistantLightArray) + initialSize * sizeof(DistantLight));
+	a->array = array;
 	a->count = 0;
 	a->size = initialSize;
+	return a;
 }
 
 DistantLight insertArraydl(DistantLightArray *a, const DistantLight element)
@@ -542,7 +551,7 @@ DistantLight insertArraydl(DistantLightArray *a, const DistantLight element)
 		a->size *= 2;
 		a->array = (DistantLight *)realloc(a->array, a->size * sizeof(DistantLight));
 		if (a->array == NULL)
-			error(SYSTEM, "out of memory in insertArraydl");
+			eprintf(SYSTEM, "out of memory in insertArraydl, need %" PRIu64 " bytes", a->size * sizeof(DistantLight));
 	}
 	return a->array[a->count++] = element;
 }
@@ -550,8 +559,7 @@ DistantLight insertArraydl(DistantLightArray *a, const DistantLight element)
 void freeArraydl(DistantLightArray *a)
 {
 	free(a->array);
-	a->array = NULL;
-	a->count = a->size = 0;
+	free(a);
 }
 
 void handleError( const RTcontext context, const RTresult code, const char* file, const int line, const int etype )
@@ -562,7 +570,7 @@ void handleError( const RTcontext context, const RTresult code, const char* file
 }
 
 #ifdef DEBUG_OPTIX
-static IntArray *error_log; // Keep track of error types and occurance frequencies as ordered pairs
+static IntArray *error_log = NULL; // Keep track of error types and occurance frequencies as ordered pairs
 
 void logException(const RTexception type)
 {
@@ -570,12 +578,8 @@ void logException(const RTexception type)
 
 	if (!type) return; /* Not an error */
 
-	if (!error_log) {
-		error_log = (IntArray *)malloc(sizeof(IntArray));
-		if (!error_log)
-			error(SYSTEM, "out of memory in logException");
-		initArrayi(error_log, (RT_EXCEPTION_USER - RT_EXCEPTION_PROGRAM_ID_INVALID) * 2);
-	}
+	if (!error_log)
+		error_log = initArrayi((RT_EXCEPTION_USER - RT_EXCEPTION_PROGRAM_ID_INVALID) * 2);
 
 	for (i = 0u; i < error_log->count; i += 2u)
 		if (type == error_log->array[i]) {
@@ -596,7 +600,6 @@ void flushExceptionLog(const char* location)
 		printException((RTexception)error_log->array[i], error_log->array[i + 1], location);
 
 	freeArrayi(error_log);
-	free(error_log);
 	error_log = NULL;
 }
 

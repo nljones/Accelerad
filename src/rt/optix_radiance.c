@@ -53,7 +53,7 @@ typedef struct {
 	FloatArray* tex_coords;			/* Two entries per vertex */
 	IntArray*   vertex_indices;		/* Three entries per triangle */
 	IntArray*   traingles;			/* One entry per triangle gives material of that triangle */
-	MaterialArray* materials;		/* One entry per material */
+	PoniterArray* materials;		/* One entry per material */
 	IntArray*   alt_materials;		/* Two entries per material gives alternate materials to use in place of that material */
 #ifdef LIGHTS
 	IntArray*   lights;				/* Three entries per triangle that is a light */
@@ -176,7 +176,7 @@ static void checkDevices()
 	cudaDriverGetVersion(&driver);
 	cudaRuntimeGetVersion(&runtime);
 	if (driver < runtime)
-		eprintf(SYSTEM, "Current graphics driver %d.%d.%d does not support runtime %d.%d.%d. Update your graphics driver.",
+		eprintf(INTERNAL, "Current graphics driver %d.%d.%d does not support runtime %d.%d.%d. Update your graphics driver.",
 			driver / 1000, (driver % 100) / 10, driver % 10, runtime / 1000, (runtime % 100) / 10, runtime % 10);
 
 	RT_CHECK_WARN_NO_CONTEXT(rtGetVersion(&version));
@@ -253,7 +253,7 @@ static void createRemoteDevice(RTremotedevice* remote)
 	RT_CHECK_ERROR_NO_CONTEXT(rtRemoteDeviceCreate(optix_remote_url, optix_remote_user, optix_remote_password, remote));
 	RT_CHECK_ERROR_NO_CONTEXT(rtRemoteDeviceGetAttribute(*remote, RT_REMOTEDEVICE_ATTRIBUTE_NUM_CONFIGURATIONS, sizeof(int), &configs));
 	if (configs < 1)
-		error(SYSTEM, "No compatible VCA configurations");
+		error(INTERNAL, "No compatible VCA configurations");
 	if (optix_remote_config >= configs || optix_remote_config < 0)
 		error(USER, "Invalid VCA configuration");
 	RT_CHECK_ERROR_NO_CONTEXT(rtRemoteDeviceReserve(*remote, optix_remote_nodes, optix_remote_config));
@@ -574,47 +574,22 @@ static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RT
 	clock_t geometry_clock = clock();
 
 	scene.buffer_entry_index = (int *)malloc(sizeof(int) * nobjects);
-	if (scene.buffer_entry_index == NULL) goto memerr;
+	if (!scene.buffer_entry_index) eprintf(SYSTEM, "out of memory in createGeometryInstance, need %" PRIu64 " bytes", sizeof(int) * nobjects);
 
 	/* Create buffers for storing geometry information. */
-	scene.vertices = (FloatArray *)malloc(sizeof(FloatArray));
-	if (scene.vertices == NULL) goto memerr;
-	initArrayf(scene.vertices, EXPECTED_VERTICES * 3);
-
-	scene.normals = (FloatArray *)malloc(sizeof(FloatArray));
-	if (scene.normals == NULL) goto memerr;
-	initArrayf(scene.normals, EXPECTED_VERTICES * 3);
-
-	scene.tex_coords = (FloatArray *)malloc(sizeof(FloatArray));
-	if (scene.tex_coords == NULL) goto memerr;
-	initArrayf(scene.tex_coords, EXPECTED_VERTICES * 2);
-
-	scene.vertex_indices = (IntArray *)malloc(sizeof(IntArray));
-	if (scene.vertex_indices == NULL) goto memerr;
-	initArrayi(scene.vertex_indices, EXPECTED_TRIANGLES * 3);
-
-	scene.traingles = (IntArray *)malloc(sizeof(IntArray));
-	if (scene.traingles == NULL) goto memerr;
-	initArrayi(scene.traingles, EXPECTED_TRIANGLES);
-
-	scene.materials = (MaterialArray *)malloc(sizeof(MaterialArray));
-	if (scene.materials == NULL) goto memerr;
-	initArraym(scene.materials, EXPECTED_MATERIALS);
-
-	scene.alt_materials = (IntArray *)malloc(sizeof(IntArray));
-	if (scene.alt_materials == NULL) goto memerr;
-	initArrayi(scene.alt_materials, EXPECTED_MATERIALS * 2);
+	scene.vertices = initArrayf(EXPECTED_VERTICES * 3);
+	scene.normals = initArrayf(EXPECTED_VERTICES * 3);
+	scene.tex_coords = initArrayf(EXPECTED_VERTICES * 2);
+	scene.vertex_indices = initArrayi(EXPECTED_TRIANGLES * 3);
+	scene.traingles = initArrayi(EXPECTED_TRIANGLES);
+	scene.materials = initArrayp(EXPECTED_MATERIALS);
+	scene.alt_materials = initArrayi(EXPECTED_MATERIALS * 2);
 
 	/* Create buffers for storing lighting information. */
 #ifdef LIGHTS
-	scene.lights = (IntArray *)malloc(sizeof(IntArray));
-	if (scene.lights == NULL) goto memerr;
-	initArrayi(scene.lights, EXPECTED_LIGHTS * 3);
+	scene.lights = initArrayi(EXPECTED_LIGHTS * 3);
 #endif
-
-	scene.sources = (DistantLightArray *)malloc(sizeof(DistantLightArray));
-	if (scene.sources == NULL) goto memerr;
-	initArraydl(scene.sources, EXPECTED_SOURCES);
+	scene.sources = initArraydl(EXPECTED_SOURCES);
 
 	scene.vertex_index_0 = 0u;
 #ifdef CONTRIB
@@ -625,7 +600,7 @@ static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RT
 	/* Material 0 is Lambertian. */
 	if ( do_irrad ) {
 		insertArray2i(scene.alt_materials, (int)scene.materials->count, (int)scene.materials->count);
-		insertArraym(scene.materials, createNormalMaterial(context, &Lamb, NULL)); // TODO Don't make more than once
+		insertArrayp(scene.materials, createNormalMaterial(context, &Lamb, NULL)); // TODO Don't make more than once
 	}
 
 	/* Get the scene geometry as a list of triangles. */
@@ -665,7 +640,7 @@ static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RT
 	if (!scene.materials->count) {
 		RTmaterial null_material;
 		RT_CHECK_ERROR(rtMaterialCreate(context, &null_material));
-		insertArraym(scene.materials, null_material);
+		insertArrayp(scene.materials, null_material);
 		use_ambient = calc_ambient = 0u;
 	}
 
@@ -679,9 +654,8 @@ static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RT
 	/* Apply materials to the geometry instance. */
 	vprintf("Processed %" PRIu64 " materials.\n", materials->count);
 	for (i = 0u; i < scene.materials->count; i++)
-		RT_CHECK_ERROR(rtGeometryInstanceSetMaterial(*instance, i, scene.materials->array[i]));
-	freeArraym(scene.materials);
-	free(scene.materials);
+		RT_CHECK_ERROR(rtGeometryInstanceSetMaterial(*instance, i, (RTmaterial)scene.materials->array[i]));
+	freeArrayp(scene.materials);
 
 	/* Apply the geometry buffers. */
 	vprintf("Processed %" PRIu64 " vertices.\n", vertices->count / 3);
@@ -694,7 +668,6 @@ static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RT
 		RT_CHECK_ERROR(rtBufferSetSize1D(vertex_buffer, scene.vertices->count / 3));
 	copyToBufferf(context, vertex_buffer, scene.vertices);
 	freeArrayf(scene.vertices);
-	free(scene.vertices);
 
 	if (!normal_buffer) {
 		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, scene.normals->count / 3, &normal_buffer);
@@ -704,7 +677,6 @@ static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RT
 		RT_CHECK_ERROR(rtBufferSetSize1D(normal_buffer, scene.normals->count / 3));
 	copyToBufferf(context, normal_buffer, scene.normals);
 	freeArrayf(scene.normals);
-	free(scene.normals);
 
 	if (!texcoord_buffer) {
 		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT2, scene.tex_coords->count / 2, &texcoord_buffer);
@@ -714,7 +686,6 @@ static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RT
 		RT_CHECK_ERROR(rtBufferSetSize1D(texcoord_buffer, scene.tex_coords->count / 2));
 	copyToBufferf(context, texcoord_buffer, scene.tex_coords);
 	freeArrayf(scene.tex_coords);
-	free(scene.tex_coords);
 
 	if (!vindex_buffer) {
 		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_UNSIGNED_INT3, scene.vertex_indices->count / 3, &vindex_buffer);
@@ -724,7 +695,6 @@ static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RT
 		RT_CHECK_ERROR(rtBufferSetSize1D(vindex_buffer, scene.vertex_indices->count / 3));
 	copyToBufferi(context, vindex_buffer, scene.vertex_indices);
 	freeArrayi(scene.vertex_indices);
-	free(scene.vertex_indices);
 
 	vprintf("Processed %" PRIu64 " triangles.\n", traingles->count);
 	if (!material_buffer) {
@@ -735,7 +705,6 @@ static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RT
 		RT_CHECK_ERROR(rtBufferSetSize1D(material_buffer, scene.traingles->count));
 	copyToBufferi(context, material_buffer, scene.traingles);
 	freeArrayi(scene.traingles);
-	free(scene.traingles);
 
 	if (!material_alt_buffer) {
 		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_INT2, scene.alt_materials->count / 2, &material_alt_buffer);
@@ -745,7 +714,6 @@ static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RT
 		RT_CHECK_ERROR(rtBufferSetSize1D(material_alt_buffer, scene.alt_materials->count / 2));
 	copyToBufferi(context, material_alt_buffer, scene.alt_materials);
 	freeArrayi(scene.alt_materials);
-	free(scene.alt_materials);
 
 	/* Apply the lighting buffers. */
 #ifdef LIGHTS
@@ -758,7 +726,6 @@ static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RT
 		RT_CHECK_ERROR(rtBufferSetSize1D(lindex_buffer, scene.lights->count));
 	copyToBufferi(context, lindex_buffer, scene.lights);
 	freeArrayi(scene.lights);
-	free(scene.lights);
 #endif
 
 	if (scene.sources->count) vprintf("Processed %" PRIu64 " sources.\n", sources->count);
@@ -770,13 +737,9 @@ static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RT
 		RT_CHECK_ERROR(rtBufferSetSize1D(lights_buffer, scene.sources->count));
 	copyToBufferdl(context, lights_buffer, scene.sources);
 	freeArraydl(scene.sources);
-	free(scene.sources);
 
 	geometry_clock = clock() - geometry_clock;
 	mprintf("Geometry build time: %" PRIu64 " milliseconds for %i objects.\n", MILLISECONDS(geometry_clock), nobjects);
-	return;
-memerr:
-	error(SYSTEM, "out of memory in createGeometryInstance");
 }
 
 static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, Scene* scene)
@@ -791,12 +754,12 @@ static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, Scene* sce
 	case MAT_METAL: // Metal material
 	case MAT_TRANS: // Translucent material
 		scene->buffer_entry_index[index] = insertArray2i(scene->alt_materials, 0, (int)scene->materials->count);
-		insertArraym(scene->materials, createNormalMaterial(context, rec, scene));
+		insertArrayp(scene->materials, createNormalMaterial(context, rec, scene));
 		break;
 	case MAT_GLASS: // Glass material
 	case MAT_DIELECTRIC: // Dielectric material TODO handle separately, see dialectric.c
 		scene->buffer_entry_index[index] = insertArray2i(scene->alt_materials, -1, (int)scene->materials->count);
-		insertArraym(scene->materials, createGlassMaterial(context, rec, scene));
+		insertArrayp(scene->materials, createGlassMaterial(context, rec, scene));
 		break;
 	case MAT_LIGHT: // primary light source material, may modify a face or a source (solid angle)
 	case MAT_ILLUM: // secondary light source material
@@ -811,18 +774,18 @@ static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, Scene* sce
 			alternate = scene->buffer_entry_index[lastmod(objndx(rec), rec->oargs.sarg[0])];
 		}
 		insertArray2i(scene->alt_materials, (int)scene->materials->count, alternate);
-		insertArraym(scene->materials, createLightMaterial(context, rec, scene));
+		insertArrayp(scene->materials, createLightMaterial(context, rec, scene));
 		break;
 #ifdef BSDF
 	case MAT_BSDF: // BSDF
 		scene->buffer_entry_index[index] = insertArray2i(scene->alt_materials, 0, (int)scene->materials->count);
-		insertArraym(scene->materials, createBSDFMaterial(context, rec, scene));
+		insertArrayp(scene->materials, createBSDFMaterial(context, rec, scene));
 		break;
 #endif
 #ifdef ANTIMATTER
 	case MAT_CLIP: // Antimatter
 		scene->buffer_entry_index[index] = insertArray2i(scene->alt_materials, (int)scene->materials->count, (int)scene->materials->count);
-		insertArraym(scene->materials, createClipMaterial(context, rec, scene));
+		insertArrayp(scene->materials, createClipMaterial(context, rec, scene));
 		break;
 #endif
 	case OBJ_FACE: // Typical polygons
@@ -1069,11 +1032,8 @@ static void createSphere(const RTcontext context, OBJREC* rec, Scene* scene)
 	}
 
 	// Create octahedron
-	IntArray *sph_vertex_indices = (IntArray *)malloc(sizeof(IntArray));
-	FloatArray *sph_vertices = (FloatArray *)malloc(sizeof(FloatArray));
-	if (sph_vertex_indices == NULL || sph_vertices == NULL) goto sphmemerr;
-	initArrayi(sph_vertex_indices, 24u);
-	initArrayf(sph_vertices, 18u);
+	IntArray *sph_vertex_indices = initArrayi(24u);
+	FloatArray *sph_vertices = initArrayf(18u);
 
 	insertArray3i(sph_vertex_indices, 0, 2, 4);
 	insertArray3i(sph_vertex_indices, 2, 1, 4);
@@ -1102,9 +1062,7 @@ static void createSphere(const RTcontext context, OBJREC* rec, Scene* scene)
 
 	// Subdivide triangles
 	for (i = 0u; i < steps; i++) {
-		IntArray *new_vertex_indices = (IntArray *)malloc(sizeof(IntArray));
-		if (new_vertex_indices == NULL) goto sphmemerr;
-		initArrayi(new_vertex_indices, sph_vertex_indices->count * 4);
+		IntArray *new_vertex_indices = initArrayi(sph_vertex_indices->count * 4);
 
 		for (j = 0u; j < sph_vertex_indices->count; j += 3) {
 			VADD(x, &sph_vertices->array[sph_vertex_indices->array[j] * 3], &sph_vertices->array[sph_vertex_indices->array[j + 1] * 3]);
@@ -1125,8 +1083,6 @@ static void createSphere(const RTcontext context, OBJREC* rec, Scene* scene)
 		}
 
 		freeArrayi(sph_vertex_indices);
-		free(sph_vertex_indices);
-
 		sph_vertex_indices = new_vertex_indices;
 	}
 
@@ -1155,13 +1111,7 @@ static void createSphere(const RTcontext context, OBJREC* rec, Scene* scene)
 
 	// Free memory
 	freeArrayi(sph_vertex_indices);
-	free(sph_vertex_indices);
 	freeArrayf(sph_vertices);
-	free(sph_vertices);
-
-	return;
-sphmemerr:
-	error(SYSTEM, "out of memory in createSphere");
 }
 
 static void createCone(const RTcontext context, OBJREC* rec, Scene* scene)
@@ -2047,7 +1997,7 @@ static int createGenCumulativeSky(const RTcontext context, char* filename, RTpro
 	}
 
 	line = (char*)malloc((length + 1) * sizeof(char));
-	if (!line) error(SYSTEM, "out of memory in createGenCumulativeSky");
+	if (!line) eprintf(SYSTEM, "out of memory in createGenCumulativeSky, need %" PRIu64 " bytes", (length + 1) * sizeof(char));
 
 	if (fgets(line, (int)length + 1, fp) && !strncmp(header, line, length)) { // It's a GenCumulativeSky file
 		RTtexturesampler tex_sampler;
@@ -2257,7 +2207,7 @@ static void applyContribution(const RTcontext context, const RTmaterial material
 			else if (light) {
 				/* Check for a existing program. */
 				int mat_index = scene->buffer_entry_index[objndx(rec)];
-				RTmaterial mat = (mat_index == BLANK) ? NULL : scene->materials->array[mat_index];
+				RTmaterial mat = (mat_index == BLANK) ? NULL : (RTmaterial)scene->materials->array[mat_index];
 				light->contrib_index = mp->start_bin;
 				if (mat) { /* In case this material has also already been used for a surface, we can reuse the function here */
 					RTvariable var;

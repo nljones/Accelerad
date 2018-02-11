@@ -314,7 +314,7 @@ static double calcRAMMG(const Metrics *metrics, const int width, const int heigh
 
 	/* Populate initial values */
 	values = (metric *)malloc(sizeof(metric) * width * height);
-	if (values == NULL) error(SYSTEM, "out of memory in calcRAMMG");
+	if (!values) eprintf(SYSTEM, "out of memory in calcRAMMG, need %" PRIu64 " bytes", sizeof(metric) * width * height);
 	y = width * height;
 	if (do_irrad)
 		for (x = 0; x < y; x++)
