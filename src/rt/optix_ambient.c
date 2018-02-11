@@ -16,9 +16,6 @@
 #define CLUSTER_GRID_WIDTH	1u
 #define length_squared(v)	(((v).x*(v).x)+((v).y*(v).y)+((v).z*(v).z))
 #define is_nan(v)			(((v).x!=(v).x)||((v).y!=(v).y)||((v).z!=(v).z))
-#ifndef min
-#define min(a,b)			(((a) < (b)) ? (a) : (b))
-#endif
 
 static void updateAmbientCache( const RTcontext context, const unsigned int level );
 static void createPointCloudCamera(const RTcontext context, const VIEW* view);

@@ -45,28 +45,49 @@
 
 #ifdef ACCELERAD
 
+/* Handles to buffer data */
+typedef struct {
+	int*        buffer_entry_index;	/* This array gives the OptiX buffer index of each rad file object, or -1 if the object is not in a buffer. The OptiX buffer refered to depends on the type of object. */
+	FloatArray* vertices;			/* Three entries per vertex */
+	FloatArray* normals;			/* Three entries per vertex */
+	FloatArray* tex_coords;			/* Two entries per vertex */
+	IntArray*   vertex_indices;		/* Three entries per triangle */
+	IntArray*   traingles;			/* One entry per triangle gives material of that triangle */
+	MaterialArray* materials;		/* One entry per material */
+	IntArray*   alt_materials;		/* Two entries per material gives alternate materials to use in place of that material */
+#ifdef LIGHTS
+	IntArray*   lights;				/* Three entries per triangle that is a light */
+#endif
+	DistantLightArray* sources;		/* One entry per source object */
+	unsigned int vertex_index_0;	/* Index of first vertex of current object */
+#ifdef CONTRIB
+	LUTAB* modifiers;				/* Modifiers for contribution calculations */
+#endif
+	OBJREC *material;				/* Current material */
+} Scene;
+
 static void checkDevices();
 static void checkRemoteDevice(RTremotedevice remote);
 static void createRemoteDevice(RTremotedevice* remote);
 static void applyRadianceSettings(const RTcontext context, const VIEW* view, const unsigned int imm_irrad);
 static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RTgeometry* mesh, RTgeometryinstance* instance);
-static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, LUTAB* modifiers);
-static void createFace(const RTcontext context, OBJREC* rec, LUTAB* modifiers);
-static __inline void createTriangle(OBJREC *material, const int a, const int b, const int c);
+static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, Scene* scene);
+static void createFace(const RTcontext context, OBJREC* rec, Scene* scene);
+static __inline void createTriangle(Scene* scene, const int a, const int b, const int c);
 #ifdef TRIANGULATE
-static int createTriangles(const FACE *face, OBJREC* material);
+static int createTriangles(const FACE *face, Scene* scene);
 static int addTriangle(const Vert2_list *tp, int a, int b, int c);
 #endif /* TRIANGULATE */
-static void createSphere(const RTcontext context, OBJREC* rec, LUTAB* modifiers);
-static void createCone(const RTcontext context, OBJREC* rec, LUTAB* modifiers);
-static void createMesh(const RTcontext context, OBJREC* rec, LUTAB* modifiers);
-static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec, LUTAB* modifiers);
-static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec, LUTAB* modifiers);
-static RTmaterial createLightMaterial(const RTcontext context, OBJREC* rec, LUTAB* modifiers);
+static void createSphere(const RTcontext context, OBJREC* rec, Scene* scene);
+static void createCone(const RTcontext context, OBJREC* rec, Scene* scene);
+static void createMesh(const RTcontext context, OBJREC* rec, Scene* scene);
+static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec, Scene* scene);
+static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec, Scene* scene);
+static RTmaterial createLightMaterial(const RTcontext context, OBJREC* rec, Scene* scene);
 #ifdef ANTIMATTER
-static RTmaterial createClipMaterial(const RTcontext context, OBJREC* rec);
+static RTmaterial createClipMaterial(const RTcontext context, OBJREC* rec, Scene* scene);
 #endif
-static void createDistantLight(const RTcontext context, OBJREC* rec, LUTAB* modifiers);
+static void createDistantLight(const RTcontext context, OBJREC* rec, Scene* scene);
 static OBJREC* findFunction(OBJREC *o);
 static int createFunction(const RTcontext context, OBJREC* rec);
 static int createTexture(const RTcontext context, OBJREC* rec);
@@ -75,7 +96,7 @@ static int createGenCumulativeSky(const RTcontext context, char* filename, RTpro
 #ifdef CONTRIB
 static char* findSymbol(EPNODE *ep);
 static int createContribFunction(const RTcontext context, MODCONT *mp);
-static void applyContribution(const RTcontext context, const RTmaterial material, DistantLight* light, OBJREC* rec, LUTAB* modifiers);
+static void applyContribution(const RTcontext context, const RTmaterial material, DistantLight* light, OBJREC* rec, Scene* scene);
 #endif
 static void createAcceleration(const RTcontext context, const RTgeometryinstance instance, const unsigned int imm_irrad, RTacceleration* acceleration);
 static void createIrradianceGeometry( const RTcontext context );
@@ -115,23 +136,6 @@ static RTgeometryinstance instance_handle = NULL;
 static RTgeometry mesh_handle = NULL;
 static RTbuffer vertex_buffer = NULL, normal_buffer = NULL, texcoord_buffer = NULL, vindex_buffer = NULL, material_buffer = NULL, material_alt_buffer = NULL, lindex_buffer = NULL, lights_buffer = NULL;
 static RTacceleration acceleration_handle = NULL;
-
-/* Handles to buffer data */
-static int*       buffer_entry_index;
-static FloatArray* vertices;		/* Three entries per vertex */
-static FloatArray* normals;			/* Three entries per vertex */
-static FloatArray* tex_coords;		/* Two entries per vertex */
-static IntArray*   vertex_indices;	/* Three entries per triangle */
-static IntArray*   traingles;		/* One entry per triangle gives material of that triangle */
-static MaterialArray* materials;	/* One entry per material */
-static IntArray*   alt_materials;	/* Two entries per material gives alternate materials to use in place of that material */
-#ifdef LIGHTS
-static IntArray*   lights;			/* Three entries per triangle that is a light */
-#endif
-static DistantLightArray* sources;	/* One entry per source object */
-
-/* Index of first vertex of current object */
-static unsigned int vertex_index_0;
 
 /* Handles to intersection program objects used by multiple materials */
 static RTprogram radiance_normal_closest_hit_program, shadow_normal_closest_hit_program, ambient_normal_closest_hit_program, point_cloud_normal_closest_hit_program;
@@ -564,83 +568,83 @@ static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RT
 	unsigned int i;
 	OBJECT on;
 	OBJREC *rec;
+	Scene scene;
 
 	/* Timers */
-	clock_t geometry_clock;
+	clock_t geometry_clock = clock();
 
-	/* This array gives the OptiX buffer index of each rad file object.
-	 * The OptiX buffer refered to depends on the type of object.
-	 * If the object does not have an index in an OptiX buffer, -1 is given. */
-	buffer_entry_index = (int *)malloc(sizeof(int) * nobjects);
-	if (buffer_entry_index == NULL) goto memerr;
-
-	geometry_clock = clock();
+	scene.buffer_entry_index = (int *)malloc(sizeof(int) * nobjects);
+	if (scene.buffer_entry_index == NULL) goto memerr;
 
 	/* Create buffers for storing geometry information. */
-	vertices = (FloatArray *)malloc(sizeof(FloatArray));
-	if (vertices == NULL) goto memerr;
-	initArrayf(vertices, EXPECTED_VERTICES * 3);
+	scene.vertices = (FloatArray *)malloc(sizeof(FloatArray));
+	if (scene.vertices == NULL) goto memerr;
+	initArrayf(scene.vertices, EXPECTED_VERTICES * 3);
 
-	normals = (FloatArray *)malloc(sizeof(FloatArray));
-	if (normals == NULL) goto memerr;
-	initArrayf(normals, EXPECTED_VERTICES * 3);
+	scene.normals = (FloatArray *)malloc(sizeof(FloatArray));
+	if (scene.normals == NULL) goto memerr;
+	initArrayf(scene.normals, EXPECTED_VERTICES * 3);
 
-	tex_coords = (FloatArray *)malloc(sizeof(FloatArray));
-	if (tex_coords == NULL) goto memerr;
-	initArrayf(tex_coords, EXPECTED_VERTICES * 2);
+	scene.tex_coords = (FloatArray *)malloc(sizeof(FloatArray));
+	if (scene.tex_coords == NULL) goto memerr;
+	initArrayf(scene.tex_coords, EXPECTED_VERTICES * 2);
 
-	vertex_indices = (IntArray *)malloc(sizeof(IntArray));
-	if (vertex_indices == NULL) goto memerr;
-	initArrayi(vertex_indices, EXPECTED_TRIANGLES * 3);
+	scene.vertex_indices = (IntArray *)malloc(sizeof(IntArray));
+	if (scene.vertex_indices == NULL) goto memerr;
+	initArrayi(scene.vertex_indices, EXPECTED_TRIANGLES * 3);
 
-	traingles = (IntArray *)malloc(sizeof(IntArray));
-	if (traingles == NULL) goto memerr;
-	initArrayi(traingles, EXPECTED_TRIANGLES);
+	scene.traingles = (IntArray *)malloc(sizeof(IntArray));
+	if (scene.traingles == NULL) goto memerr;
+	initArrayi(scene.traingles, EXPECTED_TRIANGLES);
 
-	materials = (MaterialArray *)malloc(sizeof(MaterialArray));
-	if (materials == NULL) goto memerr;
-	initArraym(materials, EXPECTED_MATERIALS);
+	scene.materials = (MaterialArray *)malloc(sizeof(MaterialArray));
+	if (scene.materials == NULL) goto memerr;
+	initArraym(scene.materials, EXPECTED_MATERIALS);
 
-	alt_materials = (IntArray *)malloc(sizeof(IntArray));
-	if (alt_materials == NULL) goto memerr;
-	initArrayi(alt_materials, EXPECTED_MATERIALS * 2);
+	scene.alt_materials = (IntArray *)malloc(sizeof(IntArray));
+	if (scene.alt_materials == NULL) goto memerr;
+	initArrayi(scene.alt_materials, EXPECTED_MATERIALS * 2);
 
 	/* Create buffers for storing lighting information. */
 #ifdef LIGHTS
-	lights = (IntArray *)malloc(sizeof(IntArray));
-	if (lights == NULL) goto memerr;
-	initArrayi(lights, EXPECTED_LIGHTS * 3);
+	scene.lights = (IntArray *)malloc(sizeof(IntArray));
+	if (scene.lights == NULL) goto memerr;
+	initArrayi(scene.lights, EXPECTED_LIGHTS * 3);
 #endif
 
-	sources = (DistantLightArray *)malloc(sizeof(DistantLightArray));
-	if (sources == NULL) goto memerr;
-	initArraydl(sources, EXPECTED_SOURCES);
+	scene.sources = (DistantLightArray *)malloc(sizeof(DistantLightArray));
+	if (scene.sources == NULL) goto memerr;
+	initArraydl(scene.sources, EXPECTED_SOURCES);
 
-	vertex_index_0 = 0u;
+	scene.vertex_index_0 = 0u;
+#ifdef CONTRIB
+	scene.modifiers = modifiers;
+#endif
+	scene.material = NULL; // TODO Change this for modified instances
 
 	/* Material 0 is Lambertian. */
 	if ( do_irrad ) {
-		insertArray2i(alt_materials, (int)materials->count, (int)materials->count);
-		insertArraym(materials, createNormalMaterial(context, &Lamb, NULL));
+		insertArray2i(scene.alt_materials, (int)scene.materials->count, (int)scene.materials->count);
+		insertArraym(scene.materials, createNormalMaterial(context, &Lamb, NULL)); // TODO Don't make more than once
 	}
 
 	/* Get the scene geometry as a list of triangles. */
 	for (on = 0; on < nobjects; on++) {
 		/* By default, no buffer entry is refered to. */
-		buffer_entry_index[on] = BLANK;
+		scene.buffer_entry_index[on] = BLANK;
 
 		rec = objptr(on);
 		if (!ismodifier(rec->otype))
-			addRadianceObject(context, rec, modifiers);
+			addRadianceObject(context, rec, &scene);
 	}
 
-	free( buffer_entry_index );
+	free(scene.buffer_entry_index);
 
 	/* Check for overflow */
-	if (traingles->count > UINT_MAX)
-		eprintf(USER, "Number of triangles %" PRIu64 " is greater than maximum %u.", traingles->count, UINT_MAX);
-	if (materials->count > INT_MAX)
-		eprintf(USER, "Number of materials %" PRIu64 " is greater than maximum %u.", materials->count, INT_MAX);
+	if (scene.traingles->count > UINT_MAX)
+		eprintf(USER, "Number of triangles %" PRIu64 " is greater than maximum %u.", scene.traingles->count, UINT_MAX);
+	if (scene.materials->count > INT_MAX)
+		eprintf(USER, "Number of materials %" PRIu64 " is greater than maximum %u.", scene.materials->count, INT_MAX);
 
 	/* Create the geometry reference for OptiX. */
 	if (!*mesh) {
@@ -655,13 +659,13 @@ static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RT
 		RT_CHECK_ERROR(rtGeometrySetIntersectionProgram(*mesh, program));
 		backvis_var = applyProgramVariable1ui(context, program, "backvis", (unsigned int)backvis); // -bv
 	}
-	RT_CHECK_ERROR(rtGeometrySetPrimitiveCount(*mesh, (unsigned int)traingles->count));
+	RT_CHECK_ERROR(rtGeometrySetPrimitiveCount(*mesh, (unsigned int)scene.traingles->count));
 
 	/* Check that there is at least one material for context validation. */
-	if (!materials->count) {
+	if (!scene.materials->count) {
 		RTmaterial null_material;
 		RT_CHECK_ERROR(rtMaterialCreate(context, &null_material));
-		insertArraym(materials, null_material);
+		insertArraym(scene.materials, null_material);
 		use_ambient = calc_ambient = 0u;
 	}
 
@@ -670,103 +674,103 @@ static void createGeometryInstance(const RTcontext context, LUTAB* modifiers, RT
 		RT_CHECK_ERROR(rtGeometryInstanceCreate(context, instance));
 		RT_CHECK_ERROR(rtGeometryInstanceSetGeometry(*instance, *mesh));
 	}
-	RT_CHECK_ERROR(rtGeometryInstanceSetMaterialCount(*instance, (unsigned int)materials->count));
+	RT_CHECK_ERROR(rtGeometryInstanceSetMaterialCount(*instance, (unsigned int)scene.materials->count));
 
 	/* Apply materials to the geometry instance. */
 	vprintf("Processed %" PRIu64 " materials.\n", materials->count);
-	for (i = 0u; i < materials->count; i++)
-		RT_CHECK_ERROR(rtGeometryInstanceSetMaterial(*instance, i, materials->array[i]));
-	freeArraym(materials);
-	free(materials);
+	for (i = 0u; i < scene.materials->count; i++)
+		RT_CHECK_ERROR(rtGeometryInstanceSetMaterial(*instance, i, scene.materials->array[i]));
+	freeArraym(scene.materials);
+	free(scene.materials);
 
 	/* Apply the geometry buffers. */
 	vprintf("Processed %" PRIu64 " vertices.\n", vertices->count / 3);
 	if (!vertex_buffer) {
-		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, vertices->count / 3, &vertex_buffer);
+		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, scene.vertices->count / 3, &vertex_buffer);
 		//applyGeometryInstanceObject( context, *instance, "vertex_buffer", vertex_buffer );
 		applyContextObject(context, "vertex_buffer", vertex_buffer);
 	}
 	else
-		RT_CHECK_ERROR(rtBufferSetSize1D(vertex_buffer, vertices->count / 3));
-	copyToBufferf(context, vertex_buffer, vertices);
-	freeArrayf(vertices);
-	free(vertices);
+		RT_CHECK_ERROR(rtBufferSetSize1D(vertex_buffer, scene.vertices->count / 3));
+	copyToBufferf(context, vertex_buffer, scene.vertices);
+	freeArrayf(scene.vertices);
+	free(scene.vertices);
 
 	if (!normal_buffer) {
-		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, normals->count / 3, &normal_buffer);
+		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, scene.normals->count / 3, &normal_buffer);
 		applyGeometryInstanceObject(context, *instance, "normal_buffer", normal_buffer);
 	}
 	else
-		RT_CHECK_ERROR(rtBufferSetSize1D(normal_buffer, normals->count / 3));
-	copyToBufferf(context, normal_buffer, normals);
-	freeArrayf(normals);
-	free(normals);
+		RT_CHECK_ERROR(rtBufferSetSize1D(normal_buffer, scene.normals->count / 3));
+	copyToBufferf(context, normal_buffer, scene.normals);
+	freeArrayf(scene.normals);
+	free(scene.normals);
 
 	if (!texcoord_buffer) {
-		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT2, tex_coords->count / 2, &texcoord_buffer);
+		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT2, scene.tex_coords->count / 2, &texcoord_buffer);
 		applyGeometryInstanceObject(context, *instance, "texcoord_buffer", texcoord_buffer);
 	}
 	else
-		RT_CHECK_ERROR(rtBufferSetSize1D(texcoord_buffer, tex_coords->count / 2));
-	copyToBufferf(context, texcoord_buffer, tex_coords);
-	freeArrayf(tex_coords);
-	free(tex_coords);
+		RT_CHECK_ERROR(rtBufferSetSize1D(texcoord_buffer, scene.tex_coords->count / 2));
+	copyToBufferf(context, texcoord_buffer, scene.tex_coords);
+	freeArrayf(scene.tex_coords);
+	free(scene.tex_coords);
 
 	if (!vindex_buffer) {
-		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_UNSIGNED_INT3, vertex_indices->count / 3, &vindex_buffer);
+		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_UNSIGNED_INT3, scene.vertex_indices->count / 3, &vindex_buffer);
 		applyGeometryInstanceObject(context, *instance, "vindex_buffer", vindex_buffer);
 	}
 	else
-		RT_CHECK_ERROR(rtBufferSetSize1D(vindex_buffer, vertex_indices->count / 3));
-	copyToBufferi(context, vindex_buffer, vertex_indices);
-	freeArrayi(vertex_indices);
-	free(vertex_indices);
+		RT_CHECK_ERROR(rtBufferSetSize1D(vindex_buffer, scene.vertex_indices->count / 3));
+	copyToBufferi(context, vindex_buffer, scene.vertex_indices);
+	freeArrayi(scene.vertex_indices);
+	free(scene.vertex_indices);
 
 	vprintf("Processed %" PRIu64 " triangles.\n", traingles->count);
 	if (!material_buffer) {
-		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_INT, traingles->count, &material_buffer);
+		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_INT, scene.traingles->count, &material_buffer);
 		applyGeometryInstanceObject(context, *instance, "material_buffer", material_buffer);
 	}
 	else
-		RT_CHECK_ERROR(rtBufferSetSize1D(material_buffer, traingles->count));
-	copyToBufferi(context, material_buffer, traingles);
-	freeArrayi(traingles);
-	free(traingles);
+		RT_CHECK_ERROR(rtBufferSetSize1D(material_buffer, scene.traingles->count));
+	copyToBufferi(context, material_buffer, scene.traingles);
+	freeArrayi(scene.traingles);
+	free(scene.traingles);
 
 	if (!material_alt_buffer) {
-		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_INT2, alt_materials->count / 2, &material_alt_buffer);
+		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_INT2, scene.alt_materials->count / 2, &material_alt_buffer);
 		applyGeometryInstanceObject(context, *instance, "material_alt_buffer", material_alt_buffer);
 	}
 	else
-		RT_CHECK_ERROR(rtBufferSetSize1D(material_alt_buffer, alt_materials->count / 2));
-	copyToBufferi(context, material_alt_buffer, alt_materials);
-	freeArrayi(alt_materials);
-	free(alt_materials);
+		RT_CHECK_ERROR(rtBufferSetSize1D(material_alt_buffer, scene.alt_materials->count / 2));
+	copyToBufferi(context, material_alt_buffer, scene.alt_materials);
+	freeArrayi(scene.alt_materials);
+	free(scene.alt_materials);
 
 	/* Apply the lighting buffers. */
 #ifdef LIGHTS
-	if (lights->count) vprintf("Processed %" PRIu64 " lights.\n", lights->count / 3);
+	if (scene.lights->count) vprintf("Processed %" PRIu64 " lights.\n", lights->count / 3);
 	if (!lindex_buffer) {
-		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_UNSIGNED_INT3, lights->count / 3, &lindex_buffer);
+		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_UNSIGNED_INT3, scene.lights->count / 3, &lindex_buffer);
 		applyContextObject(context, "lindex_buffer", lindex_buffer);
 	}
 	else
-		RT_CHECK_ERROR(rtBufferSetSize1D(lindex_buffer, lights->count));
-	copyToBufferi(context, lindex_buffer, lights);
-	freeArrayi(lights);
-	free(lights);
+		RT_CHECK_ERROR(rtBufferSetSize1D(lindex_buffer, scene.lights->count));
+	copyToBufferi(context, lindex_buffer, scene.lights);
+	freeArrayi(scene.lights);
+	free(scene.lights);
 #endif
 
-	if (sources->count) vprintf("Processed %" PRIu64 " sources.\n", sources->count);
+	if (scene.sources->count) vprintf("Processed %" PRIu64 " sources.\n", sources->count);
 	if (!lights_buffer) {
-		createCustomBuffer1D(context, RT_BUFFER_INPUT, sizeof(DistantLight), sources->count, &lights_buffer);
+		createCustomBuffer1D(context, RT_BUFFER_INPUT, sizeof(DistantLight), scene.sources->count, &lights_buffer);
 		applyContextObject(context, "lights", lights_buffer);
 	}
 	else
-		RT_CHECK_ERROR(rtBufferSetSize1D(lights_buffer, sources->count));
-	copyToBufferdl(context, lights_buffer, sources);
-	freeArraydl(sources);
-	free(sources);
+		RT_CHECK_ERROR(rtBufferSetSize1D(lights_buffer, scene.sources->count));
+	copyToBufferdl(context, lights_buffer, scene.sources);
+	freeArraydl(scene.sources);
+	free(scene.sources);
 
 	geometry_clock = clock() - geometry_clock;
 	mprintf("Geometry build time: %" PRIu64 " milliseconds for %i objects.\n", MILLISECONDS(geometry_clock), nobjects);
@@ -775,82 +779,82 @@ memerr:
 	error(SYSTEM, "out of memory in createGeometryInstance");
 }
 
-static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
+static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, Scene* scene)
 {
 	const OBJECT index = objndx(rec);
 	int alternate = -1;
 
-	if (buffer_entry_index[index] != BLANK) return index; /* Already done */
+	if (scene->buffer_entry_index[index] != BLANK) return index; /* Already done */
 
 	switch (rec->otype) {
 	case MAT_PLASTIC: // Plastic material
 	case MAT_METAL: // Metal material
 	case MAT_TRANS: // Translucent material
-		buffer_entry_index[index] = insertArray2i(alt_materials, 0, (int)materials->count);
-		insertArraym(materials, createNormalMaterial(context, rec, modifiers));
+		scene->buffer_entry_index[index] = insertArray2i(scene->alt_materials, 0, (int)scene->materials->count);
+		insertArraym(scene->materials, createNormalMaterial(context, rec, scene));
 		break;
 	case MAT_GLASS: // Glass material
 	case MAT_DIELECTRIC: // Dielectric material TODO handle separately, see dialectric.c
-		buffer_entry_index[index] = insertArray2i(alt_materials, -1, (int)materials->count);
-		insertArraym(materials, createGlassMaterial(context, rec, modifiers));
+		scene->buffer_entry_index[index] = insertArray2i(scene->alt_materials, -1, (int)scene->materials->count);
+		insertArraym(scene->materials, createGlassMaterial(context, rec, scene));
 		break;
 	case MAT_LIGHT: // primary light source material, may modify a face or a source (solid angle)
 	case MAT_ILLUM: // secondary light source material
 	case MAT_GLOW: // Glow material
 	case MAT_SPOT: // Spotlight material
-		buffer_entry_index[index] = (int)materials->count;
+		scene->buffer_entry_index[index] = (int)scene->materials->count;
 		if (rec->otype != MAT_ILLUM)
-			alternate = (int)materials->count;
+			alternate = (int)scene->materials->count;
 		else if (rec->oargs.nsargs && strcmp(rec->oargs.sarg[0], VOIDID)) { /* modifies another material */
 			//material = objptr( lastmod( objndx(rec), rec->oargs.sarg[0] ) );
 			//alternate = buffer_entry_index[objndx(material)];
-			alternate = buffer_entry_index[lastmod(objndx(rec), rec->oargs.sarg[0])];
+			alternate = scene->buffer_entry_index[lastmod(objndx(rec), rec->oargs.sarg[0])];
 		}
-		insertArray2i(alt_materials, (int)materials->count, alternate);
-		insertArraym(materials, createLightMaterial(context, rec, modifiers));
+		insertArray2i(scene->alt_materials, (int)scene->materials->count, alternate);
+		insertArraym(scene->materials, createLightMaterial(context, rec, scene));
 		break;
 #ifdef BSDF
 	case MAT_BSDF: // BSDF
-		buffer_entry_index[index] = insertArray2i(alt_materials, 0, (int)materials->count);
-		insertArraym(materials, createBSDFMaterial(context, rec, modifiers));
+		scene->buffer_entry_index[index] = insertArray2i(scene->alt_materials, 0, (int)scene->materials->count);
+		insertArraym(scene->materials, createBSDFMaterial(context, rec, scene));
 		break;
 #endif
 #ifdef ANTIMATTER
 	case MAT_CLIP: // Antimatter
-		buffer_entry_index[index] = insertArray2i(alt_materials, (int)materials->count, (int)materials->count);
-		insertArraym(materials, createClipMaterial(context, rec));
+		scene->buffer_entry_index[index] = insertArray2i(scene->alt_materials, (int)scene->materials->count, (int)scene->materials->count);
+		insertArraym(scene->materials, createClipMaterial(context, rec, scene));
 		break;
 #endif
 	case OBJ_FACE: // Typical polygons
-		createFace(context, rec, modifiers);
+		createFace(context, rec, scene);
 		break;
 	case OBJ_SPHERE: // Sphere
 	case OBJ_BUBBLE: // Inverted sphere
-		createSphere(context, rec, modifiers);
+		createSphere(context, rec, scene);
 		break;
 	case OBJ_CONE: // Cone
 	case OBJ_CUP: // Inverted cone
 	case OBJ_CYLINDER: // Cylinder
 	case OBJ_TUBE: // Inverted cylinder
 	case OBJ_RING: // Disk
-		createCone(context, rec, modifiers);
+		createCone(context, rec, scene);
 		break;
 	case OBJ_MESH: // Mesh from file
-		createMesh(context, rec, modifiers);
+		createMesh(context, rec, scene);
 		break;
 	case OBJ_SOURCE:
-		createDistantLight(context, rec, modifiers);
+		createDistantLight(context, rec, scene);
 		break;
 	//case MAT_TFUNC: // bumpmap function
 	case PAT_BFUNC: // brightness function, used for sky brightness
 	case PAT_CFUNC: // color function, used for sky chromaticity
-		buffer_entry_index[index] = createFunction(context, rec);
+		scene->buffer_entry_index[index] = createFunction(context, rec);
 		break;
 	//case MAT_TDATA: // bumpmap
 	case PAT_BDATA: // brightness texture, used for IES lighting data
 	case PAT_CDATA: // color texture
 	case PAT_CPICT: // color picture, used as texture map
-		buffer_entry_index[index] = createTexture(context, rec);
+		scene->buffer_entry_index[index] = createTexture(context, rec);
 		break;
 	case TEX_FUNC:
 		if (rec->oargs.nsargs == 3) {
@@ -866,7 +870,7 @@ static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, LUTAB* mod
 		//	if (rec->oargs.nsargs > 1)
 		//		objerror(rec, INTERNAL, "too many string arguments");
 		//	fprintf(stderr, "Got alias %s %s\n", rec->oname, rec->oargs.sarg[0]);
-		//	addRadianceObject(context, objptr(lastmod(objndx(rec), rec->oargs.sarg[0])), objptr(rec->omod), modifiers); // TODO necessary?
+		//	addRadianceObject(context, objptr(lastmod(objndx(rec), rec->oargs.sarg[0])), objptr(rec->omod), scene); // TODO necessary?
 		//}
 		// Otherwise it's a pass-through (do nothing)
 		break;
@@ -879,55 +883,55 @@ static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, LUTAB* mod
 	return index;
 }
 
-static void createFace(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
+static void createFace(const RTcontext context, OBJREC* rec, Scene* scene)
 {
 	int j, k;
 	FACE* face = getface(rec);
 	if (face->area == 0.0)
 		goto facedone;
-	OBJREC* material = findmaterial(rec);
-	if (!material) {
+	scene->material = findmaterial(rec);
+	if (!scene->material) {
 		objerror(rec, WARNING, "missing material");
 		goto facedone;
 	}
-	addRadianceObject(context, material, modifiers);
+	addRadianceObject(context, scene->material, scene);
 #ifdef TRIANGULATE
 	/* Triangulate the face */
-	if (!createTriangles(face, material)) {
+	if (!createTriangles(face, scene)) {
 		objerror(rec, WARNING, "triangulation failed");
 		goto facedone;
 	}
 #else /* TRIANGULATE */
 	/* Triangulate the polygon as a fan */
 	for (j = 2; j < face->nv; j++)
-		createTriangle(material, vertex_index_0, vertex_index_0 + j - 1, vertex_index_0 + j);
+		createTriangle(scene, vertex_index_0, vertex_index_0 + j - 1, vertex_index_0 + j);
 #endif /* TRIANGULATE */
 
 	/* Write the vertices to the buffers */
-	material = findFunction(rec); // TODO can there be multiple parent functions?
-	if (material)
-		addRadianceObject(context, material, modifiers);
+	OBJREC *function = findFunction(rec); // TODO can there be multiple parent functions?
+	if (function)
+		addRadianceObject(context, function, scene);
 	for (j = 0; j < face->nv; j++) {
 		RREAL *va = VERTEX(face, j);
-		insertArray3f(vertices, (float)va[0], (float)va[1], (float)va[2]);
+		insertArray3f(scene->vertices, (float)va[0], (float)va[1], (float)va[2]);
 
-		if (material && material->otype == TEX_FUNC && material->oargs.nsargs >= 4 && !strcmp(filename(material->oargs.sarg[3]), TCALNAME)) {
+		if (function && function->otype == TEX_FUNC && function->oargs.nsargs >= 4 && !strcmp(filename(function->oargs.sarg[3]), TCALNAME)) {
 			/* Normal calculation from tmesh.cal */
 			double bu, bv;
 			FVECT v;
 			XF fxp;
 
-			k = (int)material->oargs.farg[0];
+			k = (int)function->oargs.farg[0];
 			bu = va[(k + 1) % 3];
 			bv = va[(k + 2) % 3];
 
-			v[0] = bu * material->oargs.farg[1] + bv * material->oargs.farg[2] + material->oargs.farg[3];
-			v[1] = bu * material->oargs.farg[4] + bv * material->oargs.farg[5] + material->oargs.farg[6];
-			v[2] = bu * material->oargs.farg[7] + bv * material->oargs.farg[8] + material->oargs.farg[9];
+			v[0] = bu * function->oargs.farg[1] + bv * function->oargs.farg[2] + function->oargs.farg[3];
+			v[1] = bu * function->oargs.farg[4] + bv * function->oargs.farg[5] + function->oargs.farg[6];
+			v[2] = bu * function->oargs.farg[7] + bv * function->oargs.farg[8] + function->oargs.farg[9];
 
 			/* Get transform */
-			if (!(k = createTransform(&fxp, NULL, material)))
-				objerror(material, USER, "bad transform");
+			if (!(k = createTransform(&fxp, NULL, function)))
+				objerror(function, USER, "bad transform");
 			if (k != 1) { // not identity
 				FVECT v1;
 				VCOPY(v1, v);
@@ -940,65 +944,65 @@ static void createFace(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 
 			if (normalize(v) == 0.0) {
 				objerror(rec, WARNING, "illegal normal perturbation");
-				insertArray3f(normals, (float)face->norm[0], (float)face->norm[1], (float)face->norm[2]);
+				insertArray3f(scene->normals, (float)face->norm[0], (float)face->norm[1], (float)face->norm[2]);
 			} else
-				insertArray3f(normals, (float)v[0], (float)v[1], (float)v[2]);
+				insertArray3f(scene->normals, (float)v[0], (float)v[1], (float)v[2]);
 		}
 		else {
 			//TODO Implement bump maps from texfunc and texdata
 			// This might be done in the Intersecion program in triangle_mesh.cu rather than here
-			insertArray3f(normals, (float)face->norm[0], (float)face->norm[1], (float)face->norm[2]);
+			insertArray3f(scene->normals, (float)face->norm[0], (float)face->norm[1], (float)face->norm[2]);
 		}
 
-		if (material && material->otype == TEX_FUNC && material->oargs.nsargs == 3 && !strcmp(filename(material->oargs.sarg[2]), TCALNAME)) {
+		if (function && function->otype == TEX_FUNC && function->oargs.nsargs == 3 && !strcmp(filename(function->oargs.sarg[2]), TCALNAME)) {
 			/* Texture coordinate calculation from tmesh.cal */
 			double bu, bv;
 
-			k = (int)material->oargs.farg[0];
+			k = (int)function->oargs.farg[0];
 			bu = va[(k + 1) % 3];
 			bv = va[(k + 2) % 3];
 
-			insertArray2f(tex_coords,
-				(float)(bu * material->oargs.farg[1] + bv * material->oargs.farg[2] + material->oargs.farg[3]),
-				(float)(bu * material->oargs.farg[4] + bv * material->oargs.farg[5] + material->oargs.farg[6]));
+			insertArray2f(scene->tex_coords,
+				(float)(bu * function->oargs.farg[1] + bv * function->oargs.farg[2] + function->oargs.farg[3]),
+				(float)(bu * function->oargs.farg[4] + bv * function->oargs.farg[5] + function->oargs.farg[6]));
 		}
 		else {
 			//TODO Implement texture maps from colorfunc, brightfunc, colordata, brightdata, and colorpict
 			// This might be done in the Intersecion program in triangle_mesh.cu rather than here
-			insertArray2f(tex_coords, 0.0f, 0.0f);
+			insertArray2f(scene->tex_coords, 0.0f, 0.0f);
 		}
 	}
-	vertex_index_0 += face->nv;
+	scene->vertex_index_0 += face->nv;
 facedone:
 	freeface(rec);
 }
 
-static __inline void createTriangle(OBJREC *material, const int a, const int b, const int c)
+static __inline void createTriangle(Scene *scene, const int a, const int b, const int c)
 {
 	/* Write the indices to the buffers */
-	insertArray3i(vertex_indices, a, b, c);
-	insertArrayi(traingles, buffer_entry_index[objndx(material)]);
+	insertArray3i(scene->vertex_indices, a, b, c);
+	insertArrayi(scene->traingles, scene->buffer_entry_index[objndx(scene->material)]);
 
 #ifdef LIGHTS
-	if (islight(material->otype) && (material->otype != MAT_GLOW || material->oargs.farg[3] > 0))
-		insertArray3i(lights, a, b, c);
+	if (islight(scene->material->otype) && (scene->material->otype != MAT_GLOW || scene->material->oargs.farg[3] > 0))
+		insertArray3i(scene->lights, a, b, c);
 #endif /* LIGHTS */
 }
 
 #ifdef TRIANGULATE
 /* Generate list of triangle vertex indices from triangulation of face */
-static int createTriangles(const FACE *face, OBJREC *material)
+static int createTriangles(const FACE *face, Scene *scene)
 {
 	if (face->nv == 3) {	/* simple case */
-		createTriangle(material, vertex_index_0, vertex_index_0 + 1, vertex_index_0 + 2);
+		createTriangle(scene, scene->vertex_index_0, scene->vertex_index_0 + 1, scene->vertex_index_0 + 2);
 		return(1);
 	}
 	if (face->nv > 3) {	/* triangulation necessary */
 		int i;
-		size_t vertex_index_count = vertex_indices->count;
-		size_t traingle_count = traingles->count;
+		size_t vertex_index_count = scene->vertex_indices->count;
+		size_t traingle_count = scene->traingles->count;
 #ifdef LIGHTS
-		size_t light_count = lights->count;
+		size_t light_count = scene->lights->count;
 #endif /* LIGHTS */
 		Vert2_list	*v2l = polyAlloc(face->nv);
 		if (v2l == NULL)	/* out of memory */
@@ -1013,14 +1017,14 @@ static int createTriangles(const FACE *face, OBJREC *material)
 				v2l->v[i].mX = VERTEX(face, i)[(face->ax + 2) % 3];
 				v2l->v[i].mY = VERTEX(face, i)[(face->ax + 1) % 3];
 			}
-		v2l->p = (void *)material;
+		v2l->p = (void *)scene;
 		i = polyTriangulate(v2l, addTriangle);
 		polyFree(v2l);
 		if (!i) { /* triangulation failed */
-			vertex_indices->count = vertex_index_count;
-			traingles->count = traingle_count;
+			scene->vertex_indices->count = vertex_index_count;
+			scene->traingles->count = traingle_count;
 #ifdef LIGHTS
-			lights->count = light_count;
+			scene->lights->count = light_count;
 #endif /* LIGHTS */
 		}
 		return(i);
@@ -1031,24 +1035,24 @@ static int createTriangles(const FACE *face, OBJREC *material)
 /* Add triangle to polygon's list (call-back function) */
 static int addTriangle( const Vert2_list *tp, int a, int b, int c )
 {
-	OBJREC *material = (OBJREC *)tp->p;
-	createTriangle(material, vertex_index_0 + a, vertex_index_0 + b, vertex_index_0 + c);
+	Scene *scene = (Scene *)tp->p;
+	createTriangle(scene, scene->vertex_index_0 + a, scene->vertex_index_0 + b, scene->vertex_index_0 + c);
 	return(1);
 }
 #endif /* TRIANGULATE */
 
-static void createSphere(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
+static void createSphere(const RTcontext context, OBJREC* rec, Scene* scene)
 {
 	unsigned int i, j, steps;
 	int direction = rec->otype == OBJ_SPHERE ? 1 : -1; // Sphere or Bubble
 	double radius;
 	FVECT x, y, z;
-	OBJREC* material = findmaterial(rec);
-	if (!material) {
+	scene->material = findmaterial(rec);
+	if (!scene->material) {
 		objerror(rec, WARNING, "missing material");
 		return;
 	}
-	addRadianceObject(context, material, modifiers);
+	addRadianceObject(context, scene->material, scene);
 
 	// Check radius
 	if (rec->oargs.nfargs < 4)
@@ -1128,26 +1132,26 @@ static void createSphere(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 
 	// Add resulting traingles
 	for (j = 1u; j < sph_vertex_indices->count; j += 3) {
-		createTriangle(material,
-			vertex_index_0 + sph_vertex_indices->array[j - direction],
-			vertex_index_0 + sph_vertex_indices->array[j],
-			vertex_index_0 + sph_vertex_indices->array[j + direction]);
+		createTriangle(scene,
+			scene->vertex_index_0 + sph_vertex_indices->array[j - direction],
+			scene->vertex_index_0 + sph_vertex_indices->array[j],
+			scene->vertex_index_0 + sph_vertex_indices->array[j + direction]);
 	}
 
 	// Add resulting vertices
 	for (j = 0u; j < sph_vertices->count; j += 3) {
-		insertArray3f(vertices,
+		insertArray3f(scene->vertices,
 			(float)(rec->oargs.farg[0] + radius * sph_vertices->array[j]),
 			(float)(rec->oargs.farg[1] + radius * sph_vertices->array[j + 1]),
 			(float)(rec->oargs.farg[2] + radius * sph_vertices->array[j + 2]));
-		insertArray3f(normals,
+		insertArray3f(scene->normals,
 			direction * sph_vertices->array[j],
 			direction * sph_vertices->array[j + 1],
 			direction * sph_vertices->array[j + 2]);
-		insertArray2f(tex_coords, 0.0f, 0.0f);
+		insertArray2f(scene->tex_coords, 0.0f, 0.0f);
 	}
 
-	vertex_index_0 += (unsigned int)sph_vertices->count / 3;
+	scene->vertex_index_0 += (unsigned int)sph_vertices->count / 3;
 
 	// Free memory
 	freeArrayi(sph_vertex_indices);
@@ -1160,7 +1164,7 @@ sphmemerr:
 	error(SYSTEM, "out of memory in createSphere");
 }
 
-static void createCone(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
+static void createCone(const RTcontext context, OBJREC* rec, Scene* scene)
 {
 	unsigned int i, j, steps;
 	int isCone, direction;
@@ -1168,12 +1172,12 @@ static void createCone(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 	FVECT u, v, n;
 	CONE* cone = getcone(rec, 0);
 	if (!cone) return;
-	OBJREC* material = findmaterial(rec);
-	if (!material) {
+	scene->material = findmaterial(rec);
+	if (!scene->material) {
 		objerror(rec, WARNING, "missing material");
 		goto conedone;
 	}
-	addRadianceObject(context, material, modifiers);
+	addRadianceObject(context, scene->material, scene);
 
 	// Get orthonormal basis
 	if (!getperpendicular(u, cone->ad, 0))
@@ -1215,57 +1219,56 @@ static void createCone(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 	for (i = 0u; i < steps; i++) {
 		// Add traingles
 		if (isCone != 1)
-			createTriangle(material,
-				vertex_index_0 + (2 * i + 1 - direction) % (2 * steps),
-				vertex_index_0 + (2 * i + 1 + direction) % (2 * steps),
-				vertex_index_0 + (2 * i + 1) % (2 * steps));
+			createTriangle(scene,
+				scene->vertex_index_0 + (2 * i + 1 - direction) % (2 * steps),
+				scene->vertex_index_0 + (2 * i + 1 + direction) % (2 * steps),
+				scene->vertex_index_0 + (2 * i + 1) % (2 * steps));
 		if (isCone != 2)
-			createTriangle(material,
-				vertex_index_0 + (2 * i + 2) % (2 * steps),
-				vertex_index_0 + (2 * i + 2 + direction) % (2 * steps),
-				vertex_index_0 + (2 * i + 2 - direction) % (2 * steps));
+			createTriangle(scene,
+				scene->vertex_index_0 + (2 * i + 2) % (2 * steps),
+				scene->vertex_index_0 + (2 * i + 2 + direction) % (2 * steps),
+				scene->vertex_index_0 + (2 * i + 2 - direction) % (2 * steps));
 
 		// Add vertices
 		theta = PI * 2 * i / steps;
 		for (j = 0u; j < 3; j++)
 			n[j] = u[j] * cos(theta) + v[j] * sin(theta);
-		insertArray3f(vertices,
+		insertArray3f(scene->vertices,
 			(float)(CO_P0(cone)[0] + CO_R0(cone) * n[0]),
 			(float)(CO_P0(cone)[1] + CO_R0(cone) * n[1]),
 			(float)(CO_P0(cone)[2] + CO_R0(cone) * n[2]));
-		insertArray3f(vertices,
+		insertArray3f(scene->vertices,
 			(float)(CO_P1(cone)[0] + CO_R1(cone) * n[0]),
 			(float)(CO_P1(cone)[1] + CO_R1(cone) * n[1]),
 			(float)(CO_P1(cone)[2] + CO_R1(cone) * n[2]));
 		for (j = 0u; j < 3; j++)
 			n[j] = direction * (sphi * cone->ad[j] + cphi * n[j]);
-		insertArray3f(normals, (float)n[0], (float)n[1], (float)n[2]);
-		insertArray3f(normals, (float)n[0], (float)n[1], (float)n[2]);
-		insertArray2f(tex_coords, 0.0f, 0.0f);
-		insertArray2f(tex_coords, 0.0f, 0.0f);
+		insertArray3f(scene->normals, (float)n[0], (float)n[1], (float)n[2]);
+		insertArray3f(scene->normals, (float)n[0], (float)n[1], (float)n[2]);
+		insertArray2f(scene->tex_coords, 0.0f, 0.0f);
+		insertArray2f(scene->tex_coords, 0.0f, 0.0f);
 	}
-	vertex_index_0 += steps * 2;
+	scene->vertex_index_0 += steps * 2;
 conedone:
 	freecone(rec);
 }
 
-static void createMesh(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
+static void createMesh(const RTcontext context, OBJREC* rec, Scene* scene)
 {
 	int j, k;
 	MESHINST *meshinst = getmeshinst(rec, IO_ALL);
-	unsigned int vertex_index_mesh = vertex_index_0; //TODO what if not all patches are full?
+	unsigned int vertex_index_mesh = scene->vertex_index_0; //TODO what if not all patches are full?
 	for (j = 0; j < meshinst->msh->npatches; j++) {
 		MESHPATCH *pp = &(meshinst->msh)->patch[j];
-		OBJREC* material = findmaterial(rec);
-		if (material) {
-			addRadianceObject(context, material, modifiers);
-		}
+		scene->material = findmaterial(rec);
+		if (scene->material)
+			addRadianceObject(context, scene->material, scene);
 		else if (!pp->trimat) {
 			OBJECT mo = pp->solemat;
 			if (mo != OVOID)
 				mo += meshinst->msh->mat0;
-			material = findmaterial(objptr(mo));
-			addRadianceObject(context, material, modifiers);
+			scene->material = findmaterial(objptr(mo));
+			addRadianceObject(context, scene->material, scene);
 		}
 
 		/* Write the indices to the buffers */
@@ -1274,10 +1277,10 @@ static void createMesh(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 				OBJECT mo = pp->trimat[k];
 				if (mo != OVOID)
 					mo += meshinst->msh->mat0;
-				material = findmaterial(objptr(mo));
-				addRadianceObject(context, material, modifiers);
+				scene->material = findmaterial(objptr(mo));
+				addRadianceObject(context, scene->material, scene);
 			}
-			createTriangle(material, vertex_index_0 + pp->tri[k].v1, vertex_index_0 + pp->tri[k].v2, vertex_index_0 + pp->tri[k].v3);
+			createTriangle(scene, scene->vertex_index_0 + pp->tri[k].v1, scene->vertex_index_0 + pp->tri[k].v2, scene->vertex_index_0 + pp->tri[k].v3);
 		}
 
 		for (k = 0; k < pp->nj1tris; k++) {
@@ -1285,10 +1288,10 @@ static void createMesh(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 				OBJECT mo = pp->j1tri[k].mat;
 				if (mo != OVOID)
 					mo += meshinst->msh->mat0;
-				material = findmaterial(objptr(mo));
-				addRadianceObject(context, material, modifiers);
+				scene->material = findmaterial(objptr(mo));
+				addRadianceObject(context, scene->material, scene);
 			}
-			createTriangle(material, vertex_index_mesh + pp->j1tri[k].v1j, vertex_index_0 + pp->j1tri[k].v2, vertex_index_0 + pp->j1tri[k].v3);
+			createTriangle(scene, vertex_index_mesh + pp->j1tri[k].v1j, scene->vertex_index_0 + pp->j1tri[k].v2, scene->vertex_index_0 + pp->j1tri[k].v3);
 		}
 
 		for (k = 0; k < pp->nj2tris; k++) {
@@ -1296,10 +1299,10 @@ static void createMesh(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 				OBJECT mo = pp->j2tri[k].mat;
 				if (mo != OVOID)
 					mo += meshinst->msh->mat0;
-				material = findmaterial(objptr(mo));
-				addRadianceObject(context, material, modifiers);
+				scene->material = findmaterial(objptr(mo));
+				addRadianceObject(context, scene->material, scene);
 			}
-			createTriangle(material, vertex_index_mesh + pp->j2tri[k].v1j, vertex_index_mesh + pp->j2tri[k].v2j, vertex_index_0 + pp->j2tri[k].v3);
+			createTriangle(scene, vertex_index_mesh + pp->j2tri[k].v1j, vertex_index_mesh + pp->j2tri[k].v2j, scene->vertex_index_0 + pp->j2tri[k].v3);
 		}
 
 		/* Write the vertices to the buffers */
@@ -1311,27 +1314,27 @@ static void createMesh(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
 			if (!(mesh_vert.fl & MT_V))
 				objerror(rec, INTERNAL, "missing mesh vertices in createMesh");
 			multp3(transform, mesh_vert.v, meshinst->x.f.xfm);
-			insertArray3f(vertices, (float)transform[0], (float)transform[1], (float)transform[2]);
+			insertArray3f(scene->vertices, (float)transform[0], (float)transform[1], (float)transform[2]);
 
 			if (mesh_vert.fl & MT_N) { // TODO what if normal is defined by texture function
 				multv3(transform, mesh_vert.n, meshinst->x.f.xfm);
-				insertArray3f(normals, (float)transform[0], (float)transform[1], (float)transform[2]);
+				insertArray3f(scene->normals, (float)transform[0], (float)transform[1], (float)transform[2]);
 			} else
-				insertArray3f(normals, 0.0f, 0.0f, 0.0f); //TODO Can this happen?
+				insertArray3f(scene->normals, 0.0f, 0.0f, 0.0f); //TODO Can this happen?
 
 			if (mesh_vert.fl & MT_UV)
-				insertArray2f(tex_coords, (float)mesh_vert.uv[0], (float)mesh_vert.uv[1]);
+				insertArray2f(scene->tex_coords, (float)mesh_vert.uv[0], (float)mesh_vert.uv[1]);
 			else
-				insertArray2f(tex_coords, 0.0f, 0.0f);
+				insertArray2f(scene->tex_coords, 0.0f, 0.0f);
 		}
 
-		vertex_index_0 += pp->nverts;
+		scene->vertex_index_0 += pp->nverts;
 	}
 	freemeshinst(rec);
 }
 
 #ifdef BSDF
-static RTmaterial createBSDFMaterial(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
+static RTmaterial createBSDFMaterial(const RTcontext context, OBJREC* rec, Scene* scene)
 {
 	RTmaterial material;
 	MFUNC *mf;
@@ -1373,7 +1376,7 @@ static RTmaterial createBSDFMaterial(const RTcontext context, OBJREC* rec, LUTAB
 	if (rec->oargs.nfargs == 9)
 		applyMaterialVariable3f(context, material, "trans", (float)rec->oargs.farg[6], (float)rec->oargs.farg[7], (float)rec->oargs.farg[8]);
 #ifdef CONTRIB
-	applyContribution(context, material, NULL, rec, modifiers);
+	applyContribution(context, material, NULL, rec, scene);
 #endif
 
 	/* Create our hit programs to be shared among all normal materials */
@@ -1431,7 +1434,7 @@ static RTmaterial createBSDFMaterial(const RTcontext context, OBJREC* rec, LUTAB
 }
 #endif /* BSDF */
 
-static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
+static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec, Scene* scene)
 {
 	RTmaterial material;
 
@@ -1448,7 +1451,7 @@ static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec, LUT
 		applyMaterialVariable1f(context, material, "tspecu", (float)rec->oargs.farg[6]);
 	}
 #ifdef CONTRIB
-	applyContribution(context, material, NULL, rec, modifiers);
+	applyContribution(context, material, NULL, rec, scene);
 #endif
 
 	/* As a shortcut, exclude black materials from ambient calculation */
@@ -1518,7 +1521,7 @@ static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec, LUT
 	return material;
 }
 
-static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
+static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec, Scene* scene)
 {
 	RTmaterial material;
 
@@ -1533,7 +1536,7 @@ static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec, LUTA
 	if (rec->oargs.nfargs > 3)
 		applyMaterialVariable1f(context, material, "r_index", (float)rec->oargs.farg[3]);
 #ifdef CONTRIB
-	applyContribution(context, material, NULL, rec, modifiers);
+	applyContribution(context, material, NULL, rec, scene);
 #endif
 
 	/* Create our hit programs to be shared among all glass materials */
@@ -1568,7 +1571,7 @@ static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec, LUTA
 	return material;
 }
 
-static RTmaterial createLightMaterial(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
+static RTmaterial createLightMaterial(const RTcontext context, OBJREC* rec, Scene* scene)
 {
 	RTmaterial material;
 	OBJREC* mat;
@@ -1592,12 +1595,12 @@ static RTmaterial createLightMaterial(const RTcontext context, OBJREC* rec, LUTA
 		rec->os = NULL;
 	}
 #ifdef CONTRIB
-	applyContribution(context, material, NULL, rec, modifiers);
+	applyContribution(context, material, NULL, rec, scene);
 #endif
 
 	/* Check for a parent function. */
 	if ((mat = findFunction(rec))) // TODO can there be multiple parent functions?
-		applyMaterialVariable1i(context, material, "function", buffer_entry_index[addRadianceObject(context, mat, modifiers)]);
+		applyMaterialVariable1i(context, material, "function", scene->buffer_entry_index[addRadianceObject(context, mat, scene)]);
 	else
 		applyMaterialVariable1i(context, material, "function", RT_PROGRAM_ID_NULL);
 
@@ -1627,7 +1630,7 @@ static RTmaterial createLightMaterial(const RTcontext context, OBJREC* rec, LUTA
 }
 
 #ifdef ANTIMATTER
-static RTmaterial createClipMaterial(const RTcontext context, OBJREC* rec)
+static RTmaterial createClipMaterial(const RTcontext context, OBJREC* rec, Scene* scene)
 {
 	RTmaterial material;
 	OBJECT mod;
@@ -1643,7 +1646,7 @@ static RTmaterial createClipMaterial(const RTcontext context, OBJREC* rec)
 			objerror(rec, WARNING, errmsg);
 			continue;
 		}
-		if ((index = buffer_entry_index[mod]) > CHAR_BIT * sizeof(mask)) {
+		if ((index = scene->buffer_entry_index[mod]) > CHAR_BIT * sizeof(mask)) {
 			sprintf(errmsg, "out of range modifier \"%s\"", rec->oargs.sarg[i]);
 			objerror(rec, WARNING, errmsg);
 			continue;
@@ -1695,7 +1698,7 @@ static RTmaterial createClipMaterial(const RTcontext context, OBJREC* rec)
 }
 #endif
 
-static void createDistantLight(const RTcontext context, OBJREC* rec, LUTAB* modifiers)
+static void createDistantLight(const RTcontext context, OBJREC* rec, Scene* scene)
 {
 	SRCREC source;
 	DistantLight light;
@@ -1712,16 +1715,16 @@ static void createDistantLight(const RTcontext context, OBJREC* rec, LUTAB* modi
 	light.casts_shadow = material->otype != MAT_GLOW; // Glow cannot cast shadow infinitely far away
 
 #ifdef CONTRIB
-	applyContribution(context, NULL, &light, material, modifiers);
+	applyContribution(context, NULL, &light, material, scene);
 #endif /* CONTRIB */
 
 	/* Check for a parent function. */
 	if ((material = findFunction(rec))) // TODO can there be multiple parent functions?
-		light.function = buffer_entry_index[addRadianceObject(context, material, modifiers)];
+		light.function = scene->buffer_entry_index[addRadianceObject(context, material, scene)];
 	else
 		light.function = RT_PROGRAM_ID_NULL;
 
-	insertArraydl(sources, light);
+	insertArraydl(scene->sources, light);
 }
 
 static OBJREC* findFunction(OBJREC *o)
@@ -2239,22 +2242,22 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 	return program_id;
 }
 
-static void applyContribution(const RTcontext context, const RTmaterial material, DistantLight* light, OBJREC* rec, LUTAB* modifiers)
+static void applyContribution(const RTcontext context, const RTmaterial material, DistantLight* light, OBJREC* rec, Scene* scene)
 {
 	const static char *cfunc = "contrib_function";
 
 	/* Check for a call-back function. */
-	if (modifiers) {
+	if (scene && scene->modifiers) {
 		MODCONT	*mp;
-		if ((mp = (MODCONT *)lu_find(modifiers, rec->oname)->data)) {
+		if ((mp = (MODCONT *)lu_find(scene->modifiers, rec->oname)->data)) {
 			if (material) {
 				applyMaterialVariable1i(context, material, "contrib_index", mp->start_bin);
 				applyMaterialVariable1i(context, material, cfunc, createContribFunction(context, mp));
 			}
 			else if (light) {
 				/* Check for a existing program. */
-				int mat_index = buffer_entry_index[objndx(rec)];
-				RTmaterial mat = (mat_index == BLANK) ? NULL : materials->array[mat_index];
+				int mat_index = scene->buffer_entry_index[objndx(rec)];
+				RTmaterial mat = (mat_index == BLANK) ? NULL : scene->materials->array[mat_index];
 				light->contrib_index = mp->start_bin;
 				if (mat) { /* In case this material has also already been used for a surface, we can reuse the function here */
 					RTvariable var;
