@@ -1,6 +1,6 @@
 /* RCSid: $Id$ */
 /*
- * Copyright (c) 2016-2017 Nathaniel Jones
+ * Copyright (c) 2016-2018 Nathaniel Jones
  * Copyright (c) 2013-2016 Massachusetts Institute of Technology
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id: ambcomp.c,v 2.79 2018/01/09 00:52:35 greg Exp $";
+static const char	RCSid[] = "$Id: ambcomp.c,v 2.82 2018/04/12 20:07:09 greg Exp $";
 #endif
 /*
  * Routines to compute "ambient" values using Monte Carlo
@@ -169,7 +169,7 @@ resample:
 }
 
 
-/* Estimate errors based on ambient division differences */
+/* Estimate variance based on ambient division differences */
 static float *
 getambdiffs(AMBHEMI *hp)
 {
@@ -177,31 +177,34 @@ getambdiffs(AMBHEMI *hp)
 	float	*earr = (float *)calloc(hp->ns*hp->ns, sizeof(float));
 	float	*ep;
 	AMBSAMP	*ap;
-	double	b, d2;
+	double	b, b1, d2;
 	int	i, j;
 
 	if (earr == NULL)		/* out of memory? */
 		return(NULL);
-					/* compute squared neighbor diffs */
+					/* sum squared neighbor diffs */
 	for (ap = hp->sa, ep = earr, i = 0; i < hp->ns; i++)
 	    for (j = 0; j < hp->ns; j++, ap++, ep++) {
 		b = bright(ap[0].v);
 		if (i) {		/* from above */
-			d2 = normf*(b - bright(ap[-hp->ns].v));
-			d2 *= d2;
+			b1 = bright(ap[-hp->ns].v);
+			d2 = b - b1;
+			d2 *= d2*normf/(b + b1);
 			ep[0] += d2;
 			ep[-hp->ns] += d2;
 		}
 		if (!j) continue;
 					/* from behind */
-		d2 = normf*(b - bright(ap[-1].v));
-		d2 *= d2;
+		b1 = bright(ap[-1].v);
+		d2 = b - b1;
+		d2 *= d2*normf/(b + b1);
 		ep[0] += d2;
 		ep[-1] += d2;
 		if (!i) continue;
 					/* diagonal */
-		d2 = normf*(b - bright(ap[-hp->ns-1].v));
-		d2 *= d2;
+		b1 = bright(ap[-hp->ns-1].v);
+		d2 = b - b1;
+		d2 *= d2*normf/(b + b1);
 		ep[0] += d2;
 		ep[-hp->ns-1] += d2;
 	    }
@@ -228,7 +231,6 @@ ambsupersamp(AMBHEMI *hp, int cnt)
 {
 	float	*earr = getambdiffs(hp);
 	double	e2rem = 0;
-	AMBSAMP	*ap;
 	float	*ep;
 	int	i, j, n, nss;
 
@@ -238,8 +240,8 @@ ambsupersamp(AMBHEMI *hp, int cnt)
 	for (ep = earr + hp->ns*hp->ns; ep > earr; )
 		e2rem += *--ep;
 	ep = earr;			/* perform super-sampling */
-	for (ap = hp->sa, i = 0; i < hp->ns; i++)
-	    for (j = 0; j < hp->ns; j++, ap++) {
+	for (i = 0; i < hp->ns; i++)
+	    for (j = 0; j < hp->ns; j++) {
 		if (e2rem <= FTINY)
 			goto done;	/* nothing left to do */
 		nss = *ep/e2rem*cnt + frandom();
@@ -670,7 +672,6 @@ ambcorral(AMBHEMI *hp, FVECT uv[2], const double r0, const double r1)
 	FVECT		vec;
 	double		u, v;
 	double		ang, a1;
-	OBJREC		*m;
 	int		i, j;
 					/* don't bother for a few samples */
 	if (hp->ns < 8)

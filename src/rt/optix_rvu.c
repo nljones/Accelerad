@@ -280,7 +280,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 void updateOctree(char* path)
 {
 	ray_init(path);
-	updateModel(context_handle, NULL);
+	updateModel(context_handle, NULL, 0u);
 }
 
 /**
@@ -436,7 +436,7 @@ int updateIrradiance(const int irrad)
 {
 	int changed = setIrradiance(irrad);
 	if (changed)
-		updateModel(context_handle, NULL);
+		updateModel(context_handle, NULL, 0u);
 	return changed;
 }
 

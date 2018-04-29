@@ -178,6 +178,7 @@ else()
     objview.pl
     raddepend.csh
     rlux.csh
+    rtpict.pl
     trad.wsh
     vinfo.csh
   )

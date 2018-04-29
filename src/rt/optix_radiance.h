@@ -171,7 +171,7 @@ void makeDaysimCompatible(const RTcontext context);
 void setupDaysim(const RTcontext context, RTbuffer* dc_buffer, const RTsize width, const RTsize height);
 #endif
 void setupKernel(const RTcontext context, const VIEW* view, LUTAB* modifiers, const RTsize width, const RTsize height, const unsigned int imm_irrad, const double alarm);
-void updateModel(const RTcontext context, LUTAB* modifiers);
+void updateModel(const RTcontext context, LUTAB* modifiers, const unsigned int imm_irrad);
 void createCamera(const RTcontext context, const char* ptx_name);
 void updateCamera(const RTcontext context, const VIEW* view);
 int setIrradiance(const int irrad);
@@ -203,6 +203,7 @@ RTvariable applyProgramVariable1f(const RTcontext context, const RTprogram progr
 RTvariable applyProgramVariable2f(const RTcontext context, const RTprogram program, const char* name, const float x, const float y);
 RTvariable applyProgramVariable3f(const RTcontext context, const RTprogram program, const char* name, const float x, const float y, const float z);
 RTvariable applyProgramVariable(const RTcontext context, const RTprogram program, const char* name, const RTsize size, const void* data);
+RTvariable applyGeometryVariable1ui(const RTcontext context, const RTgeometry geometry, const char* name, const unsigned int value);
 RTvariable applyMaterialVariable1i(const RTcontext context, const RTmaterial material, const char* name, const int value);
 RTvariable applyMaterialVariable1ui(const RTcontext context, const RTmaterial material, const char* name, const unsigned int value);
 RTvariable applyMaterialVariable1f(const RTcontext context, const RTmaterial material, const char* name, const float value);

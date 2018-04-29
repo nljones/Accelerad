@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id: color.c,v 2.17 2014/05/31 20:13:31 greg Exp $";
+static const char	RCSid[] = "$Id: color.c,v 2.19 2018/04/10 23:42:52 greg Exp $";
 #endif
 /*
  *  color.c - routines for color calculations.
@@ -17,8 +17,10 @@ static const char	RCSid[] = "$Id: color.c,v 2.17 2014/05/31 20:13:31 greg Exp $"
 #ifdef getc_unlocked		/* avoid horrendous overhead of flockfile */
 #undef getc
 #undef putc
+#undef ferror
 #define getc    getc_unlocked
 #define putc    putc_unlocked
+#define ferror	ferror_unlocked
 #endif
 
 #define  MINELEN	8	/* minimum scanline length for encoding */
@@ -100,23 +102,21 @@ fwritecolrs(			/* write out a colr scanline */
 
 
 static int
-oldreadcolrs(			/* read in an old colr scanline */
+oldreadcolrs(			/* read in an old-style colr scanline */
 	COLR  *scanline,
 	int  len,
 	FILE  *fp
 )
 {
-	int  rshift;
+	int  rshift = 0;
 	int  i;
-	
-	rshift = 0;
 	
 	while (len > 0) {
 		scanline[0][RED] = getc(fp);
 		scanline[0][GRN] = getc(fp);
 		scanline[0][BLU] = getc(fp);
-		scanline[0][EXP] = getc(fp);
-		if (feof(fp) || ferror(fp))
+		scanline[0][EXP] = i = getc(fp);
+		if (i == EOF)
 			return(-1);
 		if (scanline[0][RED] == 1 &&
 				scanline[0][GRN] == 1 &&

@@ -841,7 +841,7 @@ RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const unsigned int& i, c
 }
 
 #ifdef AMB_SUPER_SAMPLE
-/* Estimate errors based on ambient division differences */
+/* Estimate variance based on ambient division differences */
 RT_METHOD void getambdiffs(AMBHEMI *hp)
 {
 	const float normf = 1.0f / bright(hp->acoef);
@@ -852,21 +852,24 @@ RT_METHOD void getambdiffs(AMBHEMI *hp)
 			earr(i, j) = 0.0f;
 			float b = bright(ambsam(i, j).v);
 			if (i) {		/* from above */
-				float d2 = normf * (b - bright(ambsam(i - 1, j).v));
-				d2 *= d2;
+				float b1 = bright(ambsam(i - 1, j).v);
+				float d2 = b - b1;
+				d2 *= d2 * normf / (b + b1);
 				earr(i, j) += d2;
 				earr(i - 1, j) += d2;
 			}
 			if (!j) continue;
 			/* from behind */
-			float d2 = normf * (b - bright(ambsam(i, j - 1).v));
-			d2 *= d2;
+			float b1 = bright(ambsam(i, j - 1).v);
+			float d2 = b - b1;
+			d2 *= d2 * normf / (b + b1);
 			earr(i, j) += d2;
 			earr(i, j - 1) += d2;
 			if (!i) continue;
 			/* diagonal */
-			d2 = normf * (b - bright(ambsam(i - 1, j - 1).v));
-			d2 *= d2;
+			b1 = bright(ambsam(i - 1, j - 1).v);
+			d2 = b - b1;
+			d2 *= d2 * normf / (b + b1);
 			earr(i, j) += d2;
 			earr(i - 1, j - 1) += d2;
 		}

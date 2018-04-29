@@ -260,6 +260,14 @@ RTvariable applyProgramVariable(const RTcontext context, const RTprogram program
 	return var;
 }
 
+RTvariable applyGeometryVariable1ui(const RTcontext context, const RTgeometry geometry, const char* name, const unsigned int value)
+{
+	RTvariable var;
+	RT_CHECK_ERROR(rtGeometryDeclareVariable(geometry, name, &var));
+	RT_CHECK_ERROR(rtVariableSet1ui(var, value));
+	return var;
+}
+
 RTvariable applyMaterialVariable1i(const RTcontext context, const RTmaterial material, const char* name, const int value)
 {
 	RTvariable var;

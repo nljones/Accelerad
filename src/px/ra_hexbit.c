@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id: ra_hexbit.c,v 3.3 2004/03/28 20:33:14 schorsch Exp $";
+static const char	RCSid[] = "$Id: ra_hexbit.c,v 3.5 2018/04/17 17:42:28 greg Exp $";
 #endif
 /*
  * Create a 4x1 hex bitmap from a Radiance picture.
@@ -8,7 +8,9 @@ static const char	RCSid[] = "$Id: ra_hexbit.c,v 3.3 2004/03/28 20:33:14 schorsch
 #include  <stdio.h>
 #include  <time.h>
 
+#include  "platform.h"
 #include  "color.h"
+#include  "rtio.h"
 #include  "resolu.h"
 
 char  *progname;
@@ -59,6 +61,8 @@ main(
 	}
 				/* assign threshold color */
 	setcolr(threshclr, thresh, thresh, thresh);
+				/* binary input */
+	SET_FILE_BINARY(stdin);
 				/* get our header */
 	if (checkheader(stdin, COLRFMT, NULL) < 0 ||
 			fgetresolu(&xmax, &ymax, stdin) < 0)
