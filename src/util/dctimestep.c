@@ -366,7 +366,7 @@ main(int argc, char *argv[])
 				for (i = 0; i < cmtx->ncols; i++) {
 					/* Assume hourly spacing */
 					int hour = i % 24;
-					occupancy[i] = ((hour >= start_hour) & (hour <= end_hour));
+					occupancy[i] = ((hour >= start_hour) & (hour < end_hour));
 				}
 			}
 			TIMER(timer, "load occupancy schedule");

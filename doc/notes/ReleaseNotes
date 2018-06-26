@@ -2211,3 +2211,18 @@ Thanks to Lars Grobe for pointing out issues.
 Added RAYPATH searching for -f options to genrev, gensurf, genworm,
 bsdf2klems, bsdf2ttree, and pcomb.  This makes behavior consistent
 with rcalc, calc, and rendering tools.
+
+Worked with Randolph Fritz to fix some issues with ies2rad and newer
+IESNA63 standards.
+
+Resurrected original bsdf2rad test program, renaming it bsdf2rado. Still an
+optional build in src/cv/.
+
+Fixed bug in rcontrib with virtual sources, where pretest was adding
+to modifier accumulation buffers.  Reported by Mostapha.
+
+Added an "sBSDF" material type that explicitly checks for peak extraction.
+Its arguments are the same as the original "BSDF" type, but without the
+thickness parameter, as proxy geometry is not supported by this new type.
+The old "BSDF" type no longer does peak extraction under any circumstances,
+since this behavior is superfluous for proxied geometry.

@@ -2502,14 +2502,12 @@ static void printObject(OBJREC* rec)
 	int i;
 
 	objerror(rec, WARNING, "no GPU support");
-	mprintf(" %s(%i) %s(%i) %s(%i)\n %i", rec->omod > OVOID ? objptr(rec->omod)->oname : VOIDID, rec->omod, ofun[rec->otype].funame, rec->otype, rec->oname, objndx(rec), rec->oargs.nsargs);
+	mprintf(" %s(%i) %s(%i) %s(%i) %i", rec->omod > OVOID ? objptr(rec->omod)->oname : VOIDID, rec->omod, ofun[rec->otype].funame, rec->otype, rec->oname, objndx(rec), rec->oargs.nsargs);
 	for (i = 0; i < rec->oargs.nsargs; i++)
 		mprintf(" %s", rec->oargs.sarg[i]);
-	mprintf("\n %i", rec->oargs.nfargs);
+	mprintf(" 0 %i", rec->oargs.nfargs);
 	for (i = 0; i < rec->oargs.nfargs; i++)
 		mprintf(" %g", rec->oargs.farg[i]);
-	if (rec->os)
-		mprintf("\n Object structure: %s", rec->os);
 	mprintf("\n");
 }
 
