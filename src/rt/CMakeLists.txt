@@ -1,6 +1,12 @@
 set(VERSION_FILE "${radiance_BINARY_DIR}/src/rt/Version.c")
 create_version_file("${VERSION_FILE}")
 
+# Special instructions for rtrace_dc and rtrace_dc_2305:
+# To compile rtrace_dc, uncomment only the definition "DAYSIM" below, and rename the resulting rtrace program to rtrace_dc.
+# to compile rtrace_dc_2305, uncomment the definitions "DAYSIM" and "DDS" below, and rename the resulting rtrace program to rtrace_dc_2305.
+#add_definitions(-DDAYSIM)
+#add_definitions(-DDDS)
+
 # NLJ addition: Simplify PTX file names
 macro(PTX_SHROTEN ptx_short_names ptx_names)
   foreach(file ${ptx_names})

@@ -13,8 +13,11 @@
 
 
 
+#ifdef DDS
+#define DAYSIM_MAX_COEFS		2306
+#else
 #define DAYSIM_MAX_COEFS		148
-//#define DAYSIM_MAX_COEFS		2306
+#endif
 
 /**
  * daylight coefficient

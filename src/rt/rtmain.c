@@ -315,8 +315,10 @@ main(int  argc, char  *argv[])
 			// for the diffuse calculation the number depends on the number
 			// of direct daylight coefficients chosen which in turn depends on
 			// the geographic latitude of the scene site
-			if (daysimInit(atoi(argv[++i])) == 0)
-				error(USER, "The parameter N must lie between 0 and 148!");
+			if (daysimInit(atoi(argv[++i])) == 0) {
+				sprintf(errmsg, "The parameter N must lie between 0 and %d!", DAYSIM_MAX_COEFS);
+				error(USER, errmsg);
+			}
 			break;
 		case 'U':	/* allow rtrace to calculate irradiances and radiances */
 			//   within the same run. The information which sensor

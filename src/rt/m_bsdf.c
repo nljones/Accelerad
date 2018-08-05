@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: m_bsdf.c,v 2.51 2018/06/25 23:04:06 greg Exp $";
+static const char RCSid[] = "$Id: m_bsdf.c,v 2.53 2018/08/02 22:44:35 greg Exp $";
 #endif
 /*
  *  Shading for materials with BSDFs taken from XML data files
@@ -36,12 +36,12 @@ static const char RCSid[] = "$Id: m_bsdf.c,v 2.51 2018/06/25 23:04:06 greg Exp $
  *  hides geometry in front of the surface when rays hit from behind,
  *  and applies only the transmission and backside reflectance properties.
  *  Reflection is ignored on the hidden side, as those rays pass through.
- *	For the MAT_SBSDF type, we check for a strong "through" component.
+ *	For the MAT_ABSDF type, we check for a strong "through" component.
  *  Such a component will cause direct rays to pass through unscattered.
  *  A separate test prevents over-counting by dropping samples that are
  *  too close to this "through" direction.  BSDFs with such a through direction
  *  will also have a view component, meaning they are somewhat see-through.
- *  A MAT_BSDF type with zero thickness behaves the same as a MAT_SBSDF
+ *  A MAT_BSDF type with zero thickness behaves the same as a MAT_ABSDF
  *  type with no strong through component.
  *	The "up" vector for the BSDF is given by three variables, defined
  *  (along with the thickness) by the named function file, or '.' if none.
@@ -55,7 +55,7 @@ static const char RCSid[] = "$Id: m_bsdf.c,v 2.51 2018/06/25 23:04:06 greg Exp $
  *  not multiplied.  However, patterns affect this material as a multiplier
  *  on everything except non-diffuse reflection.
  *
- *  Arguments for MAT_SBSDF are:
+ *  Arguments for MAT_ABSDF are:
  *	5+	BSDFfile	ux uy uz	funcfile	transform
  *	0
  *	0|3|6|9	rdf	gdf	bdf
@@ -86,7 +86,7 @@ typedef struct {
 	RREAL	toloc[3][3];	/* world to local BSDF coords */
 	RREAL	fromloc[3][3];	/* local BSDF coords to world */
 	double	thick;		/* surface thickness */
-	COLOR	cthru;		/* "through" component for MAT_SBSDF */
+	COLOR	cthru;		/* "through" component for MAT_ABSDF */
 	SDData	*sd;		/* loaded BSDF data */
 	COLOR	rdiff;		/* diffuse reflection */
 	COLOR	runsamp;	/* BSDF hemispherical reflection */
@@ -96,7 +96,7 @@ typedef struct {
 
 #define	cvt_sdcolor(cv, svp)	ccy2rgb(&(svp)->spec, (svp)->cieY, cv)
 
-/* Compute "through" component color for MAT_SBSDF */
+/* Compute "through" component color for MAT_ABSDF */
 static void
 compute_through(BSDFDAT *ndp)
 {
@@ -236,19 +236,23 @@ direct_specular_OK(COLOR cval, FVECT ldir, double omega, BSDFDAT *ndp)
 		diffY = 0;
 		setcolor(cdiff,  0, 0, 0);
 	}
-					/* need projected solid angles */
+					/* need projected solid angle */
 	omega *= fabs(vsrc[2]);
+					/* check indirect over-counting */
+	if ((vsrc[2] > 0) ^ (ndp->vray[2] > 0) && bright(ndp->cthru) > FTINY) {
+		double		dx = vsrc[0] + ndp->vray[0];
+		double		dy = vsrc[1] + ndp->vray[1];
+		SDSpectralDF	*dfp = (ndp->pr->rod > 0) ?
+			((ndp->sd->tf != NULL) ? ndp->sd->tf : ndp->sd->tb) :
+			((ndp->sd->tb != NULL) ? ndp->sd->tb : ndp->sd->tf) ;
+
+		if (dx*dx + dy*dy <= (2.5*4./PI)*(omega + dfp->minProjSA +
+						2.*sqrt(omega*dfp->minProjSA)))
+			return(0);
+	}
 	ec = SDsizeBSDF(&tomega, ndp->vray, vsrc, SDqueryMin, ndp->sd);
 	if (ec)
 		goto baderror;
-					/* check indirect over-counting */
-	if ((vsrc[2] > 0) ^ (ndp->vray[2] > 0) && bright(ndp->cthru) > FTINY) {
-		double	dx = vsrc[0] + ndp->vray[0];
-		double	dy = vsrc[1] + ndp->vray[1];
-		if (dx*dx + dy*dy <= (2.5*4./PI)*(omega + tomega +
-						2.*sqrt(omega*tomega)))
-			return(0);
-	}
 					/* assign number of samples */
 	sf = specjitter * ndp->pr->rweight;
 	if (tomega <= 0)
@@ -694,7 +698,7 @@ m_bsdf(OBJREC *m, RAY *r)
 		return(1);
 	}
 	setcolor(nd.cthru, 0, 0, 0);		/* consider through component */
-	if (m->otype == MAT_SBSDF) {
+	if (m->otype == MAT_ABSDF) {
 		compute_through(&nd);
 		if (r->crtype & SHADOW) {
 			RAY	tr;		/* attempt to pass shadow ray */
