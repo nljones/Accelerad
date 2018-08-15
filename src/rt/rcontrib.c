@@ -364,7 +364,7 @@ rcontrib(void)
 	FVECT		orig, direc;
 	double		d;
 #ifdef ACCELERAD
-	size_t width, current_ray, total_rays;
+	size_t width, ray_count, ray_capacity;
 	RREAL *ray_cache;
 #endif
 					/* initialize (& fork more of us) */
@@ -376,33 +376,32 @@ rcontrib(void)
 #ifdef ACCELERAD
 	if (use_optix) {
 		/* Populate the set of rays to trace */
-		total_rays = raysleft ? raysleft : EXPECTED_RAY_COUNT;
-		ray_cache = (RREAL *)malloc(6 * sizeof(RREAL) * total_rays);
+		ray_capacity = raysleft ? raysleft : EXPECTED_RAY_COUNT;
+		ray_cache = (RREAL *)malloc(6 * sizeof(RREAL) * ray_capacity);
 		if (ray_cache == NULL)
 			error(SYSTEM, "out of memory in rcontrib");
-		current_ray = 0u;
+		ray_count = 0u;
 
 		/* load rays from stdin & process */
 		while (getvec(orig) == 0 && getvec(direc) == 0) {
 			/* resize array if necessary (should only happen when vcount == 0) */
-			if (current_ray == total_rays) {
-				total_rays *= 2;
-				ray_cache = (RREAL *)realloc(ray_cache, 6 * sizeof(RREAL) * total_rays);
+			if (ray_count == ray_capacity) {
+				ray_capacity *= 2;
+				ray_cache = (RREAL *)realloc(ray_cache, 6 * sizeof(RREAL) * ray_capacity);
 				if (ray_cache == NULL)
 					error(SYSTEM, "out of memory in rcontrib");
 			}
-			VCOPY(ray_cache + (6 * current_ray), orig);
-			VCOPY(ray_cache + (6 * current_ray + 3), direc);
-			current_ray++;
+			VCOPY(ray_cache + (6 * ray_count), orig);
+			VCOPY(ray_cache + (6 * ray_count + 3), direc);
+			ray_count++;
+			if (raysleft && !--raysleft)
+				break;		/* preemptive EOI */
 		}
 
-		total_rays = current_ray;
-		if (raysleft)
-			raysleft -= (RNUMBER)total_rays;
 		width = (yres > 0 && xres > 0) ? xres : 1;
 		if (yres > 0 && accumulate > 1)
 			width *= accumulate;
-		contribOptix(width, yres > 0 ? yres : total_rays, imm_irrad, lim_dist, contrib, total_bins, ralrm, ray_cache, &modconttab);
+		contribOptix(width, yres > 0 ? yres : ray_count, imm_irrad, lim_dist, contrib, total_bins, ralrm, ray_cache, &modconttab);
 		free(ray_cache);
 	}
 	else
