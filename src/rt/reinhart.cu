@@ -6,14 +6,22 @@
 
 #include <optix_world.h>
 
-rtDeclareVariable(int, mf, , ) = 1;	/* Number of divisions per Tregenza patch */
+rtDeclareVariable(float3, normal, , );	/* Normal direction */
+rtDeclareVariable(float3, up, , );		/* Up direction */
+rtDeclareVariable(int, RHS, , ) = 1;	/* Coordinate system handedness: set to -1 for left-handed system */
+rtDeclareVariable(int, mf, , ) = 1;		/* Number of divisions per Tregenza patch */
 
-// Calculate the Reinhart patch based on reinhart.cal.
+// Calculate the Reinhart patch based on reinhartb.cal.
 RT_CALLABLE_PROGRAM int rbin(const float3 direction)
 {
-	if (direction.z < 0.0f) return 0;
-	float alt = (direction.z >= 1.0f) ? 90.0f : asinf(direction.z) * 180 * M_1_PIf;
-	float azi = atan2f(direction.x, direction.y) * 180 * M_1_PIf;
+	// Compute oriented axis angles
+	const float inc_dz = -optix::dot(direction, normal);
+	const float inc_rx = -RHS * optix::dot(direction, optix::cross(up, normal));
+	const float inc_ry = optix::dot(direction, up) + inc_dz * optix::dot(normal, up);
+
+	if (inc_dz < 0.0f) return 0;
+	float alt = (inc_dz >= 1.0f) ? 90.0f : asinf(inc_dz) * 180 * M_1_PIf;
+	float azi = atan2f(inc_rx, inc_ry) * 180 * M_1_PIf;
 	if (azi < 0.0f) azi += 360.0f;
 
 	const int tnaz[] = { 30, 30, 24, 24, 18, 12, 6 };	// Number of patches per row

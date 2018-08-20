@@ -192,7 +192,6 @@ if(OptiX_USE)
   CUDA_COMPILE_PTX(generated_PTX_files_rtrace
     sensor.cu
     sensor_cloud_generator.cu
-    irradiance_intersect.cu
   )
   CUDA_COMPILE_PTX(generated_PTX_files_rpict
     camera.cu
@@ -213,6 +212,7 @@ if(OptiX_USE)
     background.cu
     clip.cu
     hemisphere_generator.cu
+    irradiance_intersect.cu
     point_cloud_normal.cu
     radiance_normal.cu
     radiance_glass.cu

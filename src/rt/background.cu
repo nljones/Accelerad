@@ -86,7 +86,7 @@ RT_PROGRAM void miss()
 				int contr_index = light.contrib_index;
 				if (light.contrib_function != RT_PROGRAM_ID_NULL)
 					contr_index += ((rtCallableProgramId<int(const float3)>)light.contrib_function)(H);
-				if (contr_index >= light.contrib_function)
+				if (contr_index >= light.contrib_index)
 					contrib_buffer[make_uint3(contr_index, launch_index.x, launch_index.y)] += make_contrib4(contr);
 			}
 #endif /* CONTRIB */
@@ -136,7 +136,7 @@ RT_PROGRAM void miss_shadow()
 					int contr_index = light.contrib_index;
 					if (light.contrib_function != RT_PROGRAM_ID_NULL)
 						contr_index += ((rtCallableProgramId<int(const float3)>)light.contrib_function)(H);
-					if (contr_index >= light.contrib_function)
+					if (contr_index >= light.contrib_index)
 						contrib_buffer[make_uint3(contr_index, launch_index.x, launch_index.y)] += make_contrib4(contr);
 				}
 #endif /* CONTRIB */

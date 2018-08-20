@@ -2299,10 +2299,20 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 		ptxFile(path_to_ptx, "tregenza");
 		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, bin_func, &program));
 	}
-	else if (!strcmp(bin_func, "rbin")) { // It's probably reinhart.cal
+	else if (!strcmp(bin_func, "rbin")) { // It's probably reinhart.cal or reinhartb.cal
 		ptxFile(path_to_ptx, "reinhart");
 		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, bin_func, &program));
 		applyProgramVariable1i(context, program, "mf", (int)eval("MF")); // Number of divisions per Tregenza patch
+		if (varlookup("rNx") && varlookup("rNy") && varlookup("rNz")) // Only in reinhartb.cal
+			applyProgramVariable3f(context, program, "normal", (float)eval("rNx"), (float)eval("rNy"), (float)eval("rNz")); // Normal direction
+		else
+			applyProgramVariable3f(context, program, "normal", 0, 0, -1); // Normal direction
+		if (varlookup("Ux") && varlookup("Uy") && varlookup("Uz")) // Only in reinhartb.cal
+			applyProgramVariable3f(context, program, "up", (float)eval("Ux"), (float)eval("Uy"), (float)eval("Uz")); // Up direction
+		else
+			applyProgramVariable3f(context, program, "up", 0, 1, 0); // Normal direction
+		if (varlookup("RHS")) // Only in reinhartb.cal
+			applyProgramVariable1i(context, program, "RHS", (int)eval("RHS")); // Coordinate system handedness
 	}
 	else if (!strncmp(bin_func, "kbin", 4)) { // It's probably klems_full.cal
 		float orientation[6] = {
