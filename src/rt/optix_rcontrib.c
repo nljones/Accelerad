@@ -20,7 +20,7 @@ extern void done_contrib();
 /**
  * Setup and run the OptiX kernel similar to RTRACE.
  */
-void contribOptix(const size_t width, const size_t height, const unsigned int imm_irrad, const unsigned int lim_dist, const unsigned int contrib, const unsigned int bins, const double alarm, double* rays, LUTAB* modifiers)
+void contribOptix(const size_t width, const size_t height, const size_t ray_count, const unsigned int imm_irrad, const unsigned int lim_dist, const unsigned int contrib, const unsigned int bins, const double alarm, double* rays, LUTAB* modifiers)
 {
 	/* Primary RTAPI objects */
 	RTcontext           context;
@@ -67,7 +67,8 @@ void contribOptix(const size_t width, const size_t height, const unsigned int im
 	createBuffer2D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, width, height, &direction_buffer);
 	RT_CHECK_ERROR(rtBufferMap(direction_buffer, (void**)&directions));
 
-	for (i = 0u; i < size; i++) {
+	for (i = 0u; i < ray_count; i++) {
+		/* Copy valid rays to input buffers */
 		origins[0] = (float)rays[0];
 		origins[1] = (float)rays[1];
 		origins[2] = (float)rays[2];
@@ -78,6 +79,14 @@ void contribOptix(const size_t width, const size_t height, const unsigned int im
 		origins += 3;
 		directions += 3;
 		rays += 6;
+	}
+	for ( ; i < size; i++) {
+		/* In case there is partial accumulation in final record, write invalid rays to fill the buffers */
+		origins[0] = origins[1] = origins[2] = 0.0f;
+		directions[0] = directions[1] = directions[2] = 0.0f;
+
+		origins += 3;
+		directions += 3;
 	}
 
 	RT_CHECK_ERROR(rtBufferUnmap(origin_buffer));

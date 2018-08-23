@@ -76,7 +76,7 @@ LUTAB	modconttab = LU_SINIT(NULL,mcfree);	/* modifier lookup table */
 #define EXPECTED_RAY_COUNT	32
 
 /* from optix_radiance.c */
-extern void contribOptix(const size_t width, const size_t height, const unsigned int imm_irrad, const unsigned int lim_dist, const unsigned int contrib, const unsigned int bins, const double alarm, double* rays, LUTAB *modifiers);
+extern void contribOptix(const size_t width, const size_t height, const size_t ray_count, const unsigned int imm_irrad, const unsigned int lim_dist, const unsigned int contrib, const unsigned int bins, const double alarm, double* rays, LUTAB *modifiers);
 
 static unsigned int total_bins = 0;	/* total number of contribution bins */
 
@@ -364,7 +364,7 @@ rcontrib(void)
 	FVECT		orig, direc;
 	double		d;
 #ifdef ACCELERAD
-	size_t width, ray_count, ray_capacity;
+	size_t width, height, ray_count, ray_capacity;
 	RREAL *ray_cache;
 #endif
 					/* initialize (& fork more of us) */
@@ -401,7 +401,10 @@ rcontrib(void)
 		width = (yres > 0 && xres > 0) ? xres : 1;
 		if (yres > 0 && accumulate > 1)
 			width *= accumulate;
-		contribOptix(width, yres > 0 ? yres : ray_count, imm_irrad, lim_dist, contrib, total_bins, ralrm, ray_cache, &modconttab);
+		height = (ray_count - 1) / width + 1;
+		if (accumulate > 1 && height != ray_count / width)
+			error(WARNING, "partial accumulation in final record");
+		contribOptix(width, height, ray_count, imm_irrad, lim_dist, contrib, total_bins, ralrm, ray_cache, &modconttab);
 		free(ray_cache);
 	}
 	else
