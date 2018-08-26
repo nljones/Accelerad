@@ -2288,33 +2288,34 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 	/* Set current definitions */
 	set_eparams(mp->params);
 
-	//eprint(mp->binv, stderr); vprintf("\n");
+	//eprint(mp->binv, stderr); fprintf(stderr, "\n");
 	bin_func = findSymbol(mp->binv);
 	if (!bin_func) {
 		eprintf(WARNING, "Undefined bin function for modifier %s\n", mp->modname);
 		return RT_PROGRAM_ID_NULL;
 	}
 
+	/* Expect PTX file with same name as CAL file */
+	if (!mp->file) {
+		eprintf(WARNING, "Could not determine function file for modifier %s\n", mp->modname);
+		return RT_PROGRAM_ID_NULL;
+	}
+	ptxFile(path_to_ptx, mp->file);
+
+	/* Create the bin selection program */
 	if (mp->nbins == 146 && !strcmp(bin_func, "tbin")) { // It's probably tregenza.cal
-		ptxFile(path_to_ptx, "tregenza");
 		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, bin_func, &program));
 	}
 	else if (!strcmp(bin_func, "rbin")) { // It's probably reinhart.cal or reinhartb.cal
-		ptxFile(path_to_ptx, "reinhart");
 		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, bin_func, &program));
-		applyProgramVariable1i(context, program, "mf", (int)eval("MF")); // Number of divisions per Tregenza patch
-		if (varlookup("rNx") && varlookup("rNy") && varlookup("rNz")) // Only in reinhartb.cal
-			applyProgramVariable3f(context, program, "normal", (float)eval("rNx"), (float)eval("rNy"), (float)eval("rNz")); // Normal direction
-		else
-			applyProgramVariable3f(context, program, "normal", 0, 0, -1); // Normal direction
-		if (varlookup("Ux") && varlookup("Uy") && varlookup("Uz")) // Only in reinhartb.cal
-			applyProgramVariable3f(context, program, "up", (float)eval("Ux"), (float)eval("Uy"), (float)eval("Uz")); // Up direction
-		else
-			applyProgramVariable3f(context, program, "up", 0, 1, 0); // Normal direction
-		if (varlookup("RHS")) // Only in reinhartb.cal
-			applyProgramVariable1i(context, program, "RHS", (int)eval("RHS")); // Coordinate system handedness
+		applyProgramVariable1i(context, program, "mf", evali("MF", 1)); // Number of divisions per Tregenza patch
+		if (!strcmp(mp->file, "reinhartb")) {
+			applyProgramVariable3f(context, program, "normal", evalf("rNx", 0.0f), evalf("rNy", 0.0f), evalf("rNz", -1.0f)); // Normal direction
+			applyProgramVariable3f(context, program, "up", evalf("Ux", 0.0f), evalf("Uy", 1.0f), evalf("Uz", 0.0f)); // Up direction
+			applyProgramVariable1i(context, program, "RHS", evali("RHS", 1)); // Coordinate system handedness
+		}
 	}
-	else if (!strncmp(bin_func, "kbin", 4)) { // It's probably klems_full.cal
+	else if (bin_func[0] == 'k') { // It's probably klems_full.cal, klems_half.cal, or klems_quarter.cal
 		float orientation[6] = {
 			0.0f, 0.0f, 0.0f,
 			0.0f, 0.0f, 0.0f
@@ -2331,7 +2332,7 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 				return RT_PROGRAM_ID_NULL;
 			}
 		}
-		else switch (bin_func[4]) {
+		else switch (bin_func[4]) { // Variables from klems_full.cal
 		case 'N': orientation[1] = -1.0f; orientation[5] = 1.0f; break;
 		case 'E': orientation[0] = -1.0f; orientation[5] = 1.0f; break;
 		case 'S': orientation[1] = 1.0f; orientation[5] = 1.0f; break;
@@ -2342,14 +2343,13 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 			return RT_PROGRAM_ID_NULL;
 		}
 
-		ptxFile(path_to_ptx, "klems_full");
 		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "kbin", &program));
 		applyProgramVariable3f(context, program, "normal", orientation[0], orientation[1], orientation[2]); // Normal direction
 		applyProgramVariable3f(context, program, "up", orientation[3], orientation[4], orientation[5]); // Up direction
-		applyProgramVariable1i(context, program, "RHS", (int)eval("RHS")); // Coordinate system handedness
+		applyProgramVariable1i(context, program, "RHS", evali("RHS", 1)); // Coordinate system handedness
 	}
 	else {
-		eprintf(WARNING, "Unrecognized bin function for modifier %s\n", mp->modname);
+		eprintf(WARNING, "Unrecognized bin function %s for modifier %s\n", bin_func, mp->modname);
 		return RT_PROGRAM_ID_NULL;
 	}
 
@@ -2359,7 +2359,7 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 
 static void applyContribution(const RTcontext context, const RTmaterial material, DistantLight* light, OBJREC* rec, Scene* scene)
 {
-	const static char *cfunc = "contrib_function";
+	static char cfunc[] = "contrib_function";
 
 	/* Check for a call-back function. */
 	if (scene && scene->modifiers) {

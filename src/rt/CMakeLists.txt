@@ -230,9 +230,12 @@ if(OptiX_USE)
     OPTIONS "-rdc true"
   )
   CUDA_COMPILE_PTX(generated_PTX_files_rcontrib_callable
-    tregenza.cu
-    reinhart.cu
     klems_full.cu
+    klems_half.cu
+    klems_quarter.cu
+    reinhart.cu
+    reinhartb.cu
+    tregenza.cu
     OPTIONS "-rdc true"
   )
 

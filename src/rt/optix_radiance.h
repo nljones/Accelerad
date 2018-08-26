@@ -237,6 +237,8 @@ void freeArrayp(PoniterArray *a);
 DistantLightArray* initArraydl(const size_t initialSize);
 DistantLight insertArraydl(DistantLightArray *a, const DistantLight element);
 void freeArraydl(DistantLightArray *a);
+int evali(char *name, const int val);
+float evalf(char *name, const float val);
 void handleError( const RTcontext context, const RTresult code, const char* file, const int line, const int etype );
 #ifdef DEBUG_OPTIX
 void logException(const RTexception type);

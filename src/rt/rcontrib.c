@@ -80,6 +80,8 @@ extern void contribOptix(const size_t width, const size_t height, const size_t r
 
 static unsigned int total_bins = 0;	/* total number of contribution bins */
 
+char *calfilename = NULL;			/* name of the most recently read cal file */
+
 double  ralrm = 0.0;				/* seconds between reports */
 
 /* TODO This shouldn't be necessary, but the variable must exist in optix_util.c */
@@ -156,6 +158,7 @@ addmodifier(char *modn, char *outf, char *prms, char *binv, int bincnt)
 #ifdef ACCELERAD
 	mp->start_bin = total_bins;
 	total_bins += bincnt;
+	mp->file = calfilename;
 #endif
 	memset(mp->cbin, 0, sizeof(DCOLOR)*bincnt);
 					/* figure out starting bin */

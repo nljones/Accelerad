@@ -6,6 +6,7 @@
 
 #include "rtio.h"
 #include "paths.h" /* Required for R_OK argument to getpath() */
+#include "calcomp.h"
 
 #include "optix_radiance.h"
 
@@ -568,6 +569,24 @@ void freeArraydl(DistantLightArray *a)
 {
 	free(a->array);
 	free(a);
+}
+
+int evali(char *name, const int val)
+{
+	if (!varlookup(name)) {
+		eprintf(WARNING, "function %s not found, default value %i used", name, val);
+		return val;
+	}
+	return (int)(eval(name) + 0.5);
+}
+
+float evalf(char *name, const float val)
+{
+	if (!varlookup(name)) {
+		eprintf(WARNING, "function %s not found, default value %g used", name, val);
+		return val;
+	}
+	return (float)eval(name);
 }
 
 void handleError( const RTcontext context, const RTresult code, const char* file, const int line, const int etype )

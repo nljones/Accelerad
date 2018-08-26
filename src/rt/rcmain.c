@@ -19,6 +19,8 @@ static const char	RCSid[] = "$Id: rcmain.c,v 2.18 2018/01/18 19:43:43 greg Exp $
 #ifdef ACCELERAD
 extern void printRayTracingTime(const time_t time, const clock_t clock);
 
+extern char *calfilename;			/* name of the most recently read cal file */
+
 extern double  ralrm;				/* seconds between reports */
 #endif
 
@@ -265,6 +267,10 @@ main(int argc, char *argv[])
 			if (!argv[i][2]) {
 				check(2,"s");
 				loadfunc(argv[++i]);
+#ifdef ACCELERAD
+				getscanpos(&calfilename, NULL, NULL, NULL); /* file name */
+				calfilename = fixargv0(savestr(calfilename));
+#endif
 				break;
 			}
 			if (argv[i][2] == 'o') {
