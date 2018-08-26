@@ -2306,6 +2306,13 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 	if (mp->nbins == 146 && !strcmp(bin_func, "tbin")) { // It's probably tregenza.cal
 		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, bin_func, &program));
 	}
+	else if (!strcmp(bin_func, "scbin")) { // It's probably disk2square.cal
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, bin_func, &program));
+		applyProgramVariable1i(context, program, "SCdim", evali("SCdim", 1)); // Side length of square
+		applyProgramVariable3f(context, program, "normal", evalf("rNx", 0.0f), evalf("rNy", 0.0f), evalf("rNz", -1.0f)); // Normal direction
+		applyProgramVariable3f(context, program, "up", evalf("Ux", 0.0f), evalf("Uy", 1.0f), evalf("Uz", 0.0f)); // Up direction
+		applyProgramVariable1i(context, program, "RHS", evali("RHS", 1)); // Coordinate system handedness
+	}
 	else if (!strcmp(bin_func, "rbin")) { // It's probably reinhart.cal or reinhartb.cal
 		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, bin_func, &program));
 		applyProgramVariable1i(context, program, "mf", evali("MF", 1)); // Number of divisions per Tregenza patch
