@@ -237,6 +237,7 @@ if(OptiX_USE)
     reinhart.cu
     reinhartb.cu
     tregenza.cu
+	uniform.cu
     OPTIONS "-rdc true"
   )
 

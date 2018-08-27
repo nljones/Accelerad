@@ -2227,11 +2227,19 @@ static char* findSymbol(EPNODE *ep)
 	static EPNODE  *curdef = NULL;
 	EPNODE  *ep1 = NULL;
 	char *found = NULL;
+	static char num[50];
 
 	switch (ep->type) {
 	case VAR:
 		if (ep->v.ln->def)
 			found = findSymbol(ep->v.ln->def);
+		else
+			found = ep->v.ln->name;
+		break;
+
+	case NUM:
+		sprintf(num, "\"%g\"", ep->v.num);
+		found = num;
 		break;
 
 	case SYM:
@@ -2282,7 +2290,7 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 	int program_id = RT_PROGRAM_ID_NULL;
 	char *bin_func;
 
-	if (mp->nbins <= 1) // Guessing that no program is needed for a single bin
+	if (mp->binv->type == NUM) // Guessing that no program is needed for a single bin
 		return RT_PROGRAM_ID_NULL;
 
 	/* Set current definitions */
@@ -2293,6 +2301,36 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 	if (!bin_func) {
 		eprintf(WARNING, "Undefined bin function for modifier %s\n", mp->modname);
 		return RT_PROGRAM_ID_NULL;
+	}
+
+	/* Special case for uniform sampling */
+	if (!strcmp(bin_func, "if")) { // It's probably uniform sampling
+		FVECT normal;
+		normal[0] = normal[1] = normal[2] = 0;
+		if (mp->binv->v.kid && mp->binv->v.kid->sibling && mp->binv->v.kid->sibling->v.kid) {
+			EPNODE *child = mp->binv->v.kid->sibling->v.kid;
+			while (child) {
+				if (child->v.kid && child->v.kid->sibling) {
+					char *sym = findSymbol(child->v.kid);
+					if (!strcmp(sym, "Dx")) normal[0] = child->v.kid->sibling->v.num;
+					else if (!strcmp(sym, "Dy")) normal[1] = child->v.kid->sibling->v.num;
+					else if (!strcmp(sym, "Dz")) normal[2] = child->v.kid->sibling->v.num;
+				}
+				child = child->sibling;
+			}
+		}
+
+		if (normal[0] == 0 && normal[1] == 0 && normal[2] == 0) {
+			eprintf(WARNING, "Unrecognized bin function \"%s\" for modifier %s\n", bin_func, mp->modname);
+			return RT_PROGRAM_ID_NULL;
+		}
+
+		/* Create the bin selection program */
+		ptxFile(path_to_ptx, "uniform");
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "front", &program));
+		applyProgramVariable3f(context, program, "normal", (float)normal[0], (float)normal[1], (float)normal[2]); // Normal direction
+		RT_CHECK_ERROR(rtProgramGetId(program, &program_id));
+		return program_id;
 	}
 
 	/* Expect PTX file with same name as CAL file */
@@ -2335,7 +2373,7 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 				orientation[i++] = (float)(evalue(child));
 			}
 			if (child != NULL || i != count) {
-				eprintf(WARNING, "Bad arguments to bin function %s for modifier %s\n", bin_func, mp->modname);
+				eprintf(WARNING, "Bad arguments to bin function \"%s\" for modifier %s\n", bin_func, mp->modname);
 				return RT_PROGRAM_ID_NULL;
 			}
 		}
@@ -2346,7 +2384,7 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 		case 'W': orientation[0] = 1.0f; orientation[5] = 1.0f; break;
 		case 'D': orientation[2] = -1.0f; orientation[4] = 1.0f; break;
 		default:
-			eprintf(WARNING, "Undefined bin function %s for modifier %s\n", bin_func, mp->modname);
+			eprintf(WARNING, "Undefined bin function \"%s\" for modifier %s\n", bin_func, mp->modname);
 			return RT_PROGRAM_ID_NULL;
 		}
 
@@ -2356,7 +2394,7 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 		applyProgramVariable1i(context, program, "RHS", evali("RHS", 1)); // Coordinate system handedness
 	}
 	else {
-		eprintf(WARNING, "Unrecognized bin function %s for modifier %s\n", bin_func, mp->modname);
+		eprintf(WARNING, "Unrecognized bin function \"%s\" for modifier %s\n", bin_func, mp->modname);
 		return RT_PROGRAM_ID_NULL;
 	}
 

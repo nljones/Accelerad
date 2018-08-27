@@ -21,7 +21,7 @@ RT_CALLABLE_PROGRAM int rbin(const float3 direction)
 	const float inc_rx = -RHS * dot(direction, cross(up, normal));
 	const float inc_ry = dot(direction, up) + inc_dz * dot(normal, up);
 
-	if (inc_dz < 0.0f) return -1;
+	if (inc_dz <= 0.0f) return -1;
 	float alt = (inc_dz >= 1.0f) ? 90.0f : asinf(inc_dz) * 180 * M_1_PIf;
 	float azi = atan2f(inc_rx, inc_ry) * 180 * M_1_PIf;
 	if (azi < 0.0f) azi += 360.0f;

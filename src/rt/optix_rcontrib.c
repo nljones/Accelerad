@@ -12,7 +12,7 @@
 
 #ifdef ACCELERAD
 
-void contribOptix(const size_t width, const size_t height, const unsigned int imm_irrad, const unsigned int lim_dist, const unsigned int contrib, const unsigned int bins, const double alarm, double* rays, LUTAB* modifiers);
+void contribOptix(const size_t width, const size_t height, const size_t ray_count, const unsigned int imm_irrad, const unsigned int lim_dist, const unsigned int contrib, const unsigned int bins, const double alarm, double* rays, LUTAB* modifiers);
 
 extern void done_contrib();
 
