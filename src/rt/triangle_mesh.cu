@@ -38,6 +38,9 @@ using namespace optix;
 /* Program variables */
 rtDeclareVariable(unsigned int, backvis, , ); /* backface visibility (bv) */
 
+/* Instance variables */
+rtDeclareVariable(int, sole_material, , ) = -1; /* sole material index to use for all objects, or -1 to use per-face material index */
+
 /* Contex variables */
 rtBuffer<float3> vertex_buffer;
 rtBuffer<float3> normal_buffer;
@@ -76,7 +79,9 @@ RT_PROGRAM void mesh_intersect(unsigned int primIdx)
 	float  t, beta, gamma;
 	if( intersect_triangle( ray, p0, p1, p2, n, t, beta, gamma ) && ( backvis || dot( n, ray.direction ) < 0) ) {
 
-		int mat = material_buffer[primIdx];
+		int mat = sole_material;
+		if ( mat < 0 ) /* Use per-face material index */
+			mat = material_buffer[primIdx];
 		if ( mat < 0 || mat >= material_alt_buffer.size() ) /* Material void or missing */
 			return;
 		if (ray.ray_type == radiance_primary_ray_type || ray.ray_type == diffuse_primary_ray_type) /* Lambert material for irradiance calculations */

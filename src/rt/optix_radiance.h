@@ -204,6 +204,7 @@ RTvariable applyProgramVariable2f(const RTcontext context, const RTprogram progr
 RTvariable applyProgramVariable3f(const RTcontext context, const RTprogram program, const char* name, const float x, const float y, const float z);
 RTvariable applyProgramVariable(const RTcontext context, const RTprogram program, const char* name, const RTsize size, const void* data);
 RTvariable applyGeometryVariable1ui(const RTcontext context, const RTgeometry geometry, const char* name, const unsigned int value);
+RTvariable applyGeometryInstanceVariable1i(const RTcontext context, const RTgeometryinstance instance, const char* name, const int value);
 RTvariable applyMaterialVariable1i(const RTcontext context, const RTmaterial material, const char* name, const int value);
 RTvariable applyMaterialVariable1ui(const RTcontext context, const RTmaterial material, const char* name, const unsigned int value);
 RTvariable applyMaterialVariable1f(const RTcontext context, const RTmaterial material, const char* name, const float value);

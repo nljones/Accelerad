@@ -52,9 +52,10 @@ typedef struct SceneNode {
 	char *name;						/* The name of this instance */
 	RTgeometrygroup group;			/* The geometry group containing this instance */
 	RTgeometryinstance instance;	/* The geometry instance kept by this scene */
-	RTacceleration acceleration;	/* The geometry instance kept by this scene */
+	RTacceleration acceleration;	/* The acceleration structure kept by this scene */
 	RTbuffer vindex_buffer;			/* Buffer containing the indices vertex indices, three entries per triangle */
 	RTbuffer material_buffer;		/* Buffer containing the material indices, one entry per triangle */
+	int sole_material;				/* The material index to use for all surfaces in this node, or -1 to use separate materials for each object. */
 	struct SceneBranch *child;		/* First entry in linked list of child branches */
 } SceneNode;
 
@@ -93,7 +94,7 @@ static void checkRemoteDevice(RTremotedevice remote);
 static void createRemoteDevice(RTremotedevice* remote);
 static void applyRadianceSettings(const RTcontext context, const VIEW* view, const unsigned int imm_irrad);
 static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifiers);
-static void createNode(const RTcontext context, Scene* scene, char* name, const OBJECT start, const OBJECT count);
+static void createNode(const RTcontext context, Scene* scene, char* name, const OBJECT start, const OBJECT count, const int material_index, MESH* mesh);
 static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, Scene* scene);
 static void createFace(const RTcontext context, OBJREC* rec, Scene* scene);
 static __inline void createTriangle(Scene* scene, const int a, const int b, const int c);
@@ -103,7 +104,8 @@ static int addTriangle(const Vert2_list *tp, int a, int b, int c);
 #endif /* TRIANGULATE */
 static void createSphere(const RTcontext context, OBJREC* rec, Scene* scene);
 static void createCone(const RTcontext context, OBJREC* rec, Scene* scene);
-static void createMesh(const RTcontext context, OBJREC* rec, Scene* scene);
+static void createMesh(const RTcontext context, MESH* mesh, Scene* scene);
+static __inline void setMeshMaterial(const RTcontext context, const OBJECT mo, const OBJECT mat0, Scene* scene);
 static void createInstance(const RTcontext context, OBJREC* rec, Scene* scene);
 static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec, Scene* scene);
 static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec, Scene* scene);
@@ -123,7 +125,9 @@ static int createContribFunction(const RTcontext context, MODCONT *mp);
 static void applyContribution(const RTcontext context, const RTmaterial material, DistantLight* light, OBJREC* rec, Scene* scene);
 #endif
 static void clearSceneNode(SceneNode *node);
+static SceneNode* cloneSceneNode(const RTcontext context, SceneNode *node, const int material_override, Scene* scene);
 static void clearSceneBranch(SceneBranch *branch);
+static SceneBranch* cloneSceneBranch(const RTcontext context, SceneBranch *branch, const int material_override, Scene* scene);
 static RTobject createSceneHierarchy(const RTcontext context, SceneNode* root);
 static void createIrradianceGeometry( const RTcontext context );
 static void printObject(OBJREC* rec);
@@ -645,7 +649,7 @@ static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifie
 	}
 
 	/* Create the top node of the scene graph. */
-	createNode(context, &scene, octname, 0, nobjects);
+	createNode(context, &scene, octname, 0, nobjects, OVOID, NULL);
 
 	/* Free resources used in creating the scene graph. */
 	free(scene.buffer_entry_index);
@@ -717,7 +721,7 @@ static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifie
 	mprintf("Geometry build time: %" PRIu64 " milliseconds for %i objects.\n", MILLISECONDS(geometry_clock), nobjects);
 }
 
-static void createNode(const RTcontext context, Scene* scene, char* name, const OBJECT start, const OBJECT count)
+static void createNode(const RTcontext context, Scene* scene, char* name, const OBJECT start, const OBJECT count, const int material_index, MESH* mesh)
 {
 	unsigned int i;
 	const OBJECT end = start + count;
@@ -726,8 +730,10 @@ static void createNode(const RTcontext context, Scene* scene, char* name, const 
 	RTgeometry geometry = NULL;
 
 	/* Allocate or expand space for entry buffer. */
-	scene->buffer_entry_index = (int *)realloc(scene->buffer_entry_index, sizeof(int) * end);
-	if (!scene->buffer_entry_index) eprintf(SYSTEM, "out of memory in createNode, need %" PRIu64 " bytes", sizeof(int) * end);
+	if (count > 0) {
+		scene->buffer_entry_index = (int *)realloc(scene->buffer_entry_index, sizeof(int) * end);
+		if (!scene->buffer_entry_index) eprintf(SYSTEM, "out of memory in createNode, need %" PRIu64 " bytes", sizeof(int) * end);
+	}
 
 	/* Temporarily store for parent's lists. */
 	IntArray* vertex_indices = scene->vertex_indices;
@@ -744,16 +750,19 @@ static void createNode(const RTcontext context, Scene* scene, char* name, const 
 	}
 	node->name = savestr(name);
 	insertArrayp(scene->instances, node);
+	node->sole_material = material_index;
 
 	/* Get the scene geometry as a list of triangles. */
 	for (on = start; on < end; on++) {
 		/* By default, no buffer entry is refered to. */
-		scene->buffer_entry_index[on] = BLANK;
+		scene->buffer_entry_index[on] = OVOID;
 
 		rec = objptr(on);
 		if (!ismodifier(rec->otype))
 			addRadianceObject(context, rec, scene);
 	}
+	if (mesh)
+		createMesh(context, mesh, scene);
 
 	/* Check for overflow */
 	if (scene->traingles->count > UINT_MAX)
@@ -817,6 +826,10 @@ static void createNode(const RTcontext context, Scene* scene, char* name, const 
 	freeArrayi(scene->traingles);
 	scene->traingles = traingles;
 
+	/* Set material override */
+	if (node->sole_material != OVOID)
+		applyGeometryInstanceVariable1i(context, node->instance, "sole_material", node->sole_material);
+
 	/* Create a geometry group to hold the geometry instance. */
 	if (!node->group) {
 		RT_CHECK_ERROR(rtGeometryGroupCreate(context, &node->group));
@@ -841,9 +854,9 @@ static void createNode(const RTcontext context, Scene* scene, char* name, const 
 static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, Scene* scene)
 {
 	const OBJECT index = objndx(rec);
-	int alternate = -1;
+	int alternate = OVOID;
 
-	if (scene->buffer_entry_index[index] != BLANK) return index; /* Already done */
+	if (scene->buffer_entry_index[index] != OVOID) return index; /* Already done */
 
 	switch (rec->otype) {
 	case MAT_PLASTIC: // Plastic material
@@ -854,7 +867,7 @@ static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, Scene* sce
 		break;
 	case MAT_GLASS: // Glass material
 	case MAT_DIELECTRIC: // Dielectric material TODO handle separately, see dialectric.c
-		scene->buffer_entry_index[index] = insertArray2i(scene->alt_materials, -1, (int)scene->materials->count);
+		scene->buffer_entry_index[index] = insertArray2i(scene->alt_materials, OVOID, (int)scene->materials->count);
 		insertArrayp(scene->materials, createGlassMaterial(context, rec, scene));
 		break;
 	case MAT_LIGHT: // primary light source material, may modify a face or a source (solid angle)
@@ -899,8 +912,6 @@ static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, Scene* sce
 		createCone(context, rec, scene);
 		break;
 	case OBJ_MESH: // Mesh from file
-		createMesh(context, rec, scene);
-		break;
 	case OBJ_INSTANCE: // octree instance
 		createInstance(context, rec, scene);
 		break;
@@ -930,7 +941,7 @@ static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, Scene* sce
 	case MOD_ALIAS:
 		//if (rec->oargs.nsargs) {
 		//	if (rec->oargs.nsargs > 1)
-		//		objerror(rec, INTERNAL, "too many string arguments");
+		//		objerror(rec, USER, "too many string arguments");
 		//	fprintf(stderr, "Got alias %s %s\n", rec->oname, rec->oargs.sarg[0]);
 		//	addRadianceObject(context, objptr(lastmod(objndx(rec), rec->oargs.sarg[0])), objptr(rec->omod), scene); // TODO necessary?
 		//}
@@ -1043,12 +1054,17 @@ static __inline void createTriangle(Scene *scene, const int a, const int b, cons
 {
 	/* Write the indices to the buffers */
 	insertArray3i(scene->vertex_indices, a, b, c);
-	insertArrayi(scene->traingles, scene->buffer_entry_index[objndx(scene->material)]);
+	if (scene->material) {
+		insertArrayi(scene->traingles, scene->buffer_entry_index[objndx(scene->material)]);
 
 #ifdef LIGHTS
-	if (islight(scene->material->otype) && (scene->material->otype != MAT_GLOW || scene->material->oargs.farg[3] > 0))
-		insertArray3i(scene->lights, a, b, c);
+		if (islight(scene->material->otype) && (scene->material->otype != MAT_GLOW || scene->material->oargs.farg[3] > 0))
+			insertArray3i(scene->lights, a, b, c);
 #endif /* LIGHTS */
+	}
+	else {
+		insertArrayi(scene->traingles, OVOID);
+	}
 }
 
 #ifdef TRIANGULATE
@@ -1302,73 +1318,55 @@ conedone:
 	freecone(rec);
 }
 
-static void createMesh(const RTcontext context, OBJREC* rec, Scene* scene)
+static void createMesh(const RTcontext context, MESH* mesh, Scene* scene)
 {
 	int j, k;
-	MESHINST *meshinst = getmeshinst(rec, IO_ALL);
 	unsigned int vertex_index_mesh = scene->vertex_index_0; //TODO what if not all patches are full?
-	for (j = 0; j < meshinst->msh->npatches; j++) {
-		MESHPATCH *pp = &(meshinst->msh)->patch[j];
-		scene->material = findmaterial(rec);
-		if (scene->material)
-			addRadianceObject(context, scene->material, scene);
-		else if (!pp->trimat) {
-			OBJECT mo = pp->solemat;
-			if (mo != OVOID)
-				mo += meshinst->msh->mat0;
-			scene->material = findmaterial(objptr(mo));
-			addRadianceObject(context, scene->material, scene);
-		}
+	for (j = 0; j < mesh->npatches; j++) {
+		MESHPATCH *pp = &mesh->patch[j];
+		scene->material = NULL;
+		if (!pp->trimat)
+			setMeshMaterial(context, pp->solemat, mesh->mat0, scene);
 
 		/* Write the indices to the buffers */
 		for (k = 0; k < pp->ntris; k++) {
-			if (rec->omod == OVOID && pp->trimat) {
-				OBJECT mo = pp->trimat[k];
-				if (mo != OVOID)
-					mo += meshinst->msh->mat0;
-				scene->material = findmaterial(objptr(mo));
-				addRadianceObject(context, scene->material, scene);
-			}
-			createTriangle(scene, scene->vertex_index_0 + pp->tri[k].v1, scene->vertex_index_0 + pp->tri[k].v2, scene->vertex_index_0 + pp->tri[k].v3);
+			if (pp->trimat)
+				setMeshMaterial(context, pp->trimat[k], mesh->mat0, scene);
+			createTriangle(scene,
+				scene->vertex_index_0 + pp->tri[k].v1,
+				scene->vertex_index_0 + pp->tri[k].v2,
+				scene->vertex_index_0 + pp->tri[k].v3);
 		}
 
 		for (k = 0; k < pp->nj1tris; k++) {
-			if (rec->omod == OVOID && pp->trimat) {
-				OBJECT mo = pp->j1tri[k].mat;
-				if (mo != OVOID)
-					mo += meshinst->msh->mat0;
-				scene->material = findmaterial(objptr(mo));
-				addRadianceObject(context, scene->material, scene);
-			}
-			createTriangle(scene, vertex_index_mesh + pp->j1tri[k].v1j, scene->vertex_index_0 + pp->j1tri[k].v2, scene->vertex_index_0 + pp->j1tri[k].v3);
+			if (pp->trimat)
+				setMeshMaterial(context, pp->j1tri[k].mat, mesh->mat0, scene);
+			createTriangle(scene,
+				vertex_index_mesh + pp->j1tri[k].v1j,
+				scene->vertex_index_0 + pp->j1tri[k].v2,
+				scene->vertex_index_0 + pp->j1tri[k].v3);
 		}
 
 		for (k = 0; k < pp->nj2tris; k++) {
-			if (rec->omod == OVOID && pp->trimat) {
-				OBJECT mo = pp->j2tri[k].mat;
-				if (mo != OVOID)
-					mo += meshinst->msh->mat0;
-				scene->material = findmaterial(objptr(mo));
-				addRadianceObject(context, scene->material, scene);
-			}
-			createTriangle(scene, vertex_index_mesh + pp->j2tri[k].v1j, vertex_index_mesh + pp->j2tri[k].v2j, scene->vertex_index_0 + pp->j2tri[k].v3);
+			if (pp->trimat)
+				setMeshMaterial(context, pp->j2tri[k].mat, mesh->mat0, scene);
+			createTriangle(scene,
+				vertex_index_mesh + pp->j2tri[k].v1j,
+				vertex_index_mesh + pp->j2tri[k].v2j,
+				scene->vertex_index_0 + pp->j2tri[k].v3);
 		}
 
 		/* Write the vertices to the buffers */
-		// TODO do this once per mesh and use transform for different mesh instances
 		for (k = 0; k < pp->nverts; k++) {
 			MESHVERT mesh_vert;
-			FVECT transform;
-			getmeshvert(&mesh_vert, meshinst->msh, k + (j << 8), MT_ALL);
+			getmeshvert(&mesh_vert, mesh, k + (j << 8), MT_ALL);
 			if (!(mesh_vert.fl & MT_V))
-				objerror(rec, INTERNAL, "missing mesh vertices in createMesh");
-			multp3(transform, mesh_vert.v, meshinst->x.f.xfm);
-			insertArray3f(scene->vertices, (float)transform[0], (float)transform[1], (float)transform[2]);
+				eprintf(INTERNAL, "missing mesh vertices in %s", mesh->name);
+			insertArray3f(scene->vertices, (float)mesh_vert.v[0], (float)mesh_vert.v[1], (float)mesh_vert.v[2]);
 
-			if (mesh_vert.fl & MT_N) { // TODO what if normal is defined by texture function
-				multv3(transform, mesh_vert.n, meshinst->x.f.xfm);
-				insertArray3f(scene->normals, (float)transform[0], (float)transform[1], (float)transform[2]);
-			} else
+			if (mesh_vert.fl & MT_N) // TODO what if normal is defined by texture function
+				insertArray3f(scene->normals, (float)mesh_vert.n[0], (float)mesh_vert.n[1], (float)mesh_vert.n[2]);
+			else
 				insertArray3f(scene->normals, 0.0f, 0.0f, 0.0f); //TODO Can this happen?
 
 			if (mesh_vert.fl & MT_UV)
@@ -1379,47 +1377,93 @@ static void createMesh(const RTcontext context, OBJREC* rec, Scene* scene)
 
 		scene->vertex_index_0 += pp->nverts;
 	}
-	freemeshinst(rec);
+}
+
+static __inline void setMeshMaterial(const RTcontext context, const OBJECT mo, const OBJECT mat0, Scene* scene)
+{
+	if (mo != OVOID) {
+		scene->material = findmaterial(objptr(mo + mat0));
+		addRadianceObject(context, scene->material, scene);
+	}
 }
 
 static void createInstance(const RTcontext context, OBJREC* rec, Scene* scene)
 {
-	INSTANCE *inst = getinstance(rec, IO_CHECK);
+	INSTANCE *inst = NULL;
+	MESHINST *meshinst = NULL;
+	FULLXF *trans; // Transform for this instance
+	char *name; // File name
+	SceneNode *twin = NULL;
+	int material_override, i;
 
 	SceneBranch *branch = (SceneBranch*)malloc(sizeof(SceneBranch)); //TODO what can be reused?
 	if (!branch) eprintf(SYSTEM, "Out of memory in createInstance, need %" PRIu64 " bytes", sizeof(SceneBranch));
 	clearSceneBranch(branch);
 
+	/* Read the name and transform of the instance */
+	if (rec->otype == OBJ_INSTANCE) {
+		inst = getinstance(rec, IO_CHECK);
+		trans = &inst->x;
+		name = inst->obj->name;
+	}
+	else {
+		meshinst = getmeshinst(rec, IO_CHECK);
+		trans = &meshinst->x;
+		name = meshinst->msh->name;
+	}
+
+	/* Get the material for the instance, if any */
+	material_override = scene->root->sole_material;
+	if (material_override == OVOID) {
+		scene->material = findmaterial(rec);
+		if (scene->material)
+			material_override = scene->buffer_entry_index[addRadianceObject(context, scene->material, scene)];
+	}
+
 	/* Check if instance has already been loaded */
-	int i;
-	for (i = 0; i < scene->instances->count; i++)
-		if (!strcmp(inst->obj->name, ((SceneNode*)scene->instances->array[i])->name)) {
-			branch->node = (SceneNode*)scene->instances->array[i];
-			break;
+	for (i = 0; i < scene->instances->count; i++) {
+		SceneNode *node = (SceneNode*)scene->instances->array[i];
+		if (!strcmp(name, node->name)) {
+			twin = node;
+			if (node->sole_material == material_override) {
+				branch->node = node;
+				break;
+			}
 		}
-	if (!branch->node) {
+	}
+	if (!twin) {
 		// Create a new instance
 		SceneNode *root = scene->root;
 		scene->root = NULL;
-		inst = getinstance(rec, IO_SCENE); // Load the octree for the instance
-		createNode(context, scene, inst->obj->name, inst->obj->firstobj, inst->obj->nobjs);
+		if (inst) {
+			inst = getinstance(rec, IO_SCENE); // Load the octree for the instance
+			createNode(context, scene, name, inst->obj->firstobj, inst->obj->nobjs, material_override, NULL);
+		}
+		else {
+			meshinst = getmeshinst(rec, IO_SCENE | IO_BOUNDS); // Load the mesh file for the instance
+			createNode(context, scene, name, meshinst->msh->mat0, meshinst->msh->nmats, material_override, meshinst->msh);
+		}
 		branch->node = scene->root;
 		scene->root = root;
+	}
+	else if (!branch->node) {
+		// Create a copy with different materials
+		branch->node = cloneSceneNode(context, twin, material_override, scene);
 	}
 
 	// Get the transform of the new instance
 	if (rec->oargs.nsargs > 1) {
 		const float ft[16] = {
-			(float)inst->x.f.xfm[0][0], (float)inst->x.f.xfm[1][0], (float)inst->x.f.xfm[2][0], (float)inst->x.f.xfm[3][0],
-			(float)inst->x.f.xfm[0][1], (float)inst->x.f.xfm[1][1], (float)inst->x.f.xfm[2][1], (float)inst->x.f.xfm[3][1],
-			(float)inst->x.f.xfm[0][2], (float)inst->x.f.xfm[1][2], (float)inst->x.f.xfm[2][2], (float)inst->x.f.xfm[3][2],
-			(float)inst->x.f.xfm[0][3], (float)inst->x.f.xfm[1][3], (float)inst->x.f.xfm[2][3], (float)inst->x.f.xfm[3][3]
+			(float)trans->f.xfm[0][0], (float)trans->f.xfm[1][0], (float)trans->f.xfm[2][0], (float)trans->f.xfm[3][0],
+			(float)trans->f.xfm[0][1], (float)trans->f.xfm[1][1], (float)trans->f.xfm[2][1], (float)trans->f.xfm[3][1],
+			(float)trans->f.xfm[0][2], (float)trans->f.xfm[1][2], (float)trans->f.xfm[2][2], (float)trans->f.xfm[3][2],
+			(float)trans->f.xfm[0][3], (float)trans->f.xfm[1][3], (float)trans->f.xfm[2][3], (float)trans->f.xfm[3][3]
 		};
 		const float bt[16] = {
-			(float)inst->x.b.xfm[0][0], (float)inst->x.b.xfm[1][0], (float)inst->x.b.xfm[2][0], (float)inst->x.b.xfm[3][0],
-			(float)inst->x.b.xfm[0][1], (float)inst->x.b.xfm[1][1], (float)inst->x.b.xfm[2][1], (float)inst->x.b.xfm[3][1],
-			(float)inst->x.b.xfm[0][2], (float)inst->x.b.xfm[1][2], (float)inst->x.b.xfm[2][2], (float)inst->x.b.xfm[3][2],
-			(float)inst->x.b.xfm[0][3], (float)inst->x.b.xfm[1][3], (float)inst->x.b.xfm[2][3], (float)inst->x.b.xfm[3][3]
+			(float)trans->b.xfm[0][0], (float)trans->b.xfm[1][0], (float)trans->b.xfm[2][0], (float)trans->b.xfm[3][0],
+			(float)trans->b.xfm[0][1], (float)trans->b.xfm[1][1], (float)trans->b.xfm[2][1], (float)trans->b.xfm[3][1],
+			(float)trans->b.xfm[0][2], (float)trans->b.xfm[1][2], (float)trans->b.xfm[2][2], (float)trans->b.xfm[3][2],
+			(float)trans->b.xfm[0][3], (float)trans->b.xfm[1][3], (float)trans->b.xfm[2][3], (float)trans->b.xfm[3][3]
 		};
 		RT_CHECK_ERROR(rtTransformCreate(context, &branch->transform));
 		RT_CHECK_ERROR(rtTransformSetMatrix(branch->transform, 0, ft, bt));
@@ -1435,7 +1479,10 @@ static void createInstance(const RTcontext context, OBJREC* rec, Scene* scene)
 		insertion->sibling = branch;
 	}
 
-	freeinstance(rec);
+	if (inst)
+		freeinstance(rec);
+	else
+		freemeshinst(rec);
 }
 
 #ifdef BSDF
@@ -2417,11 +2464,10 @@ static void applyContribution(const RTcontext context, const RTmaterial material
 			else if (light) {
 				/* Check for a existing program. */
 				int mat_index = scene->buffer_entry_index[objndx(rec)];
-				RTmaterial mat = (mat_index == BLANK) ? NULL : (RTmaterial)scene->materials->array[mat_index];
 				light->contrib_index = mp->start_bin;
-				if (mat) { /* In case this material has also already been used for a surface, we can reuse the function here */
+				if (mat_index != OVOID) { /* In case this material has also already been used for a surface, we can reuse the function here */
 					RTvariable var;
-					RT_CHECK_ERROR(rtMaterialQueryVariable(mat, cfunc, &var));
+					RT_CHECK_ERROR(rtMaterialQueryVariable((RTmaterial)scene->materials->array[mat_index], cfunc, &var));
 					RT_CHECK_ERROR(rtVariableGet1i(var, &light->contrib_function));
 				}
 				else
@@ -2451,7 +2497,57 @@ static void clearSceneNode(SceneNode *node)
 	node->acceleration = NULL;
 	node->vindex_buffer = NULL;
 	node->material_buffer = NULL;
+	node->sole_material = OVOID;
 	node->child = NULL;
+}
+
+static SceneNode* cloneSceneNode(const RTcontext context, SceneNode *node, const int material_override, Scene* scene)
+{
+	if (!node) return NULL;
+
+	SceneNode *twin = (SceneNode*)malloc(sizeof(SceneNode));
+	if (!twin) eprintf(SYSTEM, "out of memory in cloneSceneNode, need %" PRIu64 " bytes", sizeof(SceneNode));
+	insertArrayp(scene->instances, twin);
+
+	twin->name = node->name;
+	twin->acceleration = node->acceleration;
+	twin->vindex_buffer = node->vindex_buffer;
+	twin->material_buffer = node->material_buffer;
+	twin->sole_material = material_override;
+
+	if (node->instance) {
+		RTgeometry geometry;
+		unsigned int i;
+		RT_CHECK_ERROR(rtGeometryInstanceCreate(context, &twin->instance));
+		RT_CHECK_ERROR(rtGeometryInstanceGetGeometry(node->instance, &geometry));
+		RT_CHECK_ERROR(rtGeometryInstanceSetGeometry(twin->instance, geometry));
+		applyGeometryInstanceObject(context, twin->instance, "material_buffer", twin->material_buffer);
+
+		RT_CHECK_ERROR(rtGeometryInstanceSetMaterialCount(twin->instance, (unsigned int)scene->materials->count));
+
+		/* Apply materials to the geometry instance. */
+		vprintf("Processed %" PRIu64 " materials for %s.\n", scene->materials->count, twin->name);
+		for (i = 0u; i < scene->materials->count; i++)
+			RT_CHECK_ERROR(rtGeometryInstanceSetMaterial(twin->instance, i, (RTmaterial)scene->materials->array[i]));
+
+		if (material_override != OVOID)
+			applyGeometryInstanceVariable1i(context, twin->instance, "sole_material", material_override);
+	}
+	else
+		twin->instance = NULL;
+
+	if (node->group) {
+		RT_CHECK_ERROR(rtGeometryGroupCreate(context, &twin->group));
+		RT_CHECK_ERROR(rtGeometryGroupSetChildCount(twin->group, 1));
+		RT_CHECK_ERROR(rtGeometryGroupSetChild(twin->group, 0, twin->instance));
+		RT_CHECK_ERROR(rtGeometryGroupSetAcceleration(twin->group, twin->acceleration));
+	}
+	else
+		twin->group = NULL;
+
+	twin->child = cloneSceneBranch(context, node->child, material_override, scene);
+
+	return twin;
 }
 
 static void clearSceneBranch(SceneBranch *branch)
@@ -2459,6 +2555,34 @@ static void clearSceneBranch(SceneBranch *branch)
 	branch->node = NULL;
 	branch->transform = NULL;
 	branch->sibling = NULL;
+}
+
+static SceneBranch* cloneSceneBranch(const RTcontext context, SceneBranch *branch, const int material_override, Scene* scene)
+{
+	if (!branch) return NULL;
+
+	int i;
+	SceneBranch *twin = (SceneBranch*)malloc(sizeof(SceneBranch));
+	if (!twin) eprintf(SYSTEM, "Out of memory in cloneSceneBranch, need %" PRIu64 " bytes", sizeof(SceneBranch));
+
+	/* Check if instance has already been loaded */
+	twin->node = NULL;
+	if (branch->node) {
+		for (i = 0; i < scene->instances->count; i++) {
+			SceneNode *node = (SceneNode*)scene->instances->array[i];
+			if (node->sole_material == material_override && !strcmp(branch->node->name, node->name)) {
+				twin->node = node;
+				break;
+			}
+		}
+
+		if (!twin->node)
+			twin->node = cloneSceneNode(context, branch->node, material_override, scene);
+	}
+	twin->transform = branch->transform;
+	twin->sibling = cloneSceneBranch(context, branch->sibling, material_override, scene);
+
+	return twin;
 }
 
 static RTobject createSceneHierarchy(const RTcontext context, SceneNode* node)

@@ -269,6 +269,14 @@ RTvariable applyGeometryVariable1ui(const RTcontext context, const RTgeometry ge
 	return var;
 }
 
+RTvariable applyGeometryInstanceVariable1i(const RTcontext context, const RTgeometryinstance instance, const char* name, const int value)
+{
+	RTvariable var;
+	RT_CHECK_ERROR(rtGeometryInstanceDeclareVariable(instance, name, &var));
+	RT_CHECK_ERROR(rtVariableSet1i(var, value));
+	return var;
+}
+
 RTvariable applyMaterialVariable1i(const RTcontext context, const RTmaterial material, const char* name, const int value)
 {
 	RTvariable var;
