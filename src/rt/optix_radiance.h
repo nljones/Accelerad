@@ -9,6 +9,7 @@
 #include "fvect.h"
 #include "view.h"
 #include "color.h"
+#define __STDC_FORMAT_MACROS
 #include <inttypes.h>
 #include "lookup.h"
 #include "rterror.h"

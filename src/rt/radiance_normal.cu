@@ -407,11 +407,11 @@ RT_PROGRAM void closest_hit_radiance()
 
 	if (nd.specfl & SP_PURE && nd.rdiff <= FTINY && nd.tdiff <= FTINY) { /* 100% pure specular */
 #ifdef TRANSMISSION
-		if (mirtest > transtest + FTINY)
-			prd.distance = mirdist;
+		if (mirtest < transtest + FTINY)
+			prd.distance = transdist;
 		else
 #endif
-			prd.distance = transdist;
+			prd.distance = mirdist;
 	}
 	else { /* not 100% pure specular */
 		/* checks *BLT flags */

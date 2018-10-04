@@ -124,6 +124,14 @@ if(NOT BUILD_HEADLESS)
   if(APPLE)
      include_directories(${X11_INCLUDE_DIR})
   endif()
+  
+  #NLJ Addition - find qwt
+  set(Qwt_DIR "C:/Qwt-6.1.3" CACHE PATH "Path to Qwt installed location.")
+  if(EXISTS "${Qwt_DIR}" AND IS_DIRECTORY "${Qwt_DIR}")
+    set(Qwt_FOUND TRUE)
+    set(Qwt_INCLUDE_DIR "${Qwt_DIR}/include" CACHE PATH "Path to Qwt include directory.")
+    set(Qwt_LIBRARIES "${Qwt_DIR}/lib/qwt.lib" CACHE PATH "Path to Qwt library.")
+  endif()
 endif()
 
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)

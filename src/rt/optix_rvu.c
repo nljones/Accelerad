@@ -61,9 +61,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	double omega = 0.0, ev = 0.0, avlum = 0.0, dgp = 0.0, rammg = 0.0;
 	double lumV = 0.0, omegaV = 0.0, lumT = 0.0, omegaT = 0.0, lumH = 0.0, omegaH = 0.0, lumL = 0.0, omegaL = 0.0, cr = 0.0;
 	int nt = 0, nh = 0, nl = 0;
-	unsigned char* colors;
 	Metrics *metrics;
-	double *plotValues;
 
 #ifdef RAY_COUNT
 	RTbuffer            ray_count_buffer;
@@ -160,10 +158,13 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	/* Run the OptiX kernel */
 	runKernel2D(context, RADIANCE_ENTRY, width, height);
 
-	/* Retrieve the image */
-	RT_CHECK_ERROR(rtBufferMap(output_buffer, (void**)&colors));
-	fpaint(0, 0, width, height, colors);
-	RT_CHECK_ERROR(rtBufferUnmap(output_buffer));
+	if (&fpaint) {
+		/* Retrieve the image */
+		unsigned char* colors;
+		RT_CHECK_ERROR(rtBufferMap(output_buffer, (void**)&colors));
+		fpaint(0, 0, width, height, colors);
+		RT_CHECK_ERROR(rtBufferUnmap(output_buffer));
+	}
 
 	/* Calculate the metrics */
 	RT_CHECK_ERROR(rtBufferMap(metrics_buffer, (void**)&metrics));
@@ -238,17 +239,19 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	if (nh && nl) cr = lumH / lumL;
 	RT_CHECK_ERROR(rtBufferUnmap(metrics_buffer));
 
-	/* Plot results */
-	plotValues = (double *)malloc(METRICS_COUNT * sizeof(double));
-	if (plotValues) {
-		plotValues[0] = avlum;
-		plotValues[1] = ev;
-		plotValues[2] = dgp;
-		plotValues[3] = lumT;
-		plotValues[4] = cr;
-		plotValues[5] = rammg;
-		fplot(plotValues);
-		free(plotValues);
+	if (&fplot) {
+		/* Plot results */
+		double *plotValues = (double *)malloc(METRICS_COUNT * sizeof(double));
+		if (plotValues) {
+			plotValues[0] = avlum;
+			plotValues[1] = ev;
+			plotValues[2] = dgp;
+			plotValues[3] = lumT;
+			plotValues[4] = cr;
+			plotValues[5] = rammg;
+			fplot(plotValues);
+			free(plotValues);
+		}
 	}
 
 #ifdef DEBUG_OPTIX

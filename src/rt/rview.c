@@ -19,6 +19,7 @@ static const char	RCSid[] = "$Id: rview.c,v 2.37 2013/10/18 17:04:13 greg Exp $"
 #include  "optix_rvu.h"
 #endif
 #ifdef ACCELERAD_DEBUG
+#define __STDC_FORMAT_MACROS
 #include  <inttypes.h>
 //#include  "optix_radiance.h"
 #endif

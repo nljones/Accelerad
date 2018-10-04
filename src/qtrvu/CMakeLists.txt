@@ -16,13 +16,12 @@ include_directories(
 )
 
 # NLJ addition
-if(OptiX_USE AND WIN32)
-  set(Qwt_DIR "C:/Qwt-6.1.3" CACHE PATH "Path to Qwt installed location.")
-  include_directories("${Qwt_DIR}/include")
-  link_directories("${Qwt_DIR}/lib")
+if(OptiX_USE AND Qwt_FOUND)
+  include_directories("${Qwt_INCLUDE_DIR}")
+  #link_directories("${Qwt_LIBRARY_DIR}")
   set(ACCELERAD_Qwt metricsplot.cxx)
-  set(Qwt_LIBRARIES "${Qwt_DIR}/lib/qwt.lib")
-  add_definitions("-DHAS_QWT")
+  #set(Qwt_LIBRARIES "${Qwt_LIBRARY_DIR}/qwt.lib")
+  add_definitions(-DHAS_QT -DHAS_QWT)
 endif()
 
 add_library(qtrvu

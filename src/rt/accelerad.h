@@ -7,7 +7,7 @@
 /* Compiler setting to use OptiX ray tracing */
 #define ACCELERAD
 /* Compiler setting to allow real-time progressive OptiX ray tracing */
-#if defined(HAS_QT) || defined(HAS_QWT)
+#if defined(HAS_QT) && defined(HAS_QWT)
 #define ACCELERAD_RT
 #endif
 /* Compiler setting to allow debugging of OptiX ray tracing */
