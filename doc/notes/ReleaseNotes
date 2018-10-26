@@ -2157,7 +2157,7 @@ Added bsdfview tool analogous to objview but for BSDF files (XML and SIR),
 which calls bsdf2rad then rad with a few useful default views.
 
 =========================
-Version 5.2
+Version 5.2 (Release October 8, 2018)
 
 Created psketch program to apply non-photorealistic rendering to selected
 objects, identified by modifier name(s).
@@ -2235,3 +2235,11 @@ out by Rob Shakespeare.
 
 Updates to evalglare and gendaylit from Jan Wienold, including new
 colored sky option.
+
+=========================
+Version 5.3
+
+Created radcompare program to compare Radiance tool output to reference outputs
+during unit-testing.
+
+Fixed issue reading very large files (> 2 GBytes) in rcollate.

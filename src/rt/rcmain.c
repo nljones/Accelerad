@@ -168,6 +168,32 @@ override_options(void)
 }
 
 
+#ifdef ACCELERAD /* copied from fixarg0.c to work for Windows and Linux */
+char *file_name(char *av0)		/* extract command name from full path */
+{
+	char  *cp = av0, *end;
+
+	while (*cp) cp++;		/* start from end */
+	end = cp;
+	while (cp-- > av0)
+		switch (*cp) {		/* fix up command name */
+		case '.':			/* remove extension */
+			*cp = '\0';
+			end = cp;
+			continue;
+		case '\\': case '/':			/* remove directory */
+			/* make sure the original pointer remains the same */
+			memmove(av0, cp + 1, end - cp);
+			return(av0);
+		default:			/* convert to lower case */
+			*cp = tolower(*cp);
+			continue;
+	}
+	return(av0);
+}
+#endif /* ACCELERAD */
+
+
 int
 main(int argc, char *argv[])
 {
@@ -269,7 +295,7 @@ main(int argc, char *argv[])
 				loadfunc(argv[++i]);
 #ifdef ACCELERAD
 				getscanpos(&calfilename, NULL, NULL, NULL); /* file name */
-				calfilename = fixargv0(savestr(calfilename));
+				calfilename = file_name(savestr(calfilename));
 #endif
 				break;
 			}
