@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id: m_mirror.c,v 2.19 2016/06/06 16:22:46 greg Exp $";
+static const char	RCSid[] = "$Id: m_mirror.c,v 2.20 2018/11/13 19:58:33 greg Exp $";
 #endif
 /*
  * Routines for mirror material supporting virtual light sources
@@ -98,12 +98,13 @@ m_mirror(			/* shade mirrored ray */
 	checknorm(nr.rdir);
 	rayvalue(&nr);
 	multcolor(nr.rcol, nr.rcoef);
+	copycolor(r->mcol, nr.rcol);
 	addcolor(r->rcol, nr.rcol);
 #ifdef DAYSIM
 	daysimAddScaled(r->daylightCoef, nr.daylightCoef, colval(nr.rcoef, RED));
 #endif
 	if (rpure && r->ro != NULL && isflat(r->ro->otype))
-		r->rt = r->rot + nr.rt;
+		r->rmt = r->rot + raydistance(&nr);
 	return(1);
 }
 

@@ -5,7 +5,6 @@
 #include "accelerad_copyright.h"
 
 #include <optix_world.h>
-#include "optix_shader_common.h"
 #include "optix_shader_ray.h"
 #ifdef CONTRIB_DOUBLE
 #include "optix_double.h"
@@ -55,9 +54,9 @@ RT_PROGRAM void ray_generator()
 	output_buffer[launch_index] = make_float4( t0 );
 #endif
 	PerRayData_radiance prd;
-	prd.result = make_float3(0.0f);
+	prd.result = prd.mirror = make_float3(0.0f);
+	prd.distance = prd.mirror_distance = 0.0f;
 	prd.weight = 1.0f;
-	prd.distance = 0.0f;
 	prd.depth = 0;
 	prd.ambient_depth = 0;
 	//prd.seed = rnd_seeds[launch_index];
@@ -177,7 +176,7 @@ done:
 	float pixel_time     = ( t1 - t0 ) * time_view_scale * expected_fps;
 	output_buffer[launch_index] = make_float4( pixel_time );
 #else
-	output_buffer[launch_index] = make_float4( prd.result, prd.distance );
+	output_buffer[launch_index] = make_float4(prd.result, rayDistance(prd));
 #endif
 #ifdef RAY_COUNT
 	ray_count_buffer[launch_index] = prd.ray_count;

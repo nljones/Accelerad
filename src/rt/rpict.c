@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: rpict.c,v 2.90 2015/04/22 20:28:16 rschregle Exp $";
+static const char RCSid[] = "$Id: rpict.c,v 2.91 2018/11/13 19:58:33 greg Exp $";
 #endif
 /*
  *  rpict.c - routines and variables for picture generation.
@@ -821,15 +821,8 @@ pixvalue(		/* compute pixel value */
 	rayvalue(&thisray);			/* trace ray */
 
 	copycolor(col, thisray.rcol);		/* return color */
-#ifdef ACCELERAD_DEBUG
-	/* Check for NaN values in order to prevent them from being averaged into the image. */
-	if (col[0] != col[0] || col[1] != col[1] || col[2] != col[2]) {
-		setcolor(col, 0.0f, 0.0f, 0.0f);
-		return(0.0);
-	}
-#endif /* ACCELERAD_DEBUG */
 
-	return(thisray.rt);			/* return distance */
+	return(raydistance(&thisray));		/* return distance */
 }
 
 

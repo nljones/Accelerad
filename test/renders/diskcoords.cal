@@ -1,0 +1,36 @@
+{ RCSid $Id: diskcoords.cal,v 1.2 2018/12/01 02:06:05 greg Exp $ }
+{
+	Shirley-Chiu coordinate calculation for BRDF data types (plasdata, metdata)
+
+	Assumes material in X-Y plane with Y axis "up" and surface normal is Z-axis
+}
+			{ Compute square position from disk coordinates }
+norm_radians(p) : if(-p - PI/4, p + 2*PI, p);
+idr(idx,idy) = sqrt(idx*idx + idy*idy);
+idp(idx,idy) = norm_radians(atan2(idy, idx));
+
+idrgn(idp) = floor((idp + PI/4)/(PI/2)) + 1;
+
+square_a(idr,idp) = select(idrgn(idp),
+			idr,
+			(PI/2 - idp)*idr/(PI/4),
+			-idr,
+			(idp - 3*PI/2)*idr/(PI/4));
+
+square_b(idr,idp) = select(idrgn(idp),
+			idp*idr/(PI/4),
+			idr,
+			(PI - idp)*idr/(PI/4),
+			-idr);
+
+square_x(idx,idy) = (square_a(idr(idx,idy),idp(idx,idy)) + 1)/2;
+square_y(idx,idy) = (square_b(idr(idx,idy),idp(idx,idy)) + 1)/2;
+
+inc_sqx = square_x(-Idx,-Idy);		{ Negative because of Klems reversal }
+inc_sqy = square_y(-Idx,-Idy);
+
+sqx_in(sx,sy,sz) = inc_sqx;		{ Only a function of incident ray direction }
+sqy_in(sx,sy,sz) = inc_sqy;
+
+sqx_out(sx,sy,sz) = square_x(Ldx(sx,sy,sz),Ldy(sx,sy,sz));
+sqy_out(sx,sy,sz) = square_y(Ldx(sx,sy,sz),Ldy(sx,sy,sz));

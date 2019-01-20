@@ -6,7 +6,6 @@
 
 #include <optix.h>
 #include <optixu/optixu_math_namespace.h>
-#include "optix_shader_common.h"
 #include "optix_shader_ray.h"
 #ifdef CONTRIB
 #include "optix_shader_contrib.h"
@@ -92,7 +91,8 @@ RT_PROGRAM void closest_hit_radiance()
 		prd.result = color * function( ray.direction, world_shading_normal );
 	else
 		prd.result = color;
-	prd.distance = t_hit;
+	prd.mirror = make_float3(0.0f);
+	prd.distance = prd.mirror_distance = t_hit;
 
 #ifdef HIT_TYPE
 	prd.hit_type = type;

@@ -5,7 +5,6 @@
 #include "accelerad_copyright.h"
 
 #include <optix_world.h>
-#include "optix_shader_common.h"
 #include "optix_shader_ray.h"
 #ifdef CONTRIB_DOUBLE
 #include "optix_double.h"

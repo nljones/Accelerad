@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id: m_brdf.c,v 2.35 2018/01/10 17:45:11 greg Exp $";
+static const char	RCSid[] = "$Id: m_brdf.c,v 2.37 2018/11/30 18:43:57 greg Exp $";
 #endif
 /*
  *  Shading for materials with arbitrary BRDF's
@@ -209,8 +209,6 @@ m_brdf(			/* color a ray that hit a BRDTfunc material */
 	int  hitfront = 1;
 	BRDFDAT  nd;
 	RAY  sr;
-	double  mirtest=0, mirdist;
-	double  transtest=0, transdist;
 	int  hasrefl, hastrans;
 	int  hastexture;
 	COLOR  ctmp;
@@ -264,7 +262,6 @@ m_brdf(			/* color a ray that hit a BRDTfunc material */
 	multcolor(nd.tdiff, nd.mcolor);
 	hasrefl = (bright(nd.rdiff) > FTINY);
 	hastrans = (bright(nd.tdiff) > FTINY);
-	mirdist = transdist = r->rot;
 						/* load cal file */
 	nd.dp = NULL;
 	mf = getfunc(m, 9, 0x3f, 0);
@@ -293,15 +290,13 @@ m_brdf(			/* color a ray that hit a BRDTfunc material */
 #ifdef DAYSIM
 		daysimAddScaled(r->daylightCoef, sr.daylightCoef, colval(sr.rcoef, RED));
 #endif
-		if (!hastexture || r->crtype & (SHADOW|AMBIENT)) {
-			transtest = 2.0*bright(sr.rcol);
-			transdist = r->rot + sr.rt;
-		}
+		if (!hastexture || r->crtype & (SHADOW|AMBIENT))
+			r->rxt = r->rot + raydistance(&sr);
+
 	}
-	if (r->crtype & SHADOW) {		/* the rest is shadow */
-		r->rt = transdist;
+	if (r->crtype & SHADOW)			/* the rest is shadow */
 		return(1);
-	}
+
 						/* compute reflected ray */
 	setbrdfunc(&nd);
 	errno = 0;
@@ -315,14 +310,14 @@ m_brdf(			/* color a ray that hit a BRDTfunc material */
 		checknorm(sr.rdir);
 		rayvalue(&sr);
 		multcolor(sr.rcol, sr.rcoef);
+		copycolor(r->mcol, sr.rcol);
 		addcolor(r->rcol, sr.rcol);
 #ifdef DAYSIM
 		daysimAddScaled(r->daylightCoef, sr.daylightCoef, colval(sr.rcoef, RED));
 #endif
-		if (!hastexture && r->ro != NULL && isflat(r->ro->otype)) {
-			mirtest = 2.0*bright(sr.rcol);
-			mirdist = r->rot + sr.rt;
-		}
+		if (r->ro != NULL && isflat(r->ro->otype) &&
+				!hastexture | (r->crtype & AMBIENT))
+			r->rmt = r->rot + raydistance(&sr);
 	}
 						/* compute ambient */
 	if (hasrefl) {
@@ -360,12 +355,6 @@ m_brdf(			/* color a ray that hit a BRDTfunc material */
 	}
 	if (hasrefl | hastrans || m->oargs.sarg[6][0] != '0')
 		direct(r, dirbrdf, &nd);	/* add direct component */
-
-	d = bright(r->rcol);			/* set effective distance */
-	if (transtest > d)
-		r->rt = transdist;
-	else if (mirtest > d)
-		r->rt = mirdist;
 
 	return(1);
 }
@@ -449,7 +438,7 @@ m_brdf2(			/* color a ray that hit a BRDF material */
 #endif
 		addcolor(r->rcol, ctmp);	/* add to returned color */
 	}
-	if (nd.trans > FTINY) {		/* from other side */
+	if (nd.trans > FTINY) {			/* from other side */
 		flipsurface(r);
 		vtmp[0] = -nd.pnorm[0];
 		vtmp[1] = -nd.pnorm[1];
@@ -484,10 +473,10 @@ setbrdfunc(			/* set up brdf function and variables */
 		return(0);	/* it's OK, setfunc says we're done */
 				/* else (re)assign special variables */
 	multv3(vec, np->pnorm, funcxf.xfm);
-	varset("NxP", '=', vec[0]/funcxf.sca);
-	varset("NyP", '=', vec[1]/funcxf.sca);
-	varset("NzP", '=', vec[2]/funcxf.sca);
-	varset("RdotP", '=', np->pdot <= -1.0 ? -1.0 :
+	varset("NxP`", '=', vec[0]/funcxf.sca);
+	varset("NyP`", '=', vec[1]/funcxf.sca);
+	varset("NzP`", '=', vec[2]/funcxf.sca);
+	varset("RdotP`", '=', np->pdot <= -1.0 ? -1.0 :
 			np->pdot >= 1.0 ? 1.0 : np->pdot);
 	varset("CrP", '=', colval(np->mcolor,RED));
 	varset("CgP", '=', colval(np->mcolor,GRN));

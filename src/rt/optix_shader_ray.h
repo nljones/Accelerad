@@ -6,6 +6,7 @@
 
 #include "accelerad_copyright.h"
 
+#include "optix_shader_common.h"
 #include "optix_shader_daysim.h"
 #include "optix_shader_random.h"
 
@@ -13,8 +14,10 @@
 struct PerRayData_radiance
 {
 	float3 result;
-	float weight;
 	float distance;
+	float3 mirror;
+	float mirror_distance;
+	float weight;
 	int depth;
 	int ambient_depth;
 	rand_state* state;
@@ -88,6 +91,7 @@ rtDeclareVariable(int, maxdepth, , ) = 0;	/* maximum recursion depth (lr) */
 RT_METHOD int rayorigin(PerRayData_radiance& new_prd, const PerRayData_radiance& prd, const float3& rcoef, const int& d, const int& ad);
 RT_METHOD void setupPayload(PerRayData_radiance& prd);
 RT_METHOD void resolvePayload(PerRayData_radiance& parent, PerRayData_radiance& prd);
+RT_METHOD float rayDistance(PerRayData_radiance& prd);
 
 /* Based on rayoringin() from raytrace.c */
 RT_METHOD int rayorigin(PerRayData_radiance& new_prd, const PerRayData_radiance& prd, const float3& rcoef, const int& d, const int& ad)
@@ -148,4 +152,9 @@ RT_METHOD void resolvePayload(PerRayData_radiance& parent, PerRayData_radiance& 
 #ifdef HIT_COUNT
 	parent.hit_count += prd.hit_count;
 #endif
+}
+
+RT_METHOD float rayDistance(PerRayData_radiance& prd)
+{
+	return bright(prd.mirror) > 0.5f * bright(prd.result) ? prd.mirror_distance : prd.distance;
 }

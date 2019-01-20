@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: source.c,v 2.68 2018/06/11 15:10:49 greg Exp $";
+static const char RCSid[] = "$Id: source.c,v 2.70 2018/11/08 00:54:07 greg Exp $";
 #endif
 /*
  *  source.c - routines dealing with illumination sources.
@@ -9,6 +9,7 @@ static const char RCSid[] = "$Id: source.c,v 2.68 2018/06/11 15:10:49 greg Exp $
 
 #include  "ray.h"
 #include  "otypes.h"
+#include  "otspecial.h"
 #include  "rtotypes.h"
 #include  "source.h"
 #include  "random.h"
@@ -43,32 +44,6 @@ static CNTPTR  *cntord;			/* source ordering in direct() */
 static int  maxcntr = 0;		/* size of contribution arrays */
 
 static int cntcmp(const void *p1, const void *p2);
-
-
-OBJREC *			/* find an object's actual material */
-findmaterial(OBJREC *o)
-{
-	while (!ismaterial(o->otype)) {
-		if (o->otype == MOD_ALIAS && o->oargs.nsargs) {
-			OBJECT  aobj;
-			OBJREC  *ao;
-			aobj = lastmod(objndx(o), o->oargs.sarg[0]);
-			if (aobj < 0)
-				objerror(o, USER, "bad reference");
-			ao = objptr(aobj);
-			if (ismaterial(ao->otype))
-				return(ao);
-			if (ao->otype == MOD_ALIAS) {
-				o = ao;
-				continue;
-			}
-		}
-		if (o->omod == OVOID)
-			return(NULL);
-		o = objptr(o->omod);
-	}
-	return(o);		/* mixtures will return NULL */
-}
 
 
 void

@@ -1,0 +1,22 @@
+# RCSid $Id: disks.rad,v 1.2 2018/12/01 02:06:05 greg Exp $
+#
+# A set of 9 disks to be painted in various modes
+#
+
+!xform -m mat1 -n disk1 -t -5.5 1 .5 saucer.rad
+
+!xform -m mat2 -n disk2 -t -5.5 2.5 .5 saucer.rad
+
+!xform -m mat3 -n disk3 -t -5.5 4 .5 saucer.rad
+
+!xform -m mat4 -n disk4 -t -4 1 .5 saucer.rad
+
+!xform -m mat5 -n disk5 -t -4 2.5 .5 saucer.rad
+
+!xform -m mat6 -n disk6 -t -4 4 .5 saucer.rad
+
+!xform -m mat7 -n disk7 -t -2.5 1 .5 saucer.rad
+
+!xform -m mat8 -n disk8 -t -2.5 2.5 .5 saucer.rad
+
+!xform -m mat9 -n disk9 -t -2.5 4 .5 saucer.rad

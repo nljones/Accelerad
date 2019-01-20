@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: raytrace.c,v 2.72 2018/01/09 05:01:15 greg Exp $";
+static const char RCSid[] = "$Id: raytrace.c,v 2.74 2018/12/05 02:12:23 greg Exp $";
 #endif
 /*
  *  raytrace.c - routines for tracing and shading rays.
@@ -145,10 +145,11 @@ rayclear(			/* clear a ray for (re)evaluation */
 	r->robj = OVOID;
 	r->ro = NULL;
 	r->rox = NULL;
-	r->rt = r->rot = FHUGE;
+	r->rxt = r->rmt = r->rot = FHUGE;
 	r->pert[0] = r->pert[1] = r->pert[2] = 0.0;
 	r->uv[0] = r->uv[1] = 0.0;
 	setcolor(r->pcol, 1.0, 1.0, 1.0);
+	setcolor(r->mcol, 0.0, 0.0, 0.0);
 	setcolor(r->rcol, 0.0, 0.0, 0.0);
 #ifdef DAYSIM
 	daysimSet(r->daylightCoef, 0.0);
@@ -198,10 +199,29 @@ raytrans(			/* transmit ray as is */
 	VCOPY(tr.rdir, r->rdir);
 	rayvalue(&tr);
 	copycolor(r->rcol, tr.rcol);
-	r->rt = r->rot + tr.rt;
+	r->rmt = r->rot + tr.rmt;
 #ifdef DAYSIM
 	daysimCopy(r->daylightCoef, tr.daylightCoef);
 #endif
+	r->rxt = r->rot + tr.rxt;
+}
+
+
+int
+raytirrad(			/* irradiance hack */
+	OBJREC	*m,
+	RAY	*r
+)
+{
+	if ((ofun[m->otype].flags & (T_M|T_X)) && m->otype != MAT_CLIP) {
+		if (istransp(m->otype) || isBSDFproxy(m)) {
+			raytrans(r);
+			return(1);
+		}
+		if (!islight(m->otype))
+			return((*ofun[Lamb.otype].funp)(&Lamb, r));
+	}
+	return(0);		/* not a qualifying surface */
 }
 
 
@@ -211,9 +231,10 @@ rayshade(		/* shade ray r with material mod */
 	int  mod
 )
 {
+	int	tst_irrad = do_irrad && !(r->crtype & ~(PRIMARY|TRANS));
 	OBJREC  *m;
 
-	r->rt = r->rot;			/* preset effective ray length */
+	r->rxt = r->rmt = r->rot;	/* preset effective ray length */
 	for ( ; mod != OVOID; mod = m->omod) {
 		m = objptr(mod);
 		/****** unnecessary test since modifier() is always called
@@ -223,16 +244,9 @@ rayshade(		/* shade ray r with material mod */
 		}
 		******/
 					/* hack for irradiance calculation */
-		if (do_irrad && !(r->crtype & ~(PRIMARY|TRANS)) &&
-				(ofun[m->otype].flags & (T_M|T_X)) &&
-				m->otype != MAT_CLIP) {
-			if (istransp(m->otype) || isBSDFproxy(m)) {
-				raytrans(r);
-				return(1);
-			}
-			if (!islight(m->otype))
-				m = &Lamb;
-		}
+		if (tst_irrad && raytirrad(m, r))
+			return(1);
+
 		if ((*ofun[m->otype].funp)(m, r))
 			return(1);	/* materials call raytexture() */
 	}
@@ -315,6 +329,7 @@ raymixture(		/* mix modifiers */
 )
 {
 	RAY  fr, br;
+	double  mfore, mback;
 	int  foremat, backmat;
 	int  i;
 					/* bound coefficient */
@@ -365,7 +380,10 @@ raymixture(		/* mix modifiers */
 	daysimAssignScaled(r->daylightCoef, fr.daylightCoef, coef);
 	daysimAddScaled(r->daylightCoef, br.daylightCoef, 1.0 - coef);
 #endif
-	r->rt = bright(fr.rcol) > bright(br.rcol) ? fr.rt : br.rt;
+	mfore = bright(fr.mcol); mback = bright(br.mcol);
+	r->rmt = mfore > mback ? fr.rmt : br.rmt;
+	r->rxt = bright(fr.rcol)-mfore > bright(br.rcol)-mback ?
+			fr.rxt : br.rxt;
 	return(1);
 }
 

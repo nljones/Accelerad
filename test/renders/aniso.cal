@@ -1,0 +1,19 @@
+{ RCSid $Id: aniso.cal,v 1.2 2018/12/01 02:06:04 greg Exp $ }
+{ Ward-Geisler-Moroder-Duer anisotropic BSDF model }
+
+{ Final 5 real arguments are alpha_x and alpha_y roughnesses and Up vector }
+
+ax = arg(AC-4);		{ ax is roughness in Up orientation }
+ay = arg(AC-3);
+
+arefl(hx,hy,hz) = exp(-(hx*hx/(ax*ax) + hy*hy/(ay*ay))/(hz*hz)) *
+			(hx*hx + hy*hy + hz*hz) /
+			(PI*ax*ay*hz*hz*hz*hz);
+
+axmit(hx,hy,hz) = exp(-(hx*hx/(ax*ax) + hy*hy/(ay*ay))/(hz*hz)) /
+			(4*PI*ax*ay);
+
+dobsdf(sdx,sdy,sdz) = if(sdz, arefl(Idx+sdx, Idy+sdy, Idz+sdz),
+			axmit(Idx+sdx, Idy+sdy, Idz-sdz) / sqrt(-sdz*Idz) );
+
+absdf(ox,oy,oz) = dobsdf(Ldx(ox,oy,oz), Ldy(ox,oy,oz), Ldz(ox,oy,oz));

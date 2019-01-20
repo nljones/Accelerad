@@ -6,7 +6,6 @@
 
 #include <optix.h>
 #include <optixu/optixu_math_namespace.h>
-#include "optix_shader_common.h"
 #include "optix_shader_ray.h"
 #ifdef CONTRIB_DOUBLE
 #include "optix_double.h"

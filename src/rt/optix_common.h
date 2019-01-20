@@ -94,6 +94,7 @@ typedef struct struct_ray_data
 	float3 origin;	/* origin of ray */
 	float3 dir;		/* normalized direction of ray */
 	float3 val;		/* computed radiance value */
+	float3 mirror;		/* radiance value of mirrored contribution */
 	//float3 contrib;	/* contribution coefficient w.r.t. parent */
 	//float3 extinction;	/* medium extinction coefficient */
 	//float3 hit;	/* point of intersection */
@@ -103,6 +104,7 @@ typedef struct struct_ray_data
 	float  max;		/* maximum distance (aft clipping plane) */
 	float  weight;	/* cumulative weight (for termination) */
 	float  length;	/* effective ray length */
+	float  mirrored_length;	/* effective length of mirrored ray */
 	//float  t;		/* first intersection distance */
 	//char*  surface;
 	//char*  modifier;

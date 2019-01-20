@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id: srcdraw.c,v 2.18 2018/01/24 04:39:52 greg Exp $";
+static const char	RCSid[] = "$Id: srcdraw.c,v 2.20 2018/11/13 19:58:33 greg Exp $";
 #endif
 /*
  * Draw small sources into image in case we missed them.
@@ -12,6 +12,7 @@ static const char	RCSid[] = "$Id: srcdraw.c,v 2.18 2018/01/24 04:39:52 greg Exp 
 #include  "ray.h"
 #include  "view.h"
 #include  "otypes.h"
+#include  "otspecial.h"
 #include  "source.h"
 
 
@@ -456,8 +457,8 @@ drawsources(
 							/* modify pixel */
 				w = poly_area(ppoly, npv) * hres * vres;
 				if (zbf[y-y0] != NULL &&
-						sr.rt < 0.99*zbf[y-y0][x-x0]) {
-					zbf[y-y0][x-x0] = sr.rt;
+						sr.rxt < 0.99*zbf[y-y0][x-x0]) {
+					zbf[y-y0][x-x0] = sr.rxt;
 				} else if (!bigdiff(sr.rcol, pic[y-y0][x-x0],
 						0.01)) { /* source sample */
 					scalecolor(pic[y-y0][x-x0], w);

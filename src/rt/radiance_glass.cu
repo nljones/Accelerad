@@ -6,7 +6,6 @@
 
 #include <optix.h>
 #include <optixu/optixu_math_namespace.h>
-#include "optix_shader_common.h"
 #include "optix_shader_ray.h"
 #ifdef CONTRIB
 #include "optix_shader_contrib.h"
@@ -119,11 +118,7 @@ RT_PROGRAM void closest_hit_radiance()
 
 	float3 ffnormal = faceforward( world_shading_normal, -ray.direction, world_geometric_normal );
 	float3 snormal = faceforward( world_geometric_normal, -ray.direction, world_geometric_normal );
-
-	PerRayData_radiance new_prd;             
-	float3 result = make_float3( 0.0f );
 	float3 hit_point = ray.origin + t_hit * ray.direction;
-	float3 mcolor = color;
 
 #ifdef ANTIMATTER
 	if (prd.mask & (1 << mat_id)) {
@@ -136,6 +131,11 @@ RT_PROGRAM void closest_hit_radiance()
 	}
 #endif /* ANTIMATTER */
 
+	PerRayData_radiance new_prd;
+	float3 result = prd.mirror = make_float3(0.0f);
+	prd.distance = prd.mirror_distance = t_hit; // in case they don't get set later
+	float3 mcolor = color;
+
 	/* check transmission */
 	bool hastrans = fmaxf( mcolor ) > 1e-15f;
 	if (hastrans) {
@@ -144,9 +144,6 @@ RT_PROGRAM void closest_hit_radiance()
 
 	/* get modifiers */
 	// we'll skip this for now
-
-	float transtest = 0.0f, transdist = t_hit;
-	float mirtest = 0.0f, mirdist = t_hit;
 
 	/* perturb normal */
 	float3 pert = snormal - ffnormal;
@@ -189,17 +186,15 @@ RT_PROGRAM void closest_hit_radiance()
 				R = normalize(ray.direction + pert * (2.0f * (1.0f - r_index)));
 				if (isnan(R))
 					R = ray.direction;
-			} else {
-				transtest = 2;
 			}
 
 			setupPayload(new_prd);
 			Ray trans_ray = make_Ray(hit_point, R, ray.ray_type, ray_start(hit_point, R, snormal, RAY_START), RAY_END);
 			rtTrace(top_object, trans_ray, new_prd);
-			float3 rcol = new_prd.result * trans;
-			result += rcol;
-			transtest *= bright( rcol );
-			transdist = t_hit + new_prd.distance;
+			new_prd.result *= trans;
+			result += new_prd.result;
+			if (prd.ambient_depth || !hastexture)
+				prd.distance = t_hit + rayDistance(new_prd);
 #ifdef DAYSIM_COMPATIBLE
 			daysimAddScaled(prd.dc, new_prd.dc, trans.x);
 #endif
@@ -222,27 +217,17 @@ RT_PROGRAM void closest_hit_radiance()
 		float3 R = reflect( ray.direction, ffnormal );
 		Ray refl_ray = make_Ray(hit_point, R, ray.ray_type, ray_start(hit_point, R, snormal, RAY_START), RAY_END);
 		rtTrace(top_object, refl_ray, new_prd);
-		float3 rcol = new_prd.result * refl;
-		result += rcol;
-		if (prd.ambient_depth || !hastexture) {
-			mirtest = 2.0f * bright(rcol);
-			mirdist = t_hit + new_prd.distance;
-		}
+		new_prd.result *= refl;
+		prd.mirror = new_prd.result;
+		result += new_prd.result;
+		if (prd.ambient_depth || !hastexture)
+			prd.mirror_distance = t_hit + rayDistance(new_prd);
 #ifdef DAYSIM_COMPATIBLE
 		daysimAddScaled(prd.dc, new_prd.dc, refl.x);
 #endif
 		resolvePayload(prd, new_prd);
 	}
   
-	/* check distance */
-	float d = bright( result );
-	if (transtest > d)
-		prd.distance = transdist;
-	else if (mirtest > d)
-		prd.distance = mirdist;
-	else
-		prd.distance = t_hit;
-
 	// pass the color back up the tree
 	prd.result = result;
 	

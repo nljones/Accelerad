@@ -117,6 +117,7 @@ static void getRay(RayData* data, const RAY* ray)
 	array2cuda3(data->origin, ray->rorg);
 	array2cuda3(data->dir, ray->rdir);
 	array2cuda3(data->val, ray->rcol);
+	array2cuda3(data->mirror, ray->mcol);
 	//array2cuda3( data->contrib, ray->rcoef );
 	//array2cuda3( data->extinction, ray->cext );
 	//array2cuda3( data->hit, ray->rop );
@@ -126,7 +127,8 @@ static void getRay(RayData* data, const RAY* ray)
 	//array2cuda2(data->tex, ray->uv);
 	data->max = (float)ray->rmax;
 	data->weight = ray->rweight;
-	data->length = (float)ray->rt;
+	data->length = (float)ray->rxt;
+	data->mirrored_length = (float)ray->rmt;
 	//data->t = ray->rot;
 }
 
@@ -135,6 +137,7 @@ static void setRay(RAY* ray, const RayData* data)
 	cuda2array3(ray->rorg, data->origin);
 	cuda2array3(ray->rdir, data->dir);
 	cuda2array3(ray->rcol, data->val);
+	cuda2array3(ray->mcol, data->mirror);
 	//cuda2array3( ray->rcoef, data->contrib );
 	//cuda2array3( ray->cext, data->extinction );
 	//cuda2array3( ray->rop, data->hit );
@@ -144,7 +147,8 @@ static void setRay(RAY* ray, const RayData* data)
 	//cuda2array2(ray->uv, data->tex);
 	ray->rmax = data->max;
 	ray->rweight = data->weight;
-	ray->rt = data->length;
+	ray->rxt = data->length;
+	ray->rmt = data->mirrored_length;
 	//ray->rot = data->t; //TODO setting this requires that the ray has non-null ro.
 }
 

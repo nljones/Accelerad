@@ -6,7 +6,6 @@
 
 //#define RT_USE_TEMPLATED_RTCALLABLEPROGRAM
 #include <optix_world.h>
-#include "optix_shader_common.h"
 #include "optix_shader_ray.h"
 #ifdef CONTRIB_DOUBLE
 #include "optix_double.h"
@@ -43,8 +42,8 @@ RT_METHOD unsigned int daysimComputePatch(const float3 dir);
 
 RT_PROGRAM void miss()
 {
-	prd_radiance.result = make_float3( 0.0f );
-	prd_radiance.distance = ray.tmax;
+	prd_radiance.result = prd_radiance.mirror = make_float3(0.0f);
+	prd_radiance.distance = prd_radiance.mirror_distance = ray.tmax;
 	if ( ray.tmax < RAY_END ) // ray length was truncated
 		return;
 

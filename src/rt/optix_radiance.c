@@ -16,6 +16,7 @@
 #include "bsdf.h"
 #include "random.h"
 #include "paths.h"
+#include "otspecial.h"
 
 #include "optix_radiance.h"
 #include <cuda_runtime_api.h>
@@ -840,7 +841,7 @@ static void createNode(const RTcontext context, Scene* scene, char* name, const 
 	/* create acceleration object for group and specify some build hints */
 	if (!node->acceleration) {
 		RT_CHECK_ERROR(rtAccelerationCreate(context, &node->acceleration));
-		RT_CHECK_ERROR(rtAccelerationSetBuilder(node->acceleration, "Sbvh"));
+		RT_CHECK_ERROR(rtAccelerationSetBuilder(node->acceleration, "Trbvh"));
 		RT_CHECK_ERROR(rtAccelerationSetTraverser(node->acceleration, "Bvh"));
 		RT_CHECK_ERROR(rtAccelerationSetProperty(node->acceleration, "vertex_buffer_name", "vertex_buffer")); // For Sbvh only
 		RT_CHECK_ERROR(rtAccelerationSetProperty(node->acceleration, "index_buffer_name", "vindex_buffer")); // For Sbvh only
@@ -2626,7 +2627,7 @@ static RTobject createSceneHierarchy(const RTcontext context, SceneNode* node)
 
 	/* create acceleration object for group and specify some build hints */
 	RT_CHECK_ERROR(rtAccelerationCreate(context, &groupAccel));
-	RT_CHECK_ERROR(rtAccelerationSetBuilder(groupAccel, "Sbvh"));
+	RT_CHECK_ERROR(rtAccelerationSetBuilder(groupAccel, "Bvh"));
 	RT_CHECK_ERROR(rtAccelerationSetTraverser(groupAccel, "Bvh"));
 	RT_CHECK_ERROR(rtGroupSetAcceleration(group, groupAccel));
 

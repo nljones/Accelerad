@@ -6,7 +6,6 @@
 
 #include <optix.h>
 #include <optixu/optixu_math_namespace.h>
-#include "optix_shader_common.h"
 #include "optix_shader_ray.h"
 #ifdef CONTRIB
 #include "optix_shader_contrib.h"
@@ -261,15 +260,7 @@ RT_PROGRAM void closest_hit_radiance()
 	/* check for back side */
 	nd.pnorm = faceforward( world_shading_normal, -ray.direction, world_geometric_normal );
 	nd.normal = faceforward( world_geometric_normal, -ray.direction, world_geometric_normal );
-
-	PerRayData_radiance new_prd;
-	float3 result = make_float3( 0.0f );
 	nd.hit = ray.origin + t_hit * ray.direction;
-	nd.mcolor = color;
-	nd.scolor = make_float3(0.0f);
-	nd.rspec = spec;
-	nd.alpha2 = rough * rough;
-	nd.specfl = 0u; /* specularity flags */
 
 #ifdef ANTIMATTER
 	if (prd.mask & (1 << mat_id)) {
@@ -281,6 +272,15 @@ RT_PROGRAM void closest_hit_radiance()
 		return;
 	}
 #endif /* ANTIMATTER */
+
+	PerRayData_radiance new_prd;
+	float3 result = prd.mirror = make_float3(0.0f);
+	prd.distance = prd.mirror_distance = t_hit; // in case they don't get set later
+	nd.mcolor = color;
+	nd.scolor = make_float3(0.0f);
+	nd.rspec = spec;
+	nd.alpha2 = rough * rough;
+	nd.specfl = 0u; /* specularity flags */
 
 	/* get roughness */
 	if (nd.alpha2 <= FTINY) {
@@ -314,7 +314,6 @@ RT_PROGRAM void closest_hit_radiance()
 	/* compute transmission */
 	nd.tdiff = nd.tspec = nd.trans = 0.0f; // because it's opaque
 #ifdef TRANSMISSION
-	float transtest = 0.0f, transdist = t_hit;
 	nd.prdir = ray.direction;
 	if (transm > 0.0f) { // type == MAT_TRANS
 		nd.trans = transm * (1.0f - nd.rspec);
@@ -326,9 +325,7 @@ RT_PROGRAM void closest_hit_radiance()
 							/* check threshold */
 			if (!(nd.specfl & SP_PURE) && specthresh >= nd.tspec - FTINY)
 				nd.specfl |= SP_TBLT;
-			if (prd.ambient_depth || !hastexture) {
-				transtest = 2.0f;
-			} else {
+			if (!prd.ambient_depth && hastexture) {
 				if (dot(nd.prdir - pert, nd.normal) < -FTINY)
 					nd.prdir = normalize(nd.prdir - pert);	/* OK */
 			}
@@ -343,17 +340,14 @@ RT_PROGRAM void closest_hit_radiance()
 		setupPayload(new_prd);
 		Ray trans_ray = make_Ray(nd.hit, nd.prdir, radiance_ray_type, ray_start(nd.hit, nd.prdir, nd.normal, RAY_START), RAY_END);
 		rtTrace(top_object, trans_ray, new_prd);
-		float3 rcol = new_prd.result * nd.mcolor * nd.tspec;
-		result += rcol;
+		new_prd.result *= nd.mcolor * nd.tspec;
+		result += new_prd.result;
 #ifdef DAYSIM_COMPATIBLE
 		daysimAddScaled(prd.dc, new_prd.dc, nd.mcolor.x * nd.tspec);
 #endif
-		transtest *= bright(rcol);
-		transdist = t_hit + new_prd.distance;
+		prd.distance = t_hit + rayDistance(new_prd);
 		resolvePayload(prd, new_prd);
 	}
-	else
-		transtest = 0.0f;
 #endif
 
 	// return if it's a shadow ray, which it isn't
@@ -381,7 +375,6 @@ RT_PROGRAM void closest_hit_radiance()
 	}
 
 	/* reflected ray */
-	float mirtest = 0.0f, mirdist = t_hit;
 	if ((nd.specfl&(SP_REFL | SP_PURE | SP_RBLT)) == (SP_REFL | SP_PURE) && rayorigin(new_prd, prd, nd.scolor, 1, 0)) {
 #ifdef DAYSIM_COMPATIBLE
 		new_prd.dc = daysimNext(prd.dc);
@@ -390,30 +383,21 @@ RT_PROGRAM void closest_hit_radiance()
 		float3 vrefl = reflect(ray.direction, nd.pnorm);
 		Ray refl_ray = make_Ray(nd.hit, vrefl, radiance_ray_type, ray_start(nd.hit, vrefl, nd.normal, RAY_START), RAY_END);
 		rtTrace(top_object, refl_ray, new_prd);
-		float3 rcol = new_prd.result * nd.scolor;
-		result += rcol;
+		new_prd.result *= nd.scolor;
+		prd.mirror = new_prd.result;
+		result += new_prd.result;
 #ifdef DAYSIM_COMPATIBLE
 		daysimAddScaled(prd.dc, new_prd.dc, nd.scolor.x);
 #endif
-		if (nd.specfl & SP_FLAT && (prd.ambient_depth || !hastexture)) {
-			mirtest = 2.0f * bright(rcol);
-			mirdist = t_hit + new_prd.distance;
-		}
+		if (nd.specfl & SP_FLAT && (prd.ambient_depth || !hastexture))
+			prd.mirror_distance = t_hit + rayDistance(new_prd);
 		resolvePayload(prd, new_prd);
 	}
 
 	/* diffuse reflection */
 	nd.rdiff = 1.0f - nd.trans - nd.rspec;
 
-	if (nd.specfl & SP_PURE && nd.rdiff <= FTINY && nd.tdiff <= FTINY) { /* 100% pure specular */
-#ifdef TRANSMISSION
-		if (mirtest < transtest + FTINY)
-			prd.distance = transdist;
-		else
-#endif
-			prd.distance = mirdist;
-	}
-	else { /* not 100% pure specular */
+	if (!(nd.specfl & SP_PURE && nd.rdiff <= FTINY && nd.tdiff <= FTINY)) { /* not 100% pure specular */
 		/* checks *BLT flags */
 		if (!(nd.specfl & SP_PURE))
 			result += gaussamp(&nd);
@@ -510,18 +494,6 @@ RT_PROGRAM void closest_hit_radiance()
 				}
 		}
 #endif /* LIGHTS */
-
-		/* check distance */
-		float d = bright( result );
-#ifdef TRANSMISSION
-		if (transtest > d)
-			prd.distance = transdist;
-		else
-#endif
-		if (mirtest > d)
-			prd.distance = mirdist;
-		else
-			prd.distance = t_hit;
 	}
 
 	// pass the color back up the tree

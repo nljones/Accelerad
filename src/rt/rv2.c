@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id: rv2.c,v 2.67 2018/04/12 16:21:53 greg Exp $";
+static const char	RCSid[] = "$Id: rv2.c,v 2.69 2018/11/13 19:58:33 greg Exp $";
 #endif
 /*
  *  rv2.c - command routines used in tracing a view.
@@ -16,9 +16,9 @@ static const char	RCSid[] = "$Id: rv2.c,v 2.67 2018/04/12 16:21:53 greg Exp $";
 #include  "rtprocess.h"	/* win_popen() */
 #include  "paths.h"
 #include  "ray.h"
-#include  "source.h"
 #include  "ambient.h"
 #include  "otypes.h"
+#include  "otspecial.h"
 #include  "rpaint.h"
 
 #ifdef ACCELERAD
@@ -827,7 +827,7 @@ traceray(				/* trace a single ray */
 		else {
 			sprintf(buf, "at (%.6g %.6g %.6g) (%.6g)",
 					thisray.rop[0], thisray.rop[1],
-					thisray.rop[2], thisray.rt);
+					thisray.rop[2], raydistance(&thisray));
 			(*dev->comout)(buf);
 		}
 		(*dev->comin)(buf, NULL);

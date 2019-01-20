@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: pmapmat.c,v 2.18 2018/06/26 14:42:18 greg Exp $";
+static const char RCSid[] = "$Id: pmapmat.c,v 2.21 2018/12/06 20:00:35 rschregle Exp $";
 #endif
 /* 
    ==================================================================
@@ -34,7 +34,7 @@ static const char RCSid[] = "$Id: pmapmat.c,v 2.18 2018/06/26 14:42:18 greg Exp 
 #define  SP_FLAT     010
 #define  SP_BADU     040
 #define  MLAMBDA     500
-#define  RINDEX	   1.52
+#define  RINDEX      1.52
 #define  FRESNE(ci)  (exp(-5.85*(ci)) - 0.00287989916)
 
 
@@ -46,7 +46,7 @@ typedef struct {
    COLOR    mcolor, scolor;
    FVECT    vrefl, prdir, pnorm;
    double   alpha2, rdiff, rspec, trans, tdiff, tspec, pdot;
-}  NORMDAT;
+} NORMDAT;
 
 typedef struct {
    OBJREC   *mp;
@@ -55,17 +55,31 @@ typedef struct {
    COLOR    mcolor, scolor;
    FVECT    vrefl, prdir, u, v, pnorm;
    double   u_alpha, v_alpha, rdiff, rspec, trans, tdiff, tspec, pdot;
-}  ANISODAT;
+} ANISODAT;
 
 typedef struct {
    OBJREC   *mp;
-   RAY      *pr;		
-   FVECT    pnorm;		
-   FVECT    vray;		
-   double   sr_vpsa [2];	
-   RREAL 	toloc [3][3];	
-   RREAL 	fromloc [3][3];	
-   double   thick;		
+   RAY      *pr;
+   DATARRAY *dp;
+   COLOR    mcolor;
+   COLOR    rdiff;
+   COLOR    tdiff;
+   double   rspec;
+   double   trans;
+   double   tspec;
+   FVECT    pnorm;
+   double   pdot;
+} BRDFDAT;
+
+typedef struct {
+   OBJREC   *mp;
+   RAY      *pr;
+   FVECT    pnorm;
+   FVECT    vray;
+   double   sr_vpsa [2];
+   RREAL    toloc [3][3];
+   RREAL    fromloc [3][3];
+   double   thick;
    SDData   *sd;
    COLOR	   runsamp;
    COLOR	   rdiff;
@@ -206,7 +220,7 @@ static int isoSpecPhotonScatter (NORMDAT *nd, RAY *rayOut)
    int      niter, i = 0;
    
    /* Set up sample coordinates */  
-   getperpendicular(u, nd -> pnorm, 1);   
+   getperpendicular(u, nd -> pnorm, 1);
    fcross(v, nd -> pnorm, u);
    
    if (nd -> specfl & SP_REFL) {
@@ -240,7 +254,7 @@ static int isoSpecPhotonScatter (NORMDAT *nd, RAY *rayOut)
          cosp = cos(d);
          sinp = sin(d);
          d2 = pmapRandom(scatterState);
-         d = d2 <= FTINY ? 1 : sqrt(-log(d2) * nd -> alpha2);         
+         d = d2 <= FTINY ? 1 : sqrt(-log(d2) * nd -> alpha2);
          
          for (i = 0; i < 3; i++)
             rayOut -> rdir [i] = nd -> prdir [i] + 
@@ -261,10 +275,10 @@ static int isoSpecPhotonScatter (NORMDAT *nd, RAY *rayOut)
 static void diffPhotonScatter (FVECT normal, RAY* rayOut)
 /* Generate cosine-weighted direction for diffuse ray */
 {
-   const RREAL cosThetaSqr = pmapRandom(scatterState), 
+   const RREAL cosThetaSqr = pmapRandom(scatterState),
                cosTheta = sqrt(cosThetaSqr),
-               sinTheta = sqrt(1 - cosThetaSqr), 
-               phi = 2 * PI * pmapRandom(scatterState), 
+               sinTheta = sqrt(1 - cosThetaSqr),
+               phi = 2 * PI * pmapRandom(scatterState),
                du = cos(phi) * sinTheta, dv = sin(phi) * sinTheta;
    FVECT       u, v;
    int         i = 0;
@@ -305,6 +319,7 @@ static int normalPhotonScatter (OBJREC *mat, RAY *rayIn)
       }
    else raytexture(rayIn, mat -> omod);
    
+   nd.mp = mat;
    nd.rp = rayIn;
    
    /* Get material color */
@@ -421,22 +436,22 @@ static int normalPhotonScatter (OBJREC *mat, RAY *rayIn)
       
       if (hastexture) {
          /* Perturb */
-         for (i = 0; i < 3; i++) 
+         for (i = 0; i < 3; i++)
             nd.prdir [i] = rayIn -> rdir [i] - rayIn -> pert [i];
             
-         if (DOT(nd.prdir, rayIn -> ron) < -FTINY) 
+         if (DOT(nd.prdir, rayIn -> ron) < -FTINY)
             normalize(nd.prdir);
          else VCOPY(nd.prdir, rayIn -> rdir);
       }
       else VCOPY(nd.prdir, rayIn -> rdir);
       
       if ((nd.specfl & (SP_TRAN | SP_PURE)) == (SP_TRAN | SP_PURE))
-         /* Perfect specular transmission */   
+         /* Perfect specular transmission */
          VCOPY(rayOut.rdir, nd.prdir);
-      else if (!isoSpecPhotonScatter(&nd, &rayOut)) 
+      else if (!isoSpecPhotonScatter(&nd, &rayOut))
          return 0;
          
-      photonRay(rayIn, &rayOut, PMAP_SPECTRANS, nd.mcolor);   
+      photonRay(rayIn, &rayOut, PMAP_SPECTRANS, nd.mcolor);
    }
    
    else if (xi > (albedo -= prdiff)) {
@@ -466,37 +481,36 @@ static int normalPhotonScatter (OBJREC *mat, RAY *rayIn)
 
 
 
-static void getacoords (ANISODAT *np)
+static void getacoords (ANISODAT *nd)
 /* Set up coordinate system for anisotropic sampling; cloned from aniso.c */
 {
-	MFUNC  *mf;
-	int  i;
+   MFUNC *mf;
+   int   i;
 
-	mf = getfunc(np->mp, 3, 0x7, 1);
-	setfunc(np->mp, np->rp);
-	errno = 0;
-	
-	for (i = 0; i < 3; i++)
-	   np->u[i] = evalue(mf->ep[i]);
-	   
-   if ((errno == EDOM) | (errno == ERANGE)) {
-      objerror(np->mp, WARNING, "compute error");
-      np->specfl |= SP_BADU;
-      return;
-   }
+   mf = getfunc(nd -> mp, 3, 0x7, 1);
+   setfunc(nd -> mp, nd -> rp);
+   errno = 0;
+
+   for (i = 0; i < 3; i++)
+      nd -> u [i] = evalue(mf -> ep [i]);
    
-   if (mf->fxp != &unitxf)
-      multv3(np->u, np->u, mf->fxp->xfm);
+   if (errno == EDOM || errno == ERANGE)
+      nd -> u [0] = nd -> u [1] = nd -> u [2] = 0.0;
       
-	fcross(np->v, np->pnorm, np->u);
-	
-	if (normalize(np->v) == 0.0) {
-	   objerror(np->mp, WARNING, "illegal orientation vector");
-	   np->specfl |= SP_BADU;
-	   return;
-   }
+   if (mf -> fxp != &unitxf)
+      multv3(nd -> u, nd -> u, mf -> fxp -> xfm);
+
+   fcross(nd -> v, nd -> pnorm, nd -> u);
    
-   fcross(np->u, np->v, np->pnorm);
+   if (normalize(nd -> v) == 0.0) {
+      if (fabs(nd -> u_alpha - nd -> v_alpha) > 0.001)
+         objerror(nd -> mp, WARNING, "illegal orientation vector");
+      getperpendicular(nd -> u, nd -> pnorm, 1);
+      fcross(nd -> v, nd -> pnorm, nd -> u);
+      nd -> u_alpha = nd -> v_alpha = 
+         sqrt(0.5 * (sqr(nd -> u_alpha) + sqr(nd -> v_alpha)));
+   } 
+   else fcross(nd -> u, nd -> v, nd -> pnorm);
 }
 
 
@@ -519,7 +533,7 @@ static int anisoSpecPhotonScatter (ANISODAT *nd, RAY *rayOut)
    if (rayOut -> rtype & TRANS) {
       /* Specular transmission */
 
-      if (DOT(rayIn -> pert, rayIn -> pert) <= FTINY * FTINY) 
+      if (DOT(rayIn -> pert, rayIn -> pert) <= sqr(FTINY)) 
          VCOPY(nd -> prdir, rayIn -> rdir);
       else {
          /* perturb */
@@ -555,7 +569,7 @@ static int anisoSpecPhotonScatter (ANISODAT *nd, RAY *rayOut)
          }
       }
       
-      return 0;   
+      return 0;
    }
    
    else {
@@ -573,7 +587,7 @@ static int anisoSpecPhotonScatter (ANISODAT *nd, RAY *rayOut)
          d = d2 <= FTINY ? 1 
                          : sqrt(-log(d2) / 
                                 (sqr(cosp) / sqr(nd -> u_alpha) +
-                                 sqr(sinp) / (nd -> v_alpha * nd -> v_alpha)));
+                                 sqr(sinp) / (nd->v_alpha * nd->v_alpha)));
                                  
          for (i = 0; i < 3; i++)
             h [i] = nd -> pnorm [i] + 
@@ -602,8 +616,8 @@ static int anisoPhotonScatter (OBJREC *mat, RAY *rayIn)
    if (mat -> oargs.nfargs != (mat -> otype == MAT_TRANS2 ? 8 : 6))
       objerror(mat, USER, "bad number of real arguments");
       
+   nd.mp = mat;
    nd.rp = rayIn;
-   nd.mp = objptr(rayIn -> ro -> omod);
    
    /* get material color */
    copycolor(nd.mcolor, mat -> oargs.farg);
@@ -647,7 +661,7 @@ static int anisoPhotonScatter (OBJREC *mat, RAY *rayIn)
    if (nd.rspec > FTINY) {
       nd.specfl |= SP_REFL;
       
-      /* comput   e specular color */
+      /* compute specular color */
       if (mat -> otype == MAT_METAL2) 
          copycolor(nd.scolor, nd.mcolor);
       else setcolor(nd.scolor, 1, 1, 1);
@@ -750,7 +764,7 @@ static int dielectricPhotonScatter (OBJREC *mat, RAY *rayIn)
    /* get modifiers */
    raytexture(rayIn, mat -> omod);			
    
-   if ((hastexture = (DOT(rayIn -> pert, rayIn -> pert) > FTINY * FTINY)))
+   if ((hastexture = (DOT(rayIn -> pert, rayIn -> pert) > sqr(FTINY))))
       /* Perturb normal */
       cos1 = raynormal(dnorm, rayIn);
    else {
@@ -760,8 +774,8 @@ static int dielectricPhotonScatter (OBJREC *mat, RAY *rayIn)
    
    /* index of refraction */
    nratio = mat -> otype == 
-      MAT_DIELECTRIC ? mat -> oargs.farg [3] + mat -> oargs.farg [4] / MLAMBDA
-                     : mat -> oargs.farg [3] / mat -> oargs.farg [7];
+      MAT_DIELECTRIC ? mat->oargs.farg[3] + mat->oargs.farg[4] / MLAMBDA
+                     : mat->oargs.farg[3] / mat->oargs.farg[7];
                      
    if (cos1 < 0) {
       /* inside */
@@ -838,7 +852,7 @@ static int dielectricPhotonScatter (OBJREC *mat, RAY *rayIn)
       for (i = 0; i < 3; i++)
          rayOut.rdir [i] = nratio * rayIn -> rdir [i] + d1 * dnorm [i];
          
-      if (hastexture && DOT(rayOut.rdir, rayIn -> ron) * hastexture >= -FTINY) {
+      if (hastexture && DOT(rayOut.rdir, rayIn->ron)*hastexture >= -FTINY) {
          d1 *= hastexture;
          
          for (i = 0; i < 3; i++)
@@ -857,7 +871,7 @@ static int dielectricPhotonScatter (OBJREC *mat, RAY *rayIn)
       photonRay(rayIn, &rayOut, PMAP_SPECREFL, NULL);
       VSUM(rayOut.rdir, rayIn -> rdir, dnorm, 2 * cos1);
       
-      if (hastexture && DOT(rayOut.rdir, rayIn -> ron) * hastexture <= FTINY)
+      if (hastexture && DOT(rayOut.rdir, rayIn->ron) * hastexture <= FTINY)
          for (i = 0; i < 3; i++)
             rayOut.rdir [i] = rayIn -> rdir [i] + 
                               2 * rayIn -> rod * rayIn -> ron [i];
@@ -897,7 +911,7 @@ static int glassPhotonScatter (OBJREC *mat, RAY *rayIn)
    /* reorient if necessary */
    if (rayIn -> rod < 0) 
       flipsurface(rayIn);
-   if ((hastexture = (DOT(rayIn -> pert, rayIn -> pert) > FTINY * FTINY) ))
+   if ((hastexture = (DOT(rayIn -> pert, rayIn -> pert) > sqr(FTINY))))
       pdot = raynormal(pnorm, rayIn);
    else {
       VCOPY(pnorm, rayIn -> ron);
@@ -979,7 +993,7 @@ static int aliasPhotonScatter (OBJREC *mat, RAY *rayIn)
 /* Transfer photon scattering to alias target */
 {
    OBJECT   aliasObj;
-   OBJREC   aliasRec;
+   OBJREC   aliasRec, *aliasPtr;
    
    /* Straight replacement? */
    if (!mat -> oargs.nsargs) {
@@ -996,18 +1010,36 @@ static int aliasPhotonScatter (OBJREC *mat, RAY *rayIn)
    if (mat -> oargs.nsargs != 1)
       objerror(mat, INTERNAL, "bad # string arguments");
       
-   aliasObj = lastmod(objndx(mat), mat -> oargs.sarg [0]);
-      
-   if (aliasObj < 0) 
-      objerror(mat, USER, "bad reference");
-      
-   memcpy(&aliasRec, objptr(aliasObj), sizeof(OBJREC));
+   aliasPtr = mat;
+   aliasObj = objndx(aliasPtr);
+   
+   /* Follow alias trail */
+   do {
+      aliasObj = aliasPtr -> oargs.nsargs == 1 
+                     ? lastmod(aliasObj, aliasPtr -> oargs.sarg [0])
+                     : aliasPtr -> omod;
+      if (aliasObj < 0)
+         objerror(aliasPtr, USER, "bad reference");
+         
+      aliasPtr = objptr(aliasObj);
+   } while (aliasPtr -> otype == MOD_ALIAS);
+
+   /* Copy alias object */
+   aliasRec = *aliasPtr;
    
    /* Substitute modifier */
    aliasRec.omod = mat -> omod;
    
    /* Replacement scattering routine */
    photonScatter [aliasRec.otype] (&aliasRec, rayIn);
+
+   /* Avoid potential memory leak? */
+   if (aliasRec.os != aliasPtr -> os) {
+      if (aliasPtr -> os)
+         free_os(aliasPtr);
+      aliasPtr -> os = aliasRec.os;
+   }
+
    return 0;
 }
 
@@ -1036,7 +1068,7 @@ static int clipPhotonScatter (OBJREC *mat, RAY *rayIn)
             continue;
             
          if ((mod = lastmod(obj, mat -> oargs.sarg [i])) == OVOID) {
-            sprintf(errmsg, "unknown modifier \"%s\"", mat -> oargs.sarg [i]);
+            sprintf(errmsg, "unknown modifier \"%s\"", mat->oargs.sarg[i]);
             objerror(mat, WARNING, errmsg);
             continue;
          }
@@ -1232,7 +1264,7 @@ static int mx_dataPhotonScatter (OBJREC *mat, RAY *rayIn)
       if (!strcmp(mat -> oargs.sarg [i], VOIDID)) 
          mod [i] = OVOID;
       else if ((mod [i] = lastmod(obj, mat -> oargs.sarg [i])) == OVOID) {
-         sprintf(errmsg, "undefined modifier \"%s\"", mat -> oargs.sarg [i]);
+         sprintf(errmsg, "undefined modifier \"%s\"", mat->oargs.sarg[i]);
          objerror(mat, USER, errmsg);
       }
       
@@ -1297,7 +1329,7 @@ static int mx_pdataPhotonScatter (OBJREC *mat, RAY *rayIn)
       if (!strcmp(mat -> oargs.sarg [i], VOIDID)) 
          mod [i] = OVOID;
       else if ((mod [i] = lastmod(obj, mat -> oargs.sarg [i])) == OVOID) {
-         sprintf(errmsg, "undefined modifier \"%s\"", mat -> oargs.sarg [i]);
+         sprintf(errmsg, "undefined modifier \"%s\"", mat->oargs.sarg[i]);
          objerror(mat, USER, errmsg);
       }
       
@@ -1359,7 +1391,7 @@ static int mx_funcPhotonScatter (OBJREC *mat, RAY *rayIn)
       if (!strcmp(mat -> oargs.sarg [i], VOIDID))
          mod [i] = OVOID;
       else if ((mod [i] = lastmod(obj, mat -> oargs.sarg [i])) == OVOID) {
-         sprintf(errmsg, "undefined modifier \"%s\"", mat -> oargs.sarg [i]);
+         sprintf(errmsg, "undefined modifier \"%s\"", mat->oargs.sarg[i]);
          objerror(mat, USER, errmsg);
       }
       
@@ -1417,13 +1449,275 @@ static int pattexPhotonScatter (OBJREC *mat, RAY *rayIn)
 
 
 
+static int setbrdfunc(BRDFDAT *bd)
+/* Set up brdf function and variables; ripped off from m_brdf.c */
+{
+   FVECT v;
+   
+   if (setfunc(bd -> mp, bd -> pr) == 0)
+      return 0;
+
+   /* (Re)Assign func variables */
+   multv3(v, bd -> pnorm, funcxf.xfm);
+   varset("NxP", '=', v [0] / funcxf.sca);
+   varset("NyP", '=', v [1] / funcxf.sca);
+   varset("NzP", '=', v [2] / funcxf.sca);
+   varset("RdotP", '=', 
+          bd -> pdot <= -1. ? -1. : bd -> pdot >= 1. ? 1. : bd -> pdot);
+   varset("CrP", '=', colval(bd -> mcolor, RED));
+   varset("CgP", '=', colval(bd -> mcolor, GRN));
+   varset("CbP", '=', colval(bd -> mcolor, BLU));
+   
+   return 1;
+}
+
+
+
+static int brdfPhotonScatter (OBJREC *mat, RAY *rayIn)
+/* Generate new photon ray for BRTDfunc material and recurse. Only ideal
+   reflection and transmission are sampled for the specular componentent. */
+{
+   int      hitfront = 1, hastexture, i;
+   BRDFDAT  nd;
+   RAY      rayOut;
+   COLOR    rspecCol, tspecCol;
+   double   prDiff, ptDiff, prSpec, ptSpec, albedo, xi;
+   MFUNC    *mf;
+   FVECT    bnorm;
+
+   /* Check argz */
+   if (mat -> oargs.nsargs < 10 || mat -> oargs.nfargs < 9)
+      objerror(mat, USER, "bad # arguments");
+      
+   nd.mp = mat;
+   nd.pr = rayIn;
+   /* Dummiez */
+   nd.rspec = nd.tspec = 1.0;
+   nd.trans = 0.5;
+
+   /* Diffuz reflektanz */
+   if (rayIn -> rod > 0.0)
+      setcolor(nd.rdiff, mat -> oargs.farg[0], mat -> oargs.farg [1],
+               mat -> oargs.farg [2]);
+   else
+      setcolor(nd.rdiff, mat-> oargs.farg [3], mat -> oargs.farg [4],
+               mat -> oargs.farg [5]);
+   /* Diffuz tranzmittanz */
+   setcolor(nd.tdiff, mat -> oargs.farg [6], mat -> oargs.farg [7],
+            mat -> oargs.farg [8]);
+
+   /* Get modz */
+   raytexture(rayIn, mat -> omod);
+   hastexture = (DOT(rayIn -> pert, rayIn -> pert) > sqr(FTINY));
+   if (hastexture) {
+      /* Perturb normal */
+      nd.pdot = raynormal(nd.pnorm, rayIn);
+   } 
+   else {
+      VCOPY(nd.pnorm, rayIn -> ron);
+      nd.pdot = rayIn -> rod;
+   }
+
+   if (rayIn -> rod < 0.0) {
+      /* Orient perturbed valuz */
+      nd.pdot = -nd.pdot;
+      for (i = 0; i < 3; i++) {
+         nd.pnorm [i] = -nd.pnorm [i];
+         rayIn -> pert [i] = -rayIn -> pert [i];
+      }
+      
+      hitfront = 0;
+   }
+   
+   /* Get pattern kolour, modify diffuz valuz */
+   copycolor(nd.mcolor, rayIn -> pcol);
+   multcolor(nd.rdiff, nd.mcolor);
+   multcolor(nd.tdiff, nd.mcolor);
+
+   /* Load cal file, evaluate spekula refl/tranz varz */
+   nd.dp = NULL;
+   mf = getfunc(mat, 9, 0x3f, 0);
+   setbrdfunc(&nd);
+   errno = 0;
+   setcolor(rspecCol, 
+            evalue(mf->ep[0]), evalue(mf->ep[1]), evalue(mf->ep[2]));
+   setcolor(tspecCol, 
+            evalue(mf->ep[3]), evalue(mf->ep[4]), evalue(mf->ep[5]));
+   if (errno == EDOM || errno == ERANGE)
+      objerror(mat, WARNING, "compute error");
+   else {
+      /* Set up probz */
+      prDiff = colorAvg(nd.rdiff);
+      ptDiff = colorAvg(nd.tdiff);
+      prSpec = colorAvg(rspecCol);
+      ptSpec = colorAvg(tspecCol);
+      albedo = prDiff + ptDiff + prSpec + ptSpec;
+   }
+
+   /* Insert direct and indirect photon hitz if diffuz komponent */
+   if (prDiff > FTINY || ptDiff > FTINY)
+      addPhotons(rayIn);
+
+   /* Stochastically sample absorption or scattering evenz */
+   if ((xi = pmapRandom(rouletteState)) > albedo)
+      /* Absorbed */
+      return 0;
+
+   if (xi > (albedo -= prSpec)) {
+      /* Ideal spekula reflekzion */
+      photonRay(rayIn, &rayOut, PMAP_SPECREFL, rspecCol);
+      VSUM(rayOut.rdir, rayIn -> rdir, nd.pnorm, 2 * nd.pdot);
+      checknorm(rayOut.rdir);
+   }
+   else if (xi > (albedo -= ptSpec)) {
+      /* Ideal spekula tranzmission */
+      photonRay(rayIn, &rayOut, PMAP_SPECTRANS, tspecCol);
+      if (hastexture) {
+         /* Perturb direkzion */
+         VSUB(rayOut.rdir, rayIn -> rdir, rayIn -> pert);
+         if (normalize(rayOut.rdir) == 0.0) {
+            objerror(mat, WARNING, "illegal perturbation");
+            VCOPY(rayOut.rdir, rayIn -> rdir);
+         }
+         else VCOPY(rayOut.rdir, rayIn -> rdir);
+      }
+   }
+   else if (xi > (albedo -= prDiff)) {
+      /* Diffuz reflekzion */
+      if (!hitfront)
+         flipsurface(rayIn);
+      photonRay(rayIn, &rayOut, PMAP_DIFFREFL, nd.mcolor);
+      diffPhotonScatter(nd.pnorm, &rayOut);
+   }
+   else {
+      /* Diffuz tranzmission */
+      if (hitfront)
+         flipsurface(rayIn);
+      photonRay(rayIn, &rayOut, PMAP_DIFFTRANS, nd.mcolor);
+      bnorm [0] = -nd.pnorm [0];
+      bnorm [1] = -nd.pnorm [1];
+      bnorm [2] = -nd.pnorm [2];
+      diffPhotonScatter(bnorm, &rayOut); 
+   }
+
+   tracePhoton(&rayOut);
+   return 0;
+}
+
+
+
+int brdf2PhotonScatter (OBJREC *mat, RAY *rayIn)
+/* Generate new photon ray for procedural or data driven BRDF material and
+   recurse. Only diffuse reflection and transmission are sampled. */
+{
+   BRDFDAT  nd;
+   RAY      rayOut;
+   double   dtmp, prDiff, ptDiff, albedo, xi;
+   MFUNC    *mf;
+   FVECT    bnorm;
+
+   /* Check argz */
+   if (mat -> oargs.nsargs < (hasdata(mat -> otype) ? 4 : 2) || 
+       mat -> oargs.nfargs < (mat -> otype == MAT_TFUNC || 
+                              mat -> otype == MAT_TDATA ? 6 : 4))
+      objerror(mat, USER, "bad # arguments");
+      
+   if (rayIn -> rod < 0.0) {
+      /* Hit backside; reorient if visible, else transfer photon */
+      if (!backvis) {
+         photonRay(rayIn, &rayOut, PMAP_XFER, NULL);
+         tracePhoton(&rayOut);
+         return 0;
+      }
+      
+      raytexture(rayIn, mat -> omod);
+      flipsurface(rayIn);
+   } 
+   else raytexture(rayIn, mat -> omod);
+
+   nd.mp = mat;
+   nd.pr = rayIn;
+   
+   /* Material kolour */
+   setcolor(nd.mcolor, mat -> oargs.farg [0], mat -> oargs.farg [1], 
+            mat -> oargs.farg [2]);
+   /* Spekula komponent */
+   nd.rspec = mat -> oargs.farg [3];
+   
+   /* Tranzmittanz */
+   if (mat -> otype == MAT_TFUNC || mat -> otype == MAT_TDATA) {
+      nd.trans = mat -> oargs.farg [4] * (1.0 - nd.rspec);
+      nd.tspec = nd.trans * mat -> oargs.farg [5];
+      dtmp = nd.trans - nd.tspec;
+      setcolor(nd.tdiff, dtmp, dtmp, dtmp);
+   } 
+   else {
+      nd.tspec = nd.trans = 0.0;
+      setcolor(nd.tdiff, 0.0, 0.0, 0.0);
+   }
+   
+   /* Reflektanz */
+   dtmp = 1.0 - nd.trans - nd.rspec;
+   setcolor(nd.rdiff, dtmp, dtmp, dtmp);
+   /* Perturb normal */
+   nd.pdot = raynormal(nd.pnorm, rayIn);
+   /* Modify material kolour */
+   multcolor(nd.mcolor, rayIn -> pcol);
+   multcolor(nd.rdiff, nd.mcolor);
+   multcolor(nd.tdiff, nd.mcolor);
+   
+   /* Load auxiliary filez */
+   if (hasdata(mat -> otype)) {
+      nd.dp = getdata(mat -> oargs.sarg [1]);
+      getfunc(mat, 2, 0, 0);
+   } 
+   else {
+      nd.dp = NULL;
+      getfunc(mat, 1, 0, 0);
+   }
+
+   /* Set up probz */
+   prDiff = colorAvg(nd.rdiff);
+   ptDiff = colorAvg(nd.tdiff);
+   albedo = prDiff + ptDiff;
+
+   /* Insert direct and indirect photon hitz if diffuz komponent */
+   if (prDiff > FTINY || ptDiff > FTINY)
+      addPhotons(rayIn);
+
+   /* Stochastically sample absorption or scattering evenz */
+   if ((xi = pmapRandom(rouletteState)) > albedo)
+      /* Absorbed */
+      return 0;
+
+   if (xi > (albedo -= prDiff)) {
+      /* Diffuz reflekzion */
+      photonRay(rayIn, &rayOut, PMAP_DIFFREFL, nd.rdiff);
+      diffPhotonScatter(nd.pnorm, &rayOut);
+   }
+   else {
+      /* Diffuz tranzmission */
+      flipsurface(rayIn);
+      photonRay(rayIn, &rayOut, PMAP_DIFFTRANS, nd.tdiff);
+      bnorm [0] = -nd.pnorm [0];
+      bnorm [1] = -nd.pnorm [1];
+      bnorm [2] = -nd.pnorm [2];
+      diffPhotonScatter(bnorm, &rayOut); 
+   }
+
+   tracePhoton(&rayOut);
+   return 0;
+}
+
+
+
 /* 
    ==================================================================
    The following code is
    (c) Lucerne University of Applied Sciences and Arts,
    supported by the Swiss National Science Foundation (SNSF, #147053)
    ==================================================================
-*/   
+*/
 
 static int bsdfPhotonScatter (OBJREC *mat, RAY *rayIn)
 /* Generate new photon ray for BSDF modifier and recurse. */
@@ -1456,9 +1750,9 @@ static int bsdfPhotonScatter (OBJREC *mat, RAY *rayIn)
    /* Get thickness */
    nd.thick = 0;
    if (hasthick) {
-	nd.thick = evalue(mf -> ep [0]);
-	if ((-FTINY <= nd.thick) & (nd.thick <= FTINY))
-		nd.thick = .0;
+   nd.thick = evalue(mf -> ep [0]);
+   if ((-FTINY <= nd.thick) & (nd.thick <= FTINY))
+      nd.thick = .0;
    }
 
    /* Get BSDF data */
@@ -1472,10 +1766,10 @@ static int bsdfPhotonScatter (OBJREC *mat, RAY *rayIn)
                     mat -> oargs.farg [2]);
    }    
    else if (mat -> oargs.nfargs < 6) {
-   	/* Check for absorbing backside */
-   	if (!backvis && !nd.sd -> rb && !nd.sd -> tf) {
-   	   SDfreeCache(nd.sd);   	      	   
-   	   return 0;
+      /* Check for absorbing backside */
+      if (!backvis && !nd.sd -> rb && !nd.sd -> tf) {
+         SDfreeCache(nd.sd);
+         return 0;
       }
       
       setcolor(nd.rdiff, .0, .0, .0);
@@ -1536,7 +1830,8 @@ static int bsdfPhotonScatter (OBJREC *mat, RAY *rayIn)
    }
    
    /* Determine BSDF resolution */
-   err = SDsizeBSDF(nd.sr_vpsa, nd.vray, NULL, SDqueryMin + SDqueryMax, nd.sd);
+   err = SDsizeBSDF(nd.sr_vpsa, nd.vray, NULL, 
+                    SDqueryMin + SDqueryMax, nd.sd);
    
    if (err)
       objerror(mat, USER, transSDError(err));
@@ -1676,14 +1971,15 @@ void initPhotonScatterFuncs ()
 /* Init photonScatter[] dispatch table */
 {
    int i;
-   
+
+   /* Catch-all for inconsistencies */
    for (i = 0; i < NUMOTYPE; i++) 
       photonScatter [i] = o_default;
-      
+
    photonScatter [MAT_LIGHT] = photonScatter [MAT_ILLUM] =
       photonScatter [MAT_GLOW] = photonScatter [MAT_SPOT] = 
          lightPhotonScatter;
-         
+
    photonScatter [MAT_PLASTIC] = photonScatter [MAT_METAL] =
       photonScatter [MAT_TRANS] = normalPhotonScatter;
       
@@ -1692,7 +1988,7 @@ void initPhotonScatterFuncs ()
       
    photonScatter [MAT_DIELECTRIC] = photonScatter [MAT_INTERFACE] = 
       dielectricPhotonScatter;
-      
+
    photonScatter [MAT_MIST] = mistPhotonScatter;
    photonScatter [MAT_GLASS] = glassPhotonScatter;
    photonScatter [MAT_CLIP] = clipPhotonScatter;
@@ -1700,13 +1996,20 @@ void initPhotonScatterFuncs ()
    photonScatter [MIX_FUNC] = mx_funcPhotonScatter;
    photonScatter [MIX_DATA] = mx_dataPhotonScatter;
    photonScatter [MIX_PICT]= mx_pdataPhotonScatter;
-   
+
    photonScatter [PAT_BDATA] = photonScatter [PAT_CDATA] =
       photonScatter [PAT_BFUNC] = photonScatter [PAT_CFUNC] =
          photonScatter [PAT_CPICT] = photonScatter [TEX_FUNC] = 
             photonScatter [TEX_DATA] = pattexPhotonScatter;
-            
+
    photonScatter [MOD_ALIAS] = aliasPhotonScatter;
-   photonScatter [MAT_BSDF] = 
-      photonScatter [MAT_ABSDF] = bsdfPhotonScatter;
+   photonScatter [MAT_BRTDF] = brdfPhotonScatter;
+   
+   photonScatter [MAT_PFUNC] = photonScatter [MAT_MFUNC] =
+      photonScatter [MAT_PDATA] = photonScatter [MAT_MDATA] = 
+         photonScatter [MAT_TFUNC] = photonScatter [MAT_TDATA] = 
+            brdf2PhotonScatter;
+
+   photonScatter [MAT_BSDF] = photonScatter [MAT_ABSDF] = 
+      bsdfPhotonScatter;
 }

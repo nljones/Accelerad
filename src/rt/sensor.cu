@@ -5,7 +5,6 @@
 #include "accelerad_copyright.h"
 
 #include <optix_world.h>
-#include "optix_shader_common.h"
 #include "optix_shader_ray.h"
 #ifdef CONTRIB_DOUBLE
 #include "optix_double.h"
@@ -86,9 +85,11 @@ RT_PROGRAM void ray_generator()
 #else
 	ray_buffer[launch_index].val = prd.result;
 #endif
+	ray_buffer[launch_index].length = prd.distance;
+	ray_buffer[launch_index].mirror = prd.mirror;
+	ray_buffer[launch_index].mirrored_length = prd.mirror_distance;
 	//ray_buffer[launch_index].hit = ray_buffer[launch_index].origin + prd.distance * ray_buffer[launch_index].dir;
 	ray_buffer[launch_index].weight = prd.weight;
-	ray_buffer[launch_index].length = prd.distance;
 	//ray_buffer[launch_index].t = prd.distance;
 #ifdef RAY_COUNT
 	ray_buffer[launch_index].ray_count = prd.ray_count;

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id: rtrace.c,v 2.71 2018/02/13 20:27:19 greg Exp $";
+static const char	RCSid[] = "$Id: rtrace.c,v 2.74 2019/01/08 00:16:31 greg Exp $";
 #endif
 /*
  *  rtrace.c - program and variables for individual ray tracing.
@@ -28,6 +28,7 @@ static const char	RCSid[] = "$Id: rtrace.c,v 2.71 2018/02/13 20:27:19 greg Exp $
 #include  "ambient.h"
 #include  "source.h"
 #include  "otypes.h"
+#include  "otspecial.h"
 #include  "resolu.h"
 #include  "random.h"
 
@@ -62,7 +63,8 @@ static putf_t puta, putd, putf;
 
 typedef void oputf_t(RAY *r);
 static oputf_t  oputo, oputd, oputv, oputV, oputl, oputL, oputc, oputp,
-		oputn, oputN, oputs, oputw, oputW, oputm, oputM, oputtilde;
+		oputr, oputR, oputx, oputX, oputn, oputN, oputs,
+		oputw, oputW, oputm, oputM, oputtilde;
 
 static void setoutput(char *vs);
 extern void tranotify(OBJECT obj);
@@ -75,7 +77,7 @@ static int getvec(FVECT vec, int fmt, FILE *fp);
 static void tabin(RAY *r);
 static void ourtrace(RAY *r);
 
-static oputf_t *ray_out[16], *every_out[16];
+static oputf_t *ray_out[32], *every_out[32];
 static putf_t *putreal;
 
 #ifdef ACCELERAD
@@ -200,7 +202,7 @@ rtrace(				/* trace rays from file */
 			else
 #endif
 			if (--nextflush <= 0 || !vcount) {
-				if (nproc > 1 && ray_fifo_flush() < 0)
+				if (ray_pnprocs > 1 && ray_fifo_flush() < 0)
 					error(USER, "child(ren) died");
 				bogusray();
 				fflush(stdout);
@@ -233,7 +235,7 @@ rtrace(				/* trace rays from file */
 			if (!use_optix)
 #endif
 			if (!--nextflush) {
-				if (nproc > 1 && ray_fifo_flush() < 0)
+				if (ray_pnprocs > 1 && ray_fifo_flush() < 0)
 					error(USER, "child(ren) died");
 				fflush(stdout);
 				nextflush = hresolu;
@@ -270,7 +272,7 @@ rtrace(				/* trace rays from file */
 		free(ray_cache);
 	} else /* OptiX kernel can only be launched from a single thread. */
 #endif
-	if (nproc > 1) {				/* clean up children */
+	if (ray_pnprocs > 1) {				/* clean up children */
 		if (ray_fifo_flush() < 0)
 			error(USER, "unable to complete processing");
 		ray_pclose(0);
@@ -321,12 +323,29 @@ setoutput(				/* set up output tables */
 		case 'd':				/* direction */
 			*table++ = oputd;
 			break;
+		case 'r':				/* reflected contrib. */
+			*table++ = oputr;
+			castonly = 0;
+			break;
+		case 'R':				/* reflected distance */
+			*table++ = oputR;
+			castonly = 0;
+			break;
+		case 'x':				/* xmit contrib. */
+			*table++ = oputx;
+			castonly = 0;
+			break;
+		case 'X':				/* xmit distance */
+			*table++ = oputX;
+			castonly = 0;
+			break;
 		case 'v':				/* value */
 			*table++ = oputv;
 			castonly = 0;
 			break;
 		case 'V':				/* contribution */
 			*table++ = oputV;
+			castonly = 0;
 			if (ambounce > 0 && (ambacc > FTINY || ambssamp > 0))
 				error(WARNING,
 					"-otV accuracy depends on -aa 0 -as 0");
@@ -366,6 +385,7 @@ setoutput(				/* set up output tables */
 			break;
 		case 'W':				/* coefficient */
 			*table++ = oputW;
+			castonly = 0;
 			if (ambounce > 0 && (ambacc > FTINY || ambssamp > 0))
 				error(WARNING,
 					"-otW accuracy depends on -aa 0 -as 0");
@@ -609,6 +629,53 @@ oputd(				/* print direction */
 
 
 static void
+oputr(				/* print mirrored contribution */
+	RAY  *r
+)
+{
+	RREAL	cval[3];
+
+	cval[0] = colval(r->mcol,RED);
+	cval[1] = colval(r->mcol,GRN);
+	cval[2] = colval(r->mcol,BLU);
+	(*putreal)(cval, 3);
+}
+
+
+
+static void
+oputR(				/* print mirrored distance */
+	RAY  *r
+)
+{
+	(*putreal)(&r->rmt, 1);
+}
+
+
+static void
+oputx(				/* print unmirrored contribution */
+	RAY  *r
+)
+{
+	RREAL	cval[3];
+
+	cval[0] = colval(r->rcol,RED) - colval(r->mcol,RED);
+	cval[1] = colval(r->rcol,GRN) - colval(r->mcol,GRN);
+	cval[2] = colval(r->rcol,BLU) - colval(r->mcol,BLU);
+	(*putreal)(cval, 3);
+}
+
+
+static void
+oputX(				/* print unmirrored distance */
+	RAY  *r
+)
+{
+	(*putreal)(&r->rxt, 1);
+}
+
+
+static void
 oputv(				/* print value */
 	RAY  *r
 )
@@ -648,7 +715,9 @@ oputl(				/* print effective distance */
 	RAY  *r
 )
 {
-	(*putreal)(&r->rt, 1);
+	RREAL	d = raydistance(r);
+
+	(*putreal)(&d, 1);
 }
 
 

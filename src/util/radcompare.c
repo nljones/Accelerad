@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: radcompare.c,v 2.11 2018/10/19 20:32:16 greg Exp $";
+static const char RCSid[] = "$Id: radcompare.c,v 2.18 2018/12/01 21:09:53 greg Exp $";
 #endif
 /*
  * Compare Radiance files for significant differences
@@ -64,6 +64,7 @@ const char	*hdr_ignkey[] = {
 			"SOFTWARE",
 			"CAPDATE",
 			"GMT",
+			"FRAME",
 			NULL	/* terminator */
 		};
 				/* header variable settings */
@@ -73,6 +74,16 @@ LUTAB	hdr2 = LU_SINIT(free,free);
 				/* advance appropriate file line count */
 #define adv_linecnt(htp)	(lin1cnt += (htp == &hdr1), \
 					lin2cnt += (htp == &hdr2))
+
+typedef struct {		/* dynamic line buffer */
+	char	*str;
+	int	len;
+	int	siz;
+} LINEBUF;
+
+#define init_line(bp)	((bp)->str = NULL, (bp)->siz = 0)
+				/* 100 MByte limit on line buffer */
+#define MAXBUF		(100L<<20)
 
 				/* input files */
 char		*progname = NULL;
@@ -93,6 +104,55 @@ usage()
 	fputs(" [-h][-s|-w|-v][-rel min_test][-rms epsilon][-max epsilon] reference test\n",
 			stderr);
 	exit(2);
+}
+
+/* Read a text line, increasing buffer size as necessary */
+static int
+read_line(LINEBUF *bp, FILE *fp)
+{
+	static int	doneWarn = 0;
+
+	bp->len = 0;
+	if (!bp->str) {
+		bp->str = (char *)malloc(bp->siz = 512);
+		if (!bp->str)
+			goto memerr;
+	}
+	while (fgets(bp->str + bp->len, bp->siz - bp->len, fp)) {
+		bp->len += strlen(bp->str + bp->len);
+		if (bp->str[bp->len-1] == '\n')
+			break;		/* found EOL */
+		if (bp->len < bp->siz - 4)
+			continue;	/* at EOF? */
+		if (bp->siz >= MAXBUF) {
+			if ((report >= REP_WARN) & !doneWarn) {
+				fprintf(stderr,
+			"%s: warning - input line(s) past %ld MByte limit\n",
+					progname, MAXBUF>>20);
+				doneWarn++;
+			}
+			break;		/* return MAXBUF partial line */
+		}
+		if ((bp->siz += bp->siz/2) > MAXBUF)
+			bp->siz = MAXBUF;
+		bp->str = (char *)realloc(bp->str, bp->siz);
+		if (!bp->str)
+			goto memerr;
+	}
+	return(bp->len);
+memerr:
+	fprintf(stderr,
+		"%s: out of memory in read_line() allocating %d byte buffer\n",
+			progname, bp->siz);
+	exit(2);
+}
+
+/* Free line buffer */
+static void
+free_line(LINEBUF *bp)
+{
+	if (bp->str) free(bp->str);
+	init_line(bp);
 }
 
 /* Get type ID from name (or 0 if not found) */
@@ -140,8 +200,8 @@ color_check(COLOR c1, COLOR c2)
 {
 	int	p;
 
-	if (!real_check(colval(c1,RED)+colval(c1,GRN)+colval(c1,BLU)*(1./3.),
-			colval(c2,RED)+colval(c2,GRN)+colval(c2,BLU))*(1./3.))
+	if (!real_check((colval(c1,RED)+colval(c1,GRN)+colval(c1,BLU))*(1./3.),
+			(colval(c2,RED)+colval(c2,GRN)+colval(c2,BLU))*(1./3.)))
 		return(0);
 
 	p = (colval(c1,GRN) > colval(c1,RED)) ? GRN : RED;
@@ -441,86 +501,67 @@ compare_binary()
 	return(0);
 }
 
-/* If line is continued (no newline), then back up to word boundary if one */
-static int
-leftover(char *buf)
-{
-	int	minlen = strlen(buf);
-	char	*bend = buf + minlen;
-	char	*cp = bend-1;
-
-	if (*cp == '\r') *cp = '\n';		/* AARG Windoze! */
-	if (*cp == '\n')			/* complete line? */
-		return(0);
-
-	minlen >>= 2;				/* back over partial word */
-	while (!isspace(*cp))
-		if (--cp <= buf+minlen)
-			return(0);
-	*cp++ = '\0';				/* break line here */
-	return(bend - cp);
-}
-
 /* Compare two inputs as generic text files */
 static int
 compare_text()
 {
-	char	l1buf[4096], l2buf[4096];
-	int	l1over=0, l2over=0;
+	LINEBUF	l1buf, l2buf;
 
 	if (report >= REP_VERBOSE) {
 		fputs(progname, stdout);
 		fputs(": comparing inputs as ASCII text\n", stdout);
 	}
-						/* compare a line at a time */
-	while (fgets(l1buf+l1over, sizeof(l1buf)-l1over, f1in)) {
-		lin1cnt += !(l1over = leftover(l1buf));
-		if (!*sskip2(l1buf,0)) {
-			memmove(l1buf, l1buf+sizeof(l1buf)-l1over, l1over);
+	init_line(&l1buf); init_line(&l2buf);	/* compare a line at a time */
+	while (read_line(&l1buf, f1in)) {
+		lin1cnt++;
+		if (!*sskip2(l1buf.str,0))
 			continue;		/* ignore empty lines */
-		}
-		while (fgets(l2buf+l2over, sizeof(l2buf)-l2over, f2in)) {
-			lin2cnt += !(l2over = leftover(l2buf));
-			if (*sskip2(l2buf,0))
+
+		while (read_line(&l2buf, f2in)) {
+			lin2cnt++;
+			if (*sskip2(l2buf.str,0))
 				break;		/* found other non-empty line */
-			memmove(l2buf, l2buf+sizeof(l2buf)-l2over, l2over);
 		}
-		if (feof(f2in)) {
+		if (!l2buf.len) {		/* input 2 EOF? */
 			if (report != REP_QUIET) {
 				fputs(f2name, stdout);
 				fputs(": unexpected end-of-file\n", stdout);
 			}
+			free_line(&l1buf); free_line(&l2buf);
 			return(0);
 		}
 						/* compare non-empty lines */
-		if (!equiv_string(l1buf, l2buf)) {
+		if (!equiv_string(l1buf.str, l2buf.str)) {
 			if (report != REP_QUIET) {
 				printf("%s: inputs '%s' and '%s' differ at line %d|%d\n",
 						progname, f1name, f2name,
 						lin1cnt, lin2cnt);
-				if (report >= REP_VERBOSE) {
+				if ( report >= REP_VERBOSE &&
+						(l1buf.len < 256) &
+						(l2buf.len < 256) ) {
 					fputs("------------- Mismatch -------------\n", stdout);
 					printf("%s@%d:\t%s", f1name,
-							lin1cnt, l1buf);
+							lin1cnt, l1buf.str);
 					printf("%s@%d:\t%s", f2name,
-							lin2cnt, l2buf);
+							lin2cnt, l2buf.str);
 				}
 			}
+			free_line(&l1buf); free_line(&l2buf);
 			return(0);
 		}
-		if (l1over) memmove(l1buf, l1buf+sizeof(l1buf)-l1over, l1over);
-		if (l2over) memmove(l2buf, l2buf+sizeof(l2buf)-l2over, l2over);
 	}
-						/* check for EOF on input 2 */
-	while (fgets(l2buf, sizeof(l2buf), f2in)) {
-		if (!*sskip2(l2buf,0))
+	free_line(&l1buf);			/* check for EOF on input 2 */
+	while (read_line(&l2buf, f2in)) {
+		if (!*sskip2(l2buf.str,0))
 			continue;
 		if (report != REP_QUIET) {
 			fputs(f1name, stdout);
 			fputs(": unexpected end-of-file\n", stdout);
 		}
+		free_line(&l2buf);
 		return(0);
 	}
+	free_line(&l2buf);
 	return(good_RMS());			/* final check for reals */
 }
 
@@ -737,13 +778,13 @@ main(int argc, char *argv[])
 	ign_header |= !has_header(typ1);	/* check headers if indicated */
 	if (!ign_header && !headers_match())
 		return(1);
-	lu_done(&hdr1); lu_done(&hdr2);
+	lu_done(&hdr1); lu_done(&hdr2);		/* done with header info. */
 	if (!ign_header & (report >= REP_WARN)) {
-		if (typ1 == TYP_UNKNOWN)
-			printf("%s: warning - unrecognized format, comparing as binary\n",
-					progname);
 		if (lin1cnt != lin2cnt)
 			printf("%s: warning - headers are different lengths\n",
+					progname);
+		if (typ1 == TYP_UNKNOWN)
+			printf("%s: warning - unrecognized format\n",
 					progname);
 	}
 	if (report >= REP_VERBOSE)
