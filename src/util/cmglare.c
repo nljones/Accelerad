@@ -121,10 +121,10 @@ static void get_patch_direction(const ReinhartSky *sky, const int patch, FVECT t
 	target[2] = sin(alt);
 }
 
-static double get_patch_solid_angle(const ReinhartSky *sky, const int patch)
+static double get_patch_solid_angle(const ReinhartSky *sky, const int patch, const double cos_theta)
 {
 	//if (patch >= sky->patches || patch < 0) throw new RuntimeException("Illegal patch " + patch);
-	if (!patch) return 0.0; // Ignore below horizon?
+	if (!patch) return 2 * (PI - 2 * acos(cos_theta)); // Solid angle overlap between visible hemisphere and ground hemisphere
 	int row = sky->rings - 1;
 	while (patch < sky->firstPatchIndex[row]) row--;
 	return sky->solidAngle[row];
@@ -243,10 +243,15 @@ float* cm_glare(const CMATRIX *dcmx, const CMATRIX *evmx, const CMATRIX *smx, co
 						const double dc = bright(cm_lval(dcmx, p, c));
 						if (dc > 0) {
 							get_patch_direction(sky, c, patch_normal);
+							if (!c) {
+								/* Direction toward the center of the visible ground */
+								VADD(patch_normal, patch_normal, views[p]);
+								if (normalize(patch_normal) == 0) continue;
+							}
 							const double cos_theta = DOT(views[p], patch_normal);
 							if (cos_theta <= FTINY) continue;
 							const double s = LUMINOUS_EFFICACY * bright(cm_lval(smx, c, t));
-							const double omega = get_patch_solid_angle(sky, c);
+							const double omega = get_patch_solid_angle(sky, c, cos_theta);
 							const double patch_luminance = (dc * s) / (omega * cos_theta);
 
 							double min_patch_luminance = dgp_threshold;

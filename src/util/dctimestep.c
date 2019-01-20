@@ -141,7 +141,7 @@ main(int argc, char *argv[])
 	int		start_hour = 0;
 	int		end_hour = 24;
 	double	dgp_limit = -1;
-	double	dgp_threshold = 5;
+	double	dgp_threshold = 2000;
 	char	*view_path = NULL;
 	FILE	*fp;
 	float	*dgp_values = NULL;
