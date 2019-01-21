@@ -48,6 +48,7 @@ rtDeclareVariable(unsigned int, greyscale, , ) = 0u; /* Convert to monocrhome (-
 rtDeclareVariable(int, tonemap, , ) = RT_TEXTURE_ID_NULL; /* texture ID */
 rtDeclareVariable(float, fc_scale, , ) = 1000.0f; /* Maximum of scale for falsecolor images, zero for regular tonemapping (-s) */
 rtDeclareVariable(int, fc_log, , ) = 0; /* Number of decades for log scale, zero for standard scale (-log) */
+rtDeclareVariable(int, fc_base, , ) = 10; /* Base for log scale (-base) */
 rtDeclareVariable(float, fc_mask, , ) = 0.0f; /* Minimum value to display in falsecolor images (-m) */
 rtDeclareVariable(unsigned int, flags, , ) = 0; /* Flags for areas to highlight in image */
 
@@ -142,16 +143,20 @@ RT_PROGRAM void ray_generator()
 
 	/* Tone map */
 	const float luminance = bright(accum) * LUMINOUS_EFFICACY;
-	if (fc_scale == 0.0f || tonemap == RT_TEXTURE_ID_NULL) {
-		accum *= exposure;
+	if (tonemap == RT_TEXTURE_ID_NULL) { // Natural tone mapping
+		//accum *= exposure / fc_scale;
 		if (greyscale)
-			accum = make_float3(bright(accum));
+			accum = make_float3(luminance * exposure / fc_scale);
+		else
+			accum *= LUMINOUS_EFFICACY * exposure / fc_scale;
+		if (fc_log > 0)
+			accum = make_float3(logf(accum.x), logf(accum.y), logf(accum.z)) / (logf(fc_base) * fc_log) + 1.0f;
 	}
-	else {
+	else { // False color tone mapping
 		if (luminance < fc_mask)
 			accum = make_float3(0.0f);
 		else if (fc_log > 0)
-			accum = make_float3(rtTex1D<float4>(tonemap, log10f(luminance / fc_scale) / fc_log + 1.0f));
+			accum = make_float3(rtTex1D<float4>(tonemap, logf(luminance / fc_scale) / (logf(fc_base) * fc_log) + 1.0f));
 		else
 			accum = make_float3(rtTex1D<float4>(tonemap, luminance / fc_scale));
 	}

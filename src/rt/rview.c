@@ -26,7 +26,7 @@ static const char	RCSid[] = "$Id: rview.c,v 2.37 2013/10/18 17:04:13 greg Exp $"
 
 #ifdef ACCELERAD_RT
 extern void qt_rvu_paint_image(int xmin, int ymin, int xmax, int ymax, const unsigned char *data);
-extern void qt_rvu_update_plot(double *values);
+extern void qt_rvu_update_plot(double *values, int rescale);
 #endif
 
 #define	 CTRL(c)	((c)-'@')

@@ -29,8 +29,10 @@ int  xh = 0, yh = 0;			/* position of contrast high luminance area (-C) */
 double  omegah = 0.0;			/* opening angle of contrast high luminance area (-C) */
 int  xl = 0, yl = 0;			/* position of contrast high luminance area (-C) */
 double  omegal = 0.0;			/* opening angle of contrast high luminance area (-C) */
-double  scale = 0.0;			/* maximum of scale for falsecolor images, zero for regular tonemapping (-s) */
-int  decades = 0;				/* number of decades for log scale, zero for standard scale (-log) */
+int  fc = 1;					/* use falsecolor tonemapping, zero for natural tonemapping (-f) */
+double  scale = 0.0;			/* maximum of scale for falsecolor images, zero auto-scaling (-s) */
+int  decades = 0;				/* number of decades for log scale, zero for linear scale (-log) */
+int  base = 10;					/* base for log scale (-base) */
 double  mask = 0.0;				/* minimum value to display in falsecolor images (-m) */
 double  ralrm = 0.0;			/* seconds between reports (-t) */
 #endif
@@ -164,7 +166,14 @@ main(int argc, char *argv[])
 			}
 			break;
 		case 'b':				/* grayscale */
-			check_bool(2,greyscale);
+#ifdef ACCELERAD
+			if (argv[i][2] == 'a') { /* base for color scale */
+				check(5, "i");
+				base = atoi(argv[++i]);
+				break;
+			}
+#endif
+			check_bool(2, greyscale);
 			break;
 		case 'p':				/* pixel */
 			switch (argv[i][2]) {
@@ -227,6 +236,9 @@ main(int argc, char *argv[])
 			xl = atoi(argv[++i]);
 			yl = atoi(argv[++i]);
 			omegal = atof(argv[++i]);
+			break;
+		case 'f':				/* use falsecolor images */
+			check_bool(2, fc);
 			break;
 		case 's':				/* scale for falsecolor images */
 			check(2, "f");

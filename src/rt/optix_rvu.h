@@ -11,7 +11,7 @@ extern "C" {
 #endif
 
 /* from optix_rvu.c */
-extern void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const double alarm, void fpaint(int, int, int, int, const unsigned char *), void fplot(double *));
+extern void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const double alarm, void fpaint(int, int, int, int, const unsigned char *), void fplot(double *, int));
 extern void retreiveOptixImage(const int width, const int height, const double exposure, COLR* colrs);
 extern void updateOctree(char* path);
 extern void endOptix();

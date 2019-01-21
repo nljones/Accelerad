@@ -35,7 +35,7 @@ extern "C" void qt_rvu_paint_image(int xmin, int ymin, int xmax, int ymax, const
 	dev->flush();
 }
 
-extern "C" void qt_rvu_update_plot(double *values)
+extern "C" void qt_rvu_update_plot(double *values, int rescale)
 {
 	MainWindowInstance->addData(values);
 }

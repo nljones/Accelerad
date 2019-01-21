@@ -51,7 +51,7 @@ extern int qt_open_text_dialog(char* , const char*);
 
 #ifdef ACCELERAD_RT
 extern void qt_rvu_paint_image(int xmin, int ymin, int xmax, int ymax, const unsigned char *data);
-extern void qt_rvu_update_plot(double *values);
+extern void qt_rvu_update_plot(double *values, int rescale);
 #endif
 
 #ifdef ACCELERAD

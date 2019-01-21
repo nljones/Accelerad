@@ -16,8 +16,10 @@ clock_t start;	/* start for elapsed time */
 #endif /* SAVE_METRICS */
 
 #define METRICS_COUNT	6
+#define SCALE_DEFAULT	1000 /* Default scale maximum while setting autoscale */
 
 extern int has_diffuse_normal_closest_hit_program;	/* Flag for including rvu programs. */
+extern int verbose_output;	/* Print repetitive outputs. */
 
 /* Handles to objects used repeatedly in animation */
 extern unsigned int frame;
@@ -27,12 +29,15 @@ RTbuffer buffer_handle = NULL;
 RTbuffer ray_count_buffer_handle = NULL;
 #endif
 extern RTvariable camera_frame;
+int auto_scale = 0;	/* flag to perform auto range scaling */
 
 /* Parameters that can change without resetting frame count */
 extern double exposure;		/* exposure for scene (-pe) */
 extern int greyscale;		/* map colors to brightness? (-b) */
-extern double scale;		/* maximum of scale for falsecolor images, zero for regular tonemapping (-s) */
+extern int fc;				/* use falsecolor tonemapping, zero for natural tonemapping (-f) */
+extern double scale;		/* maximum of scale for falsecolor images, zero auto-scaling (-s) */
 extern int decades;			/* number of decades for log scale, zero for standard scale (-log) */
+extern int base;			/* base for log scale (-base) */
 extern double mask;			/* minimum value to display in falsecolor images (-m) */
 
 /* Regions */
@@ -41,16 +46,17 @@ extern double omegat, omegah, omegal;
 
 static double calcRAMMG(const Metrics *metrics, const int width, const int height);
 static int makeFalseColorMap(const RTcontext context);
+void setScale(const double maximum);
 
 /* Handles to objects used repeatedly in animation */
-static RTvariable greyscale_var = NULL, exposure_var = NULL, scale_var = NULL, tonemap_var = NULL, decades_var = NULL, mask_var = NULL;
+static RTvariable greyscale_var = NULL, exposure_var = NULL, scale_var = NULL, tonemap_var = NULL, decades_var = NULL, base_var = NULL, mask_var = NULL;
 static RTvariable task_position = NULL, task_angle = NULL, high_position = NULL, high_angle = NULL, low_position = NULL, low_angle = NULL, position_flags = NULL;
 #ifdef VT_ODS
 static RTvariable camera_gaze = NULL;
 #endif
 static RTbuffer metrics_buffer = NULL, direct_buffer = NULL, diffuse_buffer = NULL;
 
-void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const double alarm, void fpaint(int, int, int, int, const unsigned char *), void fplot(double *))
+void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const double alarm, void fpaint(int, int, int, int, const unsigned char *), void fplot(double *, int))
 {
 	/* Primary RTAPI objects */
 	RTcontext           context;
@@ -72,6 +78,9 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	size = width * height;
 
 	if (context_handle == NULL) {
+		/* Do not print repetitive statements */
+		verbose_output = 0;
+
 		/* Setup state */
 		createContext(&context, width, height, alarm);
 
@@ -112,10 +121,12 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		/* Apply unique settings */
 		exposure_var = applyContextVariable1f(context, "exposure", (float)exposure);
 		greyscale_var = applyContextVariable1ui(context, "greyscale", (unsigned int)greyscale);
-		if (scale > 0)
+		if (fc)
 			applyContextVariable1i(context, "tonemap", makeFalseColorMap(context));
-		scale_var = applyContextVariable1f(context, "fc_scale", (float)scale);
+		auto_scale = scale <= 0;
+		scale_var = applyContextVariable1f(context, "fc_scale", auto_scale ? SCALE_DEFAULT : (float)scale);
 		decades_var = applyContextVariable1i(context, "fc_log", decades);
+		base_var = applyContextVariable1i(context, "fc_base", base);
 		mask_var = applyContextVariable1f(context, "fc_mask", (float)mask);
 
 		task_position = applyContextVariable2i(context, "task_position", xt, yt);
@@ -239,6 +250,12 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	if (nh && nl) cr = lumH / lumL;
 	RT_CHECK_ERROR(rtBufferUnmap(metrics_buffer));
 
+	/* Auto-scaling */
+	int rescaled = auto_scale;
+	if (auto_scale) {
+		setScale(avlum);
+	}
+
 	if (&fplot) {
 		/* Plot results */
 		double *plotValues = (double *)malloc(METRICS_COUNT * sizeof(double));
@@ -249,7 +266,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 			plotValues[3] = lumT;
 			plotValues[4] = cr;
 			plotValues[5] = rammg;
-			fplot(plotValues);
+			fplot(plotValues, rescaled);
 			free(plotValues);
 		}
 	}
@@ -461,7 +478,9 @@ void setScale(const double maximum)
 {
 	RTcontext context = context_handle;
 	scale = maximum;
-	RT_CHECK_ERROR(rtVariableSet1f(scale_var, (float)maximum)); //TODO change tonemap
+	auto_scale = maximum <= 0;
+	if (!auto_scale)
+		RT_CHECK_ERROR(rtVariableSet1f(scale_var, (float)maximum)); // If autoscale is true, this will be called again after the next rendering pass
 }
 
 void setDecades(const int decade)
@@ -469,6 +488,13 @@ void setDecades(const int decade)
 	RTcontext context = context_handle;
 	decades = decade;
 	RT_CHECK_ERROR(rtVariableSet1i(decades_var, decade));
+}
+
+void setBase(const int log_base)
+{
+	RTcontext context = context_handle;
+	base = log_base;
+	RT_CHECK_ERROR(rtVariableSet1i(base_var, log_base));
 }
 
 void setMask(const double masking)
