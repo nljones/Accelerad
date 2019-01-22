@@ -253,3 +253,4 @@ void reportProgress( const double progress, const double alarm );
 #ifdef TIMEOUT_CALLBACK
 int timeoutCallback(void);
 #endif
+extern int verbose_output;	/* Print repetitive outputs. */

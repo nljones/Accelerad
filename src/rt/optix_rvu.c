@@ -19,7 +19,6 @@ clock_t start;	/* start for elapsed time */
 #define SCALE_DEFAULT	1000 /* Default scale maximum while setting autoscale */
 
 extern int has_diffuse_normal_closest_hit_program;	/* Flag for including rvu programs. */
-extern int verbose_output;	/* Print repetitive outputs. */
 
 /* Handles to objects used repeatedly in animation */
 extern unsigned int frame;
@@ -234,7 +233,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 			if (nt)
 				lum_thresh *= lumT;
 			else
-				lum_thresh *= lumV;
+				lum_thresh *= lumV; // Or 2000 lux
 
 			for (i = 0u; i < size; i++)
 				if (metrics[i].omega >= 0.0f && metrics[i].avlum > lum_thresh * metrics[i].omega)

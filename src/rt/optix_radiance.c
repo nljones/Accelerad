@@ -348,8 +348,10 @@ void createContext(RTcontext* context, const RTsize width, const RTsize height, 
 	//applyContextObject( *context, "rnd_seeds", seed_buffer );
 
 #ifdef TIMEOUT_CALLBACK
-	if (!remote_handle && alarm > 0)
-		RT_CHECK_ERROR2( rtContextSetTimeoutCallback( *context, timeoutCallback, alarm ) );
+	if (!remote_handle && alarm > 0) {
+		verbose_output = 1;
+		RT_CHECK_ERROR2(rtContextSetTimeoutCallback(*context, timeoutCallback, alarm));
+	}
 #endif
 
 #ifdef DEBUG_OPTIX
@@ -650,7 +652,7 @@ static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifie
 	}
 
 	/* Create the top node of the scene graph. */
-	createNode(context, &scene, octname, 0, nobjects, OVOID, NULL);
+	createNode(context, &scene, octname, 0, nsceneobjs, OVOID, NULL);
 
 	/* Free resources used in creating the scene graph. */
 	free(scene.buffer_entry_index);
@@ -719,7 +721,7 @@ static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifie
 	freeArraydl(scene.sources);
 
 	geometry_clock = clock() - geometry_clock;
-	mprintf("Geometry build time: %" PRIu64 " milliseconds for %i objects.\n", MILLISECONDS(geometry_clock), nobjects);
+	mprintf("Geometry build time: %" PRIu64 " milliseconds for %i objects.\n", MILLISECONDS(geometry_clock), nsceneobjs);
 }
 
 static void createNode(const RTcontext context, Scene* scene, char* name, const OBJECT start, const OBJECT count, const int material_index, MESH* mesh)
