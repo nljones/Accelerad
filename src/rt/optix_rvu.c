@@ -38,7 +38,7 @@ extern int fc;				/* use falsecolor tonemapping, zero for natural tonemapping (-
 extern double scale;		/* maximum of scale for falsecolor images, zero auto-scaling (-s) */
 extern int decades;			/* number of decades for log scale, zero for standard scale (-log) */
 extern int base;			/* base for log scale (-base) */
-extern double mask;			/* minimum value to display in falsecolor images (-m) */
+extern double masking;		/* minimum value to display in falsecolor images (-m) */
 
 /* Regions */
 extern int xt, yt, xh, yh, xl, yl;
@@ -129,7 +129,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		scale_var = applyContextVariable1f(context, "fc_scale", auto_scale ? SCALE_DEFAULT : (float)scale);
 		decades_var = applyContextVariable1i(context, "fc_log", decades);
 		base_var = applyContextVariable1i(context, "fc_base", base);
-		mask_var = applyContextVariable1f(context, "fc_mask", (float)mask);
+		mask_var = applyContextVariable1f(context, "fc_mask", (float)masking);
 
 		task_position = applyContextVariable2i(context, "task_position", xt, yt);
 		task_angle = applyContextVariable1f(context, "task_angle", (float)omegat);
@@ -434,6 +434,7 @@ void retreiveOptixImage(const int width, const int height, const double exposure
 	unsigned int i, size;
 	float *direct_data, *diffuse_data;
 	RTcontext context = context_handle;
+	if (!context) return;
 
 	size = width * height;
 
@@ -471,23 +472,27 @@ void setExposure(const double expose)
 {
 	RTcontext context = context_handle;
 	exposure = expose;
-	RT_CHECK_ERROR(rtVariableSet1f(exposure_var, (float)expose));
+	if (context)
+		RT_CHECK_ERROR(rtVariableSet1f(exposure_var, (float)expose));
 }
 
 void setGreyscale(const int grey)
 {
 	RTcontext context = context_handle;
 	greyscale = grey;
-	RT_CHECK_ERROR(rtVariableSet1ui(greyscale_var, (unsigned int)grey));
+	if (context)
+		RT_CHECK_ERROR(rtVariableSet1ui(greyscale_var, (unsigned int)grey));
 }
 
 void setFalseColor(const int falsecolor)
 {
 	RTcontext context = context_handle;
 	fc = falsecolor;
-	if (falsecolor && tonemap_id == RT_TEXTURE_ID_NULL)
-		tonemap_id = makeFalseColorMap(context);
-	RT_CHECK_ERROR(rtVariableSet1ui(tonemap_var, falsecolor ? tonemap_id : RT_TEXTURE_ID_NULL));
+	if (context) {
+		if (falsecolor && tonemap_id == RT_TEXTURE_ID_NULL)
+			tonemap_id = makeFalseColorMap(context);
+		RT_CHECK_ERROR(rtVariableSet1ui(tonemap_var, falsecolor ? tonemap_id : RT_TEXTURE_ID_NULL));
+	}
 }
 
 void setScale(const double maximum)
@@ -495,7 +500,7 @@ void setScale(const double maximum)
 	RTcontext context = context_handle;
 	scale = maximum;
 	auto_scale = maximum <= 0;
-	if (!auto_scale)
+	if (context && !auto_scale)
 		RT_CHECK_ERROR(rtVariableSet1f(scale_var, (float)maximum)); // If autoscale is true, this will be called again after the next rendering pass
 }
 
@@ -503,21 +508,24 @@ void setDecades(const int decade)
 {
 	RTcontext context = context_handle;
 	decades = decade;
-	RT_CHECK_ERROR(rtVariableSet1i(decades_var, decade));
+	if (context)
+		RT_CHECK_ERROR(rtVariableSet1i(decades_var, decade));
 }
 
 void setBase(const int log_base)
 {
 	RTcontext context = context_handle;
 	base = log_base;
-	RT_CHECK_ERROR(rtVariableSet1i(base_var, log_base));
+	if (context)
+		RT_CHECK_ERROR(rtVariableSet1i(base_var, log_base));
 }
 
-void setMask(const double masking)
+void setMaskMax(const double mask)
 {
 	RTcontext context = context_handle;
-	mask = masking;
-	RT_CHECK_ERROR(rtVariableSet1f(mask_var, (float)masking));
+	masking = mask;
+	if (context)
+		RT_CHECK_ERROR(rtVariableSet1f(mask_var, (float)mask));
 }
 
 void setTaskArea(const int x, const int y, const double omega)
@@ -526,8 +534,10 @@ void setTaskArea(const int x, const int y, const double omega)
 	xt = x;
 	yt = y;
 	omegat = omega;
-	RT_CHECK_ERROR(rtVariableSet2i(task_position, xt, yt));
-	RT_CHECK_ERROR(rtVariableSet1f(task_angle, (float)omegat));
+	if (context) {
+		RT_CHECK_ERROR(rtVariableSet2i(task_position, xt, yt));
+		RT_CHECK_ERROR(rtVariableSet1f(task_angle, (float)omegat));
+	}
 }
 
 void setHighArea(const int x, const int y, const double omega)
@@ -536,8 +546,10 @@ void setHighArea(const int x, const int y, const double omega)
 	xh = x;
 	yh = y;
 	omegah = omega;
-	RT_CHECK_ERROR(rtVariableSet2i(high_position, xh, yh));
-	RT_CHECK_ERROR(rtVariableSet1f(high_angle, (float)omegah));
+	if (context) {
+		RT_CHECK_ERROR(rtVariableSet2i(high_position, xh, yh));
+		RT_CHECK_ERROR(rtVariableSet1f(high_angle, (float)omegah));
+	}
 }
 
 void setLowArea(const int x, const int y, const double omega)
@@ -546,28 +558,33 @@ void setLowArea(const int x, const int y, const double omega)
 	xl = x;
 	yl = y;
 	omegal = omega;
-	RT_CHECK_ERROR(rtVariableSet2i(low_position, xl, yl));
-	RT_CHECK_ERROR(rtVariableSet1f(low_angle, (float)omegal));
+	if (context) {
+		RT_CHECK_ERROR(rtVariableSet2i(low_position, xl, yl));
+		RT_CHECK_ERROR(rtVariableSet1f(low_angle, (float)omegal));
+	}
 }
 
 void setAreaFlags(const unsigned int flags)
 {
 	RTcontext context = context_handle;
-	RT_CHECK_ERROR(rtVariableSet1ui(position_flags, flags));
+	if (context)
+		RT_CHECK_ERROR(rtVariableSet1ui(position_flags, flags));
 }
 
 void setGaze(const VIEW* view, double angle)
 {
 #ifdef VT_ODS
+	RTcontext context = context_handle;
 	if (angle > FTINY || angle < -FTINY) {
 		FVECT gaze, normal;
 		VCOPY(normal, view->vvec);
 		normalize(normal);
 		spinvector(gaze, view->vdir, normal, angle);
-		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet3f(camera_gaze, (float)gaze[0], (float)gaze[1], (float)gaze[2]));
+		if (context)
+			RT_CHECK_WARN(rtVariableSet3f(camera_gaze, (float)gaze[0], (float)gaze[1], (float)gaze[2]));
 	}
-	else
-		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet3f(camera_gaze, 0.0f, 0.0f, 0.0f));
+	else if (context)
+		RT_CHECK_WARN(rtVariableSet3f(camera_gaze, 0.0f, 0.0f, 0.0f));
 #endif
 }
 

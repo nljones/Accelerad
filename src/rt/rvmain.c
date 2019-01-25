@@ -34,7 +34,7 @@ int  fc = 1;					/* use falsecolor tonemapping, zero for natural tonemapping (-f
 double  scale = 0.0;			/* maximum of scale for falsecolor images, zero auto-scaling (-s) */
 int  decades = 0;				/* number of decades for log scale, zero for linear scale (-log) */
 int  base = 10;					/* base for log scale (-base) */
-double  mask = 0.0;				/* minimum value to display in falsecolor images (-m) */
+double  masking = 0.0;			/* minimum value to display in falsecolor images (-m) */
 double  ralrm = 0.0;			/* seconds between reports (-t) */
 #endif
 
@@ -251,7 +251,7 @@ main(int argc, char *argv[])
 			break;
 		case 'm':				/* minimum value for falsecolor images */
 			check(2, "f");
-			mask = atof(argv[++i]);
+			masking = atof(argv[++i]);
 			break;
 		case 't':				/* timer */
 			check(2, "f");
@@ -446,7 +446,7 @@ printdefaults(void)			/* print default values to stdout */
 	printf("-C %-9d %-9d %f %-9d %-9d %f\t# position and opening angle of high and low contrast areas\n", xh, yh, omegah, xl, yl, omegal);
 	printf("-s %f\t\t\t# scale for falsecolor images\n", scale);
 	printf("-log %-9d\t\t\t# decades in log scale for falsecolor images\n", decades);
-	printf("-m %f\t\t\t# minimum value for falsecolor images\n", mask);
+	printf("-m %f\t\t\t# minimum value for falsecolor images\n", masking);
 	printf("-t %f\t\t\t# time between reports\n", ralrm);
 #endif
 	print_rdefaults();

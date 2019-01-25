@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>303</width>
-    <height>197</height>
+    <width>259</width>
+    <height>253</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -17,78 +17,7 @@
    <string>adjust exposure here</string>
   </property>
   <layout class="QGridLayout" name="gridLayout">
-   <item row="0" column="0">
-    <widget class="QLabel" name="exposureValueLabel">
-     <property name="text">
-      <string>Current value:</string>
-     </property>
-    </widget>
-   </item>
-   <item row="0" column="1">
-    <widget class="QLabel" name="exposureValue">
-     <property name="text">
-      <string>1</string>
-     </property>
-    </widget>
-   </item>
-   <item row="1" column="0">
-    <widget class="QLabel" name="exposureModeLabel">
-     <property name="text">
-      <string>Mode:</string>
-     </property>
-    </widget>
-   </item>
-   <item row="1" column="1">
-    <widget class="QRadioButton" name="relative">
-     <property name="text">
-      <string>Relative</string>
-     </property>
-     <property name="checked">
-      <bool>true</bool>
-     </property>
-     <attribute name="buttonGroup">
-      <string>modeGroup</string>
-     </attribute>
-    </widget>
-   </item>
-   <item row="1" column="2">
-    <widget class="QRadioButton" name="absolute">
-     <property name="text">
-      <string>Absolute</string>
-     </property>
-     <attribute name="buttonGroup">
-      <string>modeGroup</string>
-     </attribute>
-    </widget>
-   </item>
-   <item row="2" column="1">
-    <widget class="QRadioButton" name="fstop">
-     <property name="text">
-      <string>F-stop</string>
-     </property>
-     <attribute name="buttonGroup">
-      <string>modeGroup</string>
-     </attribute>
-    </widget>
-   </item>
-   <item row="2" column="2">
-    <widget class="QRadioButton" name="natural">
-     <property name="text">
-      <string>Natural</string>
-     </property>
-     <attribute name="buttonGroup">
-      <string>modeGroup</string>
-     </attribute>
-    </widget>
-   </item>
-   <item row="3" column="0">
-    <widget class="QLabel" name="exposureBasedLabel">
-     <property name="text">
-      <string>Based on:</string>
-     </property>
-    </widget>
-   </item>
-   <item row="3" column="1">
+   <item row="9" column="1">
     <widget class="QRadioButton" name="average">
      <property name="text">
       <string>Average</string>
@@ -97,41 +26,170 @@
       <bool>true</bool>
      </property>
      <attribute name="buttonGroup">
-      <string>basedGroup</string>
+      <string notr="true">basedGroup</string>
      </attribute>
     </widget>
    </item>
-   <item row="3" column="2">
+   <item row="9" column="2">
     <widget class="QRadioButton" name="point">
      <property name="text">
       <string>Point</string>
      </property>
      <attribute name="buttonGroup">
-      <string>basedGroup</string>
+      <string notr="true">basedGroup</string>
      </attribute>
     </widget>
    </item>
-   <item row="4" column="0">
+   <item row="8" column="2">
+    <widget class="QRadioButton" name="natural">
+     <property name="text">
+      <string>Natural</string>
+     </property>
+     <attribute name="buttonGroup">
+      <string notr="true">modeGroup</string>
+     </attribute>
+    </widget>
+   </item>
+   <item row="10" column="0">
     <widget class="QLabel" name="exposureSettingLabel">
      <property name="text">
       <string>Setting:</string>
      </property>
     </widget>
    </item>
-   <item row="4" column="1">
+   <item row="7" column="2">
+    <widget class="QRadioButton" name="absolute">
+     <property name="text">
+      <string>Absolute</string>
+     </property>
+     <attribute name="buttonGroup">
+      <string notr="true">modeGroup</string>
+     </attribute>
+    </widget>
+   </item>
+   <item row="8" column="1">
+    <widget class="QRadioButton" name="fstop">
+     <property name="text">
+      <string>F-stop</string>
+     </property>
+     <attribute name="buttonGroup">
+      <string notr="true">modeGroup</string>
+     </attribute>
+    </widget>
+   </item>
+   <item row="10" column="1">
     <widget class="QLineEdit" name="exposureSetting">
      <property name="text">
       <string>1</string>
      </property>
     </widget>
    </item>
-   <item row="5" column="0" colspan="3">
+   <item row="11" column="0" colspan="3">
     <widget class="QDialogButtonBox" name="exposureButtonBox">
      <property name="orientation">
       <enum>Qt::Horizontal</enum>
      </property>
      <property name="standardButtons">
       <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+   <item row="6" column="1">
+    <widget class="QLabel" name="exposureValue">
+     <property name="text">
+      <string>1</string>
+     </property>
+    </widget>
+   </item>
+   <item row="7" column="0">
+    <widget class="QLabel" name="exposureModeLabel">
+     <property name="text">
+      <string>Mode:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="7" column="1">
+    <widget class="QRadioButton" name="relative">
+     <property name="text">
+      <string>Relative</string>
+     </property>
+     <property name="checked">
+      <bool>true</bool>
+     </property>
+     <attribute name="buttonGroup">
+      <string notr="true">modeGroup</string>
+     </attribute>
+    </widget>
+   </item>
+   <item row="9" column="0">
+    <widget class="QLabel" name="exposureBasedLabel">
+     <property name="text">
+      <string>Based on:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="2">
+    <widget class="QLabel" name="scaleUnits">
+     <property name="text">
+      <string>lux</string>
+     </property>
+    </widget>
+   </item>
+   <item row="6" column="0">
+    <widget class="QLabel" name="exposureValueLabel">
+     <property name="text">
+      <string>Current value:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="0">
+    <widget class="QCheckBox" name="mask">
+     <property name="text">
+      <string>Mask:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="0">
+    <widget class="QCheckBox" name="scale">
+     <property name="text">
+      <string>Scale Max:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="0">
+    <widget class="QCheckBox" name="decades">
+     <property name="text">
+      <string>Logarithmic:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="1">
+    <widget class="QLineEdit" name="decadesSetting"/>
+   </item>
+   <item row="2" column="1">
+    <widget class="QLineEdit" name="maskSetting"/>
+   </item>
+   <item row="0" column="1">
+    <widget class="QLineEdit" name="scaleSetting"/>
+   </item>
+   <item row="5" column="0" colspan="3">
+    <widget class="Line" name="line">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="2">
+    <widget class="QLabel" name="maskUnits">
+     <property name="text">
+      <string>lux</string>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="2">
+    <widget class="QLabel" name="decadesUnits">
+     <property name="text">
+      <string>decades</string>
      </property>
     </widget>
    </item>

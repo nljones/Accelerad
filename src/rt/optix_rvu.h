@@ -24,7 +24,7 @@ extern void setGreyscale(const int grey);
 extern void setFalseColor(const int falsecolor);
 extern void setScale(const double maximum);
 extern void setDecades(const int decade);
-extern void setMask(const double masking);
+extern void setMaskMax(const double mask);
 
 extern void setTaskArea(const int x, const int y, const double omega);
 extern void setHighArea(const int x, const int y, const double omega);
