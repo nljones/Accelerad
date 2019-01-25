@@ -17,9 +17,11 @@ extern void updateOctree(char* path);
 extern void endOptix();
 
 extern int updateIrradiance(const int irrad);
+extern void setLuminance(const int lum);
 
 extern void setExposure(const double expose);
 extern void setGreyscale(const int grey);
+extern void setFalseColor(const int falsecolor);
 extern void setScale(const double maximum);
 extern void setDecades(const int decade);
 extern void setMask(const double masking);

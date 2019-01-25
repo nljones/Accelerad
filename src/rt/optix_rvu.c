@@ -31,6 +31,7 @@ extern RTvariable camera_frame;
 int auto_scale = 0;	/* flag to perform auto range scaling */
 
 /* Parameters that can change without resetting frame count */
+extern int do_lum;			/* show luminance rather than radiance */
 extern double exposure;		/* exposure for scene (-pe) */
 extern int greyscale;		/* map colors to brightness? (-b) */
 extern int fc;				/* use falsecolor tonemapping, zero for natural tonemapping (-f) */
@@ -48,6 +49,7 @@ static int makeFalseColorMap(const RTcontext context);
 void setScale(const double maximum);
 
 /* Handles to objects used repeatedly in animation */
+unsigned int tonemap_id = RT_TEXTURE_ID_NULL;
 static RTvariable greyscale_var = NULL, exposure_var = NULL, scale_var = NULL, tonemap_var = NULL, decades_var = NULL, base_var = NULL, mask_var = NULL;
 static RTvariable task_position = NULL, task_angle = NULL, high_position = NULL, high_angle = NULL, low_position = NULL, low_angle = NULL, position_flags = NULL;
 #ifdef VT_ODS
@@ -121,7 +123,8 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		exposure_var = applyContextVariable1f(context, "exposure", (float)exposure);
 		greyscale_var = applyContextVariable1ui(context, "greyscale", (unsigned int)greyscale);
 		if (fc)
-			applyContextVariable1i(context, "tonemap", makeFalseColorMap(context));
+			tonemap_id = makeFalseColorMap(context);
+		tonemap_var = applyContextVariable1i(context, "tonemap", tonemap_id);
 		auto_scale = scale <= 0;
 		scale_var = applyContextVariable1f(context, "fc_scale", auto_scale ? SCALE_DEFAULT : (float)scale);
 		decades_var = applyContextVariable1i(context, "fc_log", decades);
@@ -459,6 +462,11 @@ int updateIrradiance(const int irrad)
 	return changed;
 }
 
+void setLuminance(const int lum)
+{
+	do_lum = lum; //TODO set for OptiX
+}
+
 void setExposure(const double expose)
 {
 	RTcontext context = context_handle;
@@ -471,6 +479,15 @@ void setGreyscale(const int grey)
 	RTcontext context = context_handle;
 	greyscale = grey;
 	RT_CHECK_ERROR(rtVariableSet1ui(greyscale_var, (unsigned int)grey));
+}
+
+void setFalseColor(const int falsecolor)
+{
+	RTcontext context = context_handle;
+	fc = falsecolor;
+	if (falsecolor && tonemap_id == RT_TEXTURE_ID_NULL)
+		tonemap_id = makeFalseColorMap(context);
+	RT_CHECK_ERROR(rtVariableSet1ui(tonemap_var, falsecolor ? tonemap_id : RT_TEXTURE_ID_NULL));
 }
 
 void setScale(const double maximum)

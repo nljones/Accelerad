@@ -29,6 +29,7 @@ int  xh = 0, yh = 0;			/* position of contrast high luminance area (-C) */
 double  omegah = 0.0;			/* opening angle of contrast high luminance area (-C) */
 int  xl = 0, yl = 0;			/* position of contrast high luminance area (-C) */
 double  omegal = 0.0;			/* opening angle of contrast high luminance area (-C) */
+int  do_lum = 1;				/* show luminance rather than radiance */
 int  fc = 1;					/* use falsecolor tonemapping, zero for natural tonemapping (-f) */
 double  scale = 0.0;			/* maximum of scale for falsecolor images, zero auto-scaling (-s) */
 int  decades = 0;				/* number of decades for log scale, zero for linear scale (-log) */
