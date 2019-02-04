@@ -153,13 +153,13 @@ RT_METHOD float3 getperpendicular( const float3& v )
 /* Determine a safe starting value for ray t normal to surface. */
 RT_METHOD float ray_start( const float3& hit, const float& t )
 {
-	return t * fmaxf( 1.0f, fabsf( optix::length( hit ) ) );
+	return t * fmaxf( 1.0f, optix::length( hit ) );
 }
 
 /* Determine a safe starting value for ray t at any angle to surface. */
 RT_METHOD float ray_start( const float3& hit, const float3& dir, const float3& normal, const float& t )
 {
-	return t * fmaxf( 1.0f, fabsf( optix::length( hit ) / optix::dot( dir, normal ) ) );
+	return t * fmaxf( 1.0f, optix::length( hit ) / fabsf( optix::dot( dir, normal ) ) );
 }
 
 rtDeclareVariable(float3, CIE_rgbf, , ); /* This is the value [ CIE_rf, CIE_gf, CIE_bf ] from color.h */

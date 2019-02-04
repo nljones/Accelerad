@@ -196,10 +196,10 @@ static void createGeometryInstanceAmbient( const RTcontext context, RTgeometryin
 	applyContextVariable1ui( context, "ambient_ray_type", AMBIENT_RAY );
 
 	ptxFile( path_to_ptx, "ambient_records" );
-	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "ambient_record_bounds", &ambient_record_intersection_program ) );
-	RT_CHECK_ERROR( rtGeometrySetBoundingBoxProgram( ambient_record_geometry, ambient_record_intersection_program ) );
-	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "ambient_record_intersect", &ambient_record_bounding_box_program ) );
-	RT_CHECK_ERROR( rtGeometrySetIntersectionProgram( ambient_record_geometry, ambient_record_bounding_box_program ) );
+	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "ambient_record_bounds", &ambient_record_bounding_box_program ) );
+	RT_CHECK_ERROR( rtGeometrySetBoundingBoxProgram( ambient_record_geometry, ambient_record_bounding_box_program ) );
+	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "ambient_record_intersect", &ambient_record_intersection_program ) );
+	RT_CHECK_ERROR( rtGeometrySetIntersectionProgram( ambient_record_geometry, ambient_record_intersection_program ) );
 	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "ambient_record_any_hit", &ambient_record_any_hit_program ) );
 	RT_CHECK_ERROR( rtMaterialSetAnyHitProgram( ambient_record_material, AMBIENT_RAY, ambient_record_any_hit_program ) );
 

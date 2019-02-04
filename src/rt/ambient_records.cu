@@ -29,7 +29,7 @@ rtDeclareVariable(float,        minarad, , ); /* minimum ambient radius */
 //rtDeclareVariable(float, extrapolation, attribute extrapolation_attribute, );
 rtDeclareVariable(optix::Ray, ray, rtCurrentRay, );
 rtDeclareVariable(PerRayData_ambient, prd, rtPayload, );
-rtDeclareVariable(float, t_hit, rtIntersectionDistance, );
+//rtDeclareVariable(float, t_hit, rtIntersectionDistance, );
 
 
 #ifndef OLDAMB

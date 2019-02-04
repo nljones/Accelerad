@@ -91,7 +91,17 @@ MainWindow::MainWindow(int width, int height, const char* name, const char* id)
   resize(width, height);
   updatePositionLabels();
 #ifdef ACCELERAD_RT
-	if (use_optix) {
+  m_exposureDialogUi->scale->setVisible(false);
+  m_exposureDialogUi->scaleSetting->setVisible(false);
+  m_exposureDialogUi->scaleUnits->setVisible(false);
+  m_exposureDialogUi->decades->setVisible(false);
+  m_exposureDialogUi->decadesSetting->setVisible(false);
+  m_exposureDialogUi->decadesUnits->setVisible(false);
+  m_exposureDialogUi->mask->setVisible(false);
+  m_exposureDialogUi->maskSetting->setVisible(false);
+  m_exposureDialogUi->maskUnits->setVisible(false);
+  m_exposureDialogUi->line->setVisible(false);
+  if (use_optix) {
 		mp = new MetricsPlot();
 		m_ui->pushButton->setText("Abort");
 	}
