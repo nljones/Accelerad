@@ -81,12 +81,15 @@ RT_PROGRAM void ambient_cloud_camera()
 
 	if ( dot( cluster.dir, cluster.dir ) > FTINY ) { // Check that this is a valid ray
 		float3 ray_direction = -normalize( cluster.dir ); // Ray will face opposite the normal direction
-		const float tmin = ray_start( cluster.pos, RAY_START );
-		Ray ray = make_Ray(cluster.pos, ray_direction, ambient_record_ray_type, -tmin, tmin);
-		if ( imm_irrad && !level )
+		const float tmax = ray_start( cluster.pos, RAY_START );
+		if (imm_irrad && !level) {
+			Ray ray = make_Ray(cluster.pos, ray_direction, ambient_record_ray_type, 0.0f, tmax); // For rtrace, the position is already offset
 			rtTrace(top_irrad, ray, prd);
-		else
+		}
+		else {
+			Ray ray = make_Ray(cluster.pos - ray_direction * tmax, ray_direction, ambient_record_ray_type, 0.0f, 2.0f * tmax);
 			rtTrace(top_object, ray, prd);
+		}
 	}
 
 	checkFinite(prd.result.val);

@@ -806,6 +806,7 @@ RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pn
 		//d = sumambient(acol, r, normal, rdepth, &atrunk, thescene.cuorg, thescene.cusize);
 		PerRayData_ambient ambient_prd;
 		ambient_prd.result = make_float3( 0.0f );
+		ambient_prd.surface_point = hit;
 		ambient_prd.surface_normal = pnormal;
 		ambient_prd.ambient_depth = prd.ambient_depth;
 		ambient_prd.wsum = 0.0f;
@@ -820,8 +821,8 @@ RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pn
 #ifdef HIT_COUNT
 		ambient_prd.hit_count = 0;
 #endif
-		const float tmin = ray_start( hit, AMBIENT_RAY_LENGTH );
-		Ray ambient_ray = make_Ray( hit, normal, ambient_ray_type, -tmin, tmin );
+		const float tmax = ray_start(hit, AMBIENT_RAY_LENGTH);
+		Ray ambient_ray = make_Ray(hit - normal * tmax, normal, ambient_ray_type, 0.0f, 2.0f * tmax);
 		rtTrace(top_ambient, ambient_ray, ambient_prd);
 #ifdef HIT_COUNT
 		prd.hit_count += ambient_prd.hit_count;

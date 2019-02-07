@@ -61,7 +61,7 @@ RT_PROGRAM void ray_generator()
 
 	const float tmin = ray_start( ray_buffer[launch_index].origin, RAY_START );
 	if ( imm_irrad ) {
-		Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, radiance_ray_type, -tmin, tmin);
+		Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, radiance_ray_type, 0.0f, 2.0f * tmin);
 		rtTrace(top_irrad, ray, prd);
 	} else {
 		// Zero or negative aft clipping distance indicates infinity

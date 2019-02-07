@@ -64,7 +64,8 @@ RT_PROGRAM void ray_generator()
 	if (dot(dir, dir) > 0.0f) {
 		const float tmin = ray_start(org, imm_irrad ? RAY_START : FTINY); // RAY_START is too large for rfluxmtx calls
 		if (imm_irrad) {
-			Ray ray = make_Ray(org, -normalize(dir), radiance_ray_type, -tmin, tmin);
+			dir = -normalize(dir);
+			Ray ray = make_Ray(org - dir * tmin, dir, radiance_ray_type, 0.0f, 2.0f * tmin);
 			rtTrace(top_irrad, ray, prd);
 		}
 		else {

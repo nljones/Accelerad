@@ -334,7 +334,7 @@ RT_METHOD int plugaleak( const AmbientRecord* record, const float3& anorm, const
 		return(0);			/* should fail behind test */
 
 	float3 rdir = vdif + anorm * t.y;	/* further dist. > plane */
-	Ray shadow_ray = make_Ray( ray.origin, normalize( rdir ), shadow_ray_type, RAY_START, length( rdir ) );
+	Ray shadow_ray = make_Ray( hit, normalize( rdir ), shadow_ray_type, RAY_START, length( rdir ) );
 	PerRayData_shadow shadow_prd;
 	shadow_prd.target = 0;
 	shadow_prd.result = make_float3( 1.0f );

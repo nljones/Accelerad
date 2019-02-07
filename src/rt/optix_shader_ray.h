@@ -61,9 +61,10 @@ struct PerRayData_shadow
 struct PerRayData_ambient
 {
 	float3 result;
-	float3 surface_normal;
 	int ambient_depth;
+	float3 surface_point;
 	float wsum;
+	float3 surface_normal;
 	float weight;
 #ifdef OLDAMB
 	rand_state* state;

@@ -27,7 +27,7 @@ rtDeclareVariable(Ray, ray, rtCurrentRay, );
 rtDeclareVariable(float, t_hit, rtIntersectionDistance, );
 rtDeclareVariable(PerRayData_radiance, prd, rtPayload, );
 rtDeclareVariable(PerRayData_shadow, prd_shadow, rtPayload, );
-rtDeclareVariable(PerRayData_ambient_record, prd_ambient, rtPayload, );
+//rtDeclareVariable(PerRayData_ambient_record, prd_ambient, rtPayload, );
 rtDeclareVariable(PerRayData_point_cloud, prd_point_cloud, rtPayload, );
 
 /* Attributes */

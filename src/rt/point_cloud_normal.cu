@@ -76,6 +76,7 @@ RT_METHOD int occupied(const float3& pos, const float3& dir, const float3& world
 
 	PerRayData_ambient ambient_prd;
 	ambient_prd.result = make_float3(0.0f);
+	ambient_prd.surface_point = pos;
 	ambient_prd.surface_normal = faceforward(world_shading_normal, -ray.direction, world);
 	ambient_prd.ambient_depth = level;
 	ambient_prd.wsum = 0.0f;
@@ -92,8 +93,8 @@ RT_METHOD int occupied(const float3& pos, const float3& dir, const float3& world
 #ifdef HIT_COUNT
 	ambient_prd.hit_count = 0;
 #endif
-	const float tmin = ray_start(pos, AMBIENT_RAY_LENGTH);
-	Ray ambient_ray = make_Ray(pos, dir, ambient_ray_type, -tmin, tmin);
+	const float tmax = ray_start(pos, AMBIENT_RAY_LENGTH);
+	Ray ambient_ray = make_Ray(pos - dir * tmax, dir, ambient_ray_type, 0.0f, 2.0f * tmax);
 	rtTrace(top_ambient, ambient_ray, ambient_prd);
 #ifdef HIT_COUNT
 	prd.hit_count += ambient_prd.hit_count;

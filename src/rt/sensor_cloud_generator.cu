@@ -42,8 +42,8 @@ RT_PROGRAM void cloud_generator()
 	float tmin = ray_start(ray_buffer[launch_index].origin, RAY_START);
 	float tmax;
 	if ( imm_irrad ) {
-		tmax = tmin;
-		tmin = -tmin;
+		tmax = 2.0f * tmin;
+		tmin = 0.0f;
 	} else {
 		// Zero or negative aft clipping distance indicates infinity
 		tmax = ray_buffer[launch_index].max;

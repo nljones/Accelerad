@@ -91,7 +91,7 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 		return;
 
 	/* Modified ray behind test */
-	float3 ck0 = ray.origin - record.pos;
+	float3 ck0 = prd.surface_point - record.pos;
 	d = dot( ck0, w );
 	if ( d < -minarad * ambacc - 0.001f )
 		return;
@@ -258,7 +258,7 @@ RT_METHOD int plugaleak(const AmbientRecord* record, const float3& anorm, const 
 	 * along surface normal from cache position.  This should be high
 	 * enough to miss local geometry we don't really care about.
 	 */
-	float3 vdif = record->pos - ray.origin;
+	float3 vdif = record->pos - prd.surface_point;
 	float normdot = dot(anorm, normal);
 	float ndotd = dot(vdif, normal);
 	float nadotd = dot( vdif, anorm );
