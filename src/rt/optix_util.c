@@ -99,7 +99,7 @@ static void runKernelImpl(const RTcontext context, const unsigned int entry, con
 
 	/* Validate and compile if necessary */
 	RT_CHECK_ERROR( rtContextValidate( context ) );
-#ifdef DEBUG_OPTIX
+#if defined(DEBUG_OPTIX) && !defined(RTX)
 	kernel_clock = clock();
 	RT_CHECK_ERROR( rtContextCompile( context ) ); // This should happen automatically when necessary.
 	kernel_clock = clock() - kernel_clock;
@@ -660,6 +660,14 @@ void printException(const RTexception type, const int count, const char* locatio
 			msg = "Infinite result";			break;
 		case RT_EXCEPTION_NAN:
 			msg = "NAN result";					break;
+#ifdef RTX
+		case RT_EXCEPTION_PAYLOAD_ACCESS_OUT_OF_BOUNDS:
+			msg = "Payload access out of bounds";					break;
+		case RT_EXCEPTION_USER_EXCEPTION_CODE_OUT_OF_BOUNDS:
+			msg = "Exception code of user exception out of bounds";	break;
+		case RT_EXCEPTION_TRACE_DEPTH_EXCEEDED:
+			msg = "Trace depth exceeded";		break;
+#endif
 		case RT_EXCEPTION_PROGRAM_ID_INVALID:
 			msg = "Program ID not valid";		break;
 		case RT_EXCEPTION_TEXTURE_ID_INVALID:

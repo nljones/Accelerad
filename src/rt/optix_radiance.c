@@ -91,8 +91,10 @@ typedef struct {
 } Scene;
 
 static void checkDevices();
+#ifdef REMOTE_VCA
 static void checkRemoteDevice(RTremotedevice remote);
 static void createRemoteDevice(RTremotedevice* remote);
+#endif
 static void applyRadianceSettings(const RTcontext context, const VIEW* view, const unsigned int imm_irrad);
 static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifiers);
 static void createNode(const RTcontext context, Scene* scene, char* name, const OBJECT start, const OBJECT count, const int material_index, MESH* mesh);
@@ -163,7 +165,9 @@ static RTvariable camera_type = NULL, camera_eye = NULL, camera_u = NULL, camera
 static RTvariable camera_ipd = NULL;
 #endif
 static RTvariable top_object = NULL, top_ambient = NULL, top_irrad = NULL;
+#ifdef REMOTE_VCA
 static RTremotedevice remote_handle = NULL;
+#endif
 static RTbuffer vertex_buffer = NULL, normal_buffer = NULL, texcoord_buffer = NULL, material_alt_buffer = NULL, lindex_buffer = NULL, lights_buffer = NULL;
 static SceneNode scene_root;
 
@@ -236,6 +240,7 @@ static void checkDevices()
 	}
 }
 
+#ifdef REMOTE_VCA
 static void checkRemoteDevice(RTremotedevice remote)
 {
 	char s[256];
@@ -302,6 +307,7 @@ static void createRemoteDevice(RTremotedevice* remote)
 	} while (ready != RT_REMOTEDEVICE_STATUS_READY);
 	mprintf("\n");
 }
+#endif
 
 void createContext(RTcontext* context, const RTsize width, const RTsize height, const double alarm)
 {
@@ -324,20 +330,30 @@ void createContext(RTcontext* context, const RTsize width, const RTsize height, 
 	}
 
 	/* Setup remote device */
+#ifdef REMOTE_VCA
 	if (optix_remote_nodes > 0)
 		createRemoteDevice(&remote_handle);
 	else
+#endif
 		checkDevices();
 
 	/* Setup context */
 	RT_CHECK_ERROR2( rtContextCreate( context ) );
+#ifdef REMOTE_VCA
 	if (remote_handle) RT_CHECK_ERROR2(rtContextSetRemoteDevice(*context, remote_handle));
+#endif
 	RT_CHECK_ERROR2( rtContextSetRayTypeCount( *context, ray_type_count ) );
 	RT_CHECK_ERROR2( rtContextSetEntryPointCount( *context, entry_point_count ) );
 
+#ifdef RTX
+	/* Set recursion depths */
+	RT_CHECK_ERROR2(rtContextSetMaxTraceDepth(*context, max(maxdepth * 2, 31)));
+	RT_CHECK_ERROR2(rtContextSetMaxCallableProgramDepth(*context, 2));
+#else
 	/* Set stack size for GPU threads */
 	if (optix_stack_size > 0)
 		RT_CHECK_ERROR2( rtContextSetStackSize( *context, optix_stack_size ) );
+#endif
 
 	/* Create a buffer of random number seeds */
 	//createBuffer2D( *context, RT_BUFFER_INPUT, RT_FORMAT_UNSIGNED_INT, width, height, &seed_buffer );
@@ -348,7 +364,10 @@ void createContext(RTcontext* context, const RTsize width, const RTsize height, 
 	//applyContextObject( *context, "rnd_seeds", seed_buffer );
 
 #ifdef TIMEOUT_CALLBACK
-	if (!remote_handle && alarm > 0) {
+#ifdef REMOTE_VCA
+	if (!remote_handle)
+#endif
+	if (alarm > 0) {
 		verbose_output = 1;
 		RT_CHECK_ERROR2(rtContextSetTimeoutCallback(*context, timeoutCallback, alarm));
 	}
@@ -381,11 +400,13 @@ void createContext(RTcontext* context, const RTsize width, const RTsize height, 
 void destroyContext(const RTcontext context)
 {
 	RT_CHECK_ERROR(rtContextDestroy(context));
+#ifdef REMOTE_VCA
 	if (remote_handle) {
 		rtRemoteDeviceRelease(remote_handle);
 		rtRemoteDeviceDestroy(remote_handle);
 		remote_handle = NULL;
 	}
+#endif
 	avsum_var = navsum_var = NULL;
 	camera_frame = camera_type = camera_eye = camera_u = camera_v = camera_w = camera_fov = camera_shift = camera_clip = camera_vdist = NULL;
 #ifdef VT_ODS
@@ -844,7 +865,9 @@ static void createNode(const RTcontext context, Scene* scene, char* name, const 
 	if (!node->acceleration) {
 		RT_CHECK_ERROR(rtAccelerationCreate(context, &node->acceleration));
 		RT_CHECK_ERROR(rtAccelerationSetBuilder(node->acceleration, "Trbvh"));
+#ifndef RTX
 		RT_CHECK_ERROR(rtAccelerationSetTraverser(node->acceleration, "Bvh"));
+#endif
 		RT_CHECK_ERROR(rtAccelerationSetProperty(node->acceleration, "vertex_buffer_name", "vertex_buffer")); // For Sbvh only
 		RT_CHECK_ERROR(rtAccelerationSetProperty(node->acceleration, "index_buffer_name", "vindex_buffer")); // For Sbvh only
 		RT_CHECK_ERROR(rtGeometryGroupSetAcceleration(node->group, node->acceleration));
@@ -2630,7 +2653,9 @@ static RTobject createSceneHierarchy(const RTcontext context, SceneNode* node)
 	/* create acceleration object for group and specify some build hints */
 	RT_CHECK_ERROR(rtAccelerationCreate(context, &groupAccel));
 	RT_CHECK_ERROR(rtAccelerationSetBuilder(groupAccel, "Bvh"));
+#ifndef RTX
 	RT_CHECK_ERROR(rtAccelerationSetTraverser(groupAccel, "Bvh"));
+#endif
 	RT_CHECK_ERROR(rtGroupSetAcceleration(group, groupAccel));
 
 	/* mark acceleration as dirty */
@@ -2676,7 +2701,9 @@ static void createIrradianceGeometry( const RTcontext context )
 	/* create acceleration object for group and specify some build hints */
 	RT_CHECK_ERROR( rtAccelerationCreate( context, &acceleration ) );
 	RT_CHECK_ERROR( rtAccelerationSetBuilder( acceleration, "NoAccel" ) );
+#ifndef RTX
 	RT_CHECK_ERROR( rtAccelerationSetTraverser( acceleration, "NoAccel" ) );
+#endif
 	RT_CHECK_ERROR( rtGeometryGroupSetAcceleration( geometrygroup, acceleration ) );
 
 	/* mark acceleration as dirty */

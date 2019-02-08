@@ -12,6 +12,12 @@
 #endif
 /* Compiler setting to allow debugging of OptiX ray tracing */
 //#define ACCELERAD_DEBUG
+/* Compiler setting to allow RTX ray tracing introduced in OptiX 6.0.0 */
+//#define RTX
+#ifndef RTX
+/* Compiler setting to allow remote rendering witn Nvidia VCA */
+#define REMOTE_VCA
+#endif
 #endif
 
 #ifndef DAYSIM

@@ -49,10 +49,15 @@
 #endif /* RANDOM_SEEDS */
 
 #ifdef CAP_REGISTERS_PER_THREAD
+#include "accelerad.h"
 /* This is the maximum number of registers used by any cuda kernel in this in this file,
 found by using the flag "-Xptxas -v" to compile in nvcc. This should be updated when
 changes are made to the kernels. */
-#define REGISTERS_PER_THREAD	26
+#ifdef RTX
+#define REGISTERS_PER_THREAD	40	/* Registers per thread under CUDA 10.0 */
+#else
+#define REGISTERS_PER_THREAD	26	/* Registers per thread under CUDA 7.5 */
+#endif
 #endif
 
 #ifdef __cplusplus

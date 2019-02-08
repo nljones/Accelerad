@@ -111,7 +111,9 @@ extern int	rand_samp;	/* pure Monte Carlo sampling? */
 
 #ifdef ACCELERAD
 extern unsigned int use_optix;			/* Flag to use OptiX for ray tracing */
+#ifndef RTX
 extern int optix_stack_size;			/* Stack size for OptiX program in bytes */
+#endif
 
 /* For OptiX ambient sampling */
 extern int optix_amb_scale;				/* Scale to use for ambient sample spacing */
@@ -125,10 +127,12 @@ extern int cuda_kmeans_iterations;		/* Maximum number of k-means iterations */
 extern double cuda_kmeans_threshold;	/* Fraction of seeds that must change cluster to continue k-means iteration */
 extern double cuda_kmeans_error;		/* Weighting of position in k-means error */
 
+#ifdef REMOTE_VCA
 /* For OptiX remote VCA access */
 extern int optix_remote_nodes;			/* Number of VCA nodes to request */
 extern int optix_remote_config;			/* Index of VCA configuration */
 extern char *optix_remote_url, *optix_remote_user, *optix_remote_password;	/* VCA device parameters */
+#endif
 #endif
 
 extern double	dstrsrc;	/* square source distribution */
