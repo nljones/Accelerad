@@ -347,7 +347,7 @@ void createContext(RTcontext* context, const RTsize width, const RTsize height, 
 
 #ifdef RTX
 	/* Set recursion depths */
-	RT_CHECK_ERROR2(rtContextSetMaxTraceDepth(*context, max(maxdepth * 2, 31)));
+	RT_CHECK_ERROR2(rtContextSetMaxTraceDepth(*context, maxdepth ? min(abs(maxdepth) * 2, 31) : 31)); // TODO set based on lw?
 	RT_CHECK_ERROR2(rtContextSetMaxCallableProgramDepth(*context, 2));
 #else
 	/* Set stack size for GPU threads */
@@ -376,6 +376,11 @@ void createContext(RTcontext* context, const RTsize width, const RTsize height, 
 #ifdef DEBUG_OPTIX
 	/* Enable exception checking */
 	RT_CHECK_ERROR2( rtContextSetExceptionEnabled( *context, RT_EXCEPTION_ALL, 1 ) );
+
+#ifdef RTX
+	/* Enable debugging callbacks */
+	RT_CHECK_ERROR2(rtContextSetUsageReportCallback(*context, reportCallback, 0, NULL));
+#endif
 #endif
 
 #ifdef PRINT_OPTIX

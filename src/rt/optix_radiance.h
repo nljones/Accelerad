@@ -26,7 +26,9 @@
 #define  cuda2array3(a,c)	((a)[0]=(c).x,(a)[1]=(c).y,(a)[2]=(c).z)
 
 /* Enable features on CPU side */
+#ifndef RTX
 #define TIMEOUT_CALLBACK /* Interupt OptiX kernel periodically to refresh screen */
+#endif
 //#define CUMULTATIVE_TIME /* Track cumulative timing of OptiX kernel functions */
 #define DEBUG_OPTIX /* Catch unexptected OptiX exceptions. Creates a big slow down with OptiX 4.0.0 and above. */
 //#define REPORT_GPU_STATE /* Report verbose GPU details */
@@ -252,5 +254,8 @@ char* filename(char *path);
 void reportProgress( const double progress, const double alarm );
 #ifdef TIMEOUT_CALLBACK
 int timeoutCallback(void);
+#endif
+#ifdef RTX
+void reportCallback(int verbosity, const char* tag, const char* message, void* payload);
 #endif
 extern int verbose_output;	/* Print repetitive outputs. */

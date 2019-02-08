@@ -8,6 +8,7 @@
 #include "paths.h" /* Required for R_OK argument to getpath() */
 #include "calcomp.h"
 
+#include "accelerad.h"
 #include "optix_radiance.h"
 
 
@@ -762,5 +763,12 @@ int timeoutCallback(void)
 	mprintf("OptiX kernel running: %" PRIu64 " milliseconds since last callback.\n", MILLISECONDS(callback_time - last_callback_time));
 	last_callback_time = callback_time;
 	return earlyexit; 
+}
+#endif
+
+#ifdef RTX
+void reportCallback(int verbosity, const char* tag, const char* message, void* payload)
+{
+	mprintf("%d %s: %s", verbosity, tag, message);
 }
 #endif
