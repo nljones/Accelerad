@@ -49,7 +49,7 @@ static int makeFalseColorMap(const RTcontext context);
 void setScale(const double maximum);
 
 /* Handles to objects used repeatedly in animation */
-unsigned int tonemap_id = RT_TEXTURE_ID_NULL;
+int tonemap_id = RT_TEXTURE_ID_NULL;
 static RTvariable greyscale_var = NULL, exposure_var = NULL, scale_var = NULL, tonemap_var = NULL, decades_var = NULL, base_var = NULL, mask_var = NULL;
 static RTvariable task_position = NULL, task_angle = NULL, high_position = NULL, high_angle = NULL, low_position = NULL, low_angle = NULL, position_flags = NULL;
 #ifdef VT_ODS
@@ -491,7 +491,7 @@ void setFalseColor(const int falsecolor)
 	if (context) {
 		if (falsecolor && tonemap_id == RT_TEXTURE_ID_NULL)
 			tonemap_id = makeFalseColorMap(context);
-		RT_CHECK_ERROR(rtVariableSet1ui(tonemap_var, falsecolor ? tonemap_id : RT_TEXTURE_ID_NULL));
+		RT_CHECK_ERROR(rtVariableSet1i(tonemap_var, falsecolor ? tonemap_id : RT_TEXTURE_ID_NULL));
 	}
 }
 
