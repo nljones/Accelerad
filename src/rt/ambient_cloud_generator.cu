@@ -28,7 +28,6 @@ rtBuffer<DC, 2>                  ambient_dc_buffer; /* daylight coefficient outp
 #endif
 rtDeclareVariable(rtObject,      top_object, , );
 rtDeclareVariable(rtObject,      top_irrad, , );
-rtDeclareVariable(unsigned int,  ambient_record_ray_type, , );
 rtDeclareVariable(unsigned int,  level, , ) = 0u;
 #ifdef DAYSIM_COMPATIBLE
 rtDeclareVariable(unsigned int,  segment_offset, , ) = 0u; /* Offset into data if computed with multiple segments */
@@ -83,11 +82,11 @@ RT_PROGRAM void ambient_cloud_camera()
 		float3 ray_direction = -normalize( cluster.dir ); // Ray will face opposite the normal direction
 		const float tmax = ray_start( cluster.pos, RAY_START );
 		if (imm_irrad && !level) {
-			Ray ray = make_Ray(cluster.pos, ray_direction, ambient_record_ray_type, 0.0f, tmax); // For rtrace, the position is already offset
+			Ray ray = make_Ray(cluster.pos, ray_direction, AMBIENT_RECORD_RAY, 0.0f, tmax); // For rtrace, the position is already offset
 			rtTrace(top_irrad, ray, prd);
 		}
 		else {
-			Ray ray = make_Ray(cluster.pos - ray_direction * tmax, ray_direction, ambient_record_ray_type, 0.0f, 2.0f * tmax);
+			Ray ray = make_Ray(cluster.pos - ray_direction * tmax, ray_direction, AMBIENT_RECORD_RAY, 0.0f, 2.0f * tmax);
 			rtTrace(top_object, ray, prd);
 		}
 	}

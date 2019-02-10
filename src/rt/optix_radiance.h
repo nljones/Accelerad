@@ -50,23 +50,6 @@ typedef enum
 	ENTRY_POINT_COUNT			/* Entry point count for ambient calculation */
 } RTentry;
 
-/* Ray types */
-typedef enum
-{
-	PRIMARY_RAY = 0,	/* Radiance primary ray type for irradiance calculation */
-	RADIANCE_RAY,		/* Radiance ray type */
-#ifdef ACCELERAD_RT
-	DIFFUSE_PRIMARY_RAY,/* Radiance primary ray type for irradiance calculation sampling only diffuse paths */
-	DIFFUSE_RAY,		/* Radiance ray type sampling only diffuse paths */
-#endif
-	SHADOW_RAY,			/* Shadow ray type */
-	AMBIENT_RAY,		/* Ray into ambient cache */
-	AMBIENT_RECORD_RAY,	/* Ray to create ambient record */
-	POINT_CLOUD_RAY,	/* Ray to create point cloud */
-
-	RAY_TYPE_COUNT		/* Entry point count for ambient calculation */
-} RTraytype;
-
 /* Error handling */
 #ifdef DEBUG_OPTIX
 /* assumes current scope has Context variable named 'context' */

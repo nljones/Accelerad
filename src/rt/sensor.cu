@@ -23,8 +23,6 @@ rtBuffer<DC, 3>                  dc_buffer;
 //rtBuffer<unsigned int, 2>        rnd_seeds;
 rtDeclareVariable(rtObject,      top_object, , );
 rtDeclareVariable(rtObject,      top_irrad, , );
-rtDeclareVariable(unsigned int,  radiance_ray_type, , );
-rtDeclareVariable(unsigned int,  radiance_primary_ray_type, , );
 rtDeclareVariable(unsigned int,  imm_irrad, , ) = 0u; /* Immediate irradiance (-I) */
 
 /* OptiX variables */
@@ -61,7 +59,7 @@ RT_PROGRAM void ray_generator()
 
 	const float tmin = ray_start( ray_buffer[launch_index].origin, RAY_START );
 	if ( imm_irrad ) {
-		Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, radiance_ray_type, 0.0f, 2.0f * tmin);
+		Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, RADIANCE_RAY, 0.0f, 2.0f * tmin);
 		rtTrace(top_irrad, ray, prd);
 	} else {
 		// Zero or negative aft clipping distance indicates infinity
@@ -70,7 +68,7 @@ RT_PROGRAM void ray_generator()
 			aft = RAY_END;
 		}
 
-		Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, do_irrad ? radiance_primary_ray_type : radiance_ray_type, tmin, aft);
+		Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, do_irrad ? PRIMARY_RAY : RADIANCE_RAY, tmin, aft);
 		rtTrace(top_object, ray, prd);
 	}
 

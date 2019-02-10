@@ -15,7 +15,6 @@ using namespace optix;
 rtDeclareVariable(PointDirectionBuffer, cluster_buffer, , ); /* input */
 rtBuffer<PointDirection, 3>      seed_buffer; /* output */
 rtDeclareVariable(rtObject,      top_object, , );
-rtDeclareVariable(unsigned int,  point_cloud_ray_type, , );
 rtDeclareVariable(unsigned int,  segment_offset, , ) = 0u; /* Offset into data if computed with multiple segments */
 
 /* OptiX variables */
@@ -52,7 +51,7 @@ RT_PROGRAM void hemisphere_camera()
 #endif
 
 		// Trace the current ray
-		Ray ray = make_Ray(eye.pos, rdir, point_cloud_ray_type, ray_start( eye.pos, rdir, uz, RAY_START ), RAY_END);
+		Ray ray = make_Ray(eye.pos, rdir, POINT_CLOUD_RAY, ray_start( eye.pos, rdir, uz, RAY_START ), RAY_END);
 		rtTrace(top_object, ray, prd);
 	}
 }

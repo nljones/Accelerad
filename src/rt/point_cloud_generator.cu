@@ -25,7 +25,6 @@ rtDeclareVariable(float,         dstrpix, , ); /* Pixel sample jitter (-pj) */
 
 rtBuffer<PointDirection, 3>      seed_buffer;
 rtDeclareVariable(rtObject,      top_object, , );
-rtDeclareVariable(unsigned int,  point_cloud_ray_type, , );
 
 /* OptiX variables */
 rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
@@ -72,7 +71,7 @@ RT_PROGRAM void point_cloud_camera()
 
 	Ray ray;
 	ray.origin = eye;
-	ray.ray_type = point_cloud_ray_type;
+	ray.ray_type = POINT_CLOUD_RAY;
 	ray.tmin = 0.0f;
 
 	float2 d = make_float2(curand_uniform(prd.state), curand_uniform(prd.state));

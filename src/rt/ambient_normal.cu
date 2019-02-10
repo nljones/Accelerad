@@ -55,11 +55,7 @@ typedef struct {
 #endif /* OLDAMB */
 
 /* Context variables */
-rtDeclareVariable(unsigned int, radiance_ray_type, , );
 rtDeclareVariable(rtObject,     top_object, , );
-#ifndef OLDAMB
-rtDeclareVariable(unsigned int, shadow_ray_type, , );
-#endif /* OLDAMB */
 rtDeclareVariable(unsigned int, stride, , ) = 1u; /* Spacing between used threads in warp. */
 #ifdef DAYSIM_COMPATIBLE
 rtDeclareVariable(unsigned int, segment_offset, , ) = 0u; /* Offset into data if computed with multiple segments */
@@ -334,7 +330,7 @@ RT_METHOD int plugaleak( const AmbientRecord* record, const float3& anorm, const
 		return(0);			/* should fail behind test */
 
 	float3 rdir = vdif + anorm * t.y;	/* further dist. > plane */
-	Ray shadow_ray = make_Ray( hit, normalize( rdir ), shadow_ray_type, RAY_START, length( rdir ) );
+	Ray shadow_ray = make_Ray( hit, normalize( rdir ), SHADOW_RAY, RAY_START, length( rdir ) );
 	PerRayData_shadow shadow_prd;
 	shadow_prd.target = 0;
 	shadow_prd.result = make_float3( 1.0f );
@@ -791,7 +787,7 @@ RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const unsigned int& i, c
 #endif /* AMB_PARALLEL && AMB_SUPER_SAMPLE */
 #endif /* DAYSIM_COMPATIBLE */
 	setupPayload(new_prd);
-	Ray amb_ray = make_Ray( hit, rdir, radiance_ray_type, ray_start( hit, rdir, normal, RAY_START ), RAY_END );
+	Ray amb_ray = make_Ray( hit, rdir, RADIANCE_RAY, ray_start( hit, rdir, normal, RAY_START ), RAY_END );
 	rtTrace(top_object, amb_ray, new_prd);
 #ifdef RAY_COUNT
 	prd.result.ray_count += new_prd.ray_count;
@@ -1453,7 +1449,7 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point, con
 	new_prd.dc = daysimNext(prd.dc);
 #endif
 	setupPayload(new_prd);
-	Ray amb_ray = make_Ray( hit_point, rdir, radiance_ray_type, ray_start( hit_point, rdir, normal, RAY_START ), RAY_END );
+	Ray amb_ray = make_Ray( hit_point, rdir, RADIANCE_RAY, ray_start( hit_point, rdir, normal, RAY_START ), RAY_END );
 	rtTrace(top_object, amb_ray, new_prd);
 #ifdef RAY_COUNT
 	prd.result.ray_count += new_prd.ray_count;

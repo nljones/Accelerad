@@ -173,9 +173,6 @@ static void createAmbientRecordCamera(const RTcontext context)
 
 	/* Stride for these programs */
 	applyContextVariable1ui(context, "stride", thread_stride);
-
-	/* Define ray types */
-	applyContextVariable1ui( context, "ambient_record_ray_type", AMBIENT_RECORD_RAY );
 }
 
 static void createGeometryInstanceAmbient( const RTcontext context, RTgeometryinstance* instance, const unsigned int ambinet_record_count )
@@ -191,9 +188,6 @@ static void createGeometryInstanceAmbient( const RTcontext context, RTgeometryin
 	RT_CHECK_ERROR( rtGeometrySetPrimitiveCount( ambient_record_geometry, ambinet_record_count ) );
 
 	RT_CHECK_ERROR( rtMaterialCreate( context, &ambient_record_material ) );
-
-	/* Define ray types */
-	applyContextVariable1ui( context, "ambient_ray_type", AMBIENT_RAY );
 
 	ptxFile( path_to_ptx, "ambient_records" );
 	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "ambient_record_bounds", &ambient_record_bounding_box_program ) );
@@ -753,9 +747,6 @@ static void createPointCloudCamera( const RTcontext context, const VIEW* view )
 	/* Exception program */
 	RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "exception", &program));
 	RT_CHECK_ERROR(rtContextSetExceptionProgram(context, POINT_CLOUD_ENTRY, program));
-
-	/* Define ray types */
-	applyContextVariable1ui( context, "point_cloud_ray_type", POINT_CLOUD_RAY );
 }
 
 #ifdef AMB_PARALLEL

@@ -24,8 +24,6 @@ rtBuffer<unsigned int, 2>        ray_count_buffer;
 #endif
 rtDeclareVariable(rtObject, top_object, , );
 rtDeclareVariable(rtObject, top_irrad, , );
-rtDeclareVariable(unsigned int, radiance_ray_type, , );
-rtDeclareVariable(unsigned int, radiance_primary_ray_type, , );
 rtDeclareVariable(unsigned int, imm_irrad, , ) = 0u; /* Immediate irradiance (-I) */
 rtDeclareVariable(unsigned int, lim_dist, , ) = 0u; /* Limit ray distance (-ld) */
 rtDeclareVariable(unsigned int, contrib_segment, , ) = 0u; /* Start row for large outputs */
@@ -65,11 +63,11 @@ RT_PROGRAM void ray_generator()
 		const float tmin = ray_start(org, imm_irrad ? RAY_START : FTINY); // RAY_START is too large for rfluxmtx calls
 		if (imm_irrad) {
 			dir = -normalize(dir);
-			Ray ray = make_Ray(org - dir * tmin, dir, radiance_ray_type, 0.0f, 2.0f * tmin);
+			Ray ray = make_Ray(org - dir * tmin, dir, RADIANCE_RAY, 0.0f, 2.0f * tmin);
 			rtTrace(top_irrad, ray, prd);
 		}
 		else {
-			Ray ray = make_Ray(org, normalize(dir), do_irrad ? radiance_primary_ray_type : radiance_ray_type, tmin, lim_dist ? length(dir) : RAY_END);
+			Ray ray = make_Ray(org, normalize(dir), do_irrad ? PRIMARY_RAY : RADIANCE_RAY, tmin, lim_dist ? length(dir) : RAY_END);
 			rtTrace(top_object, ray, prd);
 		}
 	}

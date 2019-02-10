@@ -37,6 +37,21 @@ typedef enum
 	RT_EXCEPTION_CUSTOM		/*!< Custom user exception */
 } RTexceptionUser;
 
+/* Ray types */
+typedef enum
+{
+	PRIMARY_RAY = 0,	/* Radiance primary ray type for irradiance calculation */
+	RADIANCE_RAY,		/* Radiance ray type */
+	DIFFUSE_PRIMARY_RAY,/* Radiance primary ray type for irradiance calculation sampling only diffuse paths */
+	DIFFUSE_RAY,		/* Radiance ray type sampling only diffuse paths */
+	SHADOW_RAY,			/* Shadow ray type */
+	AMBIENT_RAY,		/* Ray into ambient cache */
+	AMBIENT_RECORD_RAY,	/* Ray to create ambient record */
+	POINT_CLOUD_RAY,	/* Ray to create point cloud */
+
+	RAY_TYPE_COUNT		/* Entry point count for ambient calculation */
+} RTraytype;
+
 typedef struct struct_DistantLight
 {
 #if defined(__cplusplus)

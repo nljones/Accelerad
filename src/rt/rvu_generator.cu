@@ -62,10 +62,6 @@ rtBuffer<unsigned int, 2>        ray_count_buffer;
 //rtBuffer<RayParams, 2>           last_view_buffer;
 //rtBuffer<unsigned int, 2>        rnd_seeds;
 rtDeclareVariable(rtObject, top_object, , );
-rtDeclareVariable(unsigned int, radiance_ray_type, , );
-rtDeclareVariable(unsigned int, radiance_primary_ray_type, , );
-rtDeclareVariable(unsigned int, diffuse_ray_type, , );
-rtDeclareVariable(unsigned int, diffuse_primary_ray_type, , );
 
 /* OptiX variables */
 rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
@@ -112,7 +108,7 @@ RT_PROGRAM void ray_generator()
 			aft = RAY_END;
 		}
 
-		Ray ray = make_Ray(ray_origin, ray_direction, frame ? (do_irrad ? diffuse_primary_ray_type : diffuse_ray_type) : (do_irrad ? radiance_primary_ray_type : radiance_ray_type), 0.0f, aft);
+		Ray ray = make_Ray(ray_origin, ray_direction, frame ? (do_irrad ? DIFFUSE_PRIMARY_RAY : DIFFUSE_RAY) : (do_irrad ? PRIMARY_RAY : RADIANCE_RAY), 0.0f, aft);
 
 		prd.result = make_float3(0.0f);
 		prd.weight = 1.0f;

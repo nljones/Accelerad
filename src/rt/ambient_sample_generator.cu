@@ -21,7 +21,6 @@ using namespace optix;
 rtDeclareVariable(PointDirectionBuffer, cluster_buffer, , ); /* input */
 rtBuffer<AmbientSample, 3>      amb_samp_buffer; /* ambient sample output */
 rtDeclareVariable(rtObject,     top_object, , );
-rtDeclareVariable(unsigned int, radiance_ray_type, , );
 rtDeclareVariable(unsigned int, level, , ) = 0u;
 #ifdef DAYSIM_COMPATIBLE
 rtDeclareVariable(unsigned int, segment_offset, , ) = 0u; /* Offset into data if computed with multiple segments */
@@ -93,7 +92,7 @@ RT_PROGRAM void ambient_sample_camera()
 	daysimSet(prd.dc, 0.0f);
 #endif
 	setupPayload(prd);
-	Ray ray = make_Ray(cluster.pos, rdir, radiance_ray_type, ray_start(cluster.pos, rdir, cluster.dir, RAY_START), RAY_END);
+	Ray ray = make_Ray(cluster.pos, rdir, RADIANCE_RAY, ray_start(cluster.pos, rdir, cluster.dir, RAY_START), RAY_END);
 	rtTrace(top_object, ray, prd);
 #ifdef RAY_COUNT
 	amb_samp_buffer[index].ray_count = prd.ray_count;

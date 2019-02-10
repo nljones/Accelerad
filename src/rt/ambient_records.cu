@@ -272,7 +272,7 @@ RT_METHOD int plugaleak(const AmbientRecord* record, const float3& anorm, const 
 
 	/* Can't shoot rays from an intersection program. */
 	//float3 rdir = vdif + anorm * t.y;	/* further dist. > plane */
-	//Ray shadow_ray = make_Ray( ray.origin, normalize( rdir ), shadow_ray_type, RAY_START, length( rdir ) );
+	//Ray shadow_ray = make_Ray( ray.origin, normalize( rdir ), SHADOW_RAY, RAY_START, length( rdir ) );
 	//PerRayData_shadow shadow_prd;
 	//shadow_prd.result = make_float3( 1.0f );
 #ifdef CONTRIB

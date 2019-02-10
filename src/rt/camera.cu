@@ -35,8 +35,6 @@ rtBuffer<unsigned int, 2>        ray_count_buffer;
 rtBuffer<RayParams, 2>           last_view_buffer;
 //rtBuffer<unsigned int, 2>        rnd_seeds;
 rtDeclareVariable(rtObject,      top_object, , );
-rtDeclareVariable(unsigned int,  radiance_ray_type, , );
-rtDeclareVariable(unsigned int,  radiance_primary_ray_type, , );
 
 /* OptiX variables */
 rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
@@ -161,7 +159,7 @@ RT_PROGRAM void ray_generator()
 			ray_direction = normalize(eye + adj * distance * ray_direction - ray_origin);
 		}
 
-		Ray ray = make_Ray(ray_origin, ray_direction, do_irrad ? radiance_primary_ray_type : radiance_ray_type, 0.0f, aft);
+		Ray ray = make_Ray(ray_origin, ray_direction, do_irrad ? PRIMARY_RAY : RADIANCE_RAY, 0.0f, aft);
 
 		rtTrace(top_object, ray, prd);
 

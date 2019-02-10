@@ -51,9 +51,6 @@ typedef struct {
 }  NORMDAT;		/* normal material data */
 
 /* Context variables */
-rtDeclareVariable(unsigned int, radiance_ray_type, , );
-rtDeclareVariable(unsigned int, shadow_ray_type, , );
-rtDeclareVariable(unsigned int, ambient_ray_type, , );
 rtDeclareVariable(rtObject,     top_object, , );
 rtDeclareVariable(rtObject,     top_ambient, , );
 
@@ -338,7 +335,7 @@ RT_PROGRAM void closest_hit_radiance()
 		new_prd.dc = daysimNext(prd.dc);
 #endif
 		setupPayload(new_prd);
-		Ray trans_ray = make_Ray(nd.hit, nd.prdir, radiance_ray_type, ray_start(nd.hit, nd.prdir, nd.normal, RAY_START), RAY_END);
+		Ray trans_ray = make_Ray(nd.hit, nd.prdir, RADIANCE_RAY, ray_start(nd.hit, nd.prdir, nd.normal, RAY_START), RAY_END);
 		rtTrace(top_object, trans_ray, new_prd);
 		new_prd.result *= nd.mcolor * nd.tspec;
 		result += new_prd.result;
@@ -381,7 +378,7 @@ RT_PROGRAM void closest_hit_radiance()
 #endif
 		setupPayload(new_prd);
 		float3 vrefl = reflect(ray.direction, nd.pnorm);
-		Ray refl_ray = make_Ray(nd.hit, vrefl, radiance_ray_type, ray_start(nd.hit, vrefl, nd.normal, RAY_START), RAY_END);
+		Ray refl_ray = make_Ray(nd.hit, vrefl, RADIANCE_RAY, ray_start(nd.hit, vrefl, nd.normal, RAY_START), RAY_END);
 		rtTrace(top_object, refl_ray, new_prd);
 		new_prd.result *= nd.scolor;
 		prd.mirror = new_prd.result;
@@ -433,7 +430,7 @@ RT_PROGRAM void closest_hit_radiance()
 #ifdef DAYSIM_COMPATIBLE
 		shadow_prd.dc = daysimNext(prd.dc);
 #endif
-		Ray shadow_ray = make_Ray(nd.hit, nd.pnorm, shadow_ray_type, RAY_START, RAY_END);
+		Ray shadow_ray = make_Ray(nd.hit, nd.pnorm, SHADOW_RAY, RAY_START, RAY_END);
 
 		/* contributions from distant lights (mainly the sun) */
 		unsigned int num_lights = lights.size();
@@ -623,7 +620,7 @@ RT_METHOD float3 gaussamp(const NORMDAT *nd)
 		return rcol;
 
 	PerRayData_radiance gaus_prd;
-	Ray gaus_ray = make_Ray(nd->hit, nd->pnorm, radiance_ray_type, RAY_START, RAY_END);
+	Ray gaus_ray = make_Ray(nd->hit, nd->pnorm, RADIANCE_RAY, RAY_START, RAY_END);
 
 	float d;
 
@@ -822,7 +819,7 @@ RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pn
 		ambient_prd.hit_count = 0;
 #endif
 		const float tmax = ray_start(hit, AMBIENT_RAY_LENGTH);
-		Ray ambient_ray = make_Ray(hit - normal * tmax, normal, ambient_ray_type, 0.0f, 2.0f * tmax);
+		Ray ambient_ray = make_Ray(hit - normal * tmax, normal, AMBIENT_RAY, 0.0f, 2.0f * tmax);
 		rtTrace(top_ambient, ambient_ray, ambient_prd);
 #ifdef HIT_COUNT
 		prd.hit_count += ambient_prd.hit_count;
@@ -915,7 +912,7 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 	new_prd.dc = daysimNext(dc);
 #endif
 
-	Ray amb_ray = make_Ray( hit, pnormal, radiance_ray_type, RAY_START, RAY_END ); // Use normal point as temporary direction
+	Ray amb_ray = make_Ray( hit, pnormal, RADIANCE_RAY, RAY_START, RAY_END ); // Use normal point as temporary direction
 	/* End ambsample setup */
 
 					/* make tangent plane axes */
@@ -941,7 +938,7 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 			//dimlist[ndims++] = AI(hp,i,j) + 90171;
 
 			setupPayload(new_prd);
-			//Ray amb_ray = make_Ray( hit, rdir, radiance_ray_type, RAY_START, RAY_END );
+			//Ray amb_ray = make_Ray( hit, rdir, RADIANCE_RAY, RAY_START, RAY_END );
 			rtTrace(top_object, amb_ray, new_prd);
 			resolvePayload(prd, new_prd);
 
@@ -1203,7 +1200,7 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& normal, const 
 	new_prd.dc = daysimNext(dc);
 #endif
 	setupPayload(new_prd);
-	Ray amb_ray = make_Ray( hit, rdir, radiance_ray_type, ray_start( hit, rdir, normal, RAY_START ), RAY_END );
+	Ray amb_ray = make_Ray( hit, rdir, RADIANCE_RAY, ray_start( hit, rdir, normal, RAY_START ), RAY_END );
 	rtTrace(top_object, amb_ray, new_prd);
 	resolvePayload(prd, new_prd);
 

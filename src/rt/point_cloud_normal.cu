@@ -44,7 +44,6 @@ rtDeclareVariable(float3, cuorg, , ); /* bounding box minimum */
 rtDeclareVariable(float, cell_size, , ); /* cell side dimension */
 rtDeclareVariable(unsigned int, level, , ) = 0u;
 
-rtDeclareVariable(unsigned int, ambient_ray_type, , );
 rtDeclareVariable(rtObject, top_ambient, , );
 
 
@@ -94,7 +93,7 @@ RT_METHOD int occupied(const float3& pos, const float3& dir, const float3& world
 	ambient_prd.hit_count = 0;
 #endif
 	const float tmax = ray_start(pos, AMBIENT_RAY_LENGTH);
-	Ray ambient_ray = make_Ray(pos - dir * tmax, dir, ambient_ray_type, 0.0f, 2.0f * tmax);
+	Ray ambient_ray = make_Ray(pos - dir * tmax, dir, AMBIENT_RAY, 0.0f, 2.0f * tmax);
 	rtTrace(top_ambient, ambient_ray, ambient_prd);
 #ifdef HIT_COUNT
 	prd.hit_count += ambient_prd.hit_count;

@@ -512,15 +512,6 @@ void updateModel(const RTcontext context, LUTAB* modifiers, const unsigned int i
 
 static void applyRadianceSettings(const RTcontext context, const VIEW* view, const unsigned int imm_irrad)
 {
-	/* Define ray types */
-	applyContextVariable1ui( context, "radiance_primary_ray_type", PRIMARY_RAY );
-	applyContextVariable1ui( context, "radiance_ray_type", RADIANCE_RAY );
-#ifdef ACCELERAD_RT
-	applyContextVariable1ui(context, "diffuse_primary_ray_type", DIFFUSE_PRIMARY_RAY);
-	applyContextVariable1ui(context, "diffuse_ray_type", DIFFUSE_RAY);
-#endif
-	applyContextVariable1ui( context, "shadow_ray_type", SHADOW_RAY );
-
 	/* Set hard coded parameters */
 	applyContextVariable3f(context, "CIE_rgbf", (float)CIE_rf, (float)CIE_gf, (float)CIE_bf); // from color.h
 

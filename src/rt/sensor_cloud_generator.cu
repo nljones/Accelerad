@@ -17,7 +17,6 @@ rtBuffer<RayData, 2>             ray_buffer;
 rtBuffer<PointDirection, 3>      seed_buffer;
 rtDeclareVariable(rtObject,      top_object, , );
 rtDeclareVariable(rtObject,      top_irrad, , );
-rtDeclareVariable(unsigned int,  point_cloud_ray_type, , );
 rtDeclareVariable(unsigned int,  imm_irrad, , ) = 0u; /* Immediate irradiance (-I) */
 
 /* OptiX variables */
@@ -52,7 +51,7 @@ RT_PROGRAM void cloud_generator()
 		}
 	}
 
-	Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, point_cloud_ray_type, tmin, tmax);
+	Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, POINT_CLOUD_RAY, tmin, tmax);
 
 	while (prd.index.z < prd.seeds && loop--) {
 		prd.forward = prd.reverse = make_float3(0.0f);
