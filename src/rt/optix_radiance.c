@@ -48,16 +48,23 @@
 
 #ifdef ACCELERAD
 
+#ifdef RTX
+//#define RTX_TRIANGLES
+#endif
+
 /* Handles to the objects in a particular node in the scene graph. This is built once per octree and may be referenced multiple times in the scene graph. */
 typedef struct SceneNode {
 	char *name;						/* The name of this instance */
 	RTgeometrygroup group;			/* The geometry group containing this instance */
 	RTgeometryinstance instance;	/* The geometry instance kept by this scene */
 	RTacceleration acceleration;	/* The acceleration structure kept by this scene */
-	RTbuffer vindex_buffer;			/* Buffer containing the indices vertex indices, three entries per triangle */
-	RTbuffer material_buffer;		/* Buffer containing the material indices, one entry per triangle */
+	IntArray* vertex_indices;		/* Three entries per triangle */
+	IntArray* triangles;			/* One entry per triangle gives material of that triangle */
+	size_t triangle_count;			/* Number of triangles in this instance */
+	size_t offset;					/* Offset of first triangle into global buffer */
 	int sole_material;				/* The material index to use for all surfaces in this node, or -1 to use separate materials for each object. */
 	struct SceneBranch *child;		/* First entry in linked list of child branches */
+	struct SceneNode *twin;			/* Older twin to copy from */
 } SceneNode;
 
 /* Handles to one instance of a node. This is built once per occurance of an octree in the scene except for the top node, which has no transform. */
@@ -74,8 +81,6 @@ typedef struct {
 	FloatArray* vertices;			/* Three entries per vertex */
 	FloatArray* normals;			/* Three entries per vertex */
 	FloatArray* tex_coords;			/* Two entries per vertex */
-	IntArray*   vertex_indices;		/* Three entries per triangle */
-	IntArray*   triangles;			/* One entry per triangle gives material of that triangle */
 	PoniterArray* materials;		/* One entry per material */
 	IntArray*   alt_materials;		/* Two entries per material gives alternate materials to use in place of that material */
 	PoniterArray* instances;		/* One entry per instance */
@@ -98,6 +103,7 @@ static void createRemoteDevice(RTremotedevice* remote);
 static void applyRadianceSettings(const RTcontext context, const VIEW* view, const unsigned int imm_irrad);
 static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifiers);
 static void createNode(const RTcontext context, Scene* scene, char* name, const OBJECT start, const OBJECT count, const int material_index, MESH* mesh);
+static void createGeometryInstance(const RTcontext context, SceneNode *node, const size_t vertex_count, PoniterArray* materials);
 static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, Scene* scene);
 static void createFace(const RTcontext context, OBJREC* rec, Scene* scene);
 static __inline void createTriangle(Scene* scene, const int a, const int b, const int c);
@@ -168,7 +174,7 @@ static RTvariable top_object = NULL, top_ambient = NULL, top_irrad = NULL;
 #ifdef REMOTE_VCA
 static RTremotedevice remote_handle = NULL;
 #endif
-static RTbuffer vertex_buffer = NULL, normal_buffer = NULL, texcoord_buffer = NULL, material_alt_buffer = NULL, lindex_buffer = NULL, lights_buffer = NULL;
+static RTbuffer vindex_buffer = NULL, vertex_buffer = NULL, normal_buffer = NULL, texcoord_buffer = NULL, material_buffer = NULL, material_alt_buffer = NULL, lindex_buffer = NULL, lights_buffer = NULL;
 static SceneNode scene_root;
 
 /* Handles to intersection program objects used by multiple materials */
@@ -631,6 +637,8 @@ void updateCamera( const RTcontext context, const VIEW* view )
 
 static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifiers)
 {
+	unsigned int i;
+	int *vdata, *mdata;
 	Scene scene;
 
 	/* Timers */
@@ -644,8 +652,6 @@ static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifie
 	scene.vertices = initArrayf(EXPECTED_VERTICES * 3);
 	scene.normals = initArrayf(EXPECTED_VERTICES * 3);
 	scene.tex_coords = initArrayf(EXPECTED_VERTICES * 2);
-	scene.vertex_indices = NULL; //initArrayi(EXPECTED_TRIANGLES * 3);
-	scene.triangles = NULL; //initArrayi(EXPECTED_TRIANGLES);
 	scene.materials = initArrayp(EXPECTED_MATERIALS);
 	scene.alt_materials = initArrayi(EXPECTED_MATERIALS * 2);
 	scene.instances = initArrayp(EXPECTED_INSTANCES);
@@ -671,19 +677,55 @@ static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifie
 	/* Create the top node of the scene graph. */
 	createNode(context, &scene, octname, 0, nsceneobjs, OVOID, NULL);
 
-	/* Free resources used in creating the scene graph. */
-	free(scene.buffer_entry_index);
-	freeArrayp(scene.instances); //TODO keep this if the instances are not going to change
-	freeArrayp(scene.materials);
+	/* Check that there is at least one material for context validation. */
+	if (!scene.materials->count) {
+		RTmaterial null_material;
+		RT_CHECK_ERROR(rtMaterialCreate(context, &null_material));
+		insertArrayp(scene.materials, null_material);
+		use_ambient = calc_ambient = 0u;
+	}
+
+	/* Check for overflow */
+	if (scene.materials->count > UINT_MAX)
+		eprintf(USER, "Number of materials %" PRIu64 " is greater than maximum %u.", scene.materials->count, UINT_MAX);
+
+	/* Count the triangles that were found. */
+	size_t triangle_count = 0;
+	for (i = 0; i < scene.instances->count; i++) {
+		SceneNode *node = (SceneNode*)scene.instances->array[i];
+		if (node->twin) {
+			node->triangle_count = node->twin->triangle_count;
+			node->offset = node->twin->offset;
+		}
+		else {
+			node->triangle_count = node->triangles->count;
+			if (node->triangle_count > UINT_MAX)
+				eprintf(USER, "Number of triangles %" PRIu64 " in %s is greater than maximum %u.", node->triangle_count, node->name, UINT_MAX);
+			node->offset = triangle_count;
+			if (node->offset > UINT_MAX)
+				eprintf(USER, "Offset of triangles %" PRIu64 " in %s is greater than maximum %u.", node->offset, node->name, UINT_MAX);
+			triangle_count += node->triangle_count;
+		}
+	}
 
 	/* Apply the geometry buffers. */
-	vprintf("Processed %" PRIu64 " vertices.\n", scene.vertices->count / 3);
+	vprintf("Processed %" PRIu64 " triangles.\n", triangle_count);
+	if (!vindex_buffer) {
+		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_UNSIGNED_INT3, triangle_count, &vindex_buffer);
+		applyContextObject(context, "vindex_buffer", vindex_buffer);
+	}
+	else
+		RT_CHECK_ERROR(rtBufferSetSize1D(vindex_buffer, triangle_count));
+	//copyToBufferi(context, vindex_buffer, scene->vertex_indices);
+
+	size_t vertex_count = scene.vertices->count / 3;
+	vprintf("Processed %" PRIu64 " vertices.\n", vertex_count);
 	if (!vertex_buffer) {
-		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, scene.vertices->count / 3, &vertex_buffer);
+		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, vertex_count, &vertex_buffer);
 		applyContextObject(context, "vertex_buffer", vertex_buffer);
 	}
 	else
-		RT_CHECK_ERROR(rtBufferSetSize1D(vertex_buffer, scene.vertices->count / 3));
+		RT_CHECK_ERROR(rtBufferSetSize1D(vertex_buffer, vertex_count));
 	copyToBufferf(context, vertex_buffer, scene.vertices);
 	freeArrayf(scene.vertices);
 
@@ -704,6 +746,14 @@ static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifie
 		RT_CHECK_ERROR(rtBufferSetSize1D(texcoord_buffer, scene.tex_coords->count / 2));
 	copyToBufferf(context, texcoord_buffer, scene.tex_coords);
 	freeArrayf(scene.tex_coords);
+
+	if (!material_buffer) {
+		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_UNSIGNED_INT, triangle_count, &material_buffer);
+		applyContextObject(context, "material_buffer", material_buffer);
+	}
+	else
+		RT_CHECK_ERROR(rtBufferSetSize1D(material_buffer, triangle_count));
+	//copyToBufferi(context, material_buffer, scene->triangles);
 
 	if (!material_alt_buffer) {
 		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_INT2, scene.alt_materials->count / 2, &material_alt_buffer);
@@ -737,17 +787,37 @@ static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifie
 	copyToBufferdl(context, lights_buffer, scene.sources);
 	freeArraydl(scene.sources);
 
+	/* Apply per-instance buffers */
+	RT_CHECK_ERROR(rtBufferMap(vindex_buffer, (void**)&vdata));
+	RT_CHECK_ERROR(rtBufferMap(material_buffer, (void**)&mdata));
+	for (i = 0; i < scene.instances->count; i++) {
+		SceneNode *node = (SceneNode*)scene.instances->array[i];
+		if (!node->twin) {
+			memcpy(vdata + node->offset * 3, node->vertex_indices->array, node->vertex_indices->count*sizeof(int));
+			freeArrayi(node->vertex_indices);
+			memcpy(mdata + node->offset, node->triangles->array, node->triangles->count*sizeof(int));
+			freeArrayi(node->triangles);
+		}
+		if (node->triangle_count)
+			createGeometryInstance(context, node, vertex_count, scene.materials);
+	}
+	RT_CHECK_ERROR(rtBufferUnmap(vindex_buffer));
+	RT_CHECK_ERROR(rtBufferUnmap(material_buffer));
+
+	/* Free resources used in creating the scene graph. */
+	free(scene.buffer_entry_index);
+	freeArrayp(scene.instances); //TODO keep this if the instances are not going to change
+	freeArrayp(scene.materials);
+
 	geometry_clock = clock() - geometry_clock;
 	mprintf("Geometry build time: %" PRIu64 " milliseconds for %i objects.\n", MILLISECONDS(geometry_clock), nsceneobjs);
 }
 
 static void createNode(const RTcontext context, Scene* scene, char* name, const OBJECT start, const OBJECT count, const int material_index, MESH* mesh)
 {
-	unsigned int i;
 	const OBJECT end = start + count;
 	OBJECT on;
 	OBJREC *rec;
-	RTgeometry geometry = NULL;
 
 	/* Allocate or expand space for entry buffer. */
 	if (count > 0) {
@@ -755,22 +825,17 @@ static void createNode(const RTcontext context, Scene* scene, char* name, const 
 		if (!scene->buffer_entry_index) eprintf(SYSTEM, "out of memory in createNode, need %" PRIu64 " bytes", sizeof(int) * end);
 	}
 
-	/* Temporarily store for parent's lists. */
-	IntArray* vertex_indices = scene->vertex_indices;
-	scene->vertex_indices = initArrayi(EXPECTED_TRIANGLES * 3);
-	IntArray* triangles = scene->triangles;
-	scene->triangles = initArrayi(EXPECTED_TRIANGLES);
-
 	/* Create this level of the geometry tree. */
-	SceneNode* node = scene->root;
-	if (!node) {
-		scene->root = node = (SceneNode*)malloc(sizeof(SceneNode));
-		if (!node) eprintf(SYSTEM, "out of memory in createNode, need %" PRIu64 " bytes", sizeof(SceneNode));
-		clearSceneNode(node);
+	if (!scene->root) {
+		scene->root = (SceneNode*)malloc(sizeof(SceneNode));
+		if (!scene->root) eprintf(SYSTEM, "out of memory in createNode, need %" PRIu64 " bytes", sizeof(SceneNode));
+		clearSceneNode(scene->root);
 	}
-	node->name = savestr(name);
-	insertArrayp(scene->instances, node);
-	node->sole_material = material_index;
+	insertArrayp(scene->instances, scene->root);
+	scene->root->name = savestr(name);
+	scene->root->vertex_indices = initArrayi(EXPECTED_TRIANGLES * 3);
+	scene->root->triangles = initArrayi(EXPECTED_TRIANGLES);
+	scene->root->sole_material = material_index;
 
 	/* Get the scene geometry as a list of triangles. */
 	for (on = start; on < end; on++) {
@@ -783,25 +848,64 @@ static void createNode(const RTcontext context, Scene* scene, char* name, const 
 	}
 	if (mesh)
 		createMesh(context, mesh, scene);
+}
 
-	/* Check for overflow */
-	if (scene->triangles->count > UINT_MAX)
-		eprintf(USER, "Number of triangles %" PRIu64 " in %s is greater than maximum %u.", scene->triangles->count, node->name, UINT_MAX);
-	if (scene->materials->count > INT_MAX)
-		eprintf(USER, "Number of materials %" PRIu64 " in %s is greater than maximum %u.", scene->materials->count, node->name, INT_MAX);
+static void createGeometryInstance(const RTcontext context, SceneNode *node, const size_t vertex_count, PoniterArray* materials)
+{
+	unsigned int i;
+#ifdef RTX_TRIANGLES
+	RTgeometrytriangles geometry = NULL;
+#else
+	RTgeometry geometry = NULL;
+#endif
 
+#ifdef RTX_TRIANGLES
 	/* Create the geometry instance containing the geometry. */
 	if (!node->instance) {
 		RTprogram program;
 
-		RT_CHECK_ERROR(rtGeometryCreate(context, &geometry));
+		if (node->twin && node->twin->instance)
+			RT_CHECK_ERROR(rtGeometryInstanceGetGeometryTriangles(node->twin->instance, &geometry));
+		else {
+			RT_CHECK_ERROR(rtGeometryTrianglesCreate(context, &geometry));
 
-		ptxFile(path_to_ptx, "triangle_mesh");
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "mesh_bounds", &program));
-		RT_CHECK_ERROR(rtGeometrySetBoundingBoxProgram(geometry, program));
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "mesh_intersect", &program));
-		RT_CHECK_ERROR(rtGeometrySetIntersectionProgram(geometry, program));
-		backvis_var = applyProgramVariable1ui(context, program, "backvis", (unsigned int)backvis); // -bv
+			ptxFile(path_to_ptx, "triangle_mesh");
+			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "mesh_attribute", &program));
+			RT_CHECK_ERROR(rtGeometryTrianglesSetAttributeProgram(geometry, program));
+			//backvis_var = applyProgramVariable1ui(context, program, "backvis", (unsigned int)backvis); // -bv
+		}
+
+		RT_CHECK_ERROR(rtGeometryInstanceCreate(context, &node->instance));
+		RT_CHECK_ERROR(rtGeometryInstanceSetGeometryTriangles(node->instance, geometry));
+	}
+	else {
+		RT_CHECK_ERROR(rtGeometryInstanceGetGeometryTriangles(node->instance, &geometry));
+	}
+	RT_CHECK_ERROR(rtGeometryTrianglesSetPrimitiveCount(geometry, (unsigned int)node->triangle_count));
+	RT_CHECK_ERROR(rtGeometryTrianglesSetPrimitiveIndexOffset(geometry, (unsigned int)node->offset));
+
+	if (vertex_count > UINT_MAX)
+		eprintf(USER, "Number of vertices %" PRIu64 " is greater than maximum %u.", vertex_count, UINT_MAX);
+	RT_CHECK_ERROR(rtGeometryTrianglesSetTriangleIndices(geometry, vindex_buffer, node->offset * sizeof(uint3), sizeof(uint3), RT_FORMAT_UNSIGNED_INT3)); //TODO not sure if this offset is needed
+	RT_CHECK_ERROR(rtGeometryTrianglesSetMaterialIndices(geometry, material_buffer, node->offset * sizeof(int), sizeof(int), RT_FORMAT_UNSIGNED_INT));
+	RT_CHECK_ERROR(rtGeometryTrianglesSetVertices(geometry, (unsigned int)vertex_count, vertex_buffer, 0, sizeof(float3), RT_FORMAT_FLOAT3));
+#else
+	/* Create the geometry instance containing the geometry. */
+	if (!node->instance) {
+		RTprogram program;
+
+		if (node->twin && node->twin->instance)
+			RT_CHECK_ERROR(rtGeometryInstanceGetGeometry(node->twin->instance, &geometry));
+		else {
+			RT_CHECK_ERROR(rtGeometryCreate(context, &geometry));
+
+			ptxFile(path_to_ptx, "triangle_mesh");
+			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "mesh_bounds", &program));
+			RT_CHECK_ERROR(rtGeometrySetBoundingBoxProgram(geometry, program));
+			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "mesh_intersect", &program));
+			RT_CHECK_ERROR(rtGeometrySetIntersectionProgram(geometry, program));
+			backvis_var = applyProgramVariable1ui(context, program, "backvis", (unsigned int)backvis); // -bv
+		}
 
 		RT_CHECK_ERROR(rtGeometryInstanceCreate(context, &node->instance));
 		RT_CHECK_ERROR(rtGeometryInstanceSetGeometry(node->instance, geometry));
@@ -809,46 +913,21 @@ static void createNode(const RTcontext context, Scene* scene, char* name, const 
 	else {
 		RT_CHECK_ERROR(rtGeometryInstanceGetGeometry(node->instance, &geometry));
 	}
-	RT_CHECK_ERROR(rtGeometrySetPrimitiveCount(geometry, (unsigned int)scene->triangles->count));
-
-	/* Check that there is at least one material for context validation. */
-	if (!scene->materials->count) {
-		RTmaterial null_material;
-		RT_CHECK_ERROR(rtMaterialCreate(context, &null_material));
-		insertArrayp(scene->materials, null_material);
-		use_ambient = calc_ambient = 0u;
-	}
-	RT_CHECK_ERROR(rtGeometryInstanceSetMaterialCount(node->instance, (unsigned int)scene->materials->count));
+	RT_CHECK_ERROR(rtGeometrySetPrimitiveCount(geometry, (unsigned int)node->triangle_count));
+	RT_CHECK_ERROR(rtGeometrySetPrimitiveIndexOffset(geometry, (unsigned int)node->offset));
+#endif
 
 	/* Apply materials to the geometry instance. */
-	vprintf("Processed %" PRIu64 " materials for %s.\n", scene->materials->count, node->name);
-	for (i = 0u; i < scene->materials->count; i++)
-		RT_CHECK_ERROR(rtGeometryInstanceSetMaterial(node->instance, i, (RTmaterial)scene->materials->array[i]));
-
-	if (!node->vindex_buffer) {
-		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_UNSIGNED_INT3, scene->vertex_indices->count / 3, &node->vindex_buffer);
-		applyGeometryObject(context, geometry, "vindex_buffer", node->vindex_buffer);
+	RT_CHECK_ERROR(rtGeometryInstanceSetMaterialCount(node->instance, (unsigned int)materials->count));
+#ifdef RTX_TRIANGLES
+	RT_CHECK_ERROR(rtGeometryTrianglesSetMaterialCount(geometry, (unsigned int)materials->count));
+#endif
+	for (i = 0u; i < materials->count; i++) {
+		RT_CHECK_ERROR(rtGeometryInstanceSetMaterial(node->instance, i, (RTmaterial)materials->array[node->sole_material == OVOID ? i : node->sole_material])); // TODO fix irradiance
+#ifdef RTX_TRIANGLES
+		RT_CHECK_ERROR(rtGeometryTrianglesSetFlagsPerMaterial(geometry, i, RT_GEOMETRY_FLAG_DISABLE_ANYHIT));
+#endif
 	}
-	else
-		RT_CHECK_ERROR(rtBufferSetSize1D(node->vindex_buffer, scene->vertex_indices->count / 3));
-	copyToBufferi(context, node->vindex_buffer, scene->vertex_indices);
-	freeArrayi(scene->vertex_indices);
-	scene->vertex_indices = vertex_indices;
-
-	vprintf("Processed %" PRIu64 " triangles for %s.\n", scene->triangles->count, node->name);
-	if (!node->material_buffer) {
-		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_INT, scene->triangles->count, &node->material_buffer);
-		applyGeometryInstanceObject(context, node->instance, "material_buffer", node->material_buffer);
-	}
-	else
-		RT_CHECK_ERROR(rtBufferSetSize1D(node->material_buffer, scene->triangles->count));
-	copyToBufferi(context, node->material_buffer, scene->triangles);
-	freeArrayi(scene->triangles);
-	scene->triangles = triangles;
-
-	/* Set material override */
-	if (node->sole_material != OVOID)
-		applyGeometryInstanceVariable1i(context, node->instance, "sole_material", node->sole_material);
 
 	/* Create a geometry group to hold the geometry instance. */
 	if (!node->group) {
@@ -859,13 +938,19 @@ static void createNode(const RTcontext context, Scene* scene, char* name, const 
 
 	/* create acceleration object for group and specify some build hints */
 	if (!node->acceleration) {
-		RT_CHECK_ERROR(rtAccelerationCreate(context, &node->acceleration));
-		RT_CHECK_ERROR(rtAccelerationSetBuilder(node->acceleration, "Trbvh"));
+		if (node->twin && node->twin->acceleration)
+			node->acceleration = node->twin->acceleration;
+		else {
+			RT_CHECK_ERROR(rtAccelerationCreate(context, &node->acceleration));
+			RT_CHECK_ERROR(rtAccelerationSetBuilder(node->acceleration, "Trbvh"));
 #ifndef RTX
-		RT_CHECK_ERROR(rtAccelerationSetTraverser(node->acceleration, "Bvh"));
+			RT_CHECK_ERROR(rtAccelerationSetTraverser(node->acceleration, "Bvh"));
 #endif
-		RT_CHECK_ERROR(rtAccelerationSetProperty(node->acceleration, "vertex_buffer_name", "vertex_buffer")); // For Sbvh only
-		RT_CHECK_ERROR(rtAccelerationSetProperty(node->acceleration, "index_buffer_name", "vindex_buffer")); // For Sbvh only
+#ifndef RTX_TRIANGLES
+			RT_CHECK_ERROR(rtAccelerationSetProperty(node->acceleration, "vertex_buffer_name", "vertex_buffer")); // For Sbvh only
+			RT_CHECK_ERROR(rtAccelerationSetProperty(node->acceleration, "index_buffer_name", "vindex_buffer")); // For Sbvh only
+#endif
+		}
 		RT_CHECK_ERROR(rtGeometryGroupSetAcceleration(node->group, node->acceleration));
 	}
 
@@ -1075,9 +1160,9 @@ facedone:
 static __inline void createTriangle(Scene *scene, const int a, const int b, const int c)
 {
 	/* Write the indices to the buffers */
-	insertArray3i(scene->vertex_indices, a, b, c);
+	insertArray3i(scene->root->vertex_indices, a, b, c);
 	if (scene->material) {
-		insertArrayi(scene->triangles, scene->buffer_entry_index[objndx(scene->material)]);
+		insertArrayi(scene->root->triangles, scene->buffer_entry_index[objndx(scene->material)]);
 
 #ifdef LIGHTS
 		if (islight(scene->material->otype) && (scene->material->otype != MAT_GLOW || scene->material->oargs.farg[3] > 0))
@@ -1085,7 +1170,7 @@ static __inline void createTriangle(Scene *scene, const int a, const int b, cons
 #endif /* LIGHTS */
 	}
 	else {
-		insertArrayi(scene->triangles, OVOID);
+		insertArrayi(scene->root->triangles, OVOID);
 	}
 }
 
@@ -1099,8 +1184,8 @@ static int createTriangles(const FACE *face, Scene *scene)
 	}
 	if (face->nv > 3) {	/* triangulation necessary */
 		int i;
-		size_t vertex_index_count = scene->vertex_indices->count;
-		size_t triangle_count = scene->triangles->count;
+		size_t vertex_index_count = scene->root->vertex_indices->count;
+		size_t triangle_count = scene->root->triangles->count;
 #ifdef LIGHTS
 		size_t light_count = scene->lights->count;
 #endif /* LIGHTS */
@@ -1121,8 +1206,8 @@ static int createTriangles(const FACE *face, Scene *scene)
 		i = polyTriangulate(v2l, addTriangle);
 		polyFree(v2l);
 		if (!i) { /* triangulation failed */
-			scene->vertex_indices->count = vertex_index_count;
-			scene->triangles->count = triangle_count;
+			scene->root->vertex_indices->count = vertex_index_count;
+			scene->root->triangles->count = triangle_count;
 #ifdef LIGHTS
 			scene->lights->count = light_count;
 #endif /* LIGHTS */
@@ -2517,10 +2602,11 @@ static void clearSceneNode(SceneNode *node)
 	node->group = NULL;
 	node->instance = NULL;
 	node->acceleration = NULL;
-	node->vindex_buffer = NULL;
-	node->material_buffer = NULL;
+	node->triangle_count = 0;
+	node->offset = 0;
 	node->sole_material = OVOID;
 	node->child = NULL;
+	node->twin = NULL;
 }
 
 static SceneNode* cloneSceneNode(const RTcontext context, SceneNode *node, const int material_override, Scene* scene)
@@ -2533,17 +2619,26 @@ static SceneNode* cloneSceneNode(const RTcontext context, SceneNode *node, const
 
 	twin->name = node->name;
 	twin->acceleration = node->acceleration;
-	twin->vindex_buffer = node->vindex_buffer;
-	twin->material_buffer = node->material_buffer;
+	twin->triangle_count = node->triangle_count;
+	twin->offset = node->offset;
 	twin->sole_material = material_override;
+	twin->twin = node;
 
 	if (node->instance) {
+#ifdef RTX_TRIANGLES
+		RTgeometrytriangles geometry;
+#else
 		RTgeometry geometry;
+#endif
 		unsigned int i;
 		RT_CHECK_ERROR(rtGeometryInstanceCreate(context, &twin->instance));
+#ifdef RTX_TRIANGLES
+		RT_CHECK_ERROR(rtGeometryInstanceGetGeometryTriangles(node->instance, &geometry));
+		RT_CHECK_ERROR(rtGeometryInstanceSetGeometryTriangles(twin->instance, geometry));
+#else
 		RT_CHECK_ERROR(rtGeometryInstanceGetGeometry(node->instance, &geometry));
 		RT_CHECK_ERROR(rtGeometryInstanceSetGeometry(twin->instance, geometry));
-		applyGeometryInstanceObject(context, twin->instance, "material_buffer", twin->material_buffer);
+#endif
 
 		RT_CHECK_ERROR(rtGeometryInstanceSetMaterialCount(twin->instance, (unsigned int)scene->materials->count));
 
@@ -2613,7 +2708,6 @@ static RTobject createSceneHierarchy(const RTcontext context, SceneNode* node)
 	RTacceleration groupAccel;
 	SceneBranch* child = node->child;
 	unsigned int num_children = 0;
-	RTsize num_triangles;
 
 	if (!child) {
 		/* This is a leaf node. Create a geometry group to hold the geometry instance. */
@@ -2621,20 +2715,19 @@ static RTobject createSceneHierarchy(const RTcontext context, SceneNode* node)
 	}
 
 	/* Create a group to hold the geometry group and any children. */
-	RT_CHECK_ERROR(rtBufferGetSize1D(node->material_buffer, &num_triangles));
-	if (num_triangles > 0) num_children = 1;
+	if (node->triangle_count > 0) num_children = 1;
 	while (child) {
 		num_children++;
 		child = child->sibling;
 	}
 	RT_CHECK_ERROR(rtGroupCreate(context, &group));
 	RT_CHECK_ERROR(rtGroupSetChildCount(group, num_children));
-	if (num_triangles > 0)
+	if (node->triangle_count > 0)
 		RT_CHECK_ERROR(rtGroupSetChild(group, 0, node->group));
 
 	/* Set remaining group children. */
 	child = node->child;
-	num_children = num_triangles > 0 ? 1 : 0;
+	num_children = node->triangle_count > 0 ? 1 : 0;
 	while (child) {
 		RTobject childGroup = createSceneHierarchy(context, child->node);
 		if (child->transform) {

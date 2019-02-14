@@ -48,7 +48,7 @@ rtBuffer<float2> texcoord_buffer;
 rtBuffer<uint3>  vindex_buffer;    // position indices 
 //rtBuffer<uint3>  nindex_buffer;    // normal indices
 //rtBuffer<uint3>  tindex_buffer;    // texcoord indices
-rtBuffer<int>    material_buffer; // per-face material index
+rtBuffer<unsigned int>    material_buffer; // per-face material index
 rtBuffer<int2>   material_alt_buffer; // per-material alternate material indices
 
 /* OptiX variables */
@@ -61,6 +61,54 @@ rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
 rtDeclareVariable(int, surface_id, attribute surface_id, );
 #ifdef ANTIMATTER
 rtDeclareVariable(int, mat_id, attribute mat_id, );
+#endif
+
+#ifdef RTX
+RT_PROGRAM void mesh_attribute()
+{
+	const uint3 v_idx = vindex_buffer[rtGetPrimitiveIndex()];
+
+	const float3 v0 = vertex_buffer[v_idx.x];
+	const float3 v1 = vertex_buffer[v_idx.y];
+	const float3 v2 = vertex_buffer[v_idx.z];
+	const float3 Ng = optix::cross(v1 - v0, v2 - v0);
+
+	geometric_normal = optix::normalize(Ng);
+
+	const float2 barycentrics = rtGetTriangleBarycentrics();
+	texcoord = make_float3(barycentrics.x, barycentrics.y, 0.0f);
+
+	if (normal_buffer.size() == 0)
+	{
+		shading_normal = geometric_normal;
+	}
+	else
+	{
+		shading_normal = normal_buffer[v_idx.y] * barycentrics.x + normal_buffer[v_idx.z] * barycentrics.y
+			+ normal_buffer[v_idx.x] * (1.0f - barycentrics.x - barycentrics.y);
+	}
+
+	if (texcoord_buffer.size() == 0)
+	{
+		texcoord = make_float3(0.0f, 0.0f, 0.0f);
+	}
+	else
+	{
+		const float2 t0 = texcoord_buffer[v_idx.x];
+		const float2 t1 = texcoord_buffer[v_idx.y];
+		const float2 t2 = texcoord_buffer[v_idx.z];
+		texcoord = make_float3(t1*barycentrics.x + t2*barycentrics.y + t0*(1.0f - barycentrics.x - barycentrics.y));
+	}
+
+	surface_id = v_idx.x; // Not necessarily unique per triangle, but different for each surface
+
+	int mat = sole_material;
+	if (mat < 0) /* Use per-face material index */
+		mat = material_buffer[rtGetPrimitiveIndex()];
+#ifdef ANTIMATTER
+	mat_id = mat;
+#endif
+}
 #endif
 
 RT_PROGRAM void mesh_intersect(unsigned int primIdx)
