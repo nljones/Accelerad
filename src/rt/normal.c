@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: normal.c,v 2.77 2018/11/13 19:58:33 greg Exp $";
+static const char RCSid[] = "$Id: normal.c,v 2.79 2019/02/13 02:38:26 greg Exp $";
 #endif
 /*
  *  normal.c - shading function for normal materials.
@@ -269,8 +269,9 @@ m_normal(			/* color a ray that hit something normal */
 		}
 	} else
 		nd.tdiff = nd.tspec = nd.trans = 0.0;
+						/* diffuse reflection */
+	nd.rdiff = 1.0 - nd.trans - nd.rspec;
 						/* transmitted ray */
-
 	if ((nd.specfl&(SP_TRAN|SP_PURE|SP_TBLT)) == (SP_TRAN|SP_PURE)) {
 		RAY  lr;
 		copycolor(lr.rcoef, nd.mcolor);	/* modified by color */
@@ -283,7 +284,14 @@ m_normal(			/* color a ray that hit something normal */
 #ifdef DAYSIM
 			daysimAddScaled(r->daylightCoef, lr.daylightCoef, colval(lr.rcoef, RED));
 #endif
-			r->rxt = r->rot + raydistance(&lr);
+			if (nd.tspec >= 1.0-FTINY) {
+						/* completely transparent */
+				multcolor(lr.mcol, lr.rcoef);
+				copycolor(r->mcol, lr.mcol);
+				r->rmt = r->rot + lr.rmt;
+				r->rxt = r->rot + lr.rxt;
+			} else if (nd.tspec > nd.tdiff + nd.rdiff)
+				r->rxt = r->rot + raydistance(&lr);
 		}
 
 	}
@@ -332,8 +340,6 @@ m_normal(			/* color a ray that hit something normal */
 				r->rmt = r->rot + raydistance(&lr);
 		}
 	}
-						/* diffuse reflection */
-	nd.rdiff = 1.0 - nd.trans - nd.rspec;
 
 	if (nd.specfl & SP_PURE && nd.rdiff <= FTINY && nd.tdiff <= FTINY)
 		return(1);			/* 100% pure specular */

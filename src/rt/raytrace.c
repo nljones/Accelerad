@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: raytrace.c,v 2.74 2018/12/05 02:12:23 greg Exp $";
+static const char RCSid[] = "$Id: raytrace.c,v 2.75 2019/02/13 01:00:31 greg Exp $";
 #endif
 /*
  *  raytrace.c - routines for tracing and shading rays.
@@ -198,6 +198,7 @@ raytrans(			/* transmit ray as is */
 	rayorigin(&tr, TRANS, r, NULL);		/* always continue */
 	VCOPY(tr.rdir, r->rdir);
 	rayvalue(&tr);
+	copycolor(r->mcol, tr.mcol);
 	copycolor(r->rcol, tr.rcol);
 	r->rmt = r->rot + tr.rmt;
 #ifdef DAYSIM
@@ -213,7 +214,7 @@ raytirrad(			/* irradiance hack */
 	RAY	*r
 )
 {
-	if ((ofun[m->otype].flags & (T_M|T_X)) && m->otype != MAT_CLIP) {
+	if (ofun[m->otype].flags & (T_M|T_X) && m->otype != MAT_CLIP) {
 		if (istransp(m->otype) || isBSDFproxy(m)) {
 			raytrans(r);
 			return(1);
@@ -380,6 +381,10 @@ raymixture(		/* mix modifiers */
 	daysimAssignScaled(r->daylightCoef, fr.daylightCoef, coef);
 	daysimAddScaled(r->daylightCoef, br.daylightCoef, 1.0 - coef);
 #endif
+	scalecolor(fr.mcol, coef);
+	scalecolor(br.mcol, 1.0-coef);
+	copycolor(r->mcol, fr.mcol);
+	addcolor(r->mcol, br.mcol);
 	mfore = bright(fr.mcol); mback = bright(br.mcol);
 	r->rmt = mfore > mback ? fr.rmt : br.rmt;
 	r->rxt = bright(fr.rcol)-mfore > bright(br.rcol)-mback ?

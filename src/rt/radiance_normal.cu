@@ -329,6 +329,9 @@ RT_PROGRAM void closest_hit_radiance()
 		}
 	}
 
+	/* diffuse reflection */
+	nd.rdiff = 1.0f - nd.trans - nd.rspec;
+
 	/* transmitted ray */
 	if ((nd.specfl&(SP_TRAN | SP_PURE | SP_TBLT)) == (SP_TRAN | SP_PURE) && rayorigin(new_prd, prd, nd.mcolor * nd.tspec, 0, 0)) {
 #ifdef DAYSIM_COMPATIBLE
@@ -342,7 +345,14 @@ RT_PROGRAM void closest_hit_radiance()
 #ifdef DAYSIM_COMPATIBLE
 		daysimAddScaled(prd.dc, new_prd.dc, nd.mcolor.x * nd.tspec);
 #endif
-		prd.distance = t_hit + rayDistance(new_prd);
+		if (nd.tspec >= 1.0f - FTINY) {
+			/* completely transparent */
+			prd.mirror = new_prd.mirror * nd.mcolor * nd.tspec;
+			prd.mirror_distance = t_hit + new_prd.mirror_distance;
+			prd.distance = t_hit + new_prd.distance;
+		}
+		else if (nd.tspec > nd.tdiff + nd.rdiff)
+			prd.distance = t_hit + rayDistance(new_prd);
 		resolvePayload(prd, new_prd);
 	}
 #endif
@@ -390,9 +400,6 @@ RT_PROGRAM void closest_hit_radiance()
 			prd.mirror_distance = t_hit + rayDistance(new_prd);
 		resolvePayload(prd, new_prd);
 	}
-
-	/* diffuse reflection */
-	nd.rdiff = 1.0f - nd.trans - nd.rspec;
 
 	if (!(nd.specfl & SP_PURE && nd.rdiff <= FTINY && nd.tdiff <= FTINY)) { /* not 100% pure specular */
 		/* checks *BLT flags */

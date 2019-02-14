@@ -24,14 +24,13 @@ rtBuffer<DC, 2> ambient_dc;
 rtDeclareVariable(float,        ambacc, , ); /* Ambient accuracy (aa). This value will approximately equal the error from indirect illuminance interpolation */
 rtDeclareVariable(float,        minarad, , ); /* minimum ambient radius */
 
-//rtDeclareVariable(float3, ambient_value, attribute ambient_value, );
-//rtDeclareVariable(float, weight, attribute weight_attribute, );
-//rtDeclareVariable(float, extrapolation, attribute extrapolation_attribute, );
+rtDeclareVariable(int, record_id, attribute record_id_attribute, );
+rtDeclareVariable(float3, w, attribute w_attribute, );
 rtDeclareVariable(optix::Ray, ray, rtCurrentRay, );
 rtDeclareVariable(PerRayData_ambient, prd, rtPayload, );
-//rtDeclareVariable(float, t_hit, rtIntersectionDistance, );
 
 
+RT_METHOD void sumambient();
 #ifndef OLDAMB
 RT_METHOD int plugaleak(const AmbientRecord* record, const float3& anorm, const float3& normal, float ang);
 #endif
@@ -40,29 +39,17 @@ RT_METHOD int plugaleak(const AmbientRecord* record, const float3& anorm, const 
 // Ignore the intersection so that the intersection program will continue to run for all overlapping recrods.
 RT_PROGRAM void ambient_record_any_hit()
 {
-	//prd.wsum += weight;
-
-	//if (extrapolation > 0.0f) {
-	//	prd.result += ambient_value * (extrapolation * weight);
-	//}
-	rtIgnoreIntersection();
-}
-
-// based on makeambient from ambient.c
-RT_PROGRAM void ambient_miss()
-{
-	//if ( prd.wsum == 0.0f )
-	//	rtThrow( RT_EXCEPTION_CUSTOM );
-}
-
-// based on sumambient from ambient.c
-RT_PROGRAM void ambient_record_intersect( int primIdx )
-{
 #ifdef HIT_COUNT
 	prd.hit_count++;
 #endif
+	sumambient();
+	rtIgnoreIntersection(); // Continue checking other intersections
+}
 
-	const AmbientRecord record = ambient_records[primIdx];
+// based on sumambient from ambient.c
+RT_METHOD void sumambient()
+{
+	const AmbientRecord record = ambient_records[record_id];
 
 	/* Ambient level test. */
 	if ( record.lvl > prd.ambient_depth )
@@ -74,7 +61,6 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 
 #ifndef OLDAMB
 	/* Direction test using unperturbed normal */
-	float3 w = decodedir( record.ndir );
 	float d = dot(w, normal); // Ray direction is unperturbed surface normal
 	if ( d <= 0.0f )		/* >= 90 degrees */
 		return;
@@ -84,7 +70,7 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 	float delta_r2 = 2.0f - 2.0f * d;	/* approx. radians^2 */
 	const float minangle = 10.0f * M_PIf / 180.0f;
 	float maxangle = minangle + ambacc;
-					/* adjust maximum angle */
+	/* adjust maximum angle */
 	if (prd.weight < 0.6f)
 		maxangle = (maxangle - M_PI_2f) * powf(prd.weight, 0.13f) + M_PI_2f;
 	if ( delta_r2 >= maxangle * maxangle )
@@ -99,7 +85,7 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 	float delta_t2 = d * d;
 	if ( delta_t2 >= ambacc * ambacc )
 		return;
-	
+
 	/* Elliptical radii test based on Hessian */
 	float3 u = decodedir( record.udir );
 	float3 v = cross( w, u );
@@ -110,7 +96,7 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 	delta_t2 += d * d;
 	if ( delta_t2 >= ambacc * ambacc )
 		return;
-	
+
 	/* Test for potential light leak */
 	if (record.corral && plugaleak(&record, w, normal, atan2f(vv, uu)))
 		return;
@@ -129,22 +115,18 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 	if ( d <= 0.05f )
 		return;
 
-	if (rtPotentialIntersection(-dot(ck0, normal))) {
-		float wt = ( 1.0f - sqrtf(delta_r2) / maxangle ) * ( 1.0f - sqrtf(delta_t2) / ambacc );
-		prd.wsum += wt;
+	float wt = (1.0f - sqrtf(delta_r2) / maxangle) * (1.0f - sqrtf(delta_t2) / ambacc);
+	prd.wsum += wt;
 
-		// This assignment to the prd would take place in the any-hit program if there were one
-		prd.result += record.val * ( d * wt );
+	// This assignment to the prd would take place in the any-hit program if there were one
+	prd.result += record.val * (d * wt);
 #ifdef DAYSIM_COMPATIBLE
-		if (ambient_dc.size().x && prd.dc.x)
-			daysimAddScaled(prd.dc, &ambient_dc[make_uint2(0, primIdx)], d * wt);
+	if (ambient_dc.size().x && prd.dc.x)
+		daysimAddScaled(prd.dc, &ambient_dc[make_uint2(0, primIdx)], d * wt);
 #endif
-
-		rtReportIntersection( 0 ); // There is only one material for ambient geometry group
-	}
 #else /* OLDAMB */
 	/* Ambient radius test. */
-	float3 ck0 = record.pos - ray.origin;
+	float3 ck0 = record.pos - prd.surface_point;
 	float e1 = dot( ck0, ck0 ) / ( record.rad * record.rad );
 	float acc = ambacc * ambacc * 1.21f;
 	if ( e1 > acc )
@@ -179,36 +161,59 @@ RT_PROGRAM void ambient_record_intersect( int primIdx )
 	if (wt > ambacc * ( 0.9f + 0.2f * curand_uniform( prd.state ) ) )
 		return;
 
-	if (rtPotentialIntersection(dot(ck0, normal))) {
-		/* Recompute directional error using perturbed normal */
-		//if (rn_dot > 0.0) {
-		//	e2 = sqrtf( ( 1.0f - rn_dot ) * prd.weight);
-		//	wt = e1 + e2;
-		//}
-		if (wt <= 1e-3f)
-			wt = 1e3f;
-		else
-			wt = 1.0f / wt;
-		prd.wsum += wt; // This assignment to the prd would take place in the any-hit program if there were one
+	/* Recompute directional error using perturbed normal */
+	//if (rn_dot > 0.0) {
+	//	e2 = sqrtf( ( 1.0f - rn_dot ) * prd.weight);
+	//	wt = e1 + e2;
+	//}
+	if (wt <= 1e-3f)
+		wt = 1e3f;
+	else
+		wt = 1.0f / wt;
+	prd.wsum += wt; // This assignment to the prd would take place in the any-hit program if there were one
 
-		/* This is extambient from ambient.c */
-		//float d = 1.0f;			/* zeroeth order */
+	/* This is extambient from ambient.c */
+	//float d = 1.0f;			/* zeroeth order */
 
-		/* gradient due to translation */
-		d = 1.0f - dot( record.gpos, ck0 );
+	/* gradient due to translation */
+	d = 1.0f - dot(record.gpos, ck0);
 
-		/* gradient due to rotation */
-		ck0 = cross( record.dir, prd.surface_normal );
-		d += dot( record.gdir, ck0 );
+	/* gradient due to rotation */
+	ck0 = cross(record.dir, prd.surface_normal);
+	d += dot(record.gdir, ck0);
 
-		if (d > 0.0f) {
-			// This assignment to the prd would take place in the any-hit program if there were one
-			prd.result += record.val * (d * wt);
-		}
-
-		rtReportIntersection( 0 ); // There is only one material for ambient geometry group
+	if (d > 0.0f) {
+		// This assignment to the prd would take place in the any-hit program if there were one
+		prd.result += record.val * (d * wt);
 	}
 #endif /* OLDAMB */
+}
+
+// based on makeambient from ambient.c
+RT_PROGRAM void ambient_miss()
+{
+	//if ( prd.wsum == 0.0f )
+	//	rtThrow( RT_EXCEPTION_CUSTOM );
+}
+
+RT_PROGRAM void ambient_record_intersect( int primIdx )
+{
+	const AmbientRecord record = ambient_records[primIdx];
+
+	/* Check for intersection with plane */
+	const float3 disk_normal = decodedir(record.ndir);
+
+	const float d = dot(disk_normal, ray.direction); // Ray direction is unperturbed surface normal
+	if (d <= 0.0f)		/* >= 90 degrees */
+		return;
+
+	const float t = dot(disk_normal, record.pos - ray.origin) / d;
+
+	if (rtPotentialIntersection(t)) {
+		w = disk_normal;
+		record_id = primIdx;
+		rtReportIntersection(0); // There is only one material for ambient geometry group
+	}
 }
 
 RT_PROGRAM void ambient_record_bounds (int primIdx, float result[6])
@@ -272,7 +277,7 @@ RT_METHOD int plugaleak(const AmbientRecord* record, const float3& anorm, const 
 
 	/* Can't shoot rays from an intersection program. */
 	//float3 rdir = vdif + anorm * t.y;	/* further dist. > plane */
-	//Ray shadow_ray = make_Ray( ray.origin, normalize( rdir ), SHADOW_RAY, RAY_START, length( rdir ) );
+	//Ray shadow_ray = make_Ray( prd.surface_point, normalize( rdir ), SHADOW_RAY, RAY_START, length( rdir ) );
 	//PerRayData_shadow shadow_prd;
 	//shadow_prd.result = make_float3( 1.0f );
 #ifdef CONTRIB
