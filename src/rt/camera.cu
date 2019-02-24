@@ -26,7 +26,6 @@ rtDeclareVariable(float,         vdist, , ); /* Focal length */
 rtDeclareVariable(float,         dstrpix, , ) = 0.0f; /* Pixel sample jitter (-pj) */
 rtDeclareVariable(float,         mblur, , ) = 0.0f; /* Motion blur (-pm) */
 rtDeclareVariable(float,         dblur, , ) = 0.0f; /* Depth-of-field blur (-pd) */
-rtDeclareVariable(unsigned int,  do_irrad, , ) = 0u; /* Calculate irradiance (-i) */
 
 rtBuffer<float4, 2>              output_buffer;
 #ifdef RAY_COUNT
@@ -159,7 +158,7 @@ RT_PROGRAM void ray_generator()
 			ray_direction = normalize(eye + adj * distance * ray_direction - ray_origin);
 		}
 
-		Ray ray = make_Ray(ray_origin, ray_direction, do_irrad ? PRIMARY_RAY : RADIANCE_RAY, 0.0f, aft);
+		Ray ray = make_Ray(ray_origin, ray_direction, RADIANCE_RAY, 0.0f, aft);
 
 		rtTrace(top_object, ray, prd);
 

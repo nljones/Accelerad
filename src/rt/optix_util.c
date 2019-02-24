@@ -408,6 +408,15 @@ void copyToBufferf(const RTcontext context, const RTbuffer buffer, const FloatAr
 	RT_CHECK_ERROR(rtBufferUnmap(buffer));
 }
 
+void copyToBufferm(const RTcontext context, const RTbuffer buffer, const MaterialDataArray *a)
+{
+	MaterialData *data;
+
+	RT_CHECK_ERROR(rtBufferMap(buffer, (void**)&data));
+	memcpy(data, a->array, a->count*sizeof(MaterialData));
+	RT_CHECK_ERROR(rtBufferUnmap(buffer));
+}
+
 void copyToBufferdl(const RTcontext context, const RTbuffer buffer, const DistantLightArray *a)
 {
 	DistantLight *data;
@@ -525,19 +534,19 @@ void freeArrayf(FloatArray *a)
 	free(a);
 }
 
-PoniterArray* initArrayp(const size_t initialSize)
+PointerArray* initArrayp(const size_t initialSize)
 {
-	PoniterArray *a = (PoniterArray *)malloc(sizeof(PoniterArray));
+	PointerArray *a = (PointerArray *)malloc(sizeof(PointerArray));
 	void **array = (void**)malloc(initialSize * sizeof(void*));
 	if (!a || !array)
-		eprintf(SYSTEM, "out of memory in initArrayp, need %" PRIu64 " bytes", sizeof(PoniterArray) + initialSize * sizeof(void*));
+		eprintf(SYSTEM, "out of memory in initArrayp, need %" PRIu64 " bytes", sizeof(PointerArray) + initialSize * sizeof(void*));
 	a->array = array;
 	a->count = 0;
 	a->size = initialSize;
 	return a;
 }
 
-void* insertArrayp(PoniterArray *a, void *element)
+void* insertArrayp(PointerArray *a, void *element)
 {
 	if (a->count == a->size) {
 		a->size *= 2;
@@ -548,7 +557,36 @@ void* insertArrayp(PoniterArray *a, void *element)
 	return a->array[a->count++] = element;
 }
 
-void freeArrayp(PoniterArray *a)
+void freeArrayp(PointerArray *a)
+{
+	free(a->array);
+	free(a);
+}
+
+MaterialDataArray* initArraym(const size_t initialSize)
+{
+	MaterialDataArray *a = (MaterialDataArray *)malloc(sizeof(MaterialDataArray));
+	MaterialData *array = (MaterialData *)malloc(initialSize * sizeof(MaterialData));
+	if (!a || !array)
+		eprintf(SYSTEM, "out of memory in initArraym, need %" PRIu64 " bytes", sizeof(MaterialDataArray) + initialSize * sizeof(MaterialData));
+	a->array = array;
+	a->count = 0;
+	a->size = initialSize;
+	return a;
+}
+
+MaterialData insertArraym(MaterialDataArray *a, const MaterialData element)
+{
+	if (a->count == a->size) {
+		a->size *= 2;
+		a->array = (MaterialData *)realloc(a->array, a->size * sizeof(MaterialData));
+		if (a->array == NULL)
+			eprintf(SYSTEM, "out of memory in insertArraym, need %" PRIu64 " bytes", a->size * sizeof(MaterialData));
+	}
+	return a->array[a->count++] = element;
+}
+
+void freeArraym(MaterialDataArray *a)
 {
 	free(a->array);
 	free(a);

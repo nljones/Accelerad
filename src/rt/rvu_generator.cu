@@ -108,7 +108,7 @@ RT_PROGRAM void ray_generator()
 			aft = RAY_END;
 		}
 
-		Ray ray = make_Ray(ray_origin, ray_direction, frame ? (do_irrad ? DIFFUSE_PRIMARY_RAY : DIFFUSE_RAY) : (do_irrad ? PRIMARY_RAY : RADIANCE_RAY), 0.0f, aft);
+		Ray ray = make_Ray(ray_origin, ray_direction, frame ? DIFFUSE_RAY : RADIANCE_RAY, 0.0f, aft);
 
 		prd.result = make_float3(0.0f);
 		prd.weight = 1.0f;

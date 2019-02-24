@@ -4,7 +4,10 @@
 
 #include "accelerad_copyright.h"
 
-//#define RT_USE_TEMPLATED_RTCALLABLEPROGRAM
+#ifdef HIT_TYPE
+#include "otypes.h"	/* For definition of OBJ_SOURCE */
+#endif
+
 #include <optix_world.h>
 #include "optix_shader_ray.h"
 #ifdef CONTRIB_DOUBLE
@@ -12,11 +15,6 @@
 #endif
 
 using namespace optix;
-
-/* Program variables */
-#ifdef HIT_TYPE
-rtDeclareVariable(unsigned int, type, , ); /* The material type representing "source" */
-#endif
 
 /* Context variables */
 rtBuffer<DistantLight> lights;
@@ -93,7 +91,7 @@ RT_PROGRAM void miss()
 	}
 
 #ifdef HIT_TYPE
-	prd_radiance.hit_type = type;
+	prd_radiance.hit_type = OBJ_SOURCE;
 #endif
 }
 

@@ -10,9 +10,6 @@
 #include <optixu/optixu_aabb_namespace.h>
 #include "optix_shader_ray.h"
 #include "optix_shader_ambient.h"
-//#ifdef CONTRIB_DOUBLE
-//#include "optix_double.h"
-//#endif
 
 using namespace optix;
 

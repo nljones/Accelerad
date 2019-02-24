@@ -49,7 +49,6 @@ rtBuffer<uint3>  vindex_buffer;    // position indices
 //rtBuffer<uint3>  nindex_buffer;    // normal indices
 //rtBuffer<uint3>  tindex_buffer;    // texcoord indices
 rtBuffer<unsigned int>    material_buffer; // per-face material index
-rtBuffer<int2>   material_alt_buffer; // per-material alternate material indices
 
 /* OptiX variables */
 rtDeclareVariable(Ray, ray, rtCurrentRay, );
@@ -59,11 +58,9 @@ rtDeclareVariable(float3, texcoord, attribute texcoord, );
 rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );
 rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
 rtDeclareVariable(int, surface_id, attribute surface_id, );
-#ifdef ANTIMATTER
 rtDeclareVariable(int, mat_id, attribute mat_id, );
-#endif
 
-#ifdef RTX
+
 RT_PROGRAM void mesh_attribute()
 {
 	const uint3 v_idx = vindex_buffer[rtGetPrimitiveIndex()];
@@ -105,11 +102,8 @@ RT_PROGRAM void mesh_attribute()
 	int mat = sole_material;
 	if (mat < 0) /* Use per-face material index */
 		mat = material_buffer[rtGetPrimitiveIndex()];
-#ifdef ANTIMATTER
 	mat_id = mat;
-#endif
 }
-#endif
 
 RT_PROGRAM void mesh_intersect(unsigned int primIdx)
 {
@@ -127,14 +121,6 @@ RT_PROGRAM void mesh_intersect(unsigned int primIdx)
 		int mat = sole_material;
 		if ( mat < 0 ) /* Use per-face material index */
 			mat = material_buffer[primIdx];
-		if ( mat < 0 || mat >= material_alt_buffer.size() ) /* Material void or missing */
-			return;
-		if (ray.ray_type == PRIMARY_RAY || ray.ray_type == DIFFUSE_PRIMARY_RAY) /* Lambert material for irradiance calculations */
-			mat = material_alt_buffer[mat].x;
-		else if (ray.ray_type != SHADOW_RAY || ray.tmax - t > ray.tmax * 0.0002f) /* For materials whose type depends on ray type (such as illum and mirror) */
-			mat = material_alt_buffer[mat].y;
-		if ( mat < 0 || mat >= material_alt_buffer.size() ) /* Material void or missing */
-			return;
 
 		if ( rtPotentialIntersection( t ) ) {
 
@@ -162,11 +148,9 @@ RT_PROGRAM void mesh_intersect(unsigned int primIdx)
 			}
 
 			surface_id = v_idx.x; // Not necessarily unique per triangle, but different for each surface
-#ifdef ANTIMATTER
 			mat_id = mat;
-#endif
 
-			rtReportIntersection( mat );
+			rtReportIntersection(0);
 		}
 	}
 }

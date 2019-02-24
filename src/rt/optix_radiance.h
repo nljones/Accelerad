@@ -135,7 +135,13 @@ typedef struct {
 	void **array;
 	size_t count;
 	size_t size;
-} PoniterArray;
+} PointerArray;
+
+typedef struct {
+	MaterialData *array;
+	size_t count;
+	size_t size;
+} MaterialDataArray;
 
 typedef struct {
 	DistantLight *array;
@@ -207,6 +213,7 @@ RTvariable applyGeometryObject(const RTcontext context, const RTgeometry geometr
 RTvariable applyGeometryInstanceObject(const RTcontext context, const RTgeometryinstance instance, const char* name, const RTobject object);
 void copyToBufferi(const RTcontext context, const RTbuffer buffer, const IntArray *a);
 void copyToBufferf(const RTcontext context, const RTbuffer buffer, const FloatArray *a);
+void copyToBufferm(const RTcontext context, const RTbuffer buffer, const MaterialDataArray *a);
 void copyToBufferdl(const RTcontext context, const RTbuffer buffer, const DistantLightArray *a);
 IntArray* initArrayi(const size_t initialSize);
 int insertArrayi(IntArray *a, const int element);
@@ -218,9 +225,12 @@ float insertArrayf(FloatArray *a, const float element);
 float insertArray2f(FloatArray *a, const float x, const float y);
 float insertArray3f(FloatArray *a, const float x, const float y, const float z);
 void freeArrayf(FloatArray *a);
-PoniterArray* initArrayp(const size_t initialSize);
-void* insertArrayp(PoniterArray *a, void *element);
-void freeArrayp(PoniterArray *a);
+PointerArray* initArrayp(const size_t initialSize);
+void* insertArrayp(PointerArray *a, void *element);
+void freeArrayp(PointerArray *a);
+MaterialDataArray* initArraym(const size_t initialSize);
+MaterialData insertArraym(MaterialDataArray *a, const MaterialData element);
+void freeArraym(MaterialDataArray *a);
 DistantLightArray* initArraydl(const size_t initialSize);
 DistantLight insertArraydl(DistantLightArray *a, const DistantLight element);
 void freeArraydl(DistantLightArray *a);

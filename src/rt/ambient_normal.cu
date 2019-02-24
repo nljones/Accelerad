@@ -4,15 +4,14 @@
 
 #include "accelerad_copyright.h"
 
+#include "otypes.h"
+
 #include <optix.h>
 #include <optixu/optixu_math_namespace.h>
 #include <optixu/optixu_matrix_namespace.h>
 #include "optix_shader_ray.h"
 #include "optix_shader_ambient.h"
 #include "optix_ambient_common.h"
-#ifdef CONTRIB_DOUBLE
-#include "optix_double.h"
-#endif
 
 using namespace optix;
 
@@ -73,17 +72,10 @@ rtDeclareVariable(int,          ambdiv, , ); /* Ambient divisions (ad) */
 rtDeclareVariable(int,          ambssamp, , ); /* Ambient super-samples (as) */
 rtDeclareVariable(float,        maxarad, , ); /* maximum ambient radius */
 rtDeclareVariable(float,        minarad, , ); /* minimum ambient radius */
-rtDeclareVariable(float,        avsum, , ); /* computed ambient value sum (log) */
-rtDeclareVariable(unsigned int, navsum, , ); /* number of values in avsum */
+//rtDeclareVariable(float,        avsum, , ); /* computed ambient value sum (log) */
+//rtDeclareVariable(unsigned int, navsum, , ); /* number of values in avsum */
 
-/* Material variables */
-rtDeclareVariable(unsigned int, type, , ); /* The material type representing "plastic", "metal", or "trans" */
-rtDeclareVariable(float3,       color, , ); /* The material color given by the rad file "plastic", "metal", or "trans" object */
-rtDeclareVariable(float,        spec, , ); /* The material specularity given by the rad file "plastic", "metal", or "trans" object */
-rtDeclareVariable(float,        rough, , ); /* The material roughness given by the rad file "plastic", "metal", or "trans" object */
-rtDeclareVariable(float,        trans, , ) = 0.0f; /* The material transmissivity given by the rad file "trans" object */
-rtDeclareVariable(float,        tspec, , ) = 0.0f; /* The material transmitted specular component given by the rad file "trans" object */
-rtDeclareVariable(unsigned int, ambincl, , ) = 1u; /* Flag to skip ambient calculation and use default (ae, aE, ai, aI) */
+rtBuffer<MaterialData> material_data;	/* One entry per Radiance material. */
 
 /* Program variables */
 #ifndef OLDAMB
@@ -114,6 +106,7 @@ rtDeclareVariable(uint2, launch_dim, rtLaunchDim, );
 /* Attributes */
 rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );
 rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
+rtDeclareVariable(int, mat_id, attribute mat_id, );
 
 
 #ifdef CHECK_OVERLAP
@@ -153,15 +146,30 @@ RT_METHOD void inithemi( AMBHEMI  *hp, const float3& ac, const float3& normal );
 //RT_METHOD float2 multisamp2(float r);
 //RT_METHOD int ilhash(int3 d);
 
-RT_PROGRAM void any_hit_ambient_glass()
+RT_PROGRAM void any_hit_ambient()
 {
-	rtIgnoreIntersection();
+	if (mat_id < 0 || mat_id >= material_data.size()) {
+		rtIgnoreIntersection();
+	}
+	else {
+		const MaterialData mat = material_data[mat_id];
+
+		// Ignore glass materials
+		if (mat.type == MAT_GLASS || mat.type == MAT_DIELECTRIC)
+			rtIgnoreIntersection();
+	}
 }
 
 RT_PROGRAM void closest_hit_ambient()
 {
+	const MaterialData mat = material_data[mat_id];
+
+	// This only applies to normal materials
+	if (mat.type != MAT_PLASTIC && mat.type != MAT_METAL && mat.type != MAT_TRANS)
+		return;
+
 	// Check that this material is included
-	if (!ambincl)
+	if (!mat.params.n.ambincl)
 		return;
 
 	float3 ffnormal = -ray.direction;

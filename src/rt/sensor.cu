@@ -12,9 +12,6 @@
 
 using namespace optix;
 
-/* Program variables */
-rtDeclareVariable(unsigned int,  do_irrad, , ) = 0u; /* Calculate irradiance (-i) */
-
 /* Contex variables */
 rtBuffer<RayData, 2>             ray_buffer;
 #ifdef DAYSIM_COMPATIBLE
@@ -68,7 +65,7 @@ RT_PROGRAM void ray_generator()
 			aft = RAY_END;
 		}
 
-		Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, do_irrad ? PRIMARY_RAY : RADIANCE_RAY, tmin, aft);
+		Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, RADIANCE_RAY, tmin, aft);
 		rtTrace(top_object, ray, prd);
 	}
 

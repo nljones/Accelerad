@@ -7,20 +7,10 @@
 #include <optix.h>
 #include <optixu/optixu_math_namespace.h>
 #include "optix_shader_ray.h"
-#ifdef CONTRIB_DOUBLE
-#include "optix_double.h"
-#endif
 
 using namespace optix;
 
 #define  TRANSMISSION
-
-#ifndef  MAXITER
-#define  MAXITER	10		/* maximum # specular ray attempts */
-#endif
-#define  MAXSPART	64		/* maximum partitions per source */
-//#define frandom()	(rnd( prd.seed )/float(RAND_MAX))
-//#define frandom()	(rnd( prd.seed ))
 
 /* specularity flags */
 #define  SP_REFL	01		/* has reflected specular component */
@@ -67,64 +57,30 @@ rtDeclareVariable(unsigned int, navsum, , );	/* number of values in avsum */
 
 rtBuffer<DistantLight> lights;
 
-/* Material variables */
-rtDeclareVariable(unsigned int, type, , );	/* The material type representing "plastic", "metal", or "trans" */
-rtDeclareVariable(float3, color, , );	/* The material color given by the rad file "plastic", "metal", or "trans" object */
-rtDeclareVariable(float, spec, , );	/* The material specularity given by the rad file "plastic", "metal", or "trans" object */
-rtDeclareVariable(float, rough, , );	/* The material roughness given by the rad file "plastic", "metal", or "trans" object */
-rtDeclareVariable(unsigned int, ambincl, , ) = 1u;	/* Flag to skip ambient calculation and use default (ae, aE, ai, aI) */
 
-/* OptiX variables */
-rtDeclareVariable(Ray, ray, rtCurrentRay, );
-rtDeclareVariable(float, t_hit, rtIntersectionDistance, );
-rtDeclareVariable(PerRayData_radiance, prd, rtPayload, );
-
-/* Attributes */
-//rtDeclareVariable(float3, texcoord, attribute texcoord, );
-rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );
-rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
-#ifdef ANTIMATTER
-rtDeclareVariable(int, mat_id, attribute mat_id, );
-#endif
-
-
-RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pnormal, const float3& hit);
+RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pnormal, const float3& hit, const unsigned int& ambincl, PerRayData_radiance &prd);
 #ifdef DAYSIM_COMPATIBLE
-RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit, DaysimCoef dc);
+RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit, PerRayData_radiance &prd, DaysimCoef dc);
 #else
-RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit);
+RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit, PerRayData_radiance &prd);
 #endif
 
 
-RT_PROGRAM void closest_hit_radiance()
+RT_CALLABLE_PROGRAM PerRayData_radiance closest_hit_normal_diffuse(IntersectData const&data, PerRayData_radiance prd)
 {
 	NORMDAT nd;
 
-	float3 world_shading_normal = normalize(rtTransformNormal(RT_OBJECT_TO_WORLD, shading_normal));
-	float3 world_geometric_normal = normalize(rtTransformNormal(RT_OBJECT_TO_WORLD, geometric_normal));
-
 	/* check for back side */
-	nd.pnorm = faceforward(world_shading_normal, -ray.direction, world_geometric_normal);
-	nd.normal = faceforward(world_geometric_normal, -ray.direction, world_geometric_normal);
+	nd.pnorm = faceforward(data.world_shading_normal, -data.ray_direction, data.world_geometric_normal);
+	nd.normal = faceforward(data.world_geometric_normal, -data.ray_direction, data.world_geometric_normal);
 
 	float3 result = make_float3(0.0f);
-	nd.hit = ray.origin + t_hit * ray.direction;
-	nd.mcolor = color;
+	nd.hit = data.hit;
+	nd.mcolor = data.mat.color;
 	nd.scolor = make_float3(0.0f);
-	nd.rspec = spec;
-	nd.alpha2 = rough * rough;
+	nd.rspec = data.mat.params.n.spec;
+	nd.alpha2 = data.mat.params.n.rough * data.mat.params.n.rough;
 	nd.specfl = 0u; /* specularity flags */
-
-#ifdef ANTIMATTER
-	if (prd.mask & (1 << mat_id)) {
-		prd.inside += dot(world_geometric_normal, ray.direction) < 0.0f ? 1 : -1;
-
-		/* Continue the ray */
-		Ray new_ray = make_Ray(ray.origin, ray.direction, ray.ray_type, ray_start(nd.hit, ray.direction, nd.normal, RAY_START) + t_hit, RAY_END);
-		rtTrace(top_object, new_ray, prd);
-		return;
-	}
-#endif /* ANTIMATTER */
 
 	/* get roughness */
 	if (nd.alpha2 <= FTINY) {
@@ -134,9 +90,9 @@ RT_PROGRAM void closest_hit_radiance()
 	/* perturb normal */
 	float3 pert = nd.normal - nd.pnorm;
 	int hastexture = dot(pert, pert) > FTINY * FTINY;
-	nd.pdot = -dot(ray.direction, nd.pnorm);
+	nd.pdot = -dot(data.ray_direction, nd.pnorm);
 	if (nd.pdot < 0.0f) {		/* fix orientation from raynormal in raytrace.c */
-		nd.pnorm += 2.0f * nd.pdot * ray.direction;
+		nd.pnorm += 2.0f * nd.pdot * data.ray_direction;
 		nd.pdot = -nd.pdot;
 	}
 	if (nd.pdot < 0.001f)
@@ -167,7 +123,7 @@ RT_PROGRAM void closest_hit_radiance()
 			float3 aval = nd.mcolor * nd.rdiff;	/* modified by material color */
 			if (nd.specfl & SP_RBLT)	/* add in specular as well? */
 				aval += nd.scolor;
-			result += multambient(aval, nd.normal, nd.pnorm, nd.hit);	/* add to returned color */
+			result += multambient(aval, nd.normal, nd.pnorm, nd.hit, data.mat.params.n.ambincl, prd);	/* add to returned color */
 		}
 
 #ifdef TRANSMISSION
@@ -178,24 +134,22 @@ RT_PROGRAM void closest_hit_radiance()
 				aval *= nd.trans;
 			else
 				aval *= nd.tdiff;
-			result += multambient(aval, -nd.normal, -nd.pnorm, nd.hit);	/* add to returned color */
+			result += multambient(aval, -nd.normal, -nd.pnorm, nd.hit, data.mat.params.n.ambincl, prd);	/* add to returned color */
 		}
 #endif /* TRANSMISSION */
 	}
 
-	prd.distance = t_hit;
+	prd.distance = data.t;
 
 	// pass the color back up the tree
 	prd.result = result;
 
-#ifdef HIT_TYPE
-	prd.hit_type = type;
-#endif
+	return prd;
 }
 
 
 // Compute the ambient component and multiply by the coefficient.
-RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pnormal, const float3& hit)
+RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pnormal, const float3& hit, const unsigned int& ambincl, PerRayData_radiance &prd)
 {
 	float 	d;
 
@@ -205,11 +159,11 @@ RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pn
 	#ifdef DAYSIM_COMPATIBLE
 		DaysimCoef dc = daysimNext(prd.dc);
 		daysimSet(dc, 0.0f);
-		d = doambient(&acol, normal, pnormal, hit, dc);
+		d = doambient(&acol, normal, pnormal, hit, prd, dc);
 		if (d > FTINY)
 			daysimAdd(prd.dc, dc);
 	#else
-		d = doambient(&acol, normal, pnormal, hit);
+		d = doambient(&acol, normal, pnormal, hit, prd);
 	#endif
 		if (d > FTINY)
 			return acol;
@@ -242,9 +196,9 @@ RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pn
 
 /* sample indirect hemisphere, based on samp_hemi in ambcomp.c */
 #ifdef DAYSIM_COMPATIBLE
-RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit, DaysimCoef dc)
+RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit, PerRayData_radiance &prd, DaysimCoef dc)
 #else
-RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit)
+RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit, PerRayData_radiance &prd)
 #endif
 {
 	float	d;
@@ -265,7 +219,6 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 	new_prd.dc = daysimNext(dc);
 #endif
 
-	Ray amb_ray = make_Ray(hit, pnormal, RADIANCE_RAY, RAY_START, RAY_END); // Use normal point as temporary direction
 	/* End ambsample setup */
 
 	/* make tangent plane axes */
@@ -276,13 +229,12 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 	float2 spt = make_float2(curand_uniform(prd.state), curand_uniform(prd.state));
 	SDsquare2disk(spt, spt.y, spt.x);
 	float zd = sqrtf(1.0f - dot(spt, spt));
-	amb_ray.direction = normalize(spt.x*ux + spt.y*uy + zd*pnormal);
-	if (dot(amb_ray.direction, normal) <= 0) /* Prevent light leaks */
+	float3 direction = normalize(spt.x*ux + spt.y*uy + zd*pnormal);
+	if (dot(direction, normal) <= 0) /* Prevent light leaks */
 		return(0);
-	amb_ray.tmin = ray_start(hit, amb_ray.direction, normal, RAY_START);
 
 	setupPayload(new_prd);
-	//Ray amb_ray = make_Ray( hit, rdir, RADIANCE_RAY, RAY_START, RAY_END );
+	Ray amb_ray = make_Ray(hit, direction, RADIANCE_RAY, ray_start(hit, direction, normal, RAY_START), RAY_END);
 	rtTrace(top_object, amb_ray, new_prd);
 	resolvePayload(prd, new_prd);
 

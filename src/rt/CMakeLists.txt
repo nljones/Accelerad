@@ -30,7 +30,7 @@ macro(ENSURE_NVCC_FLAG flag)
 endmacro()
 
 # NLJ addition: OPTIX compiler flag
-option(OptiX_USE "Include the option to use optix when compiling." ON)
+option(OptiX_USE "Include the option to use OptiX when compiling." ON)
 
 add_library(radiance
   "${VERSION_FILE}"
@@ -125,11 +125,11 @@ if(OptiX_USE)
 
   # Suggest a path to the OptiX SDK directory.
   # This line is taken from FindOptiX.cmake,
-  # located in C:\ProgramData\NVIDIA Corporation\OptiX SDK 3.9.2\SDK\CMake.
+  # located in C:\ProgramData\NVIDIA Corporation\OptiX SDK 6.0.0\SDK\CMake.
   if(WIN32)
-    set(OptiX_INSTALL_DIR "C:/ProgramData/NVIDIA Corporation/OptiX SDK 3.9.2" CACHE PATH "Path to OptiX installed location.")
+    set(OptiX_INSTALL_DIR "C:/ProgramData/NVIDIA Corporation/OptiX SDK 6.0.0" CACHE PATH "Path to OptiX installed location.")
   else()
-    set(OptiX_INSTALL_DIR "~/NVIDIA-OptiX-SDK-3.9.2-linux64" CACHE PATH "Path to OptiX installed location.")
+    set(OptiX_INSTALL_DIR "~/NVIDIA-OptiX-SDK-6.0.0-linux64" CACHE PATH "Path to OptiX installed location.")
   endif()
 
   # Add OptiX CMake files to the module path
@@ -201,7 +201,6 @@ if(OptiX_USE)
     rcontrib_generator.cu
   )
   CUDA_COMPILE_PTX(generated_PTX_files_rvu
-    diffuse_normal.cu
     rvu_generator.cu
   )
   CUDA_COMPILE_PTX(generated_PTX_files
@@ -210,21 +209,22 @@ if(OptiX_USE)
     ambient_records.cu
     ambient_sample_generator.cu
     background.cu
-    clip.cu
     hemisphere_generator.cu
+    material_intersect.cu
     irradiance_intersect.cu
-    point_cloud_normal.cu
-    radiance_normal.cu
-    radiance_glass.cu
-    radiance_light.cu
     source.cu
     triangle_mesh.cu
   )
   CUDA_COMPILE_PTX(generated_PTX_files_callable
+    diffuse_normal.cu
     fisheye.cu
     gencumulativesky.cu
     isotropsky.cu
+    material_glass.cu
+    material_light.cu
+    material_normal.cu
     perezlum.cu
+    point_cloud_normal.cu
     skybright.cu
     utah.cu
     OPTIONS "-rdc true"

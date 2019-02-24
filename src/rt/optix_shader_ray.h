@@ -86,6 +86,18 @@ struct PerRayData_ambient_record
 #endif
 };
 
+struct IntersectData
+{
+	float3 ray_direction;	/* Ray direction */
+	int ray_type;		/* Ray type */
+	float3 hit;			/* Ray hit point */
+	float t;			/* Ray hit parameter */
+	float3 world_geometric_normal;	/* World geometric normal */
+	float3 world_shading_normal;	/* World shading normal */
+	int surface_id;		/* Unique ID per surface (not necessarily unique per triangle) */
+	MaterialData mat;	/* Material properties of intersected triangle */
+};
+
 rtDeclareVariable(float, minweight, , ) = 0.0f;	/* minimum ray weight (lw) */
 rtDeclareVariable(int, maxdepth, , ) = 0;	/* maximum recursion depth (lr) */
 

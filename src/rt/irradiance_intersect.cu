@@ -19,9 +19,7 @@ rtDeclareVariable(float3, texcoord, attribute texcoord, );
 rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );
 rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
 rtDeclareVariable(int, surface_id, attribute surface_id, );
-#ifdef ANTIMATTER
 rtDeclareVariable(int, mat_id, attribute mat_id, );
-#endif
 
 RT_PROGRAM void irradiance_intersect( int primIdx )
 {
@@ -30,12 +28,10 @@ RT_PROGRAM void irradiance_intersect( int primIdx )
 		geometric_normal = shading_normal = normalize( -ray.direction );
 		texcoord = make_float3( 0.0f, 0.0f, 0.0f );
 		surface_id = -1; // Not a real surface
-#ifdef ANTIMATTER
-		mat_id = 0;
-#endif
 
 		/* Lambert material is material 0 */
-		rtReportIntersection( 0 );
+		mat_id = 0;
+		rtReportIntersection(0);
 	}
 }
 

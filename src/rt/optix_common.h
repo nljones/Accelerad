@@ -40,9 +40,7 @@ typedef enum
 /* Ray types */
 typedef enum
 {
-	PRIMARY_RAY = 0,	/* Radiance primary ray type for irradiance calculation */
-	RADIANCE_RAY,		/* Radiance ray type */
-	DIFFUSE_PRIMARY_RAY,/* Radiance primary ray type for irradiance calculation sampling only diffuse paths */
+	RADIANCE_RAY = 0,	/* Radiance ray type */
 	DIFFUSE_RAY,		/* Radiance ray type sampling only diffuse paths */
 	SHADOW_RAY,			/* Shadow ray type */
 	AMBIENT_RAY,		/* Ray into ambient cache */
@@ -107,19 +105,19 @@ typedef struct struct_ray_data
 	typedef optix::float3 float3;
 #endif
 	float3 origin;	/* origin of ray */
+	float  weight;	/* cumulative weight (for termination) */
 	float3 dir;		/* normalized direction of ray */
+	float  max;		/* maximum distance (aft clipping plane) */
 	float3 val;		/* computed radiance value */
+	float  length;	/* effective ray length */
 	float3 mirror;		/* radiance value of mirrored contribution */
+	float  mirrored_length;	/* effective length of mirrored ray */
 	//float3 contrib;	/* contribution coefficient w.r.t. parent */
 	//float3 extinction;	/* medium extinction coefficient */
 	//float3 hit;	/* point of intersection */
 	//float3 pnorm;	/* normal at intersection (perturbed) */
 	//float3 normal;	/* normal at intersection (unperturbed) */
 	//float2 tex;	/* local (u,v) coordinates */
-	float  max;		/* maximum distance (aft clipping plane) */
-	float  weight;	/* cumulative weight (for termination) */
-	float  length;	/* effective ray length */
-	float  mirrored_length;	/* effective length of mirrored ray */
 	//float  t;		/* first intersection distance */
 	//char*  surface;
 	//char*  modifier;
@@ -128,6 +126,52 @@ typedef struct struct_ray_data
 	int ray_count;
 #endif
 } RayData;
+
+typedef struct struct_normal_data
+{
+	float spec;			/* The material specularity given by the rad file "plastic", "metal", or "trans" object */
+	float rough;		/* The material roughness given by the rad file "plastic", "metal", or "trans" object */
+	float trans;		/* The material transmissivity given by the rad file "trans" object */
+	float tspec;		/* The material transmitted specular component given by the rad file "trans" object */
+	unsigned int ambincl;	/* Flag to skip ambient calculation and use default (ae, aE, ai, aI) */
+} struct_normal_data;
+
+typedef struct struct_light_data
+{
+	float maxrad;		/* maximum radius for "glow" object */
+	float siz;			/* output solid angle or area for "spotlight" object */
+	float flen;			/* focal length for "spotlight" object (negative if distant source) */
+	float3 aim;			/* aim direction or center for "spotlight" object */
+	int function;		/* function or texture modifier */
+} struct_light_data;
+
+/* Structure to material parameters */
+typedef struct struct_material_data
+{
+#if defined(__cplusplus)
+	typedef optix::float3 float3;
+#endif
+	unsigned int type;	/* The material type */
+	int proxy;			/* The index of the material to use for direct views (non-shadow rays) of this material */
+	float3 color;		/* The material color */
+
+	union {
+		struct_normal_data n;
+		float r_index;		/* Refractive index of the "glass" object, usually 1.52 */
+		struct_light_data l;
+		unsigned int mask;	/* Bitmask of materials to be clipped. */
+	} params;
+
+	int radiance_program_id;	/* Program ID for radiance rays */
+	int diffuse_program_id;		/* Program ID for diffuse rays */
+	int shadow_program_id;		/* Program ID for shadow rays */
+	int point_cloud_program_id;	/* Program ID for point cloud rays */
+
+#ifdef CONTRIB
+	int contrib_index;		/* index of first bin for contribution accumulation */
+	int contrib_function;	/* function to choose bin for contribution accumulation */
+#endif
+} MaterialData;
 
 /* Structure to hold ray parameters */
 typedef struct struct_ray_parameters

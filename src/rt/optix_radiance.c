@@ -30,8 +30,6 @@
 #include "triangulate.h"
 #endif /* TRIANGULATE */
 
-#define BLANK	-1	/* No index provided */
-
 #define EXPECTED_VERTICES	64
 #define EXPECTED_TRIANGLES	64
 #define EXPECTED_MATERIALS	8
@@ -81,9 +79,8 @@ typedef struct {
 	FloatArray* vertices;			/* Three entries per vertex */
 	FloatArray* normals;			/* Three entries per vertex */
 	FloatArray* tex_coords;			/* Two entries per vertex */
-	PoniterArray* materials;		/* One entry per material */
-	IntArray*   alt_materials;		/* Two entries per material gives alternate materials to use in place of that material */
-	PoniterArray* instances;		/* One entry per instance */
+	MaterialDataArray* material_data;		/* One entry per material */
+	PointerArray* instances;		/* One entry per instance */
 #ifdef LIGHTS
 	IntArray*   lights;				/* Three entries per triangle that is a light */
 #endif
@@ -95,15 +92,36 @@ typedef struct {
 	OBJREC *material;				/* Current material */
 } Scene;
 
+/* Material types */
+typedef enum
+{
+	M_NORMAL = 0,	/* Normal material type */
+	M_GLASS,		/* Glass material type */
+	M_LIGHT,		/* Light material type */
+	//M_CLIP,			/* Clipping material type (antimatter) */
+
+	M_COUNT			/* Number of material types */
+} MaterialTypes;
+
+char *ray_type_names[RAY_TYPE_COUNT] = {
+	"radiance",		/* Radiance ray type */
+	"diffuse",		/* Radiance ray type sampling only diffuse paths */
+	"shadow",		/* Shadow ray type */
+	"ambient",		/* Ray into ambient cache */
+	"ambient_record",	/* Ray to create ambient record */
+	"point_cloud"	/* Ray to create point cloud */
+};
+
+
 static void checkDevices();
 #ifdef REMOTE_VCA
 static void checkRemoteDevice(RTremotedevice remote);
 static void createRemoteDevice(RTremotedevice* remote);
 #endif
 static void applyRadianceSettings(const RTcontext context, const VIEW* view, const unsigned int imm_irrad);
-static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifiers);
-static void createNode(const RTcontext context, Scene* scene, char* name, const OBJECT start, const OBJECT count, const int material_index, MESH* mesh);
-static void createGeometryInstance(const RTcontext context, SceneNode *node, const size_t vertex_count, PoniterArray* materials);
+static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifiers, const unsigned int imm_irrad);
+static void createNode(const RTcontext context, Scene* scene, char* name, const OBJECT start, const OBJECT count, MESH* mesh);
+static void createGeometryInstance(const RTcontext context, SceneNode *node, const size_t vertex_count);
 static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, Scene* scene);
 static void createFace(const RTcontext context, OBJREC* rec, Scene* scene);
 static __inline void createTriangle(Scene* scene, const int a, const int b, const int c);
@@ -116,11 +134,13 @@ static void createCone(const RTcontext context, OBJREC* rec, Scene* scene);
 static void createMesh(const RTcontext context, MESH* mesh, Scene* scene);
 static __inline void setMeshMaterial(const RTcontext context, const OBJECT mo, const OBJECT mat0, Scene* scene);
 static void createInstance(const RTcontext context, OBJREC* rec, Scene* scene);
-static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec, Scene* scene);
-static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec, Scene* scene);
-static RTmaterial createLightMaterial(const RTcontext context, OBJREC* rec, Scene* scene);
+static void createMaterial(const RTcontext context);
+static void createMaterialPrograms(const RTcontext context);
+static void createNormalMaterial(const RTcontext context, OBJREC* rec, Scene* scene);
+static void createGlassMaterial(const RTcontext context, OBJREC* rec, Scene* scene);
+static void createLightMaterial(const RTcontext context, OBJREC* rec, Scene* scene);
 #ifdef ANTIMATTER
-static RTmaterial createClipMaterial(const RTcontext context, OBJREC* rec, Scene* scene);
+static void createClipMaterial(const RTcontext context, OBJREC* rec, Scene* scene);
 #endif
 static void createDistantLight(const RTcontext context, OBJREC* rec, Scene* scene);
 static OBJREC* findFunction(OBJREC *o);
@@ -131,7 +151,7 @@ static int createGenCumulativeSky(const RTcontext context, char* filename, RTpro
 #ifdef CONTRIB
 static char* findSymbol(EPNODE *ep);
 static int createContribFunction(const RTcontext context, MODCONT *mp);
-static void applyContribution(const RTcontext context, const RTmaterial material, DistantLight* light, OBJREC* rec, Scene* scene);
+static void applyContribution(const RTcontext context, MaterialData* material, DistantLight* light, OBJREC* rec, Scene* scene);
 #endif
 static void clearSceneNode(SceneNode *node);
 static SceneNode* cloneSceneNode(const RTcontext context, SceneNode *node, const int material_override, Scene* scene);
@@ -174,22 +194,21 @@ static RTvariable top_object = NULL, top_ambient = NULL, top_irrad = NULL;
 #ifdef REMOTE_VCA
 static RTremotedevice remote_handle = NULL;
 #endif
-static RTbuffer vindex_buffer = NULL, vertex_buffer = NULL, normal_buffer = NULL, texcoord_buffer = NULL, material_buffer = NULL, material_alt_buffer = NULL, lindex_buffer = NULL, lights_buffer = NULL;
+static RTbuffer vindex_buffer = NULL, vertex_buffer = NULL, normal_buffer = NULL, texcoord_buffer = NULL, material_data_buffer = NULL, material_buffer = NULL, lindex_buffer = NULL, lights_buffer = NULL;
 static SceneNode scene_root;
 
 /* Handles to intersection program objects used by multiple materials */
-static RTprogram radiance_normal_closest_hit_program, shadow_normal_closest_hit_program, ambient_normal_closest_hit_program, point_cloud_normal_closest_hit_program;
+static RTmaterial generic_material = NULL;
+static RTprogram any_hit_program = NULL, any_hit_ambient_record_program = NULL;
+static RTprogram closest_hit_programs[RAY_TYPE_COUNT];
+static int closest_hit_callable_programs[RAY_TYPE_COUNT][M_COUNT];
 #ifdef ACCELERAD_RT
-static RTprogram diffuse_normal_closest_hit_program;
 int has_diffuse_normal_closest_hit_program = 0;	/* Flag for including rvu programs. */
 #endif
-static RTprogram radiance_glass_closest_hit_program, shadow_glass_closest_hit_program, ambient_glass_any_hit_program, point_cloud_glass_closest_hit_program;
-static RTprogram radiance_light_closest_hit_program, shadow_light_closest_hit_program, point_cloud_light_closest_hit_program;
-#ifdef ANTIMATTER
-static RTprogram radiance_clip_closest_hit_program, shadow_clip_closest_hit_program, point_cloud_clip_closest_hit_program;
-#endif
-#ifdef BSDF
-static RTprogram radiance_bsdf_closest_hit_program, shadow_bsdf_closest_hit_program, ambient_bsdf_closest_hit_program, point_cloud_bsdf_closest_hit_program;
+#ifdef RTX_TRIANGLES
+static RTprogram attribute_program = NULL;
+#else
+static RTprogram intersect_program = NULL, bbox_program = NULL;
 #endif
 
 #ifdef DAYSIM
@@ -354,7 +373,7 @@ void createContext(RTcontext* context, const RTsize width, const RTsize height, 
 #ifdef RTX
 	/* Set recursion depths */
 	RT_CHECK_ERROR2(rtContextSetMaxTraceDepth(*context, maxdepth ? min(abs(maxdepth) * 2, 31) : 31)); // TODO set based on lw?
-	RT_CHECK_ERROR2(rtContextSetMaxCallableProgramDepth(*context, 2));
+	RT_CHECK_ERROR2(rtContextSetMaxCallableProgramDepth(*context, 1));
 #else
 	/* Set stack size for GPU threads */
 	if (optix_stack_size > 0)
@@ -476,8 +495,9 @@ void setupKernel(const RTcontext context, const VIEW* view, LUTAB* modifiers, co
 {
 	/* Setup state */
 	applyRadianceSettings(context, view, imm_irrad);
+	createMaterial(context);
 	clearSceneNode(&scene_root);
-	createScene(context, &scene_root, modifiers);
+	createScene(context, &scene_root, modifiers, imm_irrad);
 	RTobject top = createSceneHierarchy(context, &scene_root);
 
 	/* Set the geometry group as the top level object. */
@@ -505,7 +525,7 @@ void updateModel(const RTcontext context, LUTAB* modifiers, const unsigned int i
 {
 	if (!context) return;
 	scene_root.child = NULL; // TODO delete subscenes
-	createScene(context, &scene_root, modifiers);
+	createScene(context, &scene_root, modifiers, imm_irrad);
 	RTobject top = createSceneHierarchy(context, &scene_root);
 
 	/* Set the geometry group as the top level object. */
@@ -580,6 +600,7 @@ static void applyRadianceSettings(const RTcontext context, const VIEW* view, con
 	}
 	else if (imm_irrad)
 		applyContextVariable1ui(context, "imm_irrad", imm_irrad); // -I
+	irrad_var = applyContextVariable1ui(context, "do_irrad", (unsigned int)do_irrad); // -i
 
 #ifdef DAYSIM
 	/* Set daylight coefficient parameters */
@@ -595,7 +616,6 @@ void createCamera(const RTcontext context, const char* ptx_name)
 	/* Ray generation program */
 	ptxFile(path_to_ptx, ptx_name);
 	RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "ray_generator", &program));
-	irrad_var = applyProgramVariable1ui(context, program, "do_irrad", (unsigned int)do_irrad); // -i
 	RT_CHECK_ERROR(rtContextSetRayGenerationProgram(context, RADIANCE_ENTRY, program));
 
 	/* Exception program */
@@ -605,11 +625,7 @@ void createCamera(const RTcontext context, const char* ptx_name)
 	/* Miss program */
 	ptxFile( path_to_ptx, "background" );
 	RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "miss", &program));
-	RT_CHECK_ERROR(rtContextSetMissProgram(context, PRIMARY_RAY, program)); // only needed when do_irrad is true
 	RT_CHECK_ERROR(rtContextSetMissProgram(context, RADIANCE_RAY, program));
-#ifdef HIT_TYPE
-	applyProgramVariable1ui(context, program, "type", OBJ_SOURCE);
-#endif
 
 	/* Miss program for shadow rays */
 	RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "miss_shadow", &program));
@@ -635,7 +651,7 @@ void updateCamera( const RTcontext context, const VIEW* view )
 #endif
 }
 
-static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifiers)
+static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifiers, const unsigned int imm_irrad)
 {
 	unsigned int i;
 	int *vdata, *mdata;
@@ -652,8 +668,7 @@ static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifie
 	scene.vertices = initArrayf(EXPECTED_VERTICES * 3);
 	scene.normals = initArrayf(EXPECTED_VERTICES * 3);
 	scene.tex_coords = initArrayf(EXPECTED_VERTICES * 2);
-	scene.materials = initArrayp(EXPECTED_MATERIALS);
-	scene.alt_materials = initArrayi(EXPECTED_MATERIALS * 2);
+	scene.material_data = initArraym(EXPECTED_MATERIALS);
 	scene.instances = initArrayp(EXPECTED_INSTANCES);
 
 	/* Create buffers for storing lighting information. */
@@ -669,25 +684,16 @@ static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifie
 	scene.material = NULL; // TODO Change this for modified instances
 
 	/* Material 0 is Lambertian. */
-	if ( do_irrad ) {
-		insertArray2i(scene.alt_materials, (int)scene.materials->count, (int)scene.materials->count);
-		insertArrayp(scene.materials, createNormalMaterial(context, &Lamb, NULL));
+	if (do_irrad || imm_irrad) {
+		createNormalMaterial(context, &Lamb, &scene);
 	}
 
 	/* Create the top node of the scene graph. */
-	createNode(context, &scene, octname, 0, nsceneobjs, OVOID, NULL);
-
-	/* Check that there is at least one material for context validation. */
-	if (!scene.materials->count) {
-		RTmaterial null_material;
-		RT_CHECK_ERROR(rtMaterialCreate(context, &null_material));
-		insertArrayp(scene.materials, null_material);
-		use_ambient = calc_ambient = 0u;
-	}
+	createNode(context, &scene, octname, 0, nsceneobjs, NULL);
 
 	/* Check for overflow */
-	if (scene.materials->count > UINT_MAX)
-		eprintf(USER, "Number of materials %" PRIu64 " is greater than maximum %u.", scene.materials->count, UINT_MAX);
+	if (scene.material_data->count > UINT_MAX)
+		eprintf(USER, "Number of materials %" PRIu64 " is greater than maximum %u.", scene.material_data->count, UINT_MAX);
 
 	/* Count the triangles that were found. */
 	size_t triangle_count = 0;
@@ -707,6 +713,13 @@ static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifie
 			triangle_count += node->triangle_count;
 		}
 	}
+
+	/* Don't bother with ambient calculation if there are no normal surfaces. */
+	if (!triangle_count || closest_hit_callable_programs[RADIANCE_RAY][M_NORMAL] == RT_PROGRAM_ID_NULL)
+		calc_ambient = 0u;
+
+	/* Create the closest and any hit programs. */
+	createMaterialPrograms(context);
 
 	/* Apply the geometry buffers. */
 	vprintf("Processed %" PRIu64 " triangles.\n", triangle_count);
@@ -755,14 +768,15 @@ static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifie
 		RT_CHECK_ERROR(rtBufferSetSize1D(material_buffer, triangle_count));
 	//copyToBufferi(context, material_buffer, scene->triangles);
 
-	if (!material_alt_buffer) {
-		createBuffer1D(context, RT_BUFFER_INPUT, RT_FORMAT_INT2, scene.alt_materials->count / 2, &material_alt_buffer);
-		applyContextObject(context, "material_alt_buffer", material_alt_buffer);
+	vprintf("Processed %" PRIu64 " materials.\n", scene.material_data->count);
+	if (!material_data_buffer) {
+		createCustomBuffer1D(context, RT_BUFFER_INPUT, sizeof(MaterialData), scene.material_data->count, &material_data_buffer);
+		applyContextObject(context, "material_data", material_data_buffer);
 	}
 	else
-		RT_CHECK_ERROR(rtBufferSetSize1D(material_alt_buffer, scene.alt_materials->count / 2));
-	copyToBufferi(context, material_alt_buffer, scene.alt_materials);
-	freeArrayi(scene.alt_materials);
+		RT_CHECK_ERROR(rtBufferSetSize1D(material_data_buffer, scene.material_data->count));
+	copyToBufferm(context, material_data_buffer, scene.material_data);
+	freeArraym(scene.material_data);
 
 	/* Apply the lighting buffers. */
 #ifdef LIGHTS
@@ -799,7 +813,7 @@ static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifie
 			freeArrayi(node->triangles);
 		}
 		if (node->triangle_count)
-			createGeometryInstance(context, node, vertex_count, scene.materials);
+			createGeometryInstance(context, node, vertex_count);
 	}
 	RT_CHECK_ERROR(rtBufferUnmap(vindex_buffer));
 	RT_CHECK_ERROR(rtBufferUnmap(material_buffer));
@@ -807,13 +821,12 @@ static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifie
 	/* Free resources used in creating the scene graph. */
 	free(scene.buffer_entry_index);
 	freeArrayp(scene.instances); //TODO keep this if the instances are not going to change
-	freeArrayp(scene.materials);
 
 	geometry_clock = clock() - geometry_clock;
 	mprintf("Geometry build time: %" PRIu64 " milliseconds for %i objects.\n", MILLISECONDS(geometry_clock), nsceneobjs);
 }
 
-static void createNode(const RTcontext context, Scene* scene, char* name, const OBJECT start, const OBJECT count, const int material_index, MESH* mesh)
+static void createNode(const RTcontext context, Scene* scene, char* name, const OBJECT start, const OBJECT count, MESH* mesh)
 {
 	const OBJECT end = start + count;
 	OBJECT on;
@@ -835,7 +848,6 @@ static void createNode(const RTcontext context, Scene* scene, char* name, const 
 	scene->root->name = savestr(name);
 	scene->root->vertex_indices = initArrayi(EXPECTED_TRIANGLES * 3);
 	scene->root->triangles = initArrayi(EXPECTED_TRIANGLES);
-	scene->root->sole_material = material_index;
 
 	/* Get the scene geometry as a list of triangles. */
 	for (on = start; on < end; on++) {
@@ -850,9 +862,8 @@ static void createNode(const RTcontext context, Scene* scene, char* name, const 
 		createMesh(context, mesh, scene);
 }
 
-static void createGeometryInstance(const RTcontext context, SceneNode *node, const size_t vertex_count, PoniterArray* materials)
+static void createGeometryInstance(const RTcontext context, SceneNode *node, const size_t vertex_count)
 {
-	unsigned int i;
 #ifdef RTX_TRIANGLES
 	RTgeometrytriangles geometry = NULL;
 #else
@@ -862,17 +873,18 @@ static void createGeometryInstance(const RTcontext context, SceneNode *node, con
 #ifdef RTX_TRIANGLES
 	/* Create the geometry instance containing the geometry. */
 	if (!node->instance) {
-		RTprogram program;
-
 		if (node->twin && node->twin->instance)
 			RT_CHECK_ERROR(rtGeometryInstanceGetGeometryTriangles(node->twin->instance, &geometry));
 		else {
 			RT_CHECK_ERROR(rtGeometryTrianglesCreate(context, &geometry));
+			RT_CHECK_ERROR(rtGeometryTrianglesSetMaterialCount(geometry, 1u));
+			//RT_CHECK_ERROR(rtGeometryTrianglesSetFlagsPerMaterial(geometry, 0, RT_GEOMETRY_FLAG_DISABLE_ANYHIT));
 
-			ptxFile(path_to_ptx, "triangle_mesh");
-			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "mesh_attribute", &program));
-			RT_CHECK_ERROR(rtGeometryTrianglesSetAttributeProgram(geometry, program));
-			//backvis_var = applyProgramVariable1ui(context, program, "backvis", (unsigned int)backvis); // -bv
+			if (!intersect_program) {
+				ptxFile(path_to_ptx, "triangle_mesh");
+				RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "mesh_attribute", &attribute_program));
+			}
+			RT_CHECK_ERROR(rtGeometryTrianglesSetAttributeProgram(geometry, attribute_program));
 		}
 
 		RT_CHECK_ERROR(rtGeometryInstanceCreate(context, &node->instance));
@@ -887,24 +899,25 @@ static void createGeometryInstance(const RTcontext context, SceneNode *node, con
 	if (vertex_count > UINT_MAX)
 		eprintf(USER, "Number of vertices %" PRIu64 " is greater than maximum %u.", vertex_count, UINT_MAX);
 	RT_CHECK_ERROR(rtGeometryTrianglesSetTriangleIndices(geometry, vindex_buffer, node->offset * sizeof(uint3), sizeof(uint3), RT_FORMAT_UNSIGNED_INT3)); //TODO not sure if this offset is needed
-	RT_CHECK_ERROR(rtGeometryTrianglesSetMaterialIndices(geometry, material_buffer, node->offset * sizeof(int), sizeof(int), RT_FORMAT_UNSIGNED_INT));
+	//RT_CHECK_ERROR(rtGeometryTrianglesSetMaterialIndices(geometry, material_buffer, node->offset * sizeof(int), sizeof(int), RT_FORMAT_UNSIGNED_INT));
 	RT_CHECK_ERROR(rtGeometryTrianglesSetVertices(geometry, (unsigned int)vertex_count, vertex_buffer, 0, sizeof(float3), RT_FORMAT_FLOAT3));
 #else
 	/* Create the geometry instance containing the geometry. */
 	if (!node->instance) {
-		RTprogram program;
-
 		if (node->twin && node->twin->instance)
 			RT_CHECK_ERROR(rtGeometryInstanceGetGeometry(node->twin->instance, &geometry));
 		else {
 			RT_CHECK_ERROR(rtGeometryCreate(context, &geometry));
+			//RT_CHECK_ERROR(rtGeometrySetFlags(geometry, RT_GEOMETRY_FLAG_DISABLE_ANYHIT));
 
-			ptxFile(path_to_ptx, "triangle_mesh");
-			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "mesh_bounds", &program));
-			RT_CHECK_ERROR(rtGeometrySetBoundingBoxProgram(geometry, program));
-			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "mesh_intersect", &program));
-			RT_CHECK_ERROR(rtGeometrySetIntersectionProgram(geometry, program));
-			backvis_var = applyProgramVariable1ui(context, program, "backvis", (unsigned int)backvis); // -bv
+			if (!intersect_program) {
+				ptxFile(path_to_ptx, "triangle_mesh");
+				RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "mesh_bounds", &bbox_program));
+				RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "mesh_intersect", &intersect_program));
+				backvis_var = applyProgramVariable1ui(context, intersect_program, "backvis", (unsigned int)backvis); // -bv
+			}
+			RT_CHECK_ERROR(rtGeometrySetBoundingBoxProgram(geometry, bbox_program));
+			RT_CHECK_ERROR(rtGeometrySetIntersectionProgram(geometry, intersect_program));
 		}
 
 		RT_CHECK_ERROR(rtGeometryInstanceCreate(context, &node->instance));
@@ -918,16 +931,10 @@ static void createGeometryInstance(const RTcontext context, SceneNode *node, con
 #endif
 
 	/* Apply materials to the geometry instance. */
-	RT_CHECK_ERROR(rtGeometryInstanceSetMaterialCount(node->instance, (unsigned int)materials->count));
-#ifdef RTX_TRIANGLES
-	RT_CHECK_ERROR(rtGeometryTrianglesSetMaterialCount(geometry, (unsigned int)materials->count));
-#endif
-	for (i = 0u; i < materials->count; i++) {
-		RT_CHECK_ERROR(rtGeometryInstanceSetMaterial(node->instance, i, (RTmaterial)materials->array[node->sole_material == OVOID ? i : node->sole_material])); // TODO fix irradiance
-#ifdef RTX_TRIANGLES
-		RT_CHECK_ERROR(rtGeometryTrianglesSetFlagsPerMaterial(geometry, i, RT_GEOMETRY_FLAG_DISABLE_ANYHIT));
-#endif
-	}
+	RT_CHECK_ERROR(rtGeometryInstanceSetMaterialCount(node->instance, 1u));
+	RT_CHECK_ERROR(rtGeometryInstanceSetMaterial(node->instance, 0, generic_material));
+	if (node->sole_material != OVOID)
+		applyGeometryInstanceVariable1i(context, node->instance, "sole_material", node->sole_material);
 
 	/* Create a geometry group to hold the geometry instance. */
 	if (!node->group) {
@@ -969,39 +976,32 @@ static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, Scene* sce
 	case MAT_PLASTIC: // Plastic material
 	case MAT_METAL: // Metal material
 	case MAT_TRANS: // Translucent material
-		scene->buffer_entry_index[index] = insertArray2i(scene->alt_materials, 0, (int)scene->materials->count);
-		insertArrayp(scene->materials, createNormalMaterial(context, rec, scene));
+		scene->buffer_entry_index[index] = (int)scene->material_data->count;
+		createNormalMaterial(context, rec, scene);
 		break;
 	case MAT_GLASS: // Glass material
 	case MAT_DIELECTRIC: // Dielectric material TODO handle separately, see dialectric.c
-		scene->buffer_entry_index[index] = insertArray2i(scene->alt_materials, OVOID, (int)scene->materials->count);
-		insertArrayp(scene->materials, createGlassMaterial(context, rec, scene));
+		//scene->buffer_entry_index[index] = insertArray2i(scene->alt_materials, OVOID, (int)scene->materials->count);
+		scene->buffer_entry_index[index] = (int)scene->material_data->count;
+		createGlassMaterial(context, rec, scene);
 		break;
 	case MAT_LIGHT: // primary light source material, may modify a face or a source (solid angle)
 	case MAT_ILLUM: // secondary light source material
 	case MAT_GLOW: // Glow material
 	case MAT_SPOT: // Spotlight material
-		scene->buffer_entry_index[index] = (int)scene->materials->count;
-		if (rec->otype != MAT_ILLUM)
-			alternate = (int)scene->materials->count;
-		else if (rec->oargs.nsargs && strcmp(rec->oargs.sarg[0], VOIDID)) { /* modifies another material */
-			//material = objptr( lastmod( objndx(rec), rec->oargs.sarg[0] ) );
-			//alternate = buffer_entry_index[objndx(material)];
-			alternate = scene->buffer_entry_index[lastmod(objndx(rec), rec->oargs.sarg[0])];
-		}
-		insertArray2i(scene->alt_materials, (int)scene->materials->count, alternate);
-		insertArrayp(scene->materials, createLightMaterial(context, rec, scene));
+		scene->buffer_entry_index[index] = (int)scene->material_data->count;
+		createLightMaterial(context, rec, scene);
 		break;
 #ifdef BSDF
 	case MAT_BSDF: // BSDF
-		scene->buffer_entry_index[index] = insertArray2i(scene->alt_materials, 0, (int)scene->materials->count);
-		insertArrayp(scene->materials, createBSDFMaterial(context, rec, scene));
+		scene->buffer_entry_index[index] = (int)scene->materials->count;
+		createBSDFMaterial(context, rec, scene);
 		break;
 #endif
 #ifdef ANTIMATTER
 	case MAT_CLIP: // Antimatter
-		scene->buffer_entry_index[index] = insertArray2i(scene->alt_materials, (int)scene->materials->count, (int)scene->materials->count);
-		insertArrayp(scene->materials, createClipMaterial(context, rec, scene));
+		scene->buffer_entry_index[index] = (int)scene->material_data->count;
+		createClipMaterial(context, rec, scene);
 		break;
 #endif
 	case OBJ_FACE: // Typical polygons
@@ -1544,13 +1544,14 @@ static void createInstance(const RTcontext context, OBJREC* rec, Scene* scene)
 		scene->root = NULL;
 		if (inst) {
 			inst = getinstance(rec, IO_SCENE); // Load the octree for the instance
-			createNode(context, scene, name, inst->obj->firstobj, inst->obj->nobjs, material_override, NULL);
+			createNode(context, scene, name, inst->obj->firstobj, inst->obj->nobjs, NULL);
 		}
 		else {
 			meshinst = getmeshinst(rec, IO_SCENE | IO_BOUNDS); // Load the mesh file for the instance
-			createNode(context, scene, name, meshinst->msh->mat0, meshinst->msh->nmats, material_override, meshinst->msh);
+			createNode(context, scene, name, meshinst->msh->mat0, meshinst->msh->nmats, meshinst->msh);
 		}
 		branch->node = scene->root;
+		branch->node->sole_material = material_override;
 		scene->root = root;
 	}
 	else if (!branch->node) {
@@ -1590,6 +1591,74 @@ static void createInstance(const RTcontext context, OBJREC* rec, Scene* scene)
 		freeinstance(rec);
 	else
 		freemeshinst(rec);
+}
+
+static void createMaterial(const RTcontext context)
+{
+	unsigned int i, j;
+
+	if (!generic_material) {
+		/* Create our material */
+		RT_CHECK_ERROR(rtMaterialCreate(context, &generic_material));
+	}
+
+	for (i = 0; i < RAY_TYPE_COUNT; i++) {
+		closest_hit_programs[i] = NULL;
+		for (j = 0; j < M_COUNT; j++) {
+			closest_hit_callable_programs[i][j] = RT_PROGRAM_ID_NULL;
+		}
+	}
+}
+
+static void createMaterialPrograms(const RTcontext context)
+{
+	unsigned int i, j;
+	char name[100];
+
+	ptxFile(path_to_ptx, "material_intersect");
+
+	if (!any_hit_program) {
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "any_hit", &any_hit_program));
+		backvis_var = applyProgramVariable1ui(context, any_hit_program, "backvis", (unsigned int)backvis); // -bv
+	}
+
+	for (i = 0; i < RAY_TYPE_COUNT; i++) {
+		int program_ids[M_COUNT];
+		int program_id_count = 0;
+		for (j = 0; j < M_COUNT; j++) {
+			if (closest_hit_callable_programs[i][j] != RT_PROGRAM_ID_NULL) {
+				program_ids[program_id_count] = closest_hit_callable_programs[i][j];
+				program_id_count++;
+			}
+		}
+		if (program_id_count) {
+			if (!closest_hit_programs[i]) {
+				/* If any material type will use this program, then create the program */
+				sprintf(name, "closest_hit_%s", ray_type_names[i]);
+
+				RT_CHECK_ERROR(rtMaterialSetAnyHitProgram(generic_material, i, any_hit_program));
+
+				RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, name, &closest_hit_programs[i]));
+				RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(generic_material, i, closest_hit_programs[i]));
+			}
+
+			sprintf(name, "closest_hit_%s_call_site", ray_type_names[i]);
+			RT_CHECK_ERROR(rtProgramCallsiteSetPotentialCallees(closest_hit_programs[i], name, program_ids, program_id_count)); // TODO need to remove any that are not used?
+		}
+	}
+	if (calc_ambient && !any_hit_ambient_record_program) {
+		ptxFile(path_to_ptx, "ambient_normal");
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "any_hit_ambient", &any_hit_ambient_record_program));
+		RT_CHECK_ERROR(rtMaterialSetAnyHitProgram(generic_material, AMBIENT_RECORD_RAY, any_hit_ambient_record_program));
+
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_ambient", &closest_hit_programs[AMBIENT_RECORD_RAY]));
+#ifdef AMBIENT_CELL
+		createAmbientDynamicStorage(context, closest_hit_programs[AMBIENT_RECORD_RAY], 0);
+#else
+		createAmbientDynamicStorage(context, closest_hit_programs[AMBIENT_RECORD_RAY], cuda_kmeans_clusters);
+#endif
+		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(generic_material, AMBIENT_RECORD_RAY, closest_hit_programs[AMBIENT_RECORD_RAY]));
+	}
 }
 
 #ifdef BSDF
@@ -1693,29 +1762,24 @@ static RTmaterial createBSDFMaterial(const RTcontext context, OBJREC* rec, Scene
 }
 #endif /* BSDF */
 
-static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec, Scene* scene)
+static void createNormalMaterial(const RTcontext context, OBJREC* rec, Scene* scene)
 {
-	RTmaterial material;
+	MaterialData matData;
 
-	/* Create our material */
-	RT_CHECK_ERROR(rtMaterialCreate(context, &material));
-
-	/* Set variables to be consumed by material for this geometry instance */
-	applyMaterialVariable1ui(context, material, "type", rec->otype);
-	applyMaterialVariable3f(context, material, "color", (float)rec->oargs.farg[0], (float)rec->oargs.farg[1], (float)rec->oargs.farg[2]);
-	applyMaterialVariable1f(context, material, "spec", (float)rec->oargs.farg[3]);
-	applyMaterialVariable1f(context, material, "rough", (float)rec->oargs.farg[4]);
-	if (rec->otype == MAT_TRANS) { // it's a translucent material
-		applyMaterialVariable1f(context, material, "transm", (float)rec->oargs.farg[5]);
-		applyMaterialVariable1f(context, material, "tspecu", (float)rec->oargs.farg[6]);
-	}
+	vprintf("Reading normal material %s\n", rec->oname);
+	matData.type = rec->otype;
+	array2cuda3(matData.color, rec->oargs.farg); // Color is the first three entries in farg
+	matData.params.n.spec = (float)rec->oargs.farg[3];
+	matData.params.n.rough = (float)rec->oargs.farg[4];
+	matData.params.n.trans = rec->otype == MAT_TRANS ? (float)rec->oargs.farg[5] : 0.0f;
+	matData.params.n.tspec = rec->otype == MAT_TRANS ? (float)rec->oargs.farg[6] : 0.0f;
 #ifdef CONTRIB
-	applyContribution(context, material, NULL, rec, scene);
+	applyContribution(context, &matData, NULL, rec, scene);
 #endif
 
 	/* As a shortcut, exclude black materials from ambient calculation */
 	if (rec->oargs.farg[0] == 0.0 && rec->oargs.farg[1] == 0.0 && rec->oargs.farg[2] == 0.0 && (rec->otype != MAT_TRANS || rec->oargs.farg[5] == 0.0))
-		applyMaterialVariable1ui(context, material, "ambincl", 0u);
+		matData.params.n.ambincl = 0u;
 
 	/* Check ambient include/exclude list */
 	else if (ambincl != -1) {
@@ -1726,175 +1790,166 @@ static RTmaterial createNormalMaterial(const RTcontext context, OBJREC* rec, Sce
 				in_set = 1;
 				break;
 			}
-		applyMaterialVariable1ui(context, material, "ambincl", in_set == ambincl);
+		matData.params.n.ambincl = in_set == ambincl;
 	}
+	else
+		matData.params.n.ambincl = 1u;
 
-	/* Create our hit programs to be shared among all normal materials */
-	if (!radiance_normal_closest_hit_program || !shadow_normal_closest_hit_program)
-		ptxFile(path_to_ptx, "radiance_normal");
+	/* Check that material programs exist. */
+	if (closest_hit_callable_programs[RADIANCE_RAY][M_NORMAL] == RT_PROGRAM_ID_NULL) {
+		RTprogram program;
 
-	if (!radiance_normal_closest_hit_program) {
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_radiance", &radiance_normal_closest_hit_program));
-		applyProgramVariable1ui( context, radiance_normal_closest_hit_program, "metal", MAT_METAL );
-	}
-	if (do_irrad)
-		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, PRIMARY_RAY, radiance_normal_closest_hit_program));
-	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, RADIANCE_RAY, radiance_normal_closest_hit_program));
+		/* Programs have not been created yet. */
+		ptxFile(path_to_ptx, "material_normal");
 
-	if (!shadow_normal_closest_hit_program)
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_shadow", &shadow_normal_closest_hit_program));
-	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, SHADOW_RAY, shadow_normal_closest_hit_program));
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_normal_radiance", &program));
+		//applyProgramVariable1ui(context, program, "metal", MAT_METAL);
+		RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[RADIANCE_RAY][M_NORMAL]));
+
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_normal_shadow", &program));
+		RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[SHADOW_RAY][M_NORMAL]));
 
 #ifdef ACCELERAD_RT
-	if (!has_diffuse_normal_closest_hit_program) // Don't create the program if it won't be used
-		diffuse_normal_closest_hit_program = radiance_normal_closest_hit_program;
-	if (!diffuse_normal_closest_hit_program) {
-		ptxFile(path_to_ptx, "diffuse_normal");
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_radiance", &diffuse_normal_closest_hit_program));
-	}
-	if (do_irrad)
-		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, DIFFUSE_PRIMARY_RAY, diffuse_normal_closest_hit_program));
-	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, DIFFUSE_RAY, diffuse_normal_closest_hit_program));
+		if (has_diffuse_normal_closest_hit_program) { // Don't create the program if it won't be used
+			ptxFile(path_to_ptx, "diffuse_normal");
+			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_normal_diffuse", &program));
+			RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[DIFFUSE_RAY][M_NORMAL]));
+		}
 #endif
 
-	if (calc_ambient) {
-		if (!ambient_normal_closest_hit_program) {
-			ptxFile(path_to_ptx, "ambient_normal");
-			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "closest_hit_ambient", &ambient_normal_closest_hit_program ) );
-
-#ifdef AMBIENT_CELL
-			createAmbientDynamicStorage(context, ambient_normal_closest_hit_program, 0);
-#else
-			createAmbientDynamicStorage(context, ambient_normal_closest_hit_program, cuda_kmeans_clusters);
-#endif
+		if (calc_ambient) {
+			ptxFile(path_to_ptx, "point_cloud_normal");
+			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_normal_point_cloud", &program));
+			RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[POINT_CLOUD_RAY][M_NORMAL]));
 		}
-		RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, AMBIENT_RECORD_RAY, ambient_normal_closest_hit_program ) );
-
-		if (!point_cloud_normal_closest_hit_program) {
-			ptxFile( path_to_ptx, "point_cloud_normal" );
-			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_point_cloud_normal", &point_cloud_normal_closest_hit_program));
-		}
-		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, POINT_CLOUD_RAY, point_cloud_normal_closest_hit_program));
 	}
 
-	return material;
+	/* Assign programs. */
+	matData.radiance_program_id = closest_hit_callable_programs[RADIANCE_RAY][M_NORMAL];
+#ifdef ACCELERAD_RT
+	matData.diffuse_program_id = closest_hit_callable_programs[DIFFUSE_RAY][M_NORMAL];
+#endif
+	matData.shadow_program_id = closest_hit_callable_programs[SHADOW_RAY][M_NORMAL];
+	matData.point_cloud_program_id = closest_hit_callable_programs[POINT_CLOUD_RAY][M_NORMAL];
+
+	insertArraym(scene->material_data, matData);
 }
 
-static RTmaterial createGlassMaterial(const RTcontext context, OBJREC* rec, Scene* scene)
+static void createGlassMaterial(const RTcontext context, OBJREC* rec, Scene* scene)
 {
-	RTmaterial material;
+	MaterialData matData;
 
-	/* Create our material */
-	RT_CHECK_ERROR(rtMaterialCreate(context, &material));
-
-	/* Set variables to be consumed by material for this geometry instance */
-#ifdef HIT_TYPE
-	applyMaterialVariable1ui(context, material, "type", rec->otype);
-#endif
-	applyMaterialVariable3f(context, material, "color", (float)rec->oargs.farg[0], (float)rec->oargs.farg[1], (float)rec->oargs.farg[2]);
-	if (rec->oargs.nfargs > 3)
-		applyMaterialVariable1f(context, material, "r_index", (float)rec->oargs.farg[3]);
+	vprintf("Reading glass material %s\n", rec->oname);
+	matData.type = rec->otype;
+	array2cuda3(matData.color, rec->oargs.farg); // Color is the first three entries in farg
+	matData.params.r_index = rec->otype == rec->oargs.nfargs > 3 ? (float)rec->oargs.farg[3] : 1.52f;		/* refractive index of glass */
 #ifdef CONTRIB
-	applyContribution(context, material, NULL, rec, scene);
+	applyContribution(context, &matData, NULL, rec, scene);
 #endif
 
-	/* Create our hit programs to be shared among all glass materials */
-	if (!radiance_glass_closest_hit_program || !shadow_glass_closest_hit_program)
-		ptxFile(path_to_ptx, "radiance_glass");
+	/* Check that material programs exist. */
+	if (closest_hit_callable_programs[RADIANCE_RAY][M_GLASS] == RT_PROGRAM_ID_NULL) {
+		RTprogram program;
 
-	if (!radiance_glass_closest_hit_program)
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_radiance", &radiance_glass_closest_hit_program));
-	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, RADIANCE_RAY, radiance_glass_closest_hit_program));
-#ifdef ACCELERAD_RT
-	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, DIFFUSE_RAY, radiance_glass_closest_hit_program));
-#endif
+		/* Programs have not been created yet. */
+		ptxFile(path_to_ptx, "material_glass");
 
-	if (!shadow_glass_closest_hit_program)
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_shadow", &shadow_glass_closest_hit_program));
-	RT_CHECK_ERROR( rtMaterialSetClosestHitProgram( material, SHADOW_RAY, shadow_glass_closest_hit_program ) );
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_glass_radiance", &program));
+		RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[RADIANCE_RAY][M_GLASS]));
 
-	if ( calc_ambient ) {
-		if ( !ambient_glass_any_hit_program ) {
-			ptxFile( path_to_ptx, "ambient_normal" );
-			RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "any_hit_ambient_glass", &ambient_glass_any_hit_program ) );
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_glass_shadow", &program));
+		RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[SHADOW_RAY][M_GLASS]));
+
+		if (calc_ambient) {
+			ptxFile(path_to_ptx, "point_cloud_normal");
+			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_glass_point_cloud", &program));
+			RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[POINT_CLOUD_RAY][M_GLASS]));
 		}
-		RT_CHECK_ERROR( rtMaterialSetAnyHitProgram( material, AMBIENT_RECORD_RAY, ambient_glass_any_hit_program ) );
-
-		if (!point_cloud_glass_closest_hit_program) {
-			ptxFile( path_to_ptx, "point_cloud_normal" );
-			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_point_cloud_glass", &point_cloud_glass_closest_hit_program));
-		}
-		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, POINT_CLOUD_RAY, point_cloud_glass_closest_hit_program));
 	}
 
-	return material;
+	/* Assign programs. */
+	matData.radiance_program_id = closest_hit_callable_programs[RADIANCE_RAY][M_GLASS];
+#ifdef ACCELERAD_RT
+	matData.diffuse_program_id = matData.radiance_program_id;
+#endif
+	matData.shadow_program_id = closest_hit_callable_programs[SHADOW_RAY][M_GLASS];
+	matData.point_cloud_program_id = closest_hit_callable_programs[POINT_CLOUD_RAY][M_GLASS];
+
+	insertArraym(scene->material_data, matData);
 }
 
-static RTmaterial createLightMaterial(const RTcontext context, OBJREC* rec, Scene* scene)
+static void createLightMaterial(const RTcontext context, OBJREC* rec, Scene* scene)
 {
-	RTmaterial material;
+	MaterialData matData;
 	OBJREC* mat;
 
-	/* Create our material */
-	RT_CHECK_ERROR(rtMaterialCreate(context, &material));
+	vprintf("Reading light material %s\n", rec->oname);
+	matData.type = rec->otype;
+	array2cuda3(matData.color, rec->oargs.farg); // Color is the first three entries in farg
 
-	/* Set variables to be consumed by material for this geometry instance */
-#ifdef HIT_TYPE
-	applyMaterialVariable1ui(context, material, "type", rec->otype);
-#endif
-	applyMaterialVariable3f(context, material, "color", (float)rec->oargs.farg[0], (float)rec->oargs.farg[1], (float)rec->oargs.farg[2]);
 	if (rec->otype == MAT_GLOW)
-		applyMaterialVariable1f(context, material, "maxrad", (float)rec->oargs.farg[3]);
+		matData.params.l.maxrad = (float)rec->oargs.farg[3];
 	else if (rec->otype == MAT_SPOT) {
 		SPOT* spot = makespot(rec);
-		applyMaterialVariable1f(context, material, "siz", spot->siz);
-		applyMaterialVariable1f(context, material, "flen", spot->flen);
-		applyMaterialVariable3f(context, material, "aim", (float)spot->aim[0], (float)spot->aim[1], (float)spot->aim[2]);
+		matData.params.l.siz = spot->siz;
+		matData.params.l.flen = spot->flen;
+		array2cuda3(matData.params.l.aim, spot->aim);
 		free(spot);
 		rec->os = NULL;
 	}
 #ifdef CONTRIB
-	applyContribution(context, material, NULL, rec, scene);
+	applyContribution(context, &matData, NULL, rec, scene);
 #endif
 
 	/* Check for a parent function. */
 	if ((mat = findFunction(rec))) // TODO can there be multiple parent functions?
-		applyMaterialVariable1i(context, material, "function", scene->buffer_entry_index[addRadianceObject(context, mat, scene)]);
+		matData.params.l.function = scene->buffer_entry_index[addRadianceObject(context, mat, scene)];
 	else
-		applyMaterialVariable1i(context, material, "function", RT_PROGRAM_ID_NULL);
+		matData.params.l.function = RT_PROGRAM_ID_NULL;
 
-	/* Create our hit programs to be shared among all light materials */
-	if (!radiance_light_closest_hit_program || !shadow_light_closest_hit_program)
-		ptxFile(path_to_ptx, "radiance_light");
-
-	if (!radiance_light_closest_hit_program)
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_radiance", &radiance_light_closest_hit_program));
-	if (do_irrad)
-		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, PRIMARY_RAY, radiance_light_closest_hit_program));
-	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, RADIANCE_RAY, radiance_light_closest_hit_program));
-
-	if (!shadow_light_closest_hit_program)
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_shadow", &shadow_light_closest_hit_program));
-	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, SHADOW_RAY, shadow_light_closest_hit_program));
-
-	if (calc_ambient) {
-		if (!point_cloud_light_closest_hit_program) {
-			ptxFile(path_to_ptx, "point_cloud_normal");
-			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_point_cloud_light", &point_cloud_light_closest_hit_program));
-		}
-		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, POINT_CLOUD_RAY, point_cloud_light_closest_hit_program));
+	/* Check for a proxy material for direct views. */
+	if (rec->otype == MAT_ILLUM) {
+		if (rec->oargs.nsargs && strcmp(rec->oargs.sarg[0], VOIDID))	/* modifies another material */
+			matData.proxy = scene->buffer_entry_index[lastmod(objndx(rec), rec->oargs.sarg[0])];
+		else
+			matData.proxy = OVOID;
 	}
 
-	return material;
+	/* Check that material programs exist. */
+	if (closest_hit_callable_programs[RADIANCE_RAY][M_LIGHT] == RT_PROGRAM_ID_NULL) {
+		RTprogram program;
+
+		/* Programs have not been created yet. */
+		ptxFile(path_to_ptx, "material_light");
+
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_light_radiance", &program));
+		RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[RADIANCE_RAY][M_LIGHT]));
+
+		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_light_shadow", &program));
+		RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[SHADOW_RAY][M_LIGHT]));
+	}
+
+	/* Assign programs. */
+	matData.radiance_program_id = closest_hit_callable_programs[RADIANCE_RAY][M_LIGHT];
+#ifdef ACCELERAD_RT
+	matData.diffuse_program_id = closest_hit_callable_programs[DIFFUSE_RAY][M_LIGHT]; // Should be RT_PROGRAM_ID_NULL
+#endif
+	matData.shadow_program_id = closest_hit_callable_programs[SHADOW_RAY][M_LIGHT];
+	matData.point_cloud_program_id = closest_hit_callable_programs[POINT_CLOUD_RAY][M_LIGHT];
+
+	insertArraym(scene->material_data, matData);
 }
 
 #ifdef ANTIMATTER
-static RTmaterial createClipMaterial(const RTcontext context, OBJREC* rec, Scene* scene)
+static void createClipMaterial(const RTcontext context, OBJREC* rec, Scene* scene)
 {
-	RTmaterial material;
+	MaterialData matData;
 	OBJECT mod;
-	unsigned int mask = 0u;
 	int i, index;
+
+	vprintf("Reading clipping material %s\n", rec->oname);
+	matData.params.mask = 0u;
+	matData.proxy = OVOID;
 
 	/* Determine the material mask */
 	for (i = 0; i < rec->oargs.nsargs; i++) {
@@ -1905,55 +1960,23 @@ static RTmaterial createClipMaterial(const RTcontext context, OBJREC* rec, Scene
 			objerror(rec, WARNING, errmsg);
 			continue;
 		}
-		if ((index = scene->buffer_entry_index[mod]) > CHAR_BIT * sizeof(mask)) {
+		if ((index = scene->buffer_entry_index[mod]) > CHAR_BIT * sizeof(matData.params.mask)) {
 			sprintf(errmsg, "out of range modifier \"%s\"", rec->oargs.sarg[i]);
 			objerror(rec, WARNING, errmsg);
 			continue;
 		}
-		if (mask & (1 << index)) {
+		if (matData.params.mask & (1 << index)) {
 			objerror(rec, WARNING, "duplicate modifier");
 			continue;
 		}
-		mask |= 1 << index;
+		matData.params.mask |= 1 << index;
+		if (!i)
+			matData.proxy = index;
 	}
-	if (!mask)
+	if (!matData.params.mask)
 		objerror(rec, USER, "no modifiers clipped");
 
-	/* Create our material */
-	RT_CHECK_ERROR(rtMaterialCreate(context, &material));
-
-	/* Set variables to be consumed by material for this geometry instance */
-#ifdef HIT_TYPE
-	applyMaterialVariable1ui(context, material, "type", rec->otype);
-#endif
-	applyMaterialVariable1ui(context, material, "mask", mask);
-
-	/* Create our hit programs to be shared among all materials */
-	if (!radiance_clip_closest_hit_program || !shadow_clip_closest_hit_program)
-		ptxFile(path_to_ptx, "clip");
-
-	if (!radiance_clip_closest_hit_program)
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_radiance", &radiance_clip_closest_hit_program));
-	if (do_irrad)
-		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, PRIMARY_RAY, radiance_clip_closest_hit_program));
-	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, RADIANCE_RAY, radiance_clip_closest_hit_program));
-#ifdef ACCELERAD_RT
-	if (do_irrad)
-		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, DIFFUSE_PRIMARY_RAY, radiance_clip_closest_hit_program));
-	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, DIFFUSE_RAY, radiance_clip_closest_hit_program));
-#endif
-
-	if (!shadow_clip_closest_hit_program)
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_shadow", &shadow_clip_closest_hit_program));
-	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, SHADOW_RAY, shadow_clip_closest_hit_program));
-
-	if (calc_ambient) {
-		if (!point_cloud_clip_closest_hit_program)
-			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_point_cloud", &point_cloud_clip_closest_hit_program));
-		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, POINT_CLOUD_RAY, point_cloud_clip_closest_hit_program));
-	}
-
-	return material;
+	insertArraym(scene->material_data, matData);
 }
 #endif
 
@@ -2556,7 +2579,7 @@ static int createContribFunction(const RTcontext context, MODCONT *mp)
 	return program_id;
 }
 
-static void applyContribution(const RTcontext context, const RTmaterial material, DistantLight* light, OBJREC* rec, Scene* scene)
+static void applyContribution(const RTcontext context, MaterialData* material, DistantLight* light, OBJREC* rec, Scene* scene)
 {
 	static char cfunc[] = "contrib_function";
 
@@ -2565,18 +2588,15 @@ static void applyContribution(const RTcontext context, const RTmaterial material
 		MODCONT	*mp;
 		if ((mp = (MODCONT *)lu_find(scene->modifiers, rec->oname)->data)) {
 			if (material) {
-				applyMaterialVariable1i(context, material, "contrib_index", mp->start_bin);
-				applyMaterialVariable1i(context, material, cfunc, createContribFunction(context, mp));
+				material->contrib_index = mp->start_bin;
+				material->contrib_function = createContribFunction(context, mp);
 			}
 			else if (light) {
 				/* Check for a existing program. */
 				int mat_index = scene->buffer_entry_index[objndx(rec)];
 				light->contrib_index = mp->start_bin;
-				if (mat_index != OVOID) { /* In case this material has also already been used for a surface, we can reuse the function here */
-					RTvariable var;
-					RT_CHECK_ERROR(rtMaterialQueryVariable((RTmaterial)scene->materials->array[mat_index], cfunc, &var));
-					RT_CHECK_ERROR(rtVariableGet1i(var, &light->contrib_function));
-				}
+				if (mat_index != OVOID) /* In case this material has also already been used for a surface, we can reuse the function here */
+					light->contrib_function = scene->material_data->array[mat_index].contrib_function;
 				else
 					light->contrib_function = createContribFunction(context, mp);
 			}
@@ -2586,8 +2606,8 @@ static void applyContribution(const RTcontext context, const RTmaterial material
 
 	/* No call-back function. */
 	if (material) {
-		//applyMaterialVariable1i(context, material, "contrib_index", -1);
-		applyMaterialVariable1i(context, material, cfunc, RT_PROGRAM_ID_NULL);
+		material->contrib_index = -1;
+		material->contrib_function = RT_PROGRAM_ID_NULL;
 	}
 	else if (light) {
 		light->contrib_index = -1;
@@ -2630,7 +2650,7 @@ static SceneNode* cloneSceneNode(const RTcontext context, SceneNode *node, const
 #else
 		RTgeometry geometry;
 #endif
-		unsigned int i;
+
 		RT_CHECK_ERROR(rtGeometryInstanceCreate(context, &twin->instance));
 #ifdef RTX_TRIANGLES
 		RT_CHECK_ERROR(rtGeometryInstanceGetGeometryTriangles(node->instance, &geometry));
@@ -2640,15 +2660,13 @@ static SceneNode* cloneSceneNode(const RTcontext context, SceneNode *node, const
 		RT_CHECK_ERROR(rtGeometryInstanceSetGeometry(twin->instance, geometry));
 #endif
 
-		RT_CHECK_ERROR(rtGeometryInstanceSetMaterialCount(twin->instance, (unsigned int)scene->materials->count));
-
 		/* Apply materials to the geometry instance. */
-		vprintf("Processed %" PRIu64 " materials for %s.\n", scene->materials->count, twin->name);
-		for (i = 0u; i < scene->materials->count; i++)
-			RT_CHECK_ERROR(rtGeometryInstanceSetMaterial(twin->instance, i, (RTmaterial)scene->materials->array[i]));
-
+		RT_CHECK_ERROR(rtGeometryInstanceSetMaterialCount(twin->instance, 1u));
+		RT_CHECK_ERROR(rtGeometryInstanceSetMaterial(twin->instance, 0, generic_material));
 		if (material_override != OVOID)
 			applyGeometryInstanceVariable1i(context, twin->instance, "sole_material", material_override);
+
+		vprintf("Duplicated instance %s\n", node->name);
 	}
 	else
 		twin->instance = NULL;
@@ -2707,7 +2725,7 @@ static RTobject createSceneHierarchy(const RTcontext context, SceneNode* node)
 	RTgroup group;
 	RTacceleration groupAccel;
 	SceneBranch* child = node->child;
-	unsigned int num_children = 0;
+	unsigned int num_children = node->triangle_count ? 1 : 0;
 
 	if (!child) {
 		/* This is a leaf node. Create a geometry group to hold the geometry instance. */
@@ -2715,19 +2733,18 @@ static RTobject createSceneHierarchy(const RTcontext context, SceneNode* node)
 	}
 
 	/* Create a group to hold the geometry group and any children. */
-	if (node->triangle_count > 0) num_children = 1;
 	while (child) {
 		num_children++;
 		child = child->sibling;
 	}
 	RT_CHECK_ERROR(rtGroupCreate(context, &group));
 	RT_CHECK_ERROR(rtGroupSetChildCount(group, num_children));
-	if (node->triangle_count > 0)
+	if (node->triangle_count)
 		RT_CHECK_ERROR(rtGroupSetChild(group, 0, node->group));
 
 	/* Set remaining group children. */
 	child = node->child;
-	num_children = node->triangle_count > 0 ? 1 : 0;
+	num_children = node->triangle_count ? 1 : 0;
 	while (child) {
 		RTobject childGroup = createSceneHierarchy(context, child->node);
 		if (child->transform) {
@@ -2777,7 +2794,7 @@ static void createIrradianceGeometry( const RTcontext context )
 
 	/* Create a Lambertian material as the geometry instance's only material. */
 	RT_CHECK_ERROR( rtGeometryInstanceSetMaterialCount( instance, 1 ) );
-	RT_CHECK_ERROR( rtGeometryInstanceSetMaterial( instance, 0, createNormalMaterial( context, &Lamb, NULL ) ) );
+	RT_CHECK_ERROR( rtGeometryInstanceSetMaterial( instance, 0, generic_material ) );
 
 	/* Create a geometry group to hold the geometry instance.  This will be used as the top level group. */
 	RT_CHECK_ERROR( rtGeometryGroupCreate( context, &geometrygroup ) );

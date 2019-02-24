@@ -12,9 +12,6 @@
 
 using namespace optix;
 
-/* Program variables */
-rtDeclareVariable(unsigned int, do_irrad, , ) = 0u; /* Calculate irradiance (-i) */
-
 /* Contex variables */
 rtBuffer<float3, 2>              origin_buffer;
 rtBuffer<float3, 2>              direction_buffer;
@@ -67,7 +64,7 @@ RT_PROGRAM void ray_generator()
 			rtTrace(top_irrad, ray, prd);
 		}
 		else {
-			Ray ray = make_Ray(org, normalize(dir), do_irrad ? PRIMARY_RAY : RADIANCE_RAY, tmin, lim_dist ? length(dir) : RAY_END);
+			Ray ray = make_Ray(org, normalize(dir), RADIANCE_RAY, tmin, lim_dist ? length(dir) : RAY_END);
 			rtTrace(top_object, ray, prd);
 		}
 	}

@@ -6,40 +6,18 @@
 
 #include <optix.h>
 #include <optixu/optixu_math_namespace.h>
-#include "optix_shader_common.h"
+#include "optix_shader_ray.h"
 #include "optix_point_common.h"
 
 using namespace optix;
-
-/* Material variables */
-rtDeclareVariable(float, spec, , ) = 0.0f;	/* The material specularity given by the rad file "plastic", "metal", or "trans" object */
-rtDeclareVariable(float, rough, , ) = 0.0f;	/* The material roughness given by the rad file "plastic", "metal", or "trans" object */
-rtDeclareVariable(float, transm, , ) = 0.0f;	/* The material transmissivity given by the rad file "trans" object */
-rtDeclareVariable(float, tspecu, , ) = 0.0f;	/* The material transmitted specular component given by the rad file "trans" object */
-rtDeclareVariable(unsigned int, ambincl, , ) = 1u;	/* Flag to skip ambient calculation and use default (ae, aE, ai, aI) */
-
-/* OptiX variables */
-rtDeclareVariable(Ray, ray, rtCurrentRay, );
-rtDeclareVariable(float, t_hit, rtIntersectionDistance, );
-rtDeclareVariable(PerRayData_point_cloud, prd, rtPayload, );
-
-/* Attributes */
-rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );
-rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
-#ifdef ANTIMATTER
-rtDeclareVariable(int, mat_id, attribute mat_id, );
-
-/* Context variables */
-rtDeclareVariable(rtObject, top_object, , );
-#endif
 
 /* Context variables */
 rtBuffer<PointDirection, 3>      seed_buffer; /* output */
 
 rtDeclareVariable(float, specthresh, , );	/* This is the minimum fraction of reflection or transmission, under which no specular sampling is performed */
+#ifdef AMBIENT_CELL
 rtDeclareVariable(float, specjitter, , );	/* specular sampling (ss) */
 
-#ifdef AMBIENT_CELL
 rtDeclareVariable(float3, cuorg, , ); /* bounding box minimum */
 rtDeclareVariable(float, cell_size, , ); /* cell side dimension */
 rtDeclareVariable(unsigned int, level, , ) = 0u;
@@ -101,79 +79,57 @@ RT_METHOD int occupied(const float3& pos, const float3& dir, const float3& world
 	return ambient_prd.wsum > FTINY;
 }
 #else /* AMBIENT_CELL */
-RT_METHOD float3 sample_hemisphere(const float3& uz)
+RT_METHOD float3 sample_hemisphere(const float3& uz, rand_state* state)
 {
-	float3 ux = getperpendicular(uz);
-	float3 uy = normalize(cross(uz, ux));
-	float zd = sqrtf(curand_uniform(prd.state));
-	float phi = 2.0f*M_PIf * curand_uniform(prd.state);
-	float xd = cosf(phi) * zd;
-	float yd = sinf(phi) * zd;
+	const float3 ux = getperpendicular(uz);
+	const float3 uy = normalize(cross(uz, ux));
+	float zd = sqrtf(curand_uniform(state));
+	const float phi = 2.0f*M_PIf * curand_uniform(state);
+	const float xd = cosf(phi) * zd;
+	const float yd = sinf(phi) * zd;
 	zd = sqrtf(1.0f - zd*zd);
 	return normalize(xd*ux + yd*uy + zd*uz);
 }
 #endif /* AMBIENT_CELL */
 
-RT_PROGRAM void closest_hit_point_cloud_glass()
+RT_CALLABLE_PROGRAM PerRayData_point_cloud closest_hit_glass_point_cloud(IntersectData const&data, PerRayData_point_cloud prd)
 {
-	float3 world_geometric_normal = normalize(rtTransformNormal(RT_OBJECT_TO_WORLD, geometric_normal));
-	float3 snormal = faceforward(world_geometric_normal, -ray.direction, world_geometric_normal);
+	float3 snormal = faceforward(data.world_geometric_normal, -data.ray_direction, data.world_geometric_normal);
 
-#ifdef ANTIMATTER
-	if (prd.mask & (1 << mat_id)) {
-		prd.inside += dot(world_geometric_normal, ray.direction) < 0.0f ? 1 : -1;
-
-		/* Continue the ray */
-		Ray new_ray = make_Ray(ray.origin, ray.direction, ray.ray_type, ray_start(ray.origin + t_hit * ray.direction, ray.direction, snormal, RAY_START) + t_hit, RAY_END);
-		rtTrace(top_object, new_ray, prd);
-		return;
-	}
-#endif /* ANTIMATTER */
-
-	prd.point = ray.origin + t_hit * ray.direction;
+	prd.point = data.hit;
 
 	/* Transmission */
 #ifdef AMBIENT_CELL
-	prd.forward = ray.direction;
+	prd.forward = data.ray_direction;
 #else
-	prd.forward = sample_hemisphere(-snormal);
+	prd.forward = sample_hemisphere(-snormal, prd.state);
 #endif
 
 	/* Reflection */
 #ifdef AMBIENT_CELL
-	prd.reverse = reflect(ray.direction, snormal);
+	prd.reverse = reflect(data.ray_direction, snormal);
 #else
-	prd.reverse = sample_hemisphere(snormal);
+	prd.reverse = sample_hemisphere(snormal, prd.state);
 #endif
+
+	return prd;
 }
 
-RT_PROGRAM void closest_hit_point_cloud_normal()
+RT_CALLABLE_PROGRAM PerRayData_point_cloud closest_hit_normal_point_cloud(IntersectData const&data, PerRayData_point_cloud prd)
 {
-	float3 world_geometric_normal = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, geometric_normal ) );
-	float3 snormal = faceforward(world_geometric_normal, -ray.direction, world_geometric_normal);
+	float3 snormal = faceforward(data.world_geometric_normal, -data.ray_direction, data.world_geometric_normal);
 
-#ifdef ANTIMATTER
-	if (prd.mask & (1 << mat_id)) {
-		prd.inside += dot(world_geometric_normal, ray.direction) < 0.0f ? 1 : -1;
-
-		/* Continue the ray */
-		Ray new_ray = make_Ray(ray.origin, ray.direction, ray.ray_type, ray_start(ray.origin + t_hit * ray.direction, ray.direction, snormal, RAY_START) + t_hit, RAY_END);
-		rtTrace(top_object, new_ray, prd);
-		return;
-	}
-#endif /* ANTIMATTER */
-
-	float trans = transm * (1.0f - spec);
-	float tspec = trans * tspecu;
-	float alpha2 = rough * rough;
+	float trans = data.mat.params.n.trans * (1.0f - data.mat.params.n.spec);
+	float tspec = trans * data.mat.params.n.tspec;
+	float alpha2 = data.mat.params.n.rough * data.mat.params.n.rough;
 
 	/* Record new origin */
-	prd.point = ray.origin + t_hit * ray.direction;
+	prd.point = data.hit;
 
 	/* Transmitted ambient */
-	if (ambincl && trans - tspec > FTINY && prd.index.z < prd.seeds) {
+	if (data.mat.params.n.ambincl && trans - tspec > FTINY && prd.index.z < prd.seeds) {
 #ifdef AMBIENT_CELL
-		if (!occupied(prd.point, -snormal, world_geometric_normal)) {
+		if (!occupied(prd.point, -snormal, data.world_geometric_normal)) {
 			seed_buffer[prd.index].cell = cell_hash(prd.point, -snormal);
 #endif
 
@@ -188,9 +144,9 @@ RT_PROGRAM void closest_hit_point_cloud_normal()
 	}
 
 	/* Reflected ambient */
-	if (ambincl && 1.0f - trans - spec > FTINY && prd.index.z < prd.seeds) {
+	if (data.mat.params.n.ambincl && 1.0f - trans - data.mat.params.n.spec > FTINY && prd.index.z < prd.seeds) {
 #ifdef AMBIENT_CELL
-		if (!occupied(prd.point, snormal, world_geometric_normal)) {
+		if (!occupied(prd.point, snormal, data.world_geometric_normal)) {
 			seed_buffer[prd.index].cell = cell_hash(prd.point, snormal);
 #endif
 
@@ -204,7 +160,7 @@ RT_PROGRAM void closest_hit_point_cloud_normal()
 #endif
 	}
 
-	if (prd.index.z >= prd.seeds) return;
+	if (prd.index.z >= prd.seeds) return prd;
 
 	/* Transmitted ray */
 	if (tspec > FTINY && (alpha2 <= FTINY || specthresh < tspec - FTINY)) {
@@ -233,12 +189,12 @@ RT_PROGRAM void closest_hit_point_cloud_normal()
 				prd.forward = h;
 		}
 #else
-		prd.forward = sample_hemisphere(-snormal);
+		prd.forward = sample_hemisphere(-snormal, prd.state);
 #endif
 	}
 
 	/* Reflected ray */
-	if (spec > FTINY && (alpha2 <= FTINY || specthresh < spec - FTINY)) {
+	if (data.mat.params.n.spec > FTINY && (alpha2 <= FTINY || specthresh < data.mat.params.n.spec - FTINY)) {
 #ifdef AMBIENT_CELL
 		prd.reverse = reflect(ray.direction, snormal);
 
@@ -264,23 +220,9 @@ RT_PROGRAM void closest_hit_point_cloud_normal()
 				prd.reverse = h;
 		}
 #else
-		prd.reverse = sample_hemisphere(snormal);
+		prd.reverse = sample_hemisphere(snormal, prd.state);
 #endif
 	}
-}
 
-RT_PROGRAM void closest_hit_point_cloud_light()
-{
-#ifdef ANTIMATTER
-	if (prd.mask & (1 << mat_id)) {
-		float3 world_geometric_normal = normalize(rtTransformNormal(RT_OBJECT_TO_WORLD, geometric_normal));
-		prd.inside += dot(world_geometric_normal, ray.direction) < 0.0f ? 1 : -1;
-
-		/* Continue the ray */
-		float3 snormal = faceforward(world_geometric_normal, -ray.direction, world_geometric_normal);
-		Ray new_ray = make_Ray(ray.origin, ray.direction, ray.ray_type, ray_start(ray.origin + t_hit * ray.direction, ray.direction, snormal, RAY_START) + t_hit, RAY_END);
-		rtTrace(top_object, new_ray, prd);
-		return;
-	}
-#endif /* ANTIMATTER */
+	return prd;
 }

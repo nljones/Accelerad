@@ -26,7 +26,7 @@ rtDeclareVariable(unsigned int, level, , ) = 0u;
 rtDeclareVariable(unsigned int, segment_offset, , ) = 0u; /* Offset into data if computed with multiple segments */
 #endif /* DAYSIM_COMPATIBLE */
 
-rtDeclareVariable(float,        ambacc, , ); /* Ambient accuracy (aa). This value will approximately equal the error from indirect illuminance interpolation */
+//rtDeclareVariable(float,        ambacc, , ); /* Ambient accuracy (aa). This value will approximately equal the error from indirect illuminance interpolation */
 rtDeclareVariable(float,        maxarad, , ); /* maximum ambient radius */
 
 /* OptiX variables */
