@@ -47,7 +47,7 @@
 #ifdef ACCELERAD
 
 #ifdef RTX
-//#define RTX_TRIANGLES
+#define RTX_TRIANGLES
 #endif
 
 /* Handles to the objects in a particular node in the scene graph. This is built once per octree and may be referenced multiple times in the scene graph. */
@@ -880,7 +880,7 @@ static void createGeometryInstance(const RTcontext context, SceneNode *node, con
 			RT_CHECK_ERROR(rtGeometryTrianglesSetMaterialCount(geometry, 1u));
 			//RT_CHECK_ERROR(rtGeometryTrianglesSetFlagsPerMaterial(geometry, 0, RT_GEOMETRY_FLAG_DISABLE_ANYHIT));
 
-			if (!intersect_program) {
+			if (!attribute_program) {
 				ptxFile(path_to_ptx, "triangle_mesh");
 				RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "mesh_attribute", &attribute_program));
 			}
@@ -933,8 +933,7 @@ static void createGeometryInstance(const RTcontext context, SceneNode *node, con
 	/* Apply materials to the geometry instance. */
 	RT_CHECK_ERROR(rtGeometryInstanceSetMaterialCount(node->instance, 1u));
 	RT_CHECK_ERROR(rtGeometryInstanceSetMaterial(node->instance, 0, generic_material));
-	if (node->sole_material != OVOID)
-		applyGeometryInstanceVariable1i(context, node->instance, "sole_material", node->sole_material);
+	applyGeometryInstanceVariable1i(context, node->instance, "sole_material", node->sole_material);
 
 	/* Create a geometry group to hold the geometry instance. */
 	if (!node->group) {
@@ -2663,8 +2662,7 @@ static SceneNode* cloneSceneNode(const RTcontext context, SceneNode *node, const
 		/* Apply materials to the geometry instance. */
 		RT_CHECK_ERROR(rtGeometryInstanceSetMaterialCount(twin->instance, 1u));
 		RT_CHECK_ERROR(rtGeometryInstanceSetMaterial(twin->instance, 0, generic_material));
-		if (material_override != OVOID)
-			applyGeometryInstanceVariable1i(context, twin->instance, "sole_material", material_override);
+		applyGeometryInstanceVariable1i(context, twin->instance, "sole_material", material_override);
 
 		vprintf("Duplicated instance %s\n", node->name);
 	}

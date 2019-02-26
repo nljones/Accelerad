@@ -709,6 +709,8 @@ RT_METHOD int samp_hemi(
 	}
 #else /* AMB_SAVE_MEM */
 #ifdef AMB_SUPER_SAMPLE
+	if (hp->sampOK < 64)
+		return(1);		/* insufficient for super-sampling */
 	n = ambssamp * wt + 0.5f;
 	if (n > 8) {			/* perform super-sampling? */
 		ambsupersamp(hp, n, normal, hit);

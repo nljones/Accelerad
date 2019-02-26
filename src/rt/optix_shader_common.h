@@ -12,7 +12,7 @@
 #endif
 
 /* OptiX method declaration in the style of RT_PROGRAM */
-#define RT_METHOD	static __inline__ __device__
+#define RT_METHOD	static __forceinline__ __device__
 
 #ifndef FTINY
 #define  FTINY		(1e-6f)

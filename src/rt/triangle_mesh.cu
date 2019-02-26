@@ -39,7 +39,7 @@ using namespace optix;
 rtDeclareVariable(unsigned int, backvis, , ); /* backface visibility (bv) */
 
 /* Instance variables */
-rtDeclareVariable(int, sole_material, , ) = -1; /* sole material index to use for all objects, or -1 to use per-face material index */
+rtDeclareVariable(int, sole_material, , ); /* sole material index to use for all objects, or -1 to use per-face material index */
 
 /* Contex variables */
 rtBuffer<float3> vertex_buffer;
