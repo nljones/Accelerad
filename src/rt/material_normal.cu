@@ -87,7 +87,6 @@ rtDeclareVariable(unsigned int, navsum, , );	/* number of values in avsum */
 
 rtDeclareVariable(float,        exposure, , ) = 0.0f; /* Current exposure (-pe), zero unless called from rvu */
 
-rtBuffer<MaterialData> material_data;
 rtBuffer<DistantLight> lights;
 
 /* Geometry instance variables */

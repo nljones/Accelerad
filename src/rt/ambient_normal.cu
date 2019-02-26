@@ -399,8 +399,7 @@ RT_METHOD int doambient( float3 *rcol, optix::Matrix<2,3> *uv, float2 *ra, float
 				/* relative Y channel from here on... */
 	for (unsigned int i = 0; i < hp.ns; i++)
 		for (unsigned int j = 0; j < hp.ns; j++) {
-			AmbientSample *ap = &ambsam(i, j);
-			ap->v.y = bright(ap->v) * d + K;
+			ambsam(i, j).v.y = bright(ambsam(i, j).v) * d + K;
 		}
 
 	//if (uv == NULL)			/* make sure we have axis pointers */
@@ -897,22 +896,22 @@ RT_METHOD void ambsupersamp(AMBHEMI *hp, int cnt, const float3& normal, const fl
 {
 	getambdiffs(hp);
 	float e2rem = 0.0f;
-	float *ep = &earr(0, 0);
 
 	/* accumulate estimated variances */
-	for (unsigned int i = hp->ns * hp->ns; i--; )
-		e2rem += *ep++;
+	for (unsigned int i = hp->ns; i--; )
+		for (unsigned int j = hp->ns; j--; )
+			e2rem += earr(i, j);
 
 	/* perform super-sampling */
-	ep = &earr(0, 0);
 	for (unsigned int i = 0u; i < hp->ns; i++)
 		for (unsigned int j = 0u; j < hp->ns; j++) {
 			if (e2rem <= FTINY)
 				return;	/* nothing left to do */
-			int nss = *ep / e2rem * cnt + curand_uniform( prd.state );
+			const float ep = earr(i, j);
+			const int nss = ep / e2rem * cnt + curand_uniform(prd.state);
 			for (int n = 1; n <= nss && ambsample(hp, &ambsam(i, j), i, j, n, normal, hit); n++)
 				if (!--cnt) return;
-			e2rem -= *ep++;		/* update remainder */
+			e2rem -= ep;		/* update remainder */
 		}
 }
 #endif /* AMB_SUPER_SAMPLE */
@@ -1132,14 +1131,14 @@ RT_METHOD void ambdirgrad( AMBHEMI *hp, const float3& u, const float3& v, float2
 	float2 dgsum = make_float2( 0.0f );	/* sum values times -tan(theta) */
 	for (unsigned int i = 0; i < hp->ns; i++)
 		for (unsigned int j = 0; j < hp->ns; j++) {
-			AmbientSample *ap = &ambsam(i, j);
+			const AmbientSample ap = ambsam(i, j);
 					/* use vector for azimuth + 90deg */
-			float3 vd = ap->p - hit;
+			float3 vd = ap.p - hit;
 					/* brightness over cosine factor */
 			float gfact = dot(normal, vd);
 			if (gfact < FTINY)
 				gfact = FTINY;
-			gfact = ap->v.y / gfact;
+			gfact = ap.v.y / gfact;
 					/* sine = proj_radius/vd_length */
 			dgsum.x -= dot( v, vd ) * gfact;
 			dgsum.y += dot( u, vd ) * gfact;
@@ -1170,11 +1169,11 @@ RT_METHOD unsigned int ambcorral( AMBHEMI *hp, optix::Matrix<2,3> *uv, const flo
 					/* else circle around perimeter */
 	for (unsigned int i = 0; i < hp->ns; i++)
 		for (unsigned int j = 0; j < hp->ns; j += !i | (i == hp->ns - 1) ? 1 : hp->ns - 1) {
-			AmbientSample *ap = &ambsam(i, j);
-			if ( ( ap->d <= FTINY ) | ( ap->d >= max_d ) )
+			const AmbientSample ap = ambsam(i, j);
+			if ( ( ap.d <= FTINY ) | ( ap.d >= max_d ) )
 				continue;	/* too far or too near */
-			const float2 u = *uv * ( ap->p - hit );
-			if ( ( r.x*r.x * u.x*u.x + r.y*r.y * u.y*u.y ) * ap->d*ap->d <= u.x*u.x + u.y*u.y )
+			const float2 u = *uv * ( ap.p - hit );
+			if ( ( r.x*r.x * u.x*u.x + r.y*r.y * u.y*u.y ) * ap.d*ap.d <= u.x*u.x + u.y*u.y )
 				continue;	/* occluder outside ellipse */
 			const float ang = atan2f( u.y, u.x );	/* else set direction flags */
 			for ( float a1 = ang - ang_res; a1 <= ang + ang_res; a1 += ang_step )

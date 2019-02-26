@@ -212,7 +212,6 @@ if(OptiX_USE)
     hemisphere_generator.cu
     material_intersect.cu
     irradiance_intersect.cu
-    source.cu
     triangle_mesh.cu
   )
   CUDA_COMPILE_PTX(generated_PTX_files_callable
@@ -226,6 +225,7 @@ if(OptiX_USE)
     perezlum.cu
     point_cloud_normal.cu
     skybright.cu
+    source.cu
     utah.cu
     OPTIONS "-rdc true"
   )

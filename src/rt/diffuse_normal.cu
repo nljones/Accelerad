@@ -55,8 +55,6 @@ rtDeclareVariable(float, minarad, , );	/* minimum ambient radius */
 rtDeclareVariable(float, avsum, , );		/* computed ambient value sum (log) */
 rtDeclareVariable(unsigned int, navsum, , );	/* number of values in avsum */
 
-rtBuffer<DistantLight> lights;
-
 
 RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pnormal, const float3& hit, const unsigned int& ambincl, PerRayData_radiance &prd);
 #ifdef DAYSIM_COMPATIBLE
