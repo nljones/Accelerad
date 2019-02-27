@@ -41,7 +41,6 @@ typedef enum
 typedef enum
 {
 	RADIANCE_RAY = 0,	/* Radiance ray type */
-	DIFFUSE_RAY,		/* Radiance ray type sampling only diffuse paths */
 	SHADOW_RAY,			/* Shadow ray type */
 	AMBIENT_RAY,		/* Ray into ambient cache */
 	AMBIENT_RECORD_RAY,	/* Ray to create ambient record */

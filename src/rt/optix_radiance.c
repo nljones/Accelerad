@@ -98,14 +98,15 @@ typedef enum
 	M_NORMAL = 0,	/* Normal material type */
 	M_GLASS,		/* Glass material type */
 	M_LIGHT,		/* Light material type */
-	//M_CLIP,			/* Clipping material type (antimatter) */
+#ifdef ACCELERAD_RT
+	M_DIFFUSE,		/* Diffuse material type for progressive rendering of normal materials */
+#endif
 
 	M_COUNT			/* Number of material types */
 } MaterialTypes;
 
 char *ray_type_names[RAY_TYPE_COUNT] = {
 	"radiance",		/* Radiance ray type */
-	"diffuse",		/* Radiance ray type sampling only diffuse paths */
 	"shadow",		/* Shadow ray type */
 	"ambient",		/* Ray into ambient cache */
 	"ambient_record",	/* Ray to create ambient record */
@@ -1810,9 +1811,9 @@ static void createNormalMaterial(const RTcontext context, OBJREC* rec, Scene* sc
 
 #ifdef ACCELERAD_RT
 		if (has_diffuse_normal_closest_hit_program) { // Don't create the program if it won't be used
-			ptxFile(path_to_ptx, "diffuse_normal");
-			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_normal_diffuse", &program));
-			RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[DIFFUSE_RAY][M_NORMAL]));
+			ptxFile(path_to_ptx, "material_diffuse");
+			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_diffuse_radiance", &program));
+			RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[RADIANCE_RAY][M_DIFFUSE]));
 		}
 #endif
 
@@ -1826,7 +1827,7 @@ static void createNormalMaterial(const RTcontext context, OBJREC* rec, Scene* sc
 	/* Assign programs. */
 	matData.radiance_program_id = closest_hit_callable_programs[RADIANCE_RAY][M_NORMAL];
 #ifdef ACCELERAD_RT
-	matData.diffuse_program_id = closest_hit_callable_programs[DIFFUSE_RAY][M_NORMAL];
+	matData.diffuse_program_id = closest_hit_callable_programs[RADIANCE_RAY][M_DIFFUSE];
 #endif
 	matData.shadow_program_id = closest_hit_callable_programs[SHADOW_RAY][M_NORMAL];
 	matData.point_cloud_program_id = closest_hit_callable_programs[POINT_CLOUD_RAY][M_NORMAL];
@@ -1931,7 +1932,7 @@ static void createLightMaterial(const RTcontext context, OBJREC* rec, Scene* sce
 	/* Assign programs. */
 	matData.radiance_program_id = closest_hit_callable_programs[RADIANCE_RAY][M_LIGHT];
 #ifdef ACCELERAD_RT
-	matData.diffuse_program_id = closest_hit_callable_programs[DIFFUSE_RAY][M_LIGHT]; // Should be RT_PROGRAM_ID_NULL
+	matData.diffuse_program_id = matData.radiance_program_id;
 #endif
 	matData.shadow_program_id = closest_hit_callable_programs[SHADOW_RAY][M_LIGHT];
 	matData.point_cloud_program_id = closest_hit_callable_programs[POINT_CLOUD_RAY][M_LIGHT];

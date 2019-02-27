@@ -10,19 +10,14 @@
 
 #include <optix_world.h>
 #include "optix_shader_ray.h"
-#ifdef CONTRIB_DOUBLE
-#include "optix_double.h"
+#ifdef CONTRIB
+#include "optix_shader_contrib.h"
 #endif
 
 using namespace optix;
 
 /* Context variables */
 rtBuffer<DistantLight> lights;
-#ifdef CONTRIB
-rtBuffer<contrib4, 3> contrib_buffer; /* accumulate contributions */
-rtDeclareVariable(uint2, launch_index, rtLaunchIndex, );
-rtDeclareVariable(unsigned int, contrib, , ) = 0u;		/* Boolean switch for computing contributions (V) */
-#endif
 //rtBuffer<rtCallableProgramId<float(const float3)> > functions;
 //rtDeclareVariable(rtCallableProgramId<float(float3)>, func, , );
 //rtDeclareVariable(rtCallableProgramX<float(float3)>, func, , );
@@ -76,16 +71,7 @@ RT_PROGRAM void miss()
 			}
 #endif /* DAYSIM_COMPATIBLE */
 #ifdef CONTRIB
-			if (light.contrib_index >= 0) {
-				contrib3 contr = prd_radiance.rcoef;
-				if (contrib)
-					contr *= color;
-				int contr_index = light.contrib_index;
-				if (light.contrib_function != RT_PROGRAM_ID_NULL)
-					contr_index += ((rtCallableProgramId<int(const float3)>)light.contrib_function)(H);
-				if (contr_index >= light.contrib_index)
-					contrib_buffer[make_uint3(contr_index, launch_index.x, launch_index.y)] += make_contrib4(contr);
-			}
+			contribution(prd_radiance.rcoef, color, H, light.contrib_index, light.contrib_function);
 #endif /* CONTRIB */
 		}
 	}
@@ -126,16 +112,7 @@ RT_PROGRAM void miss_shadow()
 				}
 #endif /* DAYSIM_COMPATIBLE */
 #ifdef CONTRIB
-				if (light.contrib_index >= 0) {
-					contrib3 contr = prd_shadow.rcoef;
-					if (contrib)
-						contr *= color;
-					int contr_index = light.contrib_index;
-					if (light.contrib_function != RT_PROGRAM_ID_NULL)
-						contr_index += ((rtCallableProgramId<int(const float3)>)light.contrib_function)(H);
-					if (contr_index >= light.contrib_index)
-						contrib_buffer[make_uint3(contr_index, launch_index.x, launch_index.y)] += make_contrib4(contr);
-				}
+				contribution(prd_shadow.rcoef, color, H, light.contrib_index, light.contrib_function);
 #endif /* CONTRIB */
 			}
 		}

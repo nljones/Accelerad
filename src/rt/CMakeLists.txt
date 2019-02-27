@@ -215,10 +215,10 @@ if(OptiX_USE)
     triangle_mesh.cu
   )
   CUDA_COMPILE_PTX(generated_PTX_files_callable
-    diffuse_normal.cu
     fisheye.cu
     gencumulativesky.cu
     isotropsky.cu
+    material_diffuse.cu
     material_glass.cu
     material_light.cu
     material_normal.cu

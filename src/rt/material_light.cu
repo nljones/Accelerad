@@ -7,9 +7,7 @@
 #include <optix.h>
 #include <optixu/optixu_math_namespace.h>
 #include "optix_shader_ray.h"
-#ifdef CONTRIB
-#include "optix_shader_contrib.h"
-#endif
+
 
 using namespace optix;
 

@@ -7,8 +7,8 @@
 #include <optix.h>
 #include <optixu/optixu_math_namespace.h>
 #include "optix_shader_ray.h"
-#ifdef CONTRIB
-#include "optix_shader_contrib.h"
+#ifdef CONTRIB_DOUBLE
+#include "optix_double.h"
 #endif
 
 using namespace optix;
@@ -66,7 +66,7 @@ RT_CALLABLE_PROGRAM PerRayData_shadow closest_hit_glass_shadow(IntersectData con
 #ifdef CONTRIB
 		prd_shadow.rcoef *= trans;
 #endif
-		Ray trans_ray = make_Ray(data.hit, data.ray_direction, data.ray_type, ray_start(data.hit, data.ray_direction, snormal, RAY_START), RAY_END);
+		Ray trans_ray = make_Ray(data.hit, data.ray_direction, SHADOW_RAY, ray_start(data.hit, data.ray_direction, snormal, RAY_START), RAY_END);
 		rtTrace(top_object, trans_ray, prd_shadow);
 		prd_shadow.result *= trans;
 #ifdef DAYSIM_COMPATIBLE
@@ -140,7 +140,7 @@ RT_CALLABLE_PROGRAM PerRayData_radiance closest_hit_glass_radiance(IntersectData
 			}
 
 			setupPayload(new_prd);
-			Ray trans_ray = make_Ray(data.hit, R, data.ray_type, ray_start(data.hit, R, snormal, RAY_START), RAY_END);
+			Ray trans_ray = make_Ray(data.hit, R, RADIANCE_RAY, ray_start(data.hit, R, snormal, RAY_START), RAY_END);
 			rtTrace(top_object, trans_ray, new_prd);
 			new_prd.result *= trans;
 			result += new_prd.result;
@@ -166,7 +166,7 @@ RT_CALLABLE_PROGRAM PerRayData_radiance closest_hit_glass_radiance(IntersectData
 #endif
 		setupPayload(new_prd);
 		float3 R = reflect(data.ray_direction, ffnormal);
-		Ray refl_ray = make_Ray(data.hit, R, data.ray_type, ray_start(data.hit, R, snormal, RAY_START), RAY_END);
+		Ray refl_ray = make_Ray(data.hit, R, RADIANCE_RAY, ray_start(data.hit, R, snormal, RAY_START), RAY_END);
 		rtTrace(top_object, refl_ray, new_prd);
 		new_prd.result *= refl;
 		prd.mirror = new_prd.result;

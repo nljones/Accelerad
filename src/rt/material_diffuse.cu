@@ -1,5 +1,5 @@
 /*
- *  diffuse_normal.cu - hit program for diffuse-only reflection on GPUs.
+ *  material_diffuse.cu - hit program for diffuse-only reflection on GPUs.
  */
 
 #include "accelerad_copyright.h"
@@ -64,7 +64,7 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 #endif
 
 
-RT_CALLABLE_PROGRAM PerRayData_radiance closest_hit_normal_diffuse(IntersectData const&data, PerRayData_radiance prd)
+RT_CALLABLE_PROGRAM PerRayData_radiance closest_hit_diffuse_radiance(IntersectData const&data, PerRayData_radiance prd)
 {
 	NORMDAT nd;
 

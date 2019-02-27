@@ -9,8 +9,8 @@
 #include <optix.h>
 #include <optixu/optixu_math_namespace.h>
 #include "optix_shader_ray.h"
-#ifdef CONTRIB
-#include "optix_shader_contrib.h"
+#ifdef CONTRIB_DOUBLE
+#include "optix_double.h"
 #endif
 #ifdef OLDAMB
 #include "optix_shader_ambient.h"
@@ -196,7 +196,7 @@ RT_CALLABLE_PROGRAM PerRayData_shadow closest_hit_normal_shadow(IntersectData co
 #ifdef CONTRIB
 		prd_shadow.rcoef *= nd.mcolor * nd.tspec;
 #endif
-		Ray trans_ray = make_Ray(nd.hit, nd.prdir, data.ray_type, ray_start(nd.hit, nd.prdir, nd.normal, RAY_START), RAY_END);
+		Ray trans_ray = make_Ray(nd.hit, nd.prdir, SHADOW_RAY, ray_start(nd.hit, nd.prdir, nd.normal, RAY_START), RAY_END);
 		rtTrace(top_object, trans_ray, prd_shadow);
 		prd_shadow.result *= nd.mcolor * nd.tspec;
 #ifdef DAYSIM_COMPATIBLE
