@@ -106,6 +106,8 @@ RT_PROGRAM void ray_generator()
 		float aft = clip.y - clip.x;
 		if (aft <= FTINY) {
 			aft = RAY_END;
+			if (frame)
+				aft *= 0.9999f; // Do not let diffuse rays sample the sky
 		}
 
 		Ray ray = make_Ray(ray_origin, ray_direction, RADIANCE_RAY, 0.0f, aft);
