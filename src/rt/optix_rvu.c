@@ -57,7 +57,7 @@ static RTvariable camera_gaze = NULL;
 #endif
 static RTbuffer metrics_buffer = NULL, direct_buffer = NULL, diffuse_buffer = NULL;
 
-void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const double alarm, void fpaint(int, int, int, int, const unsigned char *), void fplot(double *, int))
+void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, void fpaint(int, int, int, int, const unsigned char *), void fplot(double *, int))
 {
 	/* Primary RTAPI objects */
 	RTcontext           context;
@@ -83,7 +83,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		verbose_output = 0;
 
 		/* Setup state */
-		createContext(&context, width, height, alarm);
+		createContext(&context, width, height);
 
 		/* Render result buffer */
 		createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT3, width, height, &direct_buffer);
@@ -117,7 +117,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		has_diffuse_normal_closest_hit_program = 1;
 
 		createCamera(context, "rvu_generator");
-		setupKernel(context, view, NULL, width, height, 0u, alarm);
+		setupKernel(context, view, NULL, width, height, 0u, 0.0);
 
 		/* Apply unique settings */
 		exposure_var = applyContextVariable1f(context, "exposure", (float)exposure);

@@ -12,15 +12,13 @@
 
 #ifdef ACCELERAD
 
-void contribOptix(const size_t width, const size_t height, const size_t ray_count, const unsigned int imm_irrad, const unsigned int lim_dist, const unsigned int contrib, const unsigned int bins, const double alarm, double* rays, LUTAB* modifiers);
-
 extern void done_contrib();
 
 
 /**
  * Setup and run the OptiX kernel similar to RTRACE.
  */
-void contribOptix(const size_t width, const size_t height, const size_t ray_count, const unsigned int imm_irrad, const unsigned int lim_dist, const unsigned int contrib, const unsigned int bins, const double alarm, double* rays, LUTAB* modifiers)
+void contribOptix(const size_t width, const size_t height, const size_t ray_count, const unsigned int imm_irrad, const unsigned int lim_dist, const unsigned int contrib, const unsigned int bins, double* rays, LUTAB* modifiers)
 {
 	/* Primary RTAPI objects */
 	RTcontext           context;
@@ -58,7 +56,7 @@ void contribOptix(const size_t width, const size_t height, const size_t ray_coun
 		error(USER, "Too many rays per row. Use a smaller -x.");
 
 	/* Setup state */
-	createContext(&context, width, height, alarm);
+	createContext(&context, width, height);
 
 	/* Input buffers */
 	createBuffer2D(context, RT_BUFFER_INPUT, RT_FORMAT_FLOAT3, width, height, &origin_buffer);

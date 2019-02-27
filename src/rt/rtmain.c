@@ -33,8 +33,6 @@ extern char	*shm_boundary;		/* boundary of shared memory */
 
 #ifdef ACCELERAD
 extern void printRayTracingTime(const time_t time, const clock_t clock);
-
-extern double  ralrm;				/* seconds between reports */
 #endif
 
 char  *sigerr[NSIG];			/* signal error messages */
@@ -252,7 +250,8 @@ main(int  argc, char  *argv[])
 #ifdef ACCELERAD
 			case '\0':				/* timer */
 				check(2,"f");
-				ralrm = atof(argv[++i]);
+				error(WARNING, "GPU callback time (-t) is depricated.");
+				++i;
 				break;
 #endif
 			default:
@@ -610,9 +609,6 @@ printdefaults(void)			/* print default values to stdout */
 		case '-': printf(" stroke"); break;
 		}
 	putchar('\n');
-#ifdef ACCELERAD
-	printf("-t  %f\t\t\t# time between reports\n", ralrm);
-#endif
 	printf(erract[WARNING].pf != NULL ?
 			"-w+\t\t\t\t# warning messages on\n" :
 			"-w-\t\t\t\t# warning messages off\n");

@@ -18,9 +18,6 @@ RTbuffer buffer_handle = NULL;
 RTbuffer ray_count_buffer_handle = NULL;
 #endif
 
-void renderOptix(const VIEW* view, const size_t width, const size_t height, const double dstrpix, const double mblur, const double dblur, const double alarm, COLOR* colors, float* depths);
-void endOptix();
-
 
 /**
  * Setup and run the OptiX kernel similar to RPICT.

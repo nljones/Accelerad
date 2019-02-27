@@ -10,8 +10,6 @@
 
 #ifdef ACCELERAD
 
-void computeOptix(const size_t width, const size_t height, const unsigned int imm_irrad, const double alarm, RAY* rays);
-
 static void getRay(RayData* data, const RAY* ray);
 static void setRay(RAY* ray, const RayData* data);
 
@@ -24,7 +22,7 @@ extern RTbuffer dc_scratch_buffer;
 /**
  * Setup and run the OptiX kernel similar to RTRACE.
  */
-void computeOptix(const size_t width, const size_t height, const unsigned int imm_irrad, const double alarm, RAY* rays)
+void computeOptix(const size_t width, const size_t height, const unsigned int imm_irrad, RAY* rays)
 {
 	/* Primary RTAPI objects */
 	RTcontext           context;
@@ -46,7 +44,7 @@ void computeOptix(const size_t width, const size_t height, const unsigned int im
 		error(USER, "Number of points is zero or not set.");
 
 	/* Setup state */
-	createContext(&context, width, height, alarm);
+	createContext(&context, width, height);
 
 	/* Input/output buffer */
 	createCustomBuffer2D(context, RT_BUFFER_INPUT_OUTPUT, sizeof(RayData), width, height, &ray_buffer);

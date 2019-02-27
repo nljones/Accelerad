@@ -20,8 +20,6 @@ static const char	RCSid[] = "$Id: rcmain.c,v 2.18 2018/01/18 19:43:43 greg Exp $
 extern void printRayTracingTime(const time_t time, const clock_t clock);
 
 extern char *calfilename;			/* name of the most recently read cal file */
-
-extern double  ralrm;				/* seconds between reports */
 #endif
 
 int	gargc;				/* global argc */
@@ -77,9 +75,6 @@ printdefaults(void)			/* print default values to stdout */
 			header ? "output" : "no");
 	printf("-f%c%c\t\t\t\t# format input/output = %s/%s\n",
 			inpfmt, outfmt, formstr(inpfmt), formstr(outfmt));
-#ifdef ACCELERAD
-	printf("-t  %f\t\t\t# time between reports\n", ralrm);
-#endif
 	printf(erract[WARNING].pf != NULL ?
 			"-w+\t\t\t\t# warning messages on\n" :
 			"-w-\t\t\t\t# warning messages off\n");
@@ -343,7 +338,8 @@ main(int argc, char *argv[])
 #ifdef ACCELERAD
 		case 't':				/* timer */
 			check(2, "f");
-			ralrm = atof(argv[++i]);
+			error(WARNING, "GPU callback time (-t) is depricated.");
+			++i;
 			break;
 #endif
 #ifdef ACCELERAD_DEBUG

@@ -84,9 +84,7 @@ static putf_t *putreal;
 #define EXPECTED_RAY_COUNT	32
 
 /* from optix_rtrace.c */
-extern void computeOptix(const size_t width, const size_t height, const unsigned int imm_irrad, const double alarm, RAY* rays);
-
-double  ralrm = 0.0;				/* seconds between reports */
+extern void computeOptix(const size_t width, const size_t height, const unsigned int imm_irrad, RAY* rays);
 
 /* TODO This shouldn't be necessary, but the variable must exist in optix_util.c */
 double	pctdone = 0.0;			/* percentage done */
@@ -262,7 +260,7 @@ rtrace(				/* trace rays from file */
 	if (use_optix) {
 		/* Run OptiX kernel. */
 		total_rays = current_ray;
-		computeOptix(hresolu ? hresolu : 1, vresolu ? vresolu : total_rays, imm_irrad, ralrm, ray_cache);
+		computeOptix(hresolu ? hresolu : 1, vresolu ? vresolu : total_rays, imm_irrad, ray_cache);
 
 		/* Write output */
 		for ( current_ray = 0u; current_ray < total_rays; ) {

@@ -11,7 +11,7 @@ extern "C" {
 #endif
 
 /* from optix_rvu.c */
-extern void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, const double alarm, void fpaint(int, int, int, int, const unsigned char *), void fplot(double *, int));
+extern void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, void fpaint(int, int, int, int, const unsigned char *), void fplot(double *, int));
 extern void retreiveOptixImage(const int width, const int height, const double exposure, COLR* colrs);
 extern void updateOctree(char* path);
 extern void endOptix();
@@ -41,9 +41,6 @@ extern int setSpecularJitter(const double jitter);
 extern int setAmbientBounces(const int bounces);
 extern int setMinWeight(const double weight);
 extern int setMaxDepth(const int depth);
-
-/* from rvmain.c */
-extern double ralrm;			/* seconds between reports (-t) */
 
 #ifdef __cplusplus
 }

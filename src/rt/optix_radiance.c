@@ -335,7 +335,7 @@ static void createRemoteDevice(RTremotedevice* remote)
 }
 #endif
 
-void createContext(RTcontext* context, const RTsize width, const RTsize height, const double alarm)
+void createContext(RTcontext* context, const RTsize width, const RTsize height)
 {
 	//RTbuffer seed_buffer;
 

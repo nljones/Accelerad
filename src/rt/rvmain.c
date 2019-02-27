@@ -35,7 +35,6 @@ double  scale = 0.0;			/* maximum of scale for falsecolor images, zero auto-scal
 int  decades = 0;				/* number of decades for log scale, zero for linear scale (-log) */
 int  base = 10;					/* base for log scale (-base) */
 double  masking = 0.0;			/* minimum value to display in falsecolor images (-m) */
-double  ralrm = 0.0;			/* seconds between reports (-t) */
 #endif
 
 VIEW  ourview = STDVIEW;		/* viewing parameters */
@@ -255,7 +254,8 @@ main(int argc, char *argv[])
 			break;
 		case 't':				/* timer */
 			check(2, "f");
-			ralrm = atof(argv[++i]);
+			error(WARNING, "GPU callback time (-t) is depricated.");
+			++i;
 			break;
 #endif
 		default:
@@ -447,7 +447,6 @@ printdefaults(void)			/* print default values to stdout */
 	printf("-s %f\t\t\t# scale for falsecolor images\n", scale);
 	printf("-log %-9d\t\t\t# decades in log scale for falsecolor images\n", decades);
 	printf("-m %f\t\t\t# minimum value for falsecolor images\n", masking);
-	printf("-t %f\t\t\t# time between reports\n", ralrm);
 #endif
 	print_rdefaults();
 }

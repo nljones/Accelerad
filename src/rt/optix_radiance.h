@@ -153,7 +153,7 @@ typedef struct {
 char path_to_ptx[512];     /* The path to the PTX file. */
 
 /* in optix_radiance.c */
-void createContext(RTcontext* context, const RTsize width, const RTsize height, const double alarm);
+void createContext(RTcontext* context, const RTsize width, const RTsize height);
 void destroyContext(const RTcontext context);
 #ifdef CONTRIB
 void makeContribCompatible(const RTcontext context);
