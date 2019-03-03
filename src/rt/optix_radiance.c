@@ -60,7 +60,8 @@ typedef struct SceneNode {
 	IntArray* triangles;			/* One entry per triangle gives material of that triangle */
 	size_t triangle_count;			/* Number of triangles in this instance */
 	size_t offset;					/* Offset of first triangle into global buffer */
-	int sole_material;				/* The material index to use for all surfaces in this node, or -1 to use separate materials for each object. */
+	RTvariable sole_material;		/* Variable containing the material index to use for all surfaces in this node, or -1 to use separate materials for each object. */
+	int sole_material_id;				/* The material index to use for all surfaces in this node, or -1 to use separate materials for each object. */
 	struct SceneBranch *child;		/* First entry in linked list of child branches */
 	struct SceneNode *twin;			/* Older twin to copy from */
 } SceneNode;
@@ -934,7 +935,10 @@ static void createGeometryInstance(const RTcontext context, SceneNode *node, con
 	/* Apply materials to the geometry instance. */
 	RT_CHECK_ERROR(rtGeometryInstanceSetMaterialCount(node->instance, 1u));
 	RT_CHECK_ERROR(rtGeometryInstanceSetMaterial(node->instance, 0, generic_material));
-	applyGeometryInstanceVariable1i(context, node->instance, "sole_material", node->sole_material);
+	if (node->sole_material)
+		RT_CHECK_ERROR(rtVariableSet1i(node->sole_material, node->sole_material_id));
+	else
+		node->sole_material = applyGeometryInstanceVariable1i(context, node->instance, "sole_material", node->sole_material_id);
 
 	/* Create a geometry group to hold the geometry instance. */
 	if (!node->group) {
@@ -1520,7 +1524,7 @@ static void createInstance(const RTcontext context, OBJREC* rec, Scene* scene)
 	}
 
 	/* Get the material for the instance, if any */
-	material_override = scene->root->sole_material;
+	material_override = scene->root->sole_material_id;
 	if (material_override == OVOID) {
 		scene->material = findmaterial(rec);
 		if (scene->material)
@@ -1532,7 +1536,7 @@ static void createInstance(const RTcontext context, OBJREC* rec, Scene* scene)
 		SceneNode *node = (SceneNode*)scene->instances->array[i];
 		if (!strcmp(name, node->name)) {
 			twin = node;
-			if (node->sole_material == material_override) {
+			if (node->sole_material_id == material_override) {
 				branch->node = node;
 				break;
 			}
@@ -1551,7 +1555,7 @@ static void createInstance(const RTcontext context, OBJREC* rec, Scene* scene)
 			createNode(context, scene, name, meshinst->msh->mat0, meshinst->msh->nmats, meshinst->msh);
 		}
 		branch->node = scene->root;
-		branch->node->sole_material = material_override;
+		branch->node->sole_material_id = material_override;
 		scene->root = root;
 	}
 	else if (!branch->node) {
@@ -2624,7 +2628,8 @@ static void clearSceneNode(SceneNode *node)
 	node->acceleration = NULL;
 	node->triangle_count = 0;
 	node->offset = 0;
-	node->sole_material = OVOID;
+	node->sole_material = NULL;
+	node->sole_material_id = OVOID;
 	node->child = NULL;
 	node->twin = NULL;
 }
@@ -2641,7 +2646,7 @@ static SceneNode* cloneSceneNode(const RTcontext context, SceneNode *node, const
 	twin->acceleration = node->acceleration;
 	twin->triangle_count = node->triangle_count;
 	twin->offset = node->offset;
-	twin->sole_material = material_override;
+	twin->sole_material_id = material_override;
 	twin->twin = node;
 
 	if (node->instance) {
@@ -2663,12 +2668,14 @@ static SceneNode* cloneSceneNode(const RTcontext context, SceneNode *node, const
 		/* Apply materials to the geometry instance. */
 		RT_CHECK_ERROR(rtGeometryInstanceSetMaterialCount(twin->instance, 1u));
 		RT_CHECK_ERROR(rtGeometryInstanceSetMaterial(twin->instance, 0, generic_material));
-		applyGeometryInstanceVariable1i(context, twin->instance, "sole_material", material_override);
+		twin->sole_material = applyGeometryInstanceVariable1i(context, twin->instance, "sole_material", material_override);
 
 		vprintf("Duplicated instance %s\n", node->name);
 	}
-	else
+	else {
 		twin->instance = NULL;
+		twin->sole_material = NULL;
+	}
 
 	if (node->group) {
 		RT_CHECK_ERROR(rtGeometryGroupCreate(context, &twin->group));
@@ -2704,7 +2711,7 @@ static SceneBranch* cloneSceneBranch(const RTcontext context, SceneBranch *branc
 	if (branch->node) {
 		for (i = 0; i < scene->instances->count; i++) {
 			SceneNode *node = (SceneNode*)scene->instances->array[i];
-			if (node->sole_material == material_override && !strcmp(branch->node->name, node->name)) {
+			if (node->sole_material_id == material_override && !strcmp(branch->node->name, node->name)) {
 				twin->node = node;
 				break;
 			}
