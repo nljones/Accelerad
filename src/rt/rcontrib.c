@@ -81,10 +81,6 @@ extern void contribOptix(const size_t width, const size_t height, const size_t r
 static unsigned int total_bins = 0;	/* total number of contribution bins */
 
 char *calfilename = NULL;			/* name of the most recently read cal file */
-
-/* TODO This shouldn't be necessary, but the variable must exist in optix_util.c */
-double	pctdone = 0.0;			/* percentage done */
-void report(int dummy) {}		/* report progress */
 #endif
 
 /************************** INITIALIZATION ROUTINES ***********************/

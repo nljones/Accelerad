@@ -30,10 +30,6 @@ static clock_t last_callback_time;  /* time of last callback from GPU */
 static size_t cumulative_millis = 0;  /* cumulative timing of kernel fuctions */
 #endif
 
-/* from rpict.c */
-extern void report(int);
-extern double  pctdone;			/* percentage done */
-
 int verbose_output = 1;	/* Print repetitive outputs. */
 
 #ifdef REPORT_GPU_STATE
@@ -817,14 +813,6 @@ char* filename(char *path)
 		return separator + 1;
 	}
 	return path;
-}
-
-
-void reportProgress( const double progress, const double alarm )
-{
-	pctdone = progress;
-	if (alarm > 0)
-		report(0);
 }
 
 #ifdef TIMEOUT_CALLBACK

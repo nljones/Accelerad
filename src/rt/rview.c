@@ -126,7 +126,7 @@ rview(void)				/* do a view */
 			errno = 0;
 			sprintf(buf, "%d pass...\n", pdepth);
 			(*dev->comout)(buf);
-			renderOptixIterative(&ourview, hresolu, vresolu, !(pdepth++), qt_rvu_paint_image, qt_rvu_update_plot);
+			renderOptixIterative(&ourview, hresolu, vresolu, !(pdepth++), &qt_rvu_paint_image, &qt_rvu_update_plot);
 			if (dev->inpready)		/* noticed some input */
 				command(": ");
 		}

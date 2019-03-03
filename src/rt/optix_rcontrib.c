@@ -98,7 +98,7 @@ void contribOptix(const size_t width, const size_t height, const size_t ray_coun
 #endif
 
 	createCamera(context, "rcontrib_generator");
-	setupKernel(context, NULL, modifiers, width, height, imm_irrad, 0.0);
+	setupKernel(context, NULL, modifiers, width, height, imm_irrad, NULL);
 
 	/* Apply unique settings */
 	if (lim_dist)

@@ -38,11 +38,9 @@ extern time_t  tstart;			/* start time */
 
 #ifdef ACCELERAD
 extern void printRayTracingTime(const time_t time, const clock_t clock);
-
-extern double  ralrm;				/* seconds between reports */
-#else
-extern int  ralrm;			/* seconds between reports */
 #endif
+
+extern int  ralrm;			/* seconds between reports */
 
 extern VIEW  ourview;			/* viewing parameters */
 
@@ -204,7 +202,7 @@ main(int  argc, char  *argv[])
 		case 't':				/* timer */
 #ifdef ACCELERAD
 			check(2,"f");
-			ralrm = atof(argv[++i]);
+			ralrm = (int)(0.5 + atof(argv[++i]));
 #else
 			check(2,"i");
 			ralrm = atoi(argv[++i]);
@@ -498,11 +496,7 @@ printdefaults(void)			/* print default values to stdout */
 	printf("-pd %f\t\t\t# pixel depth-of-field\n", dblur);
 	printf("-ps %-9d\t\t\t# pixel sample\n", psample);
 	printf("-pt %f\t\t\t# pixel threshold\n", maxdiff);
-#ifdef ACCELERAD
-	printf("-t  %f\t\t\t# time between reports\n", ralrm);
-#else
 	printf("-t  %-9d\t\t\t# time between reports\n", ralrm);
-#endif
 	printf(erract[WARNING].pf != NULL ?
 			"-w+\t\t\t\t# warning messages on\n" :
 			"-w-\t\t\t\t# warning messages off\n");

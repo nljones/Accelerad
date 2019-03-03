@@ -85,10 +85,6 @@ static putf_t *putreal;
 
 /* from optix_rtrace.c */
 extern void computeOptix(const size_t width, const size_t height, const unsigned int imm_irrad, RAY* rays);
-
-/* TODO This shouldn't be necessary, but the variable must exist in optix_util.c */
-double	pctdone = 0.0;			/* percentage done */
-void report(int dummy) {}		/* report progress */
 #endif
 
 

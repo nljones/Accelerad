@@ -162,14 +162,14 @@ void makeContribCompatible(const RTcontext context);
 void makeDaysimCompatible(const RTcontext context);
 void setupDaysim(const RTcontext context, RTbuffer* dc_buffer, const RTsize width, const RTsize height);
 #endif
-void setupKernel(const RTcontext context, const VIEW* view, LUTAB* modifiers, const RTsize width, const RTsize height, const unsigned int imm_irrad, const double alarm);
+void setupKernel(const RTcontext context, const VIEW* view, LUTAB* modifiers, const RTsize width, const RTsize height, const unsigned int imm_irrad, void (*freport)(double));
 void updateModel(const RTcontext context, LUTAB* modifiers, const unsigned int imm_irrad);
 void createCamera(const RTcontext context, const char* ptx_name);
 void updateCamera(const RTcontext context, const VIEW* view);
 int setIrradiance(const int irrad);
 
 /* in optix_ambient.c */
-void createAmbientRecords(const RTcontext context, const VIEW* view, const RTsize width, const RTsize height, const double alarm);
+void createAmbientRecords(const RTcontext context, const VIEW* view, const RTsize width, const RTsize height, void (*freport)(double));
 void setupAmbientCache( const RTcontext context, const unsigned int level );
 void createAmbientDynamicStorage(const RTcontext context, const RTprogram program, const RTsize size);
 
@@ -245,7 +245,6 @@ void printException(const RTexception type, const int index, const char* locatio
 void ptxFile( char* path, const char* name );
 char* ptxString(const char* name);
 char* filename(char *path);
-void reportProgress( const double progress, const double alarm );
 #ifdef TIMEOUT_CALLBACK
 int timeoutCallback(void);
 #endif

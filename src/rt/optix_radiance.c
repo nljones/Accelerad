@@ -493,7 +493,7 @@ void setupDaysim(const RTcontext context, RTbuffer* dc_buffer, const RTsize widt
 }
 #endif /* DAYSIM_COMPATIBLE */
 
-void setupKernel(const RTcontext context, const VIEW* view, LUTAB* modifiers, const RTsize width, const RTsize height, const unsigned int imm_irrad, const double alarm)
+void setupKernel(const RTcontext context, const VIEW* view, LUTAB* modifiers, const RTsize width, const RTsize height, const unsigned int imm_irrad, void (*freport)(double))
 {
 	/* Setup state */
 	applyRadianceSettings(context, view, imm_irrad);
@@ -515,7 +515,7 @@ void setupKernel(const RTcontext context, const VIEW* view, LUTAB* modifiers, co
 	/* Set up irradiance cache of ambient values */
 	if ( use_ambient ) { // Don't bother with ambient records if -aa is set to zero
 		if ( calc_ambient ) // Run pre-process only if no ambient file is available
-			createAmbientRecords( context, view, width, height, alarm ); // implementation depends on current settings
+			createAmbientRecords( context, view, width, height, freport ); // implementation depends on current settings
 		else
 			setupAmbientCache( context, 0u ); // only need level 0 for final gather
 	}

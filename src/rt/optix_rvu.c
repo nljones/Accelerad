@@ -57,7 +57,7 @@ static RTvariable camera_gaze = NULL;
 #endif
 static RTbuffer metrics_buffer = NULL, direct_buffer = NULL, diffuse_buffer = NULL;
 
-void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, void fpaint(int, int, int, int, const unsigned char *), void fplot(double *, int))
+void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, void (*fpaint)(int, int, int, int, const unsigned char *), void (*fplot)(double *, int))
 {
 	/* Primary RTAPI objects */
 	RTcontext           context;
@@ -117,7 +117,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		has_diffuse_normal_closest_hit_program = 1;
 
 		createCamera(context, "rvu_generator");
-		setupKernel(context, view, NULL, width, height, 0u, 0.0);
+		setupKernel(context, view, NULL, width, height, 0u, NULL);
 
 		/* Apply unique settings */
 		exposure_var = applyContextVariable1f(context, "exposure", (float)exposure);
@@ -171,11 +171,11 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	/* Run the OptiX kernel */
 	runKernel2D(context, RADIANCE_ENTRY, width, height);
 
-	if (&fpaint) {
+	if (fpaint) {
 		/* Retrieve the image */
 		unsigned char* colors;
 		RT_CHECK_ERROR(rtBufferMap(output_buffer, (void**)&colors));
-		fpaint(0, 0, width, height, colors);
+		(*fpaint)(0, 0, width, height, colors);
 		RT_CHECK_ERROR(rtBufferUnmap(output_buffer));
 	}
 
@@ -253,7 +253,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		setScale(2.0 * avlum);
 	}
 
-	if (&fplot) {
+	if (fplot) {
 		/* Plot results */
 		double *plotValues = (double *)malloc(METRICS_COUNT * sizeof(double));
 		if (plotValues) {
@@ -263,7 +263,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 			plotValues[3] = lumT;
 			plotValues[4] = cr;
 			plotValues[5] = rammg;
-			fplot(plotValues, rescaled);
+			(*fplot)(plotValues, rescaled);
 			free(plotValues);
 		}
 	}

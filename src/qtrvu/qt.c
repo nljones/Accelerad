@@ -54,15 +54,6 @@ extern void qt_rvu_paint_image(int xmin, int ymin, int xmax, int ymax, const uns
 extern void qt_rvu_update_plot(double *values, int rescale);
 #endif
 
-#ifdef ACCELERAD
-double	pctdone = 0.0;			/* percentage done */
-
-void report(int dummy)		/* report progress */
-{
-	qt_set_progress((int)pctdone);
-}
-#endif
-
 extern struct driver *
 qt_init(		/* initialize driver */
   char  *name,
@@ -271,7 +262,7 @@ void qt_process_command(const char* com)
 			qt_comout(buf);
 			last_total_progress = progress ? progress : 1;
 			progress = 0;
-			renderOptixIterative(&ourview, hresolu, vresolu, !(pdepth++), qt_rvu_paint_image, qt_rvu_update_plot);
+			renderOptixIterative(&ourview, hresolu, vresolu, !(pdepth++), &qt_rvu_paint_image, &qt_rvu_update_plot);
 			if (dev->inpready)
 			{
 				qt_comout("abort");

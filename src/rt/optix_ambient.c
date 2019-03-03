@@ -39,11 +39,11 @@ static size_t chooseAmbientLocations(const RTcontext context, const unsigned int
 #ifdef DAYSIM
 static unsigned int gatherAmbientRecords( AMBTREE* at, AmbientRecord** records, float** dc, const int level );
 static int saveAmbientRecords( AmbientRecord* record, float* dc );
-static void calcAmbientValues(const RTcontext context, const unsigned int level, const unsigned int max_level, const size_t cluster_count, const double alarm, RTbuffer ambient_record_buffer, RTbuffer ambient_dc_buffer, RTvariable segment_var);
+static void calcAmbientValues(const RTcontext context, const unsigned int level, const unsigned int max_level, const size_t cluster_count, RTbuffer ambient_record_buffer, void (*freport)(double), RTbuffer ambient_dc_buffer, RTvariable segment_var);
 #else
 static unsigned int gatherAmbientRecords( AMBTREE* at, AmbientRecord** records, const int level );
 static int saveAmbientRecords( AmbientRecord* record );
-static void calcAmbientValues(const RTcontext context, const unsigned int level, const unsigned int max_level, const size_t cluster_count, const double alarm, RTbuffer ambient_record_buffer);
+static void calcAmbientValues(const RTcontext context, const unsigned int level, const unsigned int max_level, const size_t cluster_count, RTbuffer ambient_record_buffer, void(*freport)(double));
 #endif
 #ifdef AMBIENT_CELL
 static size_t createClusters(const size_t seed_count, PointDirection* seed_buffer_data, size_t* seed_index, const unsigned int level);
@@ -530,7 +530,7 @@ static void createAmbientAcceleration( const RTcontext context, const RTgeometry
 	RT_CHECK_ERROR( rtAccelerationMarkDirty( ambient_record_acceleration ) );
 }
 
-void createAmbientRecords(const RTcontext context, const VIEW* view, const RTsize width, const RTsize height, const double alarm)
+void createAmbientRecords(const RTcontext context, const VIEW* view, const RTsize width, const RTsize height, void(*freport)(double))
 {
 	RTvariable     level_var, segment_var = NULL;
 	RTbuffer       seed_buffer, ambient_record_buffer;
@@ -671,9 +671,9 @@ void createAmbientRecords(const RTcontext context, const VIEW* view, const RTsiz
 		RT_CHECK_ERROR(rtBufferSetSize1D(ambient_record_buffer, cluster_counts[level]));
 #ifdef DAYSIM
 		RT_CHECK_ERROR(rtBufferSetSize2D(ambient_dc_buffer, daysimGetCoefficients(), daysimGetCoefficients() ? cluster_counts[level] : 0));
-		calcAmbientValues(context, level, max_level, cluster_counts[level], alarm, ambient_record_buffer, ambient_dc_buffer, segment_var);
+		calcAmbientValues(context, level, max_level, cluster_counts[level], ambient_record_buffer, freport, ambient_dc_buffer, segment_var);
 #else
-		calcAmbientValues(context, level, max_level, cluster_counts[level], alarm, ambient_record_buffer);
+		calcAmbientValues(context, level, max_level, cluster_counts[level], ambient_record_buffer, freport);
 #endif
 
 		/* Second Round */
@@ -703,9 +703,9 @@ void createAmbientRecords(const RTcontext context, const VIEW* view, const RTsiz
 
 #else /* AMBIENT_CELL */
 #ifdef DAYSIM
-		calcAmbientValues(context, level, max_level, cuda_kmeans_clusters, alarm, ambient_record_buffer, ambient_dc_buffer, segment_var);
+		calcAmbientValues(context, level, max_level, cuda_kmeans_clusters, ambient_record_buffer, freport, ambient_dc_buffer, segment_var);
 #else
-		calcAmbientValues(context, level, max_level, cuda_kmeans_clusters, alarm, ambient_record_buffer);
+		calcAmbientValues(context, level, max_level, cuda_kmeans_clusters, ambient_record_buffer, freport);
 #endif
 #endif /* AMBIENT_CELL */
 #ifdef ITERATIVE_IC
@@ -1141,9 +1141,9 @@ kmmemerr:
 #endif /* AMBIENT_CELL */
 
 #ifdef DAYSIM
-static void calcAmbientValues(const RTcontext context, const unsigned int level, const unsigned int max_level, const size_t cluster_count, const double alarm, RTbuffer ambient_record_buffer, RTbuffer ambient_dc_buffer, RTvariable segment_var)
+static void calcAmbientValues(const RTcontext context, const unsigned int level, const unsigned int max_level, const size_t cluster_count, RTbuffer ambient_record_buffer, void (*freport)(double), RTbuffer ambient_dc_buffer, RTvariable segment_var)
 #else
-static void calcAmbientValues(const RTcontext context, const unsigned int level, const unsigned int max_level, const size_t cluster_count, const double alarm, RTbuffer ambient_record_buffer)
+static void calcAmbientValues(const RTcontext context, const unsigned int level, const unsigned int max_level, const size_t cluster_count, RTbuffer ambient_record_buffer, void(*freport)(double))
 #endif
 {
 	AmbientRecord *ambient_record_buffer_data;
@@ -1210,7 +1210,8 @@ static void calcAmbientValues(const RTcontext context, const unsigned int level,
 #ifdef DEBUG_OPTIX
 	flushExceptionLog("ambient calculation");
 #endif
-	reportProgress(100.0 * (max_level - level) / (max_level + 1), alarm);
+	if (freport)
+		(*freport)(100.0 * (max_level - level) / (max_level + 1));
 #ifdef HIT_COUNT
 	mprintf("Hit count %u (%f per ambient value).\n", hit_total, (double)hit_total / cluster_count);
 	hit_total = 0;

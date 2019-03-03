@@ -47,7 +47,7 @@ static const char RCSid[] = "$Id: rpict.c,v 2.91 2018/11/13 19:58:33 greg Exp $"
 
 #ifdef ACCELERAD
 /* in optix_rpict.c */
-extern void renderOptix(const VIEW* view, const size_t width, const size_t height, const double dstrpix, const double mblur, const double dblur, const double alarm, COLOR* colors, float* depths);
+extern void renderOptix(const VIEW* view, const size_t width, const size_t height, const double dstrpix, const double mblur, const double dblur, COLOR* colors, float* depths, void (*freport)(double));
 extern void endOptix();
 #endif
 
@@ -111,11 +111,7 @@ int  ambounce = 0;			/* ambient bounces */
 char  *amblist[AMBLLEN];		/* ambient include/exclude list */
 int  ambincl = -1;			/* include == 1, exclude == 0 */
 
-#ifdef ACCELERAD
-double  ralrm = 0.0;				/* seconds between reports */
-#else
 int  ralrm = 0;				/* seconds between reports */
-#endif
 
 double	pctdone = 0.0;			/* percentage done */
 time_t  tlastrept = 0L;			/* time at last report */
@@ -130,6 +126,7 @@ int  hres, vres;			/* resolution for this frame */
 static VIEW	lastview;		/* the previous view input */
 
 #ifdef ACCELERAD
+void reportProgress(double percent);
 void report(int);
 #else
 static void report(int);
@@ -177,6 +174,14 @@ int  code;
 	exit(code);
 }
 
+#ifdef ACCELERAD
+void reportProgress(double percent)
+{
+	pctdone = percent;
+	if (ralrm > 0)
+		report(0);
+}
+#endif
 
 #ifndef NON_POSIX
 #ifdef ACCELERAD
@@ -450,7 +455,7 @@ render(				/* render the scene */
 			report(0);
 
 		/* Now lets render an image on the graphics card */
-		renderOptix(&ourview, hres, vres, dstrpix, mblur, dblur, ralrm, colptr, zptr);
+		renderOptix(&ourview, hres, vres, dstrpix, mblur, dblur, colptr, zptr, &reportProgress);
 
 		/* open z-file */
 		if (zfile != NULL) {

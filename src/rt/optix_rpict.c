@@ -24,7 +24,7 @@ RTbuffer ray_count_buffer_handle = NULL;
  * This may be called repeatedly in order to render an animation.
  * After the last call, endOptix() should be called.
  */
-void renderOptix(const VIEW* view, const size_t width, const size_t height, const double dstrpix, const double mblur, const double dblur, const double alarm, COLOR* colors, float* depths)
+void renderOptix(const VIEW* view, const size_t width, const size_t height, const double dstrpix, const double mblur, const double dblur, COLOR* colors, float* depths, void (*freport)(double))
 {
 	/* Primary RTAPI objects */
 	RTcontext           context;
@@ -74,7 +74,7 @@ void renderOptix(const VIEW* view, const size_t width, const size_t height, cons
 		buffer_handle = output_buffer;
 
 		createCamera(context, "camera");
-		setupKernel(context, view, NULL, width, height, 0u, alarm);
+		setupKernel(context, view, NULL, width, height, 0u, freport);
 
 		/* Apply unique settings */
 		if (dstrpix != 0.0)
