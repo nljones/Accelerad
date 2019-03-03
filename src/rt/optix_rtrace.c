@@ -62,7 +62,7 @@ void computeOptix(const size_t width, const size_t height, const unsigned int im
 	setupDaysim(context, &dc_buffer, width, height);
 #endif
 
-	createCamera(context, "sensor");
+	createCamera(context, "rtrace");
 	setupKernel(context, NULL, NULL, width, height, imm_irrad, NULL);
 
 #ifdef DAYSIM
@@ -103,7 +103,7 @@ void computeOptix(const size_t width, const size_t height, const unsigned int im
 #endif
 
 #ifdef DEBUG_OPTIX
-	flushExceptionLog("sensor");
+	flushExceptionLog("rtrace");
 #endif
 
 	/* Clean up */

@@ -1,5 +1,5 @@
 /*
- *  rcontrib_generator.cu - entry point for contribution coefficient calculation on GPUs.
+ *  rcontrib.cu - entry point for contribution coefficient calculation on GPUs.
  */
 
 #include "accelerad_copyright.h"

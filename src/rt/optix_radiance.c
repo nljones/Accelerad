@@ -505,9 +505,9 @@ void setupKernel(const RTcontext context, const VIEW* view, LUTAB* modifiers, co
 	/* Set the geometry group as the top level object. */
 	top_object = applyContextObject(context, "top_object", top);
 	if (!use_ambient)
-		top_ambient = applyContextObject(context, "top_ambient", top); // Need to define this because it is referred to by radiance_normal.cu
+		top_ambient = applyContextObject(context, "top_ambient", top); // Need to define this because it is referred to by material_normal.cu
 	if (!imm_irrad)
-		top_irrad = applyContextObject(context, "top_irrad", top); // Need to define this because it is referred to by sensor.cu, sensor_cloud_generator, and ambient_cloud_generator.cu
+		top_irrad = applyContextObject(context, "top_irrad", top); // Need to define this because it is referred to by rtrace.cu, rtrace_cloud_generator.cu, and ambient_cloud_generator.cu
 
 	if ( imm_irrad )
 		createIrradianceGeometry( context );

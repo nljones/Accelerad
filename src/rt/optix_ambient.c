@@ -733,13 +733,13 @@ static void createPointCloudCamera( const RTcontext context, const VIEW* view )
 
 	/* Ray generation program */
 	if ( view ) {
-		ptxFile( path_to_ptx, "point_cloud_generator" );
+		ptxFile( path_to_ptx, "rpict_cloud_generator" );
 		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "point_cloud_camera", &program));
 
 		if (optix_amb_grid_size > 0) // Ignore camera for bounds of sampling area
 			applyProgramVariable1ui(context, program, "camera", 0u); // Hide context variable
 	} else {
-		ptxFile( path_to_ptx, "sensor_cloud_generator" );
+		ptxFile( path_to_ptx, "rtrace_cloud_generator" );
 		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "cloud_generator", &program));
 	}
 	RT_CHECK_ERROR(rtContextSetRayGenerationProgram(context, POINT_CLOUD_ENTRY, program));

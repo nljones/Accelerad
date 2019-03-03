@@ -1,5 +1,5 @@
 /*
- *  point_cloud_generator.cu - entry point for geometry sampling for image generation on GPUs.
+ *  rpict_cloud_generator.cu - entry point for geometry sampling for image generation on GPUs.
  */
 
 #include "accelerad_copyright.h"

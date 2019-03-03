@@ -116,7 +116,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 
 		has_diffuse_normal_closest_hit_program = 1;
 
-		createCamera(context, "rvu_generator");
+		createCamera(context, "rvu");
 		setupKernel(context, view, NULL, width, height, 0u, NULL);
 
 		/* Apply unique settings */
@@ -182,7 +182,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	/* Calculate the metrics */
 	RT_CHECK_ERROR(rtBufferMap(metrics_buffer, (void**)&metrics));
 
-#ifndef USER_STUDY
+#ifdef SAVE_METRICS
 	rammg = calcRAMMG(metrics, width, height);
 #endif
 
@@ -269,7 +269,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	}
 
 #ifdef DEBUG_OPTIX
-	flushExceptionLog("camera");
+	flushExceptionLog("rvu");
 #endif
 #ifdef PRINT_METRICS
 	vprintf("Solid angle:                %g\n", omega);

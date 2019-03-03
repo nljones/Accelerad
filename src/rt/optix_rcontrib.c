@@ -97,7 +97,7 @@ void contribOptix(const size_t width, const size_t height, const size_t ray_coun
 	makeDaysimCompatible(context);
 #endif
 
-	createCamera(context, "rcontrib_generator");
+	createCamera(context, "rcontrib");
 	setupKernel(context, NULL, modifiers, width, height, imm_irrad, NULL);
 
 	/* Apply unique settings */
@@ -167,7 +167,7 @@ void contribOptix(const size_t width, const size_t height, const size_t ray_coun
 	}
 
 #ifdef DEBUG_OPTIX
-	flushExceptionLog("sensor");
+	flushExceptionLog("rcontrib");
 #endif
 
 	/* Clean up */

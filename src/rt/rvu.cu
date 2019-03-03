@@ -1,5 +1,5 @@
 /*
- *  rvu_generator.cu - entry point for progressive rendering on GPUs.
+ *  rvu.cu - entry point for progressive rendering on GPUs.
  */
 
 #include "accelerad_copyright.h"

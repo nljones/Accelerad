@@ -1,5 +1,5 @@
 /*
- *  sensor.cu - entry point for individual ray tracing on GPUs.
+ *  rtrace.cu - entry point for individual ray tracing on GPUs.
  */
 
 #include "accelerad_copyright.h"

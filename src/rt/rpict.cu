@@ -1,5 +1,5 @@
 /*
- *  camera.cu - entry point for image generation on GPUs.
+ *  rpict.cu - entry point for image generation on GPUs.
  */
 
 #include "accelerad_copyright.h"

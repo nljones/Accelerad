@@ -73,7 +73,7 @@ void renderOptix(const VIEW* view, const size_t width, const size_t height, cons
 		context_handle = context;
 		buffer_handle = output_buffer;
 
-		createCamera(context, "camera");
+		createCamera(context, "rpict");
 		setupKernel(context, view, NULL, width, height, 0u, freport);
 
 		/* Apply unique settings */
@@ -125,7 +125,7 @@ void renderOptix(const VIEW* view, const size_t width, const size_t height, cons
 #endif
 
 #ifdef DEBUG_OPTIX
-	flushExceptionLog("camera");
+	flushExceptionLog("rpict");
 #endif
 
 #ifdef PRINT_OPTIX

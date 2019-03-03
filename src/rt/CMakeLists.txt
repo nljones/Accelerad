@@ -190,18 +190,18 @@ if(OptiX_USE)
   # CUDA files into PTX files with the prefix "cuda_compile_ptx_generated_"
   # in the directory specified by CUDA_GENERATED_OUTPUT_DIR.
   CUDA_COMPILE_PTX(generated_PTX_files_rtrace
-    sensor.cu
-    sensor_cloud_generator.cu
+    rtrace.cu
+    rtrace_cloud_generator.cu
   )
   CUDA_COMPILE_PTX(generated_PTX_files_rpict
-    camera.cu
-    point_cloud_generator.cu
+    rpict.cu
+    rpict_cloud_generator.cu
   )
   CUDA_COMPILE_PTX(generated_PTX_files_rcontrib
-    rcontrib_generator.cu
+    rcontrib.cu
   )
   CUDA_COMPILE_PTX(generated_PTX_files_rvu
-    rvu_generator.cu
+    rvu.cu
   )
   CUDA_COMPILE_PTX(generated_PTX_files
     ambient_cloud_generator.cu

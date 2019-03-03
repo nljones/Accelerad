@@ -1,5 +1,5 @@
 /*
- *  sensor_cloud_generator.cu - entry point for geometry sampling for individual ray tracing on GPUs.
+ *  rtrace_cloud_generator.cu - entry point for geometry sampling for individual ray tracing on GPUs.
  */
 
 #include "accelerad_copyright.h"
