@@ -14,8 +14,10 @@ static const char	RCSid[] = "$Id: renderopts.c,v 2.18 2016/03/21 19:06:08 greg E
 #include  "pmapopt.h"
 
 #ifdef ACCELERAD
-unsigned int use_optix = 1u;			/* Flag to use OptiX for ray tracing */
-#ifndef RTX
+unsigned int use_optix = 1u;			/* Flag to use OptiX for ray tracing (-g) */
+#ifdef RTX
+int optix_verbosity = 0;				/* Verbosity level for OptiX callbacks (-gv) */
+#else
 int optix_stack_size = 4096;			/* Stack size for OptiX program in bytes (-g) */
 #endif
 
@@ -74,8 +76,13 @@ getrenderopt(		/* get next render option */
 		}
 		break;
 #ifdef ACCELERAD
-	case 'g':				/* OptiX stack size */
+	case 'g':				/* Use OptiX */
 #ifdef RTX
+		if (av[0][2] == 'v') {	/* OptiX verbosity */
+			check(3, "i");
+			optix_verbosity = atoi(av[1]);
+			return(1);
+		}
 		if (av[0][2] || badarg(ac - 1, av + 1, "i")) {
 			check_bool(2, use_optix);
 			return(0);

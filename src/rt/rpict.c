@@ -127,10 +127,8 @@ static VIEW	lastview;		/* the previous view input */
 
 #ifdef ACCELERAD
 void reportProgress(double percent);
-void report(int);
-#else
-static void report(int);
 #endif
+static void report(int);
 static int nextview(FILE *fp);
 static void render(char *zfile, char *oldfile);
 static void fillscanline(COLOR *scanline, float *zline, char *sd, int xres,
@@ -184,11 +182,7 @@ void reportProgress(double percent)
 #endif
 
 #ifndef NON_POSIX
-#ifdef ACCELERAD
-void
-#else
 static void
-#endif
 report(int dummy)		/* report progress */
 {
 	char			bcStat [128];
@@ -230,11 +224,7 @@ report(int dummy)		/* report progress */
 #endif
 }
 #else
-#ifdef ACCELERAD
-void
-#else
 static void
-#endif
 report(int dummy)		/* report progress */
 {
 	char	bcStat [128];

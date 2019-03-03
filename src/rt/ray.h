@@ -111,7 +111,9 @@ extern int	rand_samp;	/* pure Monte Carlo sampling? */
 
 #ifdef ACCELERAD
 extern unsigned int use_optix;			/* Flag to use OptiX for ray tracing */
-#ifndef RTX
+#ifdef RTX
+extern int optix_verbosity;				/* Verbosity level for OptiX callbacks */
+#else
 extern int optix_stack_size;			/* Stack size for OptiX program in bytes */
 #endif
 

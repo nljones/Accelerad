@@ -406,7 +406,7 @@ void createContext(RTcontext* context, const RTsize width, const RTsize height)
 
 #ifdef RTX
 	/* Enable debugging callbacks */
-	RT_CHECK_ERROR2(rtContextSetUsageReportCallback(*context, reportCallback, 0, NULL));
+	RT_CHECK_ERROR2(rtContextSetUsageReportCallback(*context, reportCallback, min(max(optix_verbosity, 0), 3), NULL));
 #endif
 #endif
 
