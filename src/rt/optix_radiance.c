@@ -261,7 +261,7 @@ static void checkDevices()
 		rtDeviceGetAttribute( i, RT_DEVICE_ATTRIBUTE_EXECUTION_TIMEOUT_ENABLED, sizeof(timeout_enabled), &timeout_enabled );
 		rtDeviceGetAttribute( i, RT_DEVICE_ATTRIBUTE_TCC_DRIVER, sizeof(tcc_driver), &tcc_driver );
 		rtDeviceGetAttribute( i, RT_DEVICE_ATTRIBUTE_CUDA_DEVICE_ORDINAL, sizeof(cuda_device), &cuda_device );
-		mprintf("Device %u: %s with %u multiprocessors, %u threads per block, %u kHz, %" PRIu64 " bytes global memory, %u hardware textures, compute capability %u.%u, timeout %sabled, Tesla compute cluster driver %sabled, cuda device %u.%s",
+		mprintf("Device %u: %s with %u multiprocessors, %u threads per block, %u Hz, %" PRIu64 " bytes global memory, %u hardware textures, compute capability %u.%u, timeout %sabled, Tesla compute cluster driver %sabled, cuda device %u.%s",
 			i, device_name, multiprocessor_count, threads_per_block, clock_rate, memory_size, texture_count, compute_capability[0], compute_capability[1],
 			timeout_enabled ? "en" : "dis", tcc_driver ? "en" : "dis", cuda_device, i == device_count - 1 ? "\n\n" : "\n");
 	}
@@ -616,22 +616,24 @@ void createCamera(const RTcontext context, const char* ptx_name)
 	RTprogram program;
 
 	/* Ray generation program */
-	ptxFile(path_to_ptx, ptx_name);
-	RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "ray_generator", &program));
+	char *ptx = ptxString(ptx_name);
+	RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "ray_generator", &program));
 	RT_CHECK_ERROR(rtContextSetRayGenerationProgram(context, RADIANCE_ENTRY, program));
 
 	/* Exception program */
-	RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "exception", &program));
+	RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "exception", &program));
 	RT_CHECK_ERROR(rtContextSetExceptionProgram(context, RADIANCE_ENTRY, program));
+	free(ptx);
 
 	/* Miss program */
-	ptxFile( path_to_ptx, "background" );
-	RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "miss", &program));
+	ptx = ptxString("background");
+	RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "miss", &program));
 	RT_CHECK_ERROR(rtContextSetMissProgram(context, RADIANCE_RAY, program));
 
 	/* Miss program for shadow rays */
-	RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "miss_shadow", &program));
+	RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "miss_shadow", &program));
 	RT_CHECK_ERROR(rtContextSetMissProgram(context, SHADOW_RAY, program));
+	free(ptx);
 }
 
 void updateCamera( const RTcontext context, const VIEW* view )
@@ -913,9 +915,10 @@ static void createGeometryInstance(const RTcontext context, SceneNode *node, con
 			//RT_CHECK_ERROR(rtGeometrySetFlags(geometry, RT_GEOMETRY_FLAG_DISABLE_ANYHIT));
 
 			if (!intersect_program) {
-				ptxFile(path_to_ptx, "triangle_mesh");
-				RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "mesh_bounds", &bbox_program));
-				RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "mesh_intersect", &intersect_program));
+				char *ptx = ptxString("triangle_mesh");
+				RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "mesh_bounds", &bbox_program));
+				RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "mesh_intersect", &intersect_program));
+				free(ptx);
 				backvis_var = applyProgramVariable1ui(context, intersect_program, "backvis", (unsigned int)backvis); // -bv
 			}
 			RT_CHECK_ERROR(rtGeometrySetBoundingBoxProgram(geometry, bbox_program));
@@ -1651,17 +1654,19 @@ static void createMaterialPrograms(const RTcontext context)
 		}
 	}
 	if (calc_ambient && !any_hit_ambient_record_program) {
-		ptxFile(path_to_ptx, "ambient_normal");
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "any_hit_ambient", &any_hit_ambient_record_program));
+		char *ptx = ptxString("ambient_normal");
+		RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "any_hit_ambient", &any_hit_ambient_record_program));
 		RT_CHECK_ERROR(rtMaterialSetAnyHitProgram(generic_material, AMBIENT_RECORD_RAY, any_hit_ambient_record_program));
 
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_ambient", &closest_hit_programs[AMBIENT_RECORD_RAY]));
+		RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "closest_hit_ambient", &closest_hit_programs[AMBIENT_RECORD_RAY]));
+		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(generic_material, AMBIENT_RECORD_RAY, closest_hit_programs[AMBIENT_RECORD_RAY]));
+		free(ptx);
+
 #ifdef AMBIENT_CELL
 		createAmbientDynamicStorage(context, closest_hit_programs[AMBIENT_RECORD_RAY], 0);
 #else
 		createAmbientDynamicStorage(context, closest_hit_programs[AMBIENT_RECORD_RAY], cuda_kmeans_clusters);
 #endif
-		RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(generic_material, AMBIENT_RECORD_RAY, closest_hit_programs[AMBIENT_RECORD_RAY]));
 	}
 }
 
@@ -1804,14 +1809,14 @@ static void createNormalMaterial(const RTcontext context, OBJREC* rec, Scene* sc
 		RTprogram program;
 
 		/* Programs have not been created yet. */
-		ptxFile(path_to_ptx, "material_normal");
+		char *ptx = ptxString("material_normal");
 
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_normal_radiance", &program));
-		//applyProgramVariable1ui(context, program, "metal", MAT_METAL);
+		RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "closest_hit_normal_radiance", &program));
 		RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[RADIANCE_RAY][M_NORMAL]));
 
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_normal_shadow", &program));
+		RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "closest_hit_normal_shadow", &program));
 		RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[SHADOW_RAY][M_NORMAL]));
+		free(ptx);
 
 #ifdef ACCELERAD_RT
 		if (has_diffuse_normal_closest_hit_program) { // Don't create the program if it won't be used
@@ -1856,13 +1861,14 @@ static void createGlassMaterial(const RTcontext context, OBJREC* rec, Scene* sce
 		RTprogram program;
 
 		/* Programs have not been created yet. */
-		ptxFile(path_to_ptx, "material_glass");
+		char *ptx = ptxString("material_glass");
 
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_glass_radiance", &program));
+		RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "closest_hit_glass_radiance", &program));
 		RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[RADIANCE_RAY][M_GLASS]));
 
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_glass_shadow", &program));
+		RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "closest_hit_glass_shadow", &program));
 		RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[SHADOW_RAY][M_GLASS]));
+		free(ptx);
 
 		if (calc_ambient) {
 			ptxFile(path_to_ptx, "point_cloud_normal");
@@ -1924,13 +1930,14 @@ static void createLightMaterial(const RTcontext context, OBJREC* rec, Scene* sce
 		RTprogram program;
 
 		/* Programs have not been created yet. */
-		ptxFile(path_to_ptx, "material_light");
+		char *ptx = ptxString("material_light");
 
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_light_radiance", &program));
+		RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "closest_hit_light_radiance", &program));
 		RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[RADIANCE_RAY][M_LIGHT]));
 
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_light_shadow", &program));
+		RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "closest_hit_light_shadow", &program));
 		RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[SHADOW_RAY][M_LIGHT]));
+		free(ptx);
 	}
 
 	/* Assign programs. */
@@ -2779,20 +2786,22 @@ static RTobject createSceneHierarchy(const RTcontext context, SceneNode* node)
 static void createIrradianceGeometry( const RTcontext context )
 {
 	RTgeometry         geometry;
-	RTprogram          irradiance_intersection_program, irradiance_bounding_box_program;
+	RTprogram          program;
 	RTgeometryinstance instance;
 	RTgeometrygroup    geometrygroup;
 	RTacceleration     acceleration;
+	char *ptx;
 
 	/* Create the geometry reference for OptiX. */
 	RT_CHECK_ERROR( rtGeometryCreate( context, &geometry ) );
 	RT_CHECK_ERROR( rtGeometrySetPrimitiveCount( geometry, 1 ) );
 
-	ptxFile( path_to_ptx, "irradiance_intersect" );
-	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "irradiance_bounds", &irradiance_bounding_box_program ) );
-	RT_CHECK_ERROR( rtGeometrySetBoundingBoxProgram( geometry, irradiance_bounding_box_program ) );
-	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "irradiance_intersect", &irradiance_intersection_program ) );
-	RT_CHECK_ERROR( rtGeometrySetIntersectionProgram( geometry, irradiance_intersection_program ) );
+	ptx = ptxString("irradiance_intersect" );
+	RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "irradiance_bounds", &program));
+	RT_CHECK_ERROR(rtGeometrySetBoundingBoxProgram(geometry, program));
+	RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "irradiance_intersect", &program));
+	RT_CHECK_ERROR(rtGeometrySetIntersectionProgram(geometry, program));
+	free(ptx);
 
 	/* Create the geometry instance containing the geometry. */
 	RT_CHECK_ERROR( rtGeometryInstanceCreate( context, &instance ) );

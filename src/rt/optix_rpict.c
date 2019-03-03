@@ -44,7 +44,7 @@ void renderOptix(const VIEW* view, const size_t width, const size_t height, cons
 
 	if (context_handle == NULL) {
 		/* Setup state */
-		createContext(&context, width, height, alarm);
+		createContext(&context, width, height);
 
 		/* Render result buffer */
 		createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT4, width, height, &output_buffer);

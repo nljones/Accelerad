@@ -762,6 +762,43 @@ void ptxFile( char* path, const char* name )
 	//mprintf("Referencing %s\n", path);
 }
 
+char* ptxString(const char* name)
+{
+	char *buffer = NULL;
+	size_t length;
+	FILE *f;
+
+	ptxFile(path_to_ptx, name);
+
+	if ((f = fopen(path_to_ptx, "rb")) == NULL)
+		eprintf(SYSTEM, "cannot find file %s", path_to_ptx);
+
+	fseek(f, 0, SEEK_END);
+	length = ftell(f);
+	fseek(f, 0, SEEK_SET);
+
+	// 1 GiB; best not to load a hole large file in one string
+	if (length > 1073741824) {
+		eprintf(SYSTEM, "file %s is too large", path_to_ptx);
+	}
+
+	buffer = (char *)malloc(length + 1);
+
+	if (length) {
+		size_t read_length = fread(buffer, 1, length, f);
+
+		if (length != read_length) {
+			eprintf(SYSTEM, "failure reading %s", path_to_ptx);
+		}
+	}
+
+	fclose(f);
+
+	buffer[length] = '\0';
+
+	return buffer;
+}
+
 /* Extract file name from full path. */
 char* filename(char *path)
 {

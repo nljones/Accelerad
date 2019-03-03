@@ -66,7 +66,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	/* Parameters */
 	unsigned int i, size;
 	double omega = 0.0, ev = 0.0, avlum = 0.0, dgp = 0.0, rammg = 0.0;
-	double lumV = 0.0, omegaV = 0.0, lumT = 0.0, omegaT = 0.0, lumH = 0.0, omegaH = 0.0, lumL = 0.0, omegaL = 0.0, cr = 0.0;
+	double lumT = 0.0, omegaT = 0.0, lumH = 0.0, omegaH = 0.0, lumL = 0.0, omegaL = 0.0, cr = 0.0;
 	int nt = 0, nh = 0, nl = 0;
 	Metrics *metrics;
 
@@ -195,10 +195,6 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 			omega += metrics[i].omega;
 			ev += metrics[i].ev;
 			avlum += metrics[i].avlum;
-			if (metrics[i].ev > 0.0) { // In the field of view
-				lumV += metrics[i].avlum;
-				omegaV += metrics[i].omega;
-			}
 			if (metrics[i].flags & 0x1) {
 				lumT += metrics[i].avlum;
 				omegaT += metrics[i].omega;
@@ -225,7 +221,6 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	}
 	else {
 		avlum /= omega;
-		lumV /= omegaV;
 		if (nt) lumT /= omegaT;
 		if (nh) lumH /= omegaH;
 		if (nl) lumL /= omegaL;
@@ -236,7 +231,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 			if (nt)
 				lum_thresh *= lumT;
 			else
-				lum_thresh *= lumV; // Or 2000 lux
+				lum_thresh = 2000; // cd/m2
 
 			for (i = 0u; i < size; i++)
 				if (metrics[i].omega >= 0.0f && metrics[i].avlum > lum_thresh * metrics[i].omega)
@@ -255,7 +250,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	/* Auto-scaling */
 	int rescaled = auto_scale;
 	if (auto_scale) {
-		setScale(avlum);
+		setScale(2.0 * avlum);
 	}
 
 	if (&fplot) {

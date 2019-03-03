@@ -163,13 +163,14 @@ static void createAmbientRecordCamera(const RTcontext context)
 	RTprogram  program;
 
 	/* Ray generation program */
-	ptxFile(path_to_ptx, "ambient_cloud_generator");
-	RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "ambient_cloud_camera", &program));
+	char *ptx = ptxString("ambient_cloud_generator");
+	RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "ambient_cloud_camera", &program));
 	RT_CHECK_ERROR(rtContextSetRayGenerationProgram(context, AMBIENT_ENTRY, program));
 
 	/* Exception program */
-	RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "exception", &program));
+	RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "exception", &program));
 	RT_CHECK_ERROR(rtContextSetExceptionProgram(context, AMBIENT_ENTRY, program));
+	free(ptx);
 
 	/* Stride for these programs */
 	applyContextVariable1ui(context, "stride", thread_stride);
@@ -177,11 +178,9 @@ static void createAmbientRecordCamera(const RTcontext context)
 
 static void createGeometryInstanceAmbient( const RTcontext context, RTgeometryinstance* instance, const unsigned int ambinet_record_count )
 {
-	RTprogram  ambient_record_intersection_program;
-	RTprogram  ambient_record_bounding_box_program;
-	RTprogram  ambient_record_any_hit_program;
-	RTprogram  ambient_record_miss_program;
+	RTprogram program;
 	RTmaterial ambient_record_material;
+	char *ptx;
 
 	/* Create the geometry reference for OptiX. */
 	RT_CHECK_ERROR( rtGeometryCreate( context, &ambient_record_geometry ) );
@@ -189,17 +188,18 @@ static void createGeometryInstanceAmbient( const RTcontext context, RTgeometryin
 
 	RT_CHECK_ERROR( rtMaterialCreate( context, &ambient_record_material ) );
 
-	ptxFile( path_to_ptx, "ambient_records" );
-	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "ambient_record_bounds", &ambient_record_bounding_box_program ) );
-	RT_CHECK_ERROR( rtGeometrySetBoundingBoxProgram( ambient_record_geometry, ambient_record_bounding_box_program ) );
-	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "ambient_record_intersect", &ambient_record_intersection_program ) );
-	RT_CHECK_ERROR( rtGeometrySetIntersectionProgram( ambient_record_geometry, ambient_record_intersection_program ) );
-	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "ambient_record_any_hit", &ambient_record_any_hit_program ) );
-	RT_CHECK_ERROR( rtMaterialSetAnyHitProgram( ambient_record_material, AMBIENT_RAY, ambient_record_any_hit_program ) );
+	ptx = ptxString("ambient_records");
+	RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "ambient_record_bounds", &program));
+	RT_CHECK_ERROR(rtGeometrySetBoundingBoxProgram(ambient_record_geometry, program));
+	RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "ambient_record_intersect", &program));
+	RT_CHECK_ERROR(rtGeometrySetIntersectionProgram(ambient_record_geometry, program));
+	RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "ambient_record_any_hit", &program));
+	RT_CHECK_ERROR(rtMaterialSetAnyHitProgram(ambient_record_material, AMBIENT_RAY, program));
 
 	/* Miss program */
-	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "ambient_miss", &ambient_record_miss_program ) );
-	RT_CHECK_ERROR( rtContextSetMissProgram( context, AMBIENT_RAY, ambient_record_miss_program ) );
+	RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "ambient_miss", &program));
+	RT_CHECK_ERROR(rtContextSetMissProgram(context, AMBIENT_RAY, program));
+	free(ptx);
 	// TODO miss program could handle makeambient()
 
 	/* Create the geometry instance containing the ambient records. */
@@ -755,13 +755,14 @@ static void createAmbientSamplingCamera( const RTcontext context )
 	RTprogram  program;
 
 	/* Ray generation program */
-	ptxFile( path_to_ptx, "ambient_sample_generator" );
-	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "ambient_sample_camera", &program ) );
+	char *ptx = ptxString("ambient_sample_generator");
+	RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "ambient_sample_camera", &program));
 	RT_CHECK_ERROR( rtContextSetRayGenerationProgram( context, AMBIENT_SAMPLING_ENTRY, program ) );
 
 	/* Exception program */
-	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "exception", &program ) );
+	RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "exception", &program));
 	RT_CHECK_ERROR( rtContextSetExceptionProgram( context, AMBIENT_SAMPLING_ENTRY, program ) );
+	free(ptx);
 }
 #endif /* AMB_PARALLEL */
 
@@ -769,15 +770,17 @@ static void createAmbientSamplingCamera( const RTcontext context )
 static void createHemisphereSamplingCamera( const RTcontext context )
 {
 	RTprogram  program;
+	char *ptx;
 
 	/* Ray generation program */
-	ptxFile( path_to_ptx, "hemisphere_generator" );
-	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "hemisphere_camera", &program ) );
+	ptx = ptxString("hemisphere_generator");
+	RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "hemisphere_camera", &program));
 	RT_CHECK_ERROR( rtContextSetRayGenerationProgram( context, HEMISPHERE_SAMPLING_ENTRY, program ) );
 
 	/* Exception program */
-	RT_CHECK_ERROR( rtProgramCreateFromPTXFile( context, path_to_ptx, "exception", &program ) );
+	RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "exception", &program));
 	RT_CHECK_ERROR( rtContextSetExceptionProgram( context, HEMISPHERE_SAMPLING_ENTRY, program ) );
+	free(ptx);
 }
 #endif /* ITERATIVE_IC */
 
