@@ -69,6 +69,7 @@ typedef struct SceneNode {
 /* Handles to one instance of a node. This is built once per occurance of an octree in the scene except for the top node, which has no transform. */
 typedef struct SceneBranch {
 	SceneNode *node;				/* The geometry node contained in this branch */
+	int material_id;				/* The material index to use for all surfaces in this node if there is no sole material, or -1 to use separate materials for each object. */
 	RTtransform transform;			/* The transformation to be applied to this node */
 	struct SceneBranch *sibling;	/* Next entry in linked list of child branches */
 } SceneBranch;
@@ -122,7 +123,7 @@ static void createRemoteDevice(RTremotedevice* remote);
 #endif
 static void applyRadianceSettings(const RTcontext context, const VIEW* view, const unsigned int imm_irrad);
 static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifiers, const unsigned int imm_irrad);
-static void createNode(const RTcontext context, Scene* scene, char* name, const OBJECT start, const OBJECT count, MESH* mesh);
+static void createNode(const RTcontext context, Scene* scene, char* name, const OBJECT start, const OBJECT count, MESH* mesh, const int material_id);
 static void createGeometryInstance(const RTcontext context, SceneNode *node, const size_t vertex_count);
 static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, Scene* scene);
 static void createFace(const RTcontext context, OBJREC* rec, Scene* scene);
@@ -693,7 +694,7 @@ static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifie
 	}
 
 	/* Create the top node of the scene graph. */
-	createNode(context, &scene, octname, 0, nsceneobjs, NULL);
+	createNode(context, &scene, octname, 0, nsceneobjs, NULL, OVOID);
 
 	/* Check for overflow */
 	if (scene.material_data->count > UINT_MAX)
@@ -830,7 +831,7 @@ static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifie
 	mprintf("Geometry build time: %" PRIu64 " milliseconds for %i objects.\n", MILLISECONDS(geometry_clock), nsceneobjs);
 }
 
-static void createNode(const RTcontext context, Scene* scene, char* name, const OBJECT start, const OBJECT count, MESH* mesh)
+static void createNode(const RTcontext context, Scene* scene, char* name, const OBJECT start, const OBJECT count, MESH* mesh, const int material_id)
 {
 	const OBJECT end = start + count;
 	OBJECT on;
@@ -852,6 +853,7 @@ static void createNode(const RTcontext context, Scene* scene, char* name, const 
 	scene->root->name = savestr(name);
 	scene->root->vertex_indices = initArrayi(EXPECTED_TRIANGLES * 3);
 	scene->root->triangles = initArrayi(EXPECTED_TRIANGLES);
+	scene->root->sole_material_id = material_id;
 
 	/* Get the scene geometry as a list of triangles. */
 	for (on = start; on < end; on++) {
@@ -975,7 +977,6 @@ static void createGeometryInstance(const RTcontext context, SceneNode *node, con
 static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, Scene* scene)
 {
 	const OBJECT index = objndx(rec);
-	int alternate = OVOID;
 
 	if (scene->buffer_entry_index[index] != OVOID) return index; /* Already done */
 
@@ -1527,11 +1528,13 @@ static void createInstance(const RTcontext context, OBJREC* rec, Scene* scene)
 	}
 
 	/* Get the material for the instance, if any */
+	scene->material = findmaterial(rec);
+	if (scene->material) {
+		branch->material_id = scene->buffer_entry_index[addRadianceObject(context, scene->material, scene)];
+	}
 	material_override = scene->root->sole_material_id;
 	if (material_override == OVOID) {
-		scene->material = findmaterial(rec);
-		if (scene->material)
-			material_override = scene->buffer_entry_index[addRadianceObject(context, scene->material, scene)];
+		material_override = branch->material_id;
 	}
 
 	/* Check if instance has already been loaded */
@@ -1551,14 +1554,13 @@ static void createInstance(const RTcontext context, OBJREC* rec, Scene* scene)
 		scene->root = NULL;
 		if (inst) {
 			inst = getinstance(rec, IO_SCENE); // Load the octree for the instance
-			createNode(context, scene, name, inst->obj->firstobj, inst->obj->nobjs, NULL);
+			createNode(context, scene, name, inst->obj->firstobj, inst->obj->nobjs, NULL, material_override);
 		}
 		else {
 			meshinst = getmeshinst(rec, IO_SCENE | IO_BOUNDS); // Load the mesh file for the instance
-			createNode(context, scene, name, meshinst->msh->mat0, meshinst->msh->nmats, meshinst->msh);
+			createNode(context, scene, name, meshinst->msh->mat0, meshinst->msh->nmats, meshinst->msh, material_override);
 		}
 		branch->node = scene->root;
-		branch->node->sole_material_id = material_override;
 		scene->root = root;
 	}
 	else if (!branch->node) {
@@ -2701,6 +2703,7 @@ static SceneNode* cloneSceneNode(const RTcontext context, SceneNode *node, const
 static void clearSceneBranch(SceneBranch *branch)
 {
 	branch->node = NULL;
+	branch->material_id = OVOID;
 	branch->transform = NULL;
 	branch->sibling = NULL;
 }
@@ -2710,24 +2713,37 @@ static SceneBranch* cloneSceneBranch(const RTcontext context, SceneBranch *branc
 	if (!branch) return NULL;
 
 	int i;
+	const int material_id = material_override == OVOID ? branch->material_id : material_override;
 	SceneBranch *twin = (SceneBranch*)malloc(sizeof(SceneBranch));
 	if (!twin) eprintf(SYSTEM, "Out of memory in cloneSceneBranch, need %" PRIu64 " bytes", sizeof(SceneBranch));
+	twin->material_id = branch->material_id;
 
 	/* Check if instance has already been loaded */
 	twin->node = NULL;
 	if (branch->node) {
 		for (i = 0; i < scene->instances->count; i++) {
 			SceneNode *node = (SceneNode*)scene->instances->array[i];
-			if (node->sole_material_id == material_override && !strcmp(branch->node->name, node->name)) {
+			if (node->sole_material_id == material_id && !strcmp(branch->node->name, node->name)) {
 				twin->node = node;
 				break;
 			}
 		}
 
 		if (!twin->node)
-			twin->node = cloneSceneNode(context, branch->node, material_override, scene);
+			twin->node = cloneSceneNode(context, branch->node, material_id, scene);
 	}
-	twin->transform = branch->transform;
+
+	/* Copy the transform */
+	if (branch->transform) {
+		float ft[16], bt[16];
+		RT_CHECK_ERROR(rtTransformCreate(context, &twin->transform));
+		RT_CHECK_ERROR(rtTransformGetMatrix(branch->transform, 0, ft, bt));
+		RT_CHECK_ERROR(rtTransformSetMatrix(twin->transform, 0, ft, bt));
+	}
+	else
+		twin->transform = NULL;
+
+	/* Clone the next branch */
 	twin->sibling = cloneSceneBranch(context, branch->sibling, material_override, scene);
 
 	return twin;
