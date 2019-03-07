@@ -1260,6 +1260,9 @@ main(int argc, char *argv[])
 		case 'n':		/* options with 1 argument */
 		case 's':
 		case 'o':
+#ifdef ACCELERAD
+		case 't':		/* now depricated, but let it pass for rcontrib to generate a warning */
+#endif
 			na = 2;
 			break;
 		case 'b':		/* special case */
@@ -1290,9 +1293,10 @@ main(int argc, char *argv[])
 			break;
 #ifdef ACCELERAD
 		case 'g':		/* special case */
-		case 't':		/* special case */
-			if (argv[a][2]) goto userr;
-			na = 2;
+			if (argv[a][2] == 'v') na = 2;
+			else if (argv[a][2]) goto userr;
+			else
+				na = ((a < argc - 2) && (argv[a + 1][0] != '-')) ? 2 : 1;
 			break;
 #endif
 		default:		/* anything else is verbotten */

@@ -124,7 +124,7 @@ while ($#ARGV >= 0) {
 	} elsif ("$ARGV[0]" eq "-r") {
 		$rfluxmtx .= " $ARGV[1]";
 		shift @ARGV;
-	} elsif ("$ARGV[0]" =~ /^[-+]g/) {
+	} elsif ("$ARGV[0]" =~ /^[-+]ge/) { # NLJ edit to avoid confusion with Accelerad -g parameter
 		$geout = ("$ARGV[0]" =~ /^\+/);
 		$gunit = $ARGV[1];
 		if ($gunit !~ /^(?i)(meter|foot|inch|centimeter|millimeter)$/) {
