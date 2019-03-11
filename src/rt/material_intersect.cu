@@ -58,6 +58,11 @@ RT_PROGRAM void any_hit()
 		if (mat.type != MAT_CLIP && !backvis && dot(geometric_normal, ray.direction) > 0) {
 			rtIgnoreIntersection();
 		}
+
+		// Illum material
+		if (mat.type == MAT_ILLUM && mat.proxy < 0 && (ray.ray_type != SHADOW_RAY || surface_id != -prd_shadow.target - 1)) {
+			rtIgnoreIntersection();
+		}
 	}
 }
 
@@ -107,7 +112,7 @@ RT_PROGRAM void closest_hit_radiance()
 	}
 #endif /* ANTIMATTER */
 
-	if (data.mat.type == MAT_ILLUM) {
+	while (data.mat.type == MAT_ILLUM) {
 		if (data.mat.proxy < 0) return;
 		data.mat = material_data[data.mat.proxy];
 	}
@@ -177,6 +182,13 @@ RT_PROGRAM void closest_hit_shadow()
 	}
 #endif /* ANTIMATTER */
 
+	if (surface_id != -prd_shadow.target - 1) { // Hit the wrong surface
+		while (data.mat.type == MAT_ILLUM) {
+			if (data.mat.proxy < 0) return; // This should be disallowed by any hit program
+			data.mat = material_data[data.mat.proxy];
+		}
+	}
+
 	if (data.mat.shadow_program_id != RT_PROGRAM_ID_NULL)
 		prd_shadow = rtMarkedCallableProgramId<PerRayData_shadow(IntersectData const&, PerRayData_shadow)>(data.mat.shadow_program_id, "closest_hit_shadow_call_site")(data, prd_shadow);
 
@@ -230,6 +242,11 @@ RT_PROGRAM void closest_hit_point_cloud()
 		return;
 	}
 #endif /* ANTIMATTER */
+
+	while (data.mat.type == MAT_ILLUM) {
+		if (data.mat.proxy < 0) return;
+		data.mat = material_data[data.mat.proxy];
+	}
 
 	if (data.mat.point_cloud_program_id != RT_PROGRAM_ID_NULL)
 		prd_point_cloud = rtMarkedCallableProgramId<PerRayData_point_cloud(IntersectData const&, PerRayData_point_cloud)>(data.mat.point_cloud_program_id, "closest_hit_point_cloud_call_site")(data, prd_point_cloud);

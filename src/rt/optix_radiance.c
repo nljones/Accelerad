@@ -139,11 +139,11 @@ static __inline void setMeshMaterial(const RTcontext context, const OBJECT mo, c
 static void createInstance(const RTcontext context, OBJREC* rec, Scene* scene);
 static void createMaterial(const RTcontext context);
 static void createMaterialPrograms(const RTcontext context);
-static void createNormalMaterial(const RTcontext context, OBJREC* rec, Scene* scene);
-static void createGlassMaterial(const RTcontext context, OBJREC* rec, Scene* scene);
-static void createLightMaterial(const RTcontext context, OBJREC* rec, Scene* scene);
+static int createNormalMaterial(const RTcontext context, OBJREC* rec, Scene* scene);
+static int createGlassMaterial(const RTcontext context, OBJREC* rec, Scene* scene);
+static int createLightMaterial(const RTcontext context, OBJREC* rec, Scene* scene);
 #ifdef ANTIMATTER
-static void createClipMaterial(const RTcontext context, OBJREC* rec, Scene* scene);
+static int createClipMaterial(const RTcontext context, OBJREC* rec, Scene* scene);
 #endif
 static void createDistantLight(const RTcontext context, OBJREC* rec, Scene* scene);
 static OBJREC* findFunction(OBJREC *o);
@@ -402,13 +402,14 @@ void createContext(RTcontext* context, const RTsize width, const RTsize height)
 #endif
 
 #ifdef DEBUG_OPTIX
-	/* Enable exception checking */
-	RT_CHECK_ERROR2( rtContextSetExceptionEnabled( *context, RT_EXCEPTION_ALL, 1 ) );
-
 #ifdef RTX
 	/* Enable debugging callbacks */
 	RT_CHECK_ERROR2(rtContextSetUsageReportCallback(*context, reportCallback, min(max(optix_verbosity, 0), 3), NULL));
+
+	if (optix_verbosity > -1)
 #endif
+	/* Enable exception checking */
+	RT_CHECK_ERROR2(rtContextSetExceptionEnabled(*context, RT_EXCEPTION_ALL, 1));
 #endif
 
 #ifdef PRINT_OPTIX
@@ -984,32 +985,26 @@ static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, Scene* sce
 	case MAT_PLASTIC: // Plastic material
 	case MAT_METAL: // Metal material
 	case MAT_TRANS: // Translucent material
-		scene->buffer_entry_index[index] = (int)scene->material_data->count;
-		createNormalMaterial(context, rec, scene);
+		scene->buffer_entry_index[index] = createNormalMaterial(context, rec, scene);
 		break;
 	case MAT_GLASS: // Glass material
 	case MAT_DIELECTRIC: // Dielectric material TODO handle separately, see dialectric.c
-		//scene->buffer_entry_index[index] = insertArray2i(scene->alt_materials, OVOID, (int)scene->materials->count);
-		scene->buffer_entry_index[index] = (int)scene->material_data->count;
-		createGlassMaterial(context, rec, scene);
+		scene->buffer_entry_index[index] = createGlassMaterial(context, rec, scene);
 		break;
 	case MAT_LIGHT: // primary light source material, may modify a face or a source (solid angle)
 	case MAT_ILLUM: // secondary light source material
 	case MAT_GLOW: // Glow material
 	case MAT_SPOT: // Spotlight material
-		scene->buffer_entry_index[index] = (int)scene->material_data->count;
-		createLightMaterial(context, rec, scene);
+		scene->buffer_entry_index[index] = createLightMaterial(context, rec, scene);
 		break;
 #ifdef BSDF
 	case MAT_BSDF: // BSDF
-		scene->buffer_entry_index[index] = (int)scene->materials->count;
-		createBSDFMaterial(context, rec, scene);
+		scene->buffer_entry_index[index] = createBSDFMaterial(context, rec, scene);
 		break;
 #endif
 #ifdef ANTIMATTER
 	case MAT_CLIP: // Antimatter
-		scene->buffer_entry_index[index] = (int)scene->material_data->count;
-		createClipMaterial(context, rec, scene);
+		scene->buffer_entry_index[index] = createClipMaterial(context, rec, scene);
 		break;
 #endif
 	case OBJ_FACE: // Typical polygons
@@ -1773,7 +1768,7 @@ static RTmaterial createBSDFMaterial(const RTcontext context, OBJREC* rec, Scene
 }
 #endif /* BSDF */
 
-static void createNormalMaterial(const RTcontext context, OBJREC* rec, Scene* scene)
+static int createNormalMaterial(const RTcontext context, OBJREC* rec, Scene* scene)
 {
 	MaterialData matData;
 
@@ -1844,9 +1839,10 @@ static void createNormalMaterial(const RTcontext context, OBJREC* rec, Scene* sc
 	matData.point_cloud_program_id = closest_hit_callable_programs[POINT_CLOUD_RAY][M_NORMAL];
 
 	insertArraym(scene->material_data, matData);
+	return (int)scene->material_data->count - 1;
 }
 
-static void createGlassMaterial(const RTcontext context, OBJREC* rec, Scene* scene)
+static int createGlassMaterial(const RTcontext context, OBJREC* rec, Scene* scene)
 {
 	MaterialData matData;
 
@@ -1888,9 +1884,10 @@ static void createGlassMaterial(const RTcontext context, OBJREC* rec, Scene* sce
 	matData.point_cloud_program_id = closest_hit_callable_programs[POINT_CLOUD_RAY][M_GLASS];
 
 	insertArraym(scene->material_data, matData);
+	return (int)scene->material_data->count - 1;
 }
 
-static void createLightMaterial(const RTcontext context, OBJREC* rec, Scene* scene)
+static int createLightMaterial(const RTcontext context, OBJREC* rec, Scene* scene)
 {
 	MaterialData matData;
 	OBJREC* mat;
@@ -1899,15 +1896,24 @@ static void createLightMaterial(const RTcontext context, OBJREC* rec, Scene* sce
 	matData.type = rec->otype;
 	array2cuda3(matData.color, rec->oargs.farg); // Color is the first three entries in farg
 
-	if (rec->otype == MAT_GLOW)
-		matData.params.l.maxrad = (float)rec->oargs.farg[3];
-	else if (rec->otype == MAT_SPOT) {
+	matData.params.l.maxrad = rec->otype == MAT_GLOW ? (float)rec->oargs.farg[3] : FHUGE;
+	if (rec->otype == MAT_SPOT) {
 		SPOT* spot = makespot(rec);
 		matData.params.l.siz = spot->siz;
 		matData.params.l.flen = spot->flen;
 		array2cuda3(matData.params.l.aim, spot->aim);
 		free(spot);
 		rec->os = NULL;
+	}
+	else if (rec->otype == MAT_ILLUM) {
+		/* Check for a proxy material for direct views. */
+		if (rec->oargs.nsargs && strcmp(rec->oargs.sarg[0], VOIDID)) {	/* modifies another material */
+			mat = findmaterial(objptr(lastmod(objndx(rec), rec->oargs.sarg[0])));
+			printObject(mat);
+			matData.proxy = scene->buffer_entry_index[addRadianceObject(context, mat, scene)];
+		}
+		else
+			matData.proxy = OVOID;
 	}
 #ifdef CONTRIB
 	applyContribution(context, &matData, NULL, rec, scene);
@@ -1918,14 +1924,6 @@ static void createLightMaterial(const RTcontext context, OBJREC* rec, Scene* sce
 		matData.params.l.function = scene->buffer_entry_index[addRadianceObject(context, mat, scene)];
 	else
 		matData.params.l.function = RT_PROGRAM_ID_NULL;
-
-	/* Check for a proxy material for direct views. */
-	if (rec->otype == MAT_ILLUM) {
-		if (rec->oargs.nsargs && strcmp(rec->oargs.sarg[0], VOIDID))	/* modifies another material */
-			matData.proxy = scene->buffer_entry_index[lastmod(objndx(rec), rec->oargs.sarg[0])];
-		else
-			matData.proxy = OVOID;
-	}
 
 	/* Check that material programs exist. */
 	if (closest_hit_callable_programs[RADIANCE_RAY][M_LIGHT] == RT_PROGRAM_ID_NULL) {
@@ -1951,10 +1949,11 @@ static void createLightMaterial(const RTcontext context, OBJREC* rec, Scene* sce
 	matData.point_cloud_program_id = closest_hit_callable_programs[POINT_CLOUD_RAY][M_LIGHT];
 
 	insertArraym(scene->material_data, matData);
+	return (int)scene->material_data->count - 1;
 }
 
 #ifdef ANTIMATTER
-static void createClipMaterial(const RTcontext context, OBJREC* rec, Scene* scene)
+static int createClipMaterial(const RTcontext context, OBJREC* rec, Scene* scene)
 {
 	MaterialData matData;
 	OBJECT mod;
@@ -1990,6 +1989,7 @@ static void createClipMaterial(const RTcontext context, OBJREC* rec, Scene* scen
 		objerror(rec, USER, "no modifiers clipped");
 
 	insertArraym(scene->material_data, matData);
+	return (int)scene->material_data->count - 1;
 }
 #endif
 
@@ -2866,7 +2866,7 @@ int setBackfaceVisibility(const int back)
 	int changed;
 	if ((changed = (backvis != back))) {
 		backvis = back;
-		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1ui(backvis_var, (unsigned int)back));
+		if (backvis_var) RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1ui(backvis_var, (unsigned int)back));
 	}
 	return changed;
 }
@@ -2876,7 +2876,7 @@ int setIrradiance(const int irrad)
 	int changed;
 	if ((changed = (do_irrad != irrad))) {
 		do_irrad = irrad;
-		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1ui(irrad_var, (unsigned int)irrad));
+		if (irrad_var) RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1ui(irrad_var, (unsigned int)irrad));
 	}
 	return changed;
 }
@@ -2886,7 +2886,7 @@ int setDirectJitter(const double jitter)
 	int changed;
 	if ((changed = (dstrsrc != jitter))) {
 		dstrsrc = jitter;
-		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1f(dstrsrc_var, (float)jitter));
+		if (dstrsrc_var) RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1f(dstrsrc_var, (float)jitter));
 	}
 	return changed;
 }
@@ -2896,7 +2896,7 @@ int setDirectSampling(const double ratio)
 	int changed;
 	if ((changed = (srcsizerat != ratio))) {
 		srcsizerat = ratio;
-		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1f(srcsizerat_var, (float)ratio));
+		if (srcsizerat_var) RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1f(srcsizerat_var, (float)ratio));
 	}
 	return changed;
 }
@@ -2906,7 +2906,7 @@ int setDirectVisibility(const int vis)
 	int changed;
 	if ((changed = (directvis != vis))) {
 		directvis = vis;
-		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1i(directvis_var, vis));
+		if (directvis_var) RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1i(directvis_var, vis));
 	}
 	return changed;
 }
@@ -2916,7 +2916,7 @@ int setSpecularThreshold(const double threshold)
 	int changed;
 	if ((changed = (specthresh != threshold))) {
 		specthresh = threshold;
-		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1f(specthresh_var, (float)threshold));
+		if (specthresh_var) RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1f(specthresh_var, (float)threshold));
 	}
 	return changed;
 }
@@ -2926,7 +2926,7 @@ int setSpecularJitter(const double jitter)
 	int changed;
 	if ((changed = (specjitter != jitter))) {
 		specjitter = jitter;
-		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1f(specjitter_var, (float)jitter));
+		if (specjitter_var) RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1f(specjitter_var, (float)jitter));
 	}
 	return changed;
 }
@@ -2936,7 +2936,7 @@ int setAmbientBounces(const int bounces)
 	int changed;
 	if ((changed = (ambounce != bounces))) {
 		ambounce = bounces;
-		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1i(ambounce_var, bounces));
+		if (ambounce_var) RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1i(ambounce_var, bounces));
 	}
 	return changed;
 }
@@ -2946,7 +2946,7 @@ int setMinWeight(const double weight)
 	int changed;
 	if ((changed = (minweight != weight))) {
 		minweight = weight;
-		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1f(minweight_var, (float)weight));
+		if (minweight_var) RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1f(minweight_var, (float)weight));
 	}
 	return changed;
 }
@@ -2956,7 +2956,7 @@ int setMaxDepth(const int depth)
 	int changed;
 	if ((changed = (maxdepth != depth))) {
 		maxdepth = depth;
-		RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1i(maxdepth_var, depth));
+		if (maxdepth_var) RT_CHECK_WARN_NO_CONTEXT(rtVariableSet1i(maxdepth_var, depth));
 	}
 	return changed;
 }
