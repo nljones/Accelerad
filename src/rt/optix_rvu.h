@@ -14,6 +14,7 @@ extern "C" {
 extern void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, void (*fpaint)(int, int, int, int, const unsigned char *), void (*fplot)(double *, int));
 extern void retreiveOptixImage(const int width, const int height, const double exposure, COLR* colrs);
 extern void updateOctree(char* path);
+extern void updateStackSize();
 extern void endOptix();
 
 extern int updateIrradiance(const int irrad);

@@ -22,10 +22,10 @@ extern int has_diffuse_normal_closest_hit_program;	/* Flag for including rvu pro
 
 /* Handles to objects used repeatedly in animation */
 extern unsigned int frame;
-RTcontext context_handle = NULL;
-RTbuffer buffer_handle = NULL;
+RTcontext context = NULL;
+RTbuffer output_buffer = NULL;
 #ifdef RAY_COUNT
-RTbuffer ray_count_buffer_handle = NULL;
+RTbuffer ray_count_buffer = NULL;
 #endif
 extern RTvariable camera_frame;
 int auto_scale = 0;	/* flag to perform auto range scaling */
@@ -59,10 +59,6 @@ static RTbuffer metrics_buffer = NULL, direct_buffer = NULL, diffuse_buffer = NU
 
 void renderOptixIterative(const VIEW* view, const int width, const int height, const int moved, void (*fpaint)(int, int, int, int, const unsigned char *), void (*fplot)(double *, int))
 {
-	/* Primary RTAPI objects */
-	RTcontext           context;
-	RTbuffer            output_buffer;
-
 	/* Parameters */
 	unsigned int i, size;
 	double omega = 0.0, ev = 0.0, avlum = 0.0, dgp = 0.0, rammg = 0.0;
@@ -70,15 +66,10 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	int nt = 0, nh = 0, nl = 0;
 	Metrics *metrics;
 
-#ifdef RAY_COUNT
-	RTbuffer            ray_count_buffer;
-	//unsigned int *ray_count_data;
-#endif
-
 	/* Set the size */
 	size = width * height;
 
-	if (context_handle == NULL) {
+	if (context == NULL) {
 		/* Do not print repetitive statements */
 		verbose_output = 0;
 
@@ -101,7 +92,6 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 #ifdef RAY_COUNT
 		createBuffer2D(context, RT_BUFFER_OUTPUT, RT_FORMAT_UNSIGNED_INT, width, height, &ray_count_buffer);
 		applyContextObject(context, "ray_count_buffer", ray_count_buffer);
-		ray_count_buffer_handle = ray_count_buffer;
 #endif
 #ifdef CONTRIB
 		makeContribCompatible(context);
@@ -109,10 +99,6 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 #ifdef DAYSIM_COMPATIBLE
 		makeDaysimCompatible(context);
 #endif
-
-		/* Save handles to objects used in animations */
-		context_handle = context;
-		buffer_handle = output_buffer;
 
 		has_diffuse_normal_closest_hit_program = 1;
 
@@ -151,13 +137,6 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 #endif /* SAVE_METRICS */
 	}
 	else {
-		/* Retrieve handles for previously created objects */
-		context = context_handle;
-		output_buffer = buffer_handle;
-#ifdef RAY_COUNT
-		ray_count_buffer = ray_count_buffer_handle;
-#endif
-
 		if (moved) {
 			/* Update the camera view for the next frame */
 			frame = 0u;
@@ -297,7 +276,13 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 void updateOctree(char* path)
 {
 	ray_init(path);
-	updateModel(context_handle, NULL, 0u);
+	updateModel(context, NULL, 0u);
+}
+
+void updateStackSize()
+{
+	if (context)
+		RT_CHECK_ERROR(rtContextSetMaxTraceDepth(context, maxdepth ? min(abs(maxdepth) * 2, 31) : 31)); // TODO set based on lw?
 }
 
 /**
@@ -306,13 +291,13 @@ void updateOctree(char* path)
  */
 void endOptix()
 {
-	if (context_handle == NULL) return;
+	if (context == NULL) return;
 
-	destroyContext(context_handle);
-	context_handle = NULL;
-	buffer_handle = NULL;
+	destroyContext(context);
+	context = NULL;
+	output_buffer = NULL;
 #ifdef RAY_COUNT
-	ray_count_buffer_handle = NULL;
+	ray_count_buffer = NULL;
 #endif
 #ifdef VT_ODS
 	camera_gaze = NULL;
@@ -428,7 +413,6 @@ void retreiveOptixImage(const int width, const int height, const double exposure
 {
 	unsigned int i, size;
 	float *direct_data, *diffuse_data;
-	RTcontext context = context_handle;
 	if (!context) return;
 
 	size = width * height;
@@ -454,7 +438,7 @@ int updateIrradiance(const int irrad)
 {
 	int changed = setIrradiance(irrad);
 	if (changed)
-		updateModel(context_handle, NULL, 0u);
+		updateModel(context, NULL, 0u);
 	return changed;
 }
 
@@ -465,7 +449,6 @@ void setLuminance(const int lum)
 
 void setExposure(const double expose)
 {
-	RTcontext context = context_handle;
 	exposure = expose;
 	if (context)
 		RT_CHECK_ERROR(rtVariableSet1f(exposure_var, (float)expose));
@@ -473,7 +456,6 @@ void setExposure(const double expose)
 
 void setGreyscale(const int grey)
 {
-	RTcontext context = context_handle;
 	greyscale = grey;
 	if (context)
 		RT_CHECK_ERROR(rtVariableSet1ui(greyscale_var, (unsigned int)grey));
@@ -481,7 +463,6 @@ void setGreyscale(const int grey)
 
 void setFalseColor(const int falsecolor)
 {
-	RTcontext context = context_handle;
 	fc = falsecolor;
 	if (context) {
 		if (falsecolor && tonemap_id == RT_TEXTURE_ID_NULL)
@@ -492,7 +473,6 @@ void setFalseColor(const int falsecolor)
 
 void setScale(const double maximum)
 {
-	RTcontext context = context_handle;
 	scale = maximum;
 	auto_scale = maximum <= 0;
 	if (context && !auto_scale)
@@ -501,7 +481,6 @@ void setScale(const double maximum)
 
 void setDecades(const int decade)
 {
-	RTcontext context = context_handle;
 	decades = decade;
 	if (context)
 		RT_CHECK_ERROR(rtVariableSet1i(decades_var, decade));
@@ -509,7 +488,6 @@ void setDecades(const int decade)
 
 void setBase(const int log_base)
 {
-	RTcontext context = context_handle;
 	base = log_base;
 	if (context)
 		RT_CHECK_ERROR(rtVariableSet1i(base_var, log_base));
@@ -517,7 +495,6 @@ void setBase(const int log_base)
 
 void setMaskMax(const double mask)
 {
-	RTcontext context = context_handle;
 	masking = mask;
 	if (context)
 		RT_CHECK_ERROR(rtVariableSet1f(mask_var, (float)mask));
@@ -525,7 +502,6 @@ void setMaskMax(const double mask)
 
 void setTaskArea(const int x, const int y, const double omega)
 {
-	RTcontext context = context_handle;
 	xt = x;
 	yt = y;
 	omegat = omega;
@@ -537,7 +513,6 @@ void setTaskArea(const int x, const int y, const double omega)
 
 void setHighArea(const int x, const int y, const double omega)
 {
-	RTcontext context = context_handle;
 	xh = x;
 	yh = y;
 	omegah = omega;
@@ -549,7 +524,6 @@ void setHighArea(const int x, const int y, const double omega)
 
 void setLowArea(const int x, const int y, const double omega)
 {
-	RTcontext context = context_handle;
 	xl = x;
 	yl = y;
 	omegal = omega;
@@ -561,7 +535,6 @@ void setLowArea(const int x, const int y, const double omega)
 
 void setAreaFlags(const unsigned int flags)
 {
-	RTcontext context = context_handle;
 	if (context)
 		RT_CHECK_ERROR(rtVariableSet1ui(position_flags, flags));
 }
@@ -569,7 +542,6 @@ void setAreaFlags(const unsigned int flags)
 void setGaze(const VIEW* view, double angle)
 {
 #ifdef VT_ODS
-	RTcontext context = context_handle;
 	if (angle > FTINY || angle < -FTINY) {
 		FVECT gaze, normal;
 		VCOPY(normal, view->vvec);
