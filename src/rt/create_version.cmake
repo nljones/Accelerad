@@ -39,7 +39,7 @@ endif()
 
 file(READ "${VERSION_IN_FILE}" VERSION)
 string(STRIP "${VERSION}" VERSION)
-set(CONTENTS "ACCELERAD ${RADIANCE_VERSION} lastmod ${DATE_STR} by ${WHO_STR} on ${HOST_STR} (based on RADIANCE ${VERSION} by G. Ward)")
+set(CONTENTS "Accelerad ${VERSION} lastmod ${DATE_STR} by ${WHO_STR} on ${HOST_STR} (based on RADIANCE ${RADIANCE_VERSION} by G. Ward)")
 message("${CONTENTS}")
 string(REPLACE "\\" "\\\\" CONTENTS "${CONTENTS}") # look for instances of the escape character
-file(WRITE "${VERSION_OUT_FILE}" "char VersionID[]=\"${CONTENTS}\";\n")
+file(WRITE "${VERSION_OUT_FILE}" "char VersionID[]=\"${CONTENTS}\";\nchar VersionShortID[]=\"${VERSION}\";\n")

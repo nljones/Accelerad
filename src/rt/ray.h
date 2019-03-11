@@ -87,6 +87,9 @@ typedef struct ray {
 				(r)->rmt : (r)->rxt)
 
 extern char  VersionID[];	/* Radiance version ID string */
+#ifdef ACCELERAD_RT
+extern char  VersionShortID[];	/* Major.Minor version ID string */
+#endif
 
 extern CUBE	thescene;	/* our scene */
 extern OBJECT	nsceneobjs;	/* number of objects in our scene */
