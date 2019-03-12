@@ -261,54 +261,6 @@ RTvariable applyProgramVariable(const RTcontext context, const RTprogram program
 	return var;
 }
 
-RTvariable applyGeometryVariable1ui(const RTcontext context, const RTgeometry geometry, const char* name, const unsigned int value)
-{
-	RTvariable var;
-	RT_CHECK_ERROR(rtGeometryDeclareVariable(geometry, name, &var));
-	RT_CHECK_ERROR(rtVariableSet1ui(var, value));
-	return var;
-}
-
-RTvariable applyGeometryInstanceVariable1i(const RTcontext context, const RTgeometryinstance instance, const char* name, const int value)
-{
-	RTvariable var;
-	RT_CHECK_ERROR(rtGeometryInstanceDeclareVariable(instance, name, &var));
-	RT_CHECK_ERROR(rtVariableSet1i(var, value));
-	return var;
-}
-
-RTvariable applyMaterialVariable1i(const RTcontext context, const RTmaterial material, const char* name, const int value)
-{
-	RTvariable var;
-	RT_CHECK_ERROR( rtMaterialDeclareVariable( material, name, &var ) );
-	RT_CHECK_ERROR( rtVariableSet1i( var, value ) );
-	return var;
-}
-
-RTvariable applyMaterialVariable1ui(const RTcontext context, const RTmaterial material, const char* name, const unsigned int value)
-{
-	RTvariable var;
-	RT_CHECK_ERROR( rtMaterialDeclareVariable( material, name, &var ) );
-	RT_CHECK_ERROR( rtVariableSet1ui( var, value ) );
-	return var;
-}
-
-RTvariable applyMaterialVariable1f(const RTcontext context, const RTmaterial material, const char* name, const float value)
-{
-	RTvariable var;
-	RT_CHECK_ERROR( rtMaterialDeclareVariable( material, name, &var ) );
-	RT_CHECK_ERROR( rtVariableSet1f( var, value ) );
-	return var;
-}
-
-RTvariable applyMaterialVariable3f(const RTcontext context, const RTmaterial material, const char* name, const float x, const float y, const float z)
-{
-	RTvariable var;
-	RT_CHECK_ERROR( rtMaterialDeclareVariable( material, name, &var ) );
-	RT_CHECK_ERROR( rtVariableSet3f( var, x, y, z ) );
-	return var;
-}
-
 void createBuffer1D(const RTcontext context, const RTbuffertype type, const RTformat format, const RTsize element_count, RTbuffer* buffer)
 {
 	RT_CHECK_ERROR( rtBufferCreate( context, type, buffer ) );
@@ -366,22 +318,6 @@ RTvariable applyProgramObject(const RTcontext context, const RTprogram program, 
 {
 	RTvariable var;
 	RT_CHECK_ERROR( rtProgramDeclareVariable( program, name, &var ) );
-	RT_CHECK_ERROR( rtVariableSetObject( var, object ) );
-	return var;
-}
-
-RTvariable applyGeometryObject(const RTcontext context, const RTgeometry geometry, const char* name, const RTobject object)
-{
-	RTvariable var;
-	RT_CHECK_ERROR( rtGeometryDeclareVariable( geometry, name, &var ) );
-	RT_CHECK_ERROR( rtVariableSetObject( var, object ) );
-	return var;
-}
-
-RTvariable applyGeometryInstanceObject(const RTcontext context, const RTgeometryinstance instance, const char* name, const RTobject object)
-{
-	RTvariable var;
-	RT_CHECK_ERROR( rtGeometryInstanceDeclareVariable( instance, name, &var ) );
 	RT_CHECK_ERROR( rtVariableSetObject( var, object ) );
 	return var;
 }

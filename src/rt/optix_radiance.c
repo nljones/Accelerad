@@ -810,7 +810,9 @@ static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifie
 	/* Apply per-instance buffers */
 	RT_CHECK_ERROR(rtBufferMap(vindex_buffer, (void**)&vdata));
 	RT_CHECK_ERROR(rtBufferMap(material_buffer, (void**)&mdata));
-	for (i = 0; i < scene.instances->count; i++) {
+	if (!triangle_count)
+		createGeometryInstance(context, scene.root, vertex_count); // Create an empty geometry group
+	else for (i = 0; i < scene.instances->count; i++) {
 		SceneNode *node = (SceneNode*)scene.instances->array[i];
 		if (!node->twin) {
 			memcpy(vdata + node->offset * 3, node->vertex_indices->array, node->vertex_indices->count*sizeof(int));
@@ -941,10 +943,9 @@ static void createGeometryInstance(const RTcontext context, SceneNode *node, con
 	/* Apply materials to the geometry instance. */
 	RT_CHECK_ERROR(rtGeometryInstanceSetMaterialCount(node->instance, 1u));
 	RT_CHECK_ERROR(rtGeometryInstanceSetMaterial(node->instance, 0, generic_material));
-	if (node->sole_material)
-		RT_CHECK_ERROR(rtVariableSet1i(node->sole_material, node->sole_material_id));
-	else
-		node->sole_material = applyGeometryInstanceVariable1i(context, node->instance, "sole_material", node->sole_material_id);
+	if (!node->sole_material)
+		RT_CHECK_ERROR(rtGeometryInstanceDeclareVariable(node->instance, "sole_material", &node->sole_material));
+	RT_CHECK_ERROR(rtVariableSet1i(node->sole_material, node->sole_material_id));
 
 	/* Create a geometry group to hold the geometry instance. */
 	if (!node->group) {
@@ -1896,7 +1897,7 @@ static int createLightMaterial(const RTcontext context, OBJREC* rec, Scene* scen
 	matData.type = rec->otype;
 	array2cuda3(matData.color, rec->oargs.farg); // Color is the first three entries in farg
 
-	matData.params.l.maxrad = rec->otype == MAT_GLOW ? (float)rec->oargs.farg[3] : FHUGE;
+	matData.params.l.maxrad = rec->otype == MAT_GLOW ? (float)rec->oargs.farg[3] : (float)FHUGE;
 	if (rec->otype == MAT_SPOT) {
 		SPOT* spot = makespot(rec);
 		matData.params.l.siz = spot->siz;
@@ -2677,7 +2678,8 @@ static SceneNode* cloneSceneNode(const RTcontext context, SceneNode *node, const
 		/* Apply materials to the geometry instance. */
 		RT_CHECK_ERROR(rtGeometryInstanceSetMaterialCount(twin->instance, 1u));
 		RT_CHECK_ERROR(rtGeometryInstanceSetMaterial(twin->instance, 0, generic_material));
-		twin->sole_material = applyGeometryInstanceVariable1i(context, twin->instance, "sole_material", material_override);
+		RT_CHECK_ERROR(rtGeometryInstanceDeclareVariable(twin->instance, "sole_material", &twin->sole_material));
+		RT_CHECK_ERROR(rtVariableSet1i(twin->sole_material, material_override));
 
 		vprintf("Duplicated instance %s\n", node->name);
 	}
