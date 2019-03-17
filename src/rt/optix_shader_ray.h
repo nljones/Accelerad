@@ -17,6 +17,7 @@ struct PerRayData_radiance
 	float distance;
 	float3 mirror;
 	float mirror_distance;
+	float tmax;			/* maximum distance (aft clipping plane) */
 	float weight;
 	int depth;
 	int ambient_depth;
@@ -117,6 +118,7 @@ RT_METHOD int rayorigin(PerRayData_radiance& new_prd, const PerRayData_radiance&
 	new_prd.state = prd.state;
 	new_prd.depth = prd.depth + d;
 	new_prd.ambient_depth = prd.ambient_depth + ad;
+	new_prd.tmax = d ? RAY_END : prd.tmax;
 #ifdef CONTRIB
 	new_prd.rcoef = prd.rcoef * rcoef;
 #endif

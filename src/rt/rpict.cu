@@ -107,16 +107,16 @@ RT_PROGRAM void ray_generator()
 		ray_direction = normalize(ray_direction);
 
 		// Zero or negative aft clipping distance indicates infinity
-		float aft = clip.y - clip.x;
-		if (aft <= FTINY) {
-			aft = RAY_END;
+		prd.tmax = clip.y - clip.x;
+		if (prd.tmax <= FTINY) {
+			prd.tmax = RAY_END;
 		}
 		float distance = vdist;
 
 		/* optional motion blur */
 		if (mblur > FTINY) {
 			RayParams next;
-			next.aft = aft;
+			next.aft = prd.tmax;
 			next.origin = ray_origin;
 			next.direction = ray_direction;
 			next.distance = distance;
@@ -125,7 +125,7 @@ RT_PROGRAM void ray_generator()
 				RayParams prev = last_view_buffer[launch_index];
 				z = mblur * (0.5f - curand_uniform(prd.state));
 
-				aft = lerp(aft, prev.aft, z);
+				prd.tmax = lerp(prd.tmax, prev.aft, z);
 				ray_origin = lerp(ray_origin, prev.origin, z);
 				ray_direction = normalize(lerp(ray_direction, prev.direction, z));
 				distance = lerp(distance, prev.distance, z);
@@ -158,7 +158,7 @@ RT_PROGRAM void ray_generator()
 			ray_direction = normalize(eye + adj * distance * ray_direction - ray_origin);
 		}
 
-		Ray ray = make_Ray(ray_origin, ray_direction, RADIANCE_RAY, 0.0f, aft);
+		Ray ray = make_Ray(ray_origin, ray_direction, RADIANCE_RAY, 0.0f, prd.tmax);
 
 		rtTrace(top_object, ray, prd);
 

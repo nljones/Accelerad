@@ -60,11 +60,13 @@ RT_PROGRAM void ray_generator()
 		const float tmin = ray_start(org, imm_irrad ? RAY_START : FTINY); // RAY_START is too large for rfluxmtx calls
 		if (imm_irrad) {
 			dir = -normalize(dir);
-			Ray ray = make_Ray(org - dir * tmin, dir, RADIANCE_RAY, 0.0f, 2.0f * tmin);
+			prd.tmax = 2.0f * tmin;
+			Ray ray = make_Ray(org - dir * tmin, dir, RADIANCE_RAY, 0.0f, prd.tmax);
 			rtTrace(top_irrad, ray, prd);
 		}
 		else {
-			Ray ray = make_Ray(org, normalize(dir), RADIANCE_RAY, tmin, lim_dist ? length(dir) : RAY_END);
+			prd.tmax = lim_dist ? length(dir) : RAY_END;
+			Ray ray = make_Ray(org, normalize(dir), RADIANCE_RAY, tmin, prd.tmax);
 			rtTrace(top_object, ray, prd);
 		}
 	}

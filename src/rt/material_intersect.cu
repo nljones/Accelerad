@@ -19,6 +19,7 @@ using namespace optix;
 
 /* Program variables */
 rtDeclareVariable(unsigned int, backvis, , ) = 1u; /* backface visibility (bv) */
+rtDeclareVariable(int, invisible, , ) = RT_PROGRAM_ID_NULL;	/* Program ID for invisible surfaces */
 
 /* Context variables */
 rtDeclareVariable(unsigned int, do_irrad, , ) = 0u;	/* Calculate irradiance (-i) */
@@ -39,11 +40,6 @@ rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );
 rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
 rtDeclareVariable(int, surface_id, attribute surface_id, );
 rtDeclareVariable(int, mat_id, attribute mat_id, );
-
-#ifdef ANTIMATTER
-/* Context variables */
-rtDeclareVariable(rtObject, top_object, , );
-#endif
 
 
 RT_PROGRAM void any_hit()
@@ -86,7 +82,6 @@ RT_PROGRAM void closest_hit_radiance()
 		if (dot(data.world_geometric_normal, ray.direction) < 0.0f) {
 			/* Entering a volume */
 			prd.mask |= data.mat.params.mask;
-			continue_ray = true;
 		}
 		else if ((prd.mask & data.mat.params.mask) && prd.inside > 0 && data.mat.proxy > -1) {
 			/* Leaving a volume and rendering the alternate material */
@@ -95,7 +90,6 @@ RT_PROGRAM void closest_hit_radiance()
 		else {
 			/* Just leave the volume */
 			prd.mask &= ~data.mat.params.mask;
-			continue_ray = true;
 		}
 	}
 	else if (prd.mask & (1 << mat_id)) {
@@ -103,33 +97,33 @@ RT_PROGRAM void closest_hit_radiance()
 		prd.inside += dot(data.world_geometric_normal, ray.direction) < 0.0f ? 1 : -1;
 		continue_ray = true;
 	}
-	if (continue_ray) {
-		/* Continue the ray */
-		const float3 normal = faceforward(data.world_geometric_normal, -ray.direction, data.world_geometric_normal);
-		Ray new_ray = make_Ray(ray.origin, ray.direction, RADIANCE_RAY, ray_start(data.hit, ray.direction, normal, RAY_START) + t_hit, ray.tmax);
-		rtTrace(top_object, new_ray, prd);
-		return;
-	}
 #endif /* ANTIMATTER */
 
 	while (data.mat.type == MAT_ILLUM) {
-		if (data.mat.proxy < 0) return;
+		if (data.mat.proxy < 0) return; // This should be disallowed by any hit program
 		data.mat = material_data[data.mat.proxy];
 	}
 	if (prd.depth == 0 && do_irrad)
 		if (data.mat.type == MAT_PLASTIC || data.mat.type == MAT_METAL || data.mat.type == MAT_TRANS) {
 			data.mat = material_data[0];
 		}
-	int radiance_program_id = data.mat.radiance_program_id;
+	int pid = data.mat.radiance_program_id;
 	if (prd.depth == 0 && frame)
-		radiance_program_id = data.mat.diffuse_program_id;
+		pid = data.mat.diffuse_program_id;
+#ifdef ANTIMATTER
+	if (continue_ray)
+		pid = invisible;
+#endif /* ANTIMATTER */
 
 	/* Call the material's callable program. */
-	if (radiance_program_id != RT_PROGRAM_ID_NULL)
-		prd = rtMarkedCallableProgramId<PerRayData_radiance(IntersectData const&, PerRayData_radiance)>(radiance_program_id, "closest_hit_radiance_call_site")(data, prd);
+	if (pid != RT_PROGRAM_ID_NULL)
+		prd = rtMarkedCallableProgramId<PerRayData_radiance(IntersectData const&, PerRayData_radiance)>(pid, "closest_hit_radiance_call_site")(data, prd);
 
 #ifdef HIT_TYPE
 	prd.hit_type = data.mat.type;
+#endif
+#ifdef HIT_COUNT
+	prd.hit_count++;
 #endif
 #ifdef CONTRIB
 	contribution(prd.rcoef, prd.result, ray.direction, data.mat.contrib_index, data.mat.contrib_function);
@@ -156,7 +150,6 @@ RT_PROGRAM void closest_hit_shadow()
 		if (dot(data.world_geometric_normal, ray.direction) < 0.0f) {
 			/* Entering a volume */
 			prd_shadow.mask |= data.mat.params.mask;
-			continue_ray = true;
 		}
 		else if ((prd_shadow.mask & data.mat.params.mask) && prd_shadow.inside > 0 && data.mat.proxy > -1) {
 			/* Leaving a volume and rendering the alternate material */
@@ -165,20 +158,12 @@ RT_PROGRAM void closest_hit_shadow()
 		else {
 			/* Just leave the volume */
 			prd_shadow.mask &= ~data.mat.params.mask;
-			continue_ray = true;
 		}
 	}
 	else if (prd_shadow.mask & (1 << mat_id)) {
 		/* Entering or leaving the material while in antimatter. */
 		prd_shadow.inside += dot(data.world_geometric_normal, ray.direction) < 0.0f ? 1 : -1;
 		continue_ray = true;
-	}
-	if (continue_ray) {
-		/* Continue the ray */
-		const float3 normal = faceforward(data.world_geometric_normal, -ray.direction, data.world_geometric_normal);
-		Ray new_ray = make_Ray(ray.origin, ray.direction, SHADOW_RAY, ray_start(data.hit, ray.direction, normal, RAY_START) + t_hit, ray.tmax);
-		rtTrace(top_object, new_ray, prd_shadow);
-		return;
 	}
 #endif /* ANTIMATTER */
 
@@ -188,9 +173,14 @@ RT_PROGRAM void closest_hit_shadow()
 			data.mat = material_data[data.mat.proxy];
 		}
 	}
+	int pid = data.mat.shadow_program_id;
+#ifdef ANTIMATTER
+	if (continue_ray)
+		pid = invisible;
+#endif /* ANTIMATTER */
 
-	if (data.mat.shadow_program_id != RT_PROGRAM_ID_NULL)
-		prd_shadow = rtMarkedCallableProgramId<PerRayData_shadow(IntersectData const&, PerRayData_shadow)>(data.mat.shadow_program_id, "closest_hit_shadow_call_site")(data, prd_shadow);
+	if (pid != RT_PROGRAM_ID_NULL)
+		prd_shadow = rtMarkedCallableProgramId<PerRayData_shadow(IntersectData const&, PerRayData_shadow)>(pid, "closest_hit_shadow_call_site")(data, prd_shadow);
 
 	//#ifdef CONTRIB
 	//	contribution(prd_shadow.rcoef, prd_shadow.result, ray.direction, data.mat.contrib_index, data.mat.contrib_function); //TODO calculate contribution of shadow?
@@ -217,7 +207,6 @@ RT_PROGRAM void closest_hit_point_cloud()
 		if (dot(data.world_geometric_normal, ray.direction) < 0.0f) {
 			/* Entering a volume */
 			prd_shadow.mask |= data.mat.params.mask;
-			continue_ray = true;
 		}
 		else if ((prd_shadow.mask & data.mat.params.mask) && prd_shadow.inside > 0 && data.mat.proxy > -1) {
 			/* Leaving a volume and rendering the alternate material */
@@ -226,7 +215,6 @@ RT_PROGRAM void closest_hit_point_cloud()
 		else {
 			/* Just leave the volume */
 			prd_shadow.mask &= ~data.mat.params.mask;
-			continue_ray = true;
 		}
 	}
 	else if (prd_shadow.mask & (1 << mat_id)) {
@@ -234,20 +222,18 @@ RT_PROGRAM void closest_hit_point_cloud()
 		prd_shadow.inside += dot(data.world_geometric_normal, ray.direction) < 0.0f ? 1 : -1;
 		continue_ray = true;
 	}
-	if (continue_ray) {
-		/* Continue the ray */
-		const float3 normal = faceforward(data.world_geometric_normal, -ray.direction, data.world_geometric_normal);
-		Ray new_ray = make_Ray(ray.origin, ray.direction, POINT_CLOUD_RAY, ray_start(data.hit, ray.direction, normal, RAY_START) + t_hit, ray.tmax);
-		rtTrace(top_object, new_ray, prd_point_cloud);
-		return;
-	}
 #endif /* ANTIMATTER */
 
 	while (data.mat.type == MAT_ILLUM) {
-		if (data.mat.proxy < 0) return;
+		if (data.mat.proxy < 0) return; // This should be disallowed by any hit program
 		data.mat = material_data[data.mat.proxy];
 	}
+	int pid = data.mat.point_cloud_program_id;
+#ifdef ANTIMATTER
+	if (continue_ray)
+		pid = invisible;
+#endif /* ANTIMATTER */
 
-	if (data.mat.point_cloud_program_id != RT_PROGRAM_ID_NULL)
-		prd_point_cloud = rtMarkedCallableProgramId<PerRayData_point_cloud(IntersectData const&, PerRayData_point_cloud)>(data.mat.point_cloud_program_id, "closest_hit_point_cloud_call_site")(data, prd_point_cloud);
+	if (pid != RT_PROGRAM_ID_NULL)
+		prd_point_cloud = rtMarkedCallableProgramId<PerRayData_point_cloud(IntersectData const&, PerRayData_point_cloud)>(pid, "closest_hit_point_cloud_call_site")(data, prd_point_cloud);
 }

@@ -100,6 +100,9 @@ typedef enum
 	M_NORMAL = 0,	/* Normal material type */
 	M_GLASS,		/* Glass material type */
 	M_LIGHT,		/* Light material type */
+#ifdef ANTIMATTER
+	M_CLIP,			/* Antimatter material type */
+#endif
 #ifdef ACCELERAD_RT
 	M_DIFFUSE,		/* Diffuse material type for progressive rendering of normal materials */
 #endif
@@ -205,6 +208,9 @@ static RTmaterial generic_material = NULL;
 static RTprogram any_hit_program = NULL, any_hit_ambient_record_program = NULL;
 static RTprogram closest_hit_programs[RAY_TYPE_COUNT];
 static int closest_hit_callable_programs[RAY_TYPE_COUNT][M_COUNT];
+#ifdef ANTIMATTER
+static RTvariable closest_hit_invisible_var[RAY_TYPE_COUNT];
+#endif
 #ifdef ACCELERAD_RT
 int has_diffuse_normal_closest_hit_program = 0;	/* Flag for including rvu programs. */
 #endif
@@ -242,11 +248,13 @@ static void checkDevices()
 			driver / 1000, (driver % 100) / 10, driver % 10, runtime / 1000, (runtime % 100) / 10, runtime % 10);
 
 	RT_CHECK_WARN_NO_CONTEXT(rtGetVersion(&version));
-	RT_CHECK_ERROR_NO_CONTEXT(rtDeviceGetDeviceCount(&device_count)); // This will return an error if no supported devices are found
+	if (!version)
+		eprintf(INTERNAL, "Error reading OptiX library. Update your graphics driver.");
 	if (version > 4000) { // Extra digit added in OptiX 4.0.0
 		major *= 10;
 		minor *= 10;
 	}
+	RT_CHECK_ERROR_NO_CONTEXT(rtDeviceGetDeviceCount(&device_count)); // This will return an error if no supported devices are found
 	mprintf("OptiX %d.%d.%d found driver %d.%d.%d and %i GPU device%s:\n",
 		version / major, (version % major) / minor, version % minor, driver / 1000, (driver % 100) / 10, driver % 10,
 		device_count, device_count != 1 ? "s" : "");
@@ -1609,6 +1617,7 @@ static void createMaterial(const RTcontext context)
 
 	for (i = 0; i < RAY_TYPE_COUNT; i++) {
 		closest_hit_programs[i] = NULL;
+		closest_hit_invisible_var[i] = NULL;
 		for (j = 0; j < M_COUNT; j++) {
 			closest_hit_callable_programs[i][j] = RT_PROGRAM_ID_NULL;
 		}
@@ -1620,10 +1629,10 @@ static void createMaterialPrograms(const RTcontext context)
 	unsigned int i, j;
 	char name[100];
 
-	ptxFile(path_to_ptx, "material_intersect");
+	char *ptx = ptxString("material_intersect");
 
 	if (!any_hit_program) {
-		RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "any_hit", &any_hit_program));
+		RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "any_hit", &any_hit_program));
 		backvis_var = applyProgramVariable1ui(context, any_hit_program, "backvis", (unsigned int)backvis); // -bv
 	}
 
@@ -1643,16 +1652,23 @@ static void createMaterialPrograms(const RTcontext context)
 
 				RT_CHECK_ERROR(rtMaterialSetAnyHitProgram(generic_material, i, any_hit_program));
 
-				RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, name, &closest_hit_programs[i]));
+				RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, name, &closest_hit_programs[i]));
 				RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(generic_material, i, closest_hit_programs[i]));
 			}
+
+#ifdef ANTIMATTER
+			if (!closest_hit_invisible_var[i])
+				RT_CHECK_ERROR(rtProgramDeclareVariable(closest_hit_programs[i], "invisible", &closest_hit_invisible_var[i]));
+			RT_CHECK_ERROR(rtVariableSet1i(closest_hit_invisible_var[i], closest_hit_callable_programs[i][M_CLIP]));
+#endif
 
 			sprintf(name, "closest_hit_%s_call_site", ray_type_names[i]);
 			RT_CHECK_ERROR(rtProgramCallsiteSetPotentialCallees(closest_hit_programs[i], name, program_ids, program_id_count)); // TODO need to remove any that are not used?
 		}
 	}
+	free(ptx);
 	if (calc_ambient && !any_hit_ambient_record_program) {
-		char *ptx = ptxString("ambient_normal");
+		ptx = ptxString("ambient_normal");
 		RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "any_hit_ambient", &any_hit_ambient_record_program));
 		RT_CHECK_ERROR(rtMaterialSetAnyHitProgram(generic_material, AMBIENT_RECORD_RAY, any_hit_ambient_record_program));
 
@@ -1910,7 +1926,10 @@ static int createLightMaterial(const RTcontext context, OBJREC* rec, Scene* scen
 		/* Check for a proxy material for direct views. */
 		if (rec->oargs.nsargs && strcmp(rec->oargs.sarg[0], VOIDID)) {	/* modifies another material */
 			mat = findmaterial(objptr(lastmod(objndx(rec), rec->oargs.sarg[0])));
-			printObject(mat);
+			if (!mat) {
+				objerror(rec, WARNING, "missing material");
+				return OVOID;
+			}
 			matData.proxy = scene->buffer_entry_index[addRadianceObject(context, mat, scene)];
 		}
 		else
@@ -1958,9 +1977,11 @@ static int createClipMaterial(const RTcontext context, OBJREC* rec, Scene* scene
 {
 	MaterialData matData;
 	OBJECT mod;
+	OBJREC* mat;
 	int i, index;
 
 	vprintf("Reading clipping material %s\n", rec->oname);
+	matData.type = rec->otype;
 	matData.params.mask = 0u;
 	matData.proxy = OVOID;
 
@@ -1973,7 +1994,13 @@ static int createClipMaterial(const RTcontext context, OBJREC* rec, Scene* scene
 			objerror(rec, WARNING, errmsg);
 			continue;
 		}
-		if ((index = scene->buffer_entry_index[mod]) > CHAR_BIT * sizeof(matData.params.mask)) {
+		mat = findmaterial(objptr(mod));
+		if (!mat) {
+			sprintf(errmsg, "missing material for modifier \"%s\"", rec->oargs.sarg[i]);
+			objerror(rec, WARNING, errmsg);
+			continue;
+		}
+		if ((index = scene->buffer_entry_index[addRadianceObject(context, mat, scene)]) > CHAR_BIT * sizeof(matData.params.mask)) {
 			sprintf(errmsg, "out of range modifier \"%s\"", rec->oargs.sarg[i]);
 			objerror(rec, WARNING, errmsg);
 			continue;
@@ -1987,7 +2014,38 @@ static int createClipMaterial(const RTcontext context, OBJREC* rec, Scene* scene
 			matData.proxy = index;
 	}
 	if (!matData.params.mask)
-		objerror(rec, USER, "no modifiers clipped");
+		objerror(rec, WARNING, "no modifiers clipped");
+#ifdef CONTRIB
+	applyContribution(context, &matData, NULL, rec, scene);
+#endif
+
+	/* Check that material programs exist. */
+	if (closest_hit_callable_programs[RADIANCE_RAY][M_CLIP] == RT_PROGRAM_ID_NULL) {
+		RTprogram program;
+
+		/* Programs have not been created yet. */
+		char *ptx = ptxString("material_antimatter");
+
+		RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "closest_hit_antimatter_radiance", &program));
+		RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[RADIANCE_RAY][M_CLIP]));
+
+		RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "closest_hit_antimatter_shadow", &program));
+		RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[SHADOW_RAY][M_CLIP]));
+
+		if (calc_ambient) {
+			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_antimatter_point_cloud", &program));
+			RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[POINT_CLOUD_RAY][M_CLIP]));
+		}
+		free(ptx);
+	}
+
+	/* Assign programs. */
+	matData.radiance_program_id = closest_hit_callable_programs[RADIANCE_RAY][M_CLIP];
+#ifdef ACCELERAD_RT
+	matData.diffuse_program_id = matData.radiance_program_id;
+#endif
+	matData.shadow_program_id = closest_hit_callable_programs[SHADOW_RAY][M_CLIP];
+	matData.point_cloud_program_id = closest_hit_callable_programs[POINT_CLOUD_RAY][M_CLIP];
 
 	insertArraym(scene->material_data, matData);
 	return (int)scene->material_data->count - 1;

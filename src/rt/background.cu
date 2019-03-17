@@ -36,8 +36,8 @@ RT_METHOD unsigned int daysimComputePatch(const float3 dir);
 RT_PROGRAM void miss()
 {
 	prd_radiance.result = prd_radiance.mirror = make_float3(0.0f);
-	prd_radiance.distance = prd_radiance.mirror_distance = ray.tmax;
-	if ( ray.tmax < RAY_END ) // ray length was truncated
+	prd_radiance.distance = prd_radiance.mirror_distance = prd_radiance.tmax;
+	if (prd_radiance.tmax < RAY_END) // ray length was truncated
 		return;
 
 	const float3 H = optix::normalize(ray.direction);
@@ -84,8 +84,6 @@ RT_PROGRAM void miss()
 RT_PROGRAM void miss_shadow()
 {
 	prd_shadow.result = make_float3(0.0f);
-	if (ray.tmax < RAY_END) // ray length was truncated
-		return;
 
 	const float3 H = optix::normalize(ray.direction);
 

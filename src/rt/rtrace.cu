@@ -56,16 +56,17 @@ RT_PROGRAM void ray_generator()
 
 	const float tmin = ray_start( ray_buffer[launch_index].origin, RAY_START );
 	if ( imm_irrad ) {
-		Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, RADIANCE_RAY, 0.0f, 2.0f * tmin);
+		prd.tmax = 2.0f * tmin;
+		Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, RADIANCE_RAY, 0.0f, prd.tmax);
 		rtTrace(top_irrad, ray, prd);
 	} else {
 		// Zero or negative aft clipping distance indicates infinity
-		float aft = ray_buffer[launch_index].max;
-		if (aft <= FTINY) {
-			aft = RAY_END;
+		prd.tmax = ray_buffer[launch_index].max;
+		if (prd.tmax <= FTINY) {
+			prd.tmax = RAY_END;
 		}
 
-		Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, RADIANCE_RAY, tmin, aft);
+		Ray ray = make_Ray(ray_buffer[launch_index].origin, ray_buffer[launch_index].dir, RADIANCE_RAY, tmin, prd.tmax);
 		rtTrace(top_object, ray, prd);
 	}
 

@@ -103,14 +103,14 @@ RT_PROGRAM void ray_generator()
 		ray_direction = normalize(ray_direction);
 
 		// Zero or negative aft clipping distance indicates infinity
-		float aft = clip.y - clip.x;
-		if (aft <= FTINY) {
-			aft = RAY_END;
+		prd.tmax = clip.y - clip.x;
+		if (prd.tmax <= FTINY) {
+			prd.tmax = RAY_END;
 			if (frame)
-				aft *= 0.9999f; // Do not let diffuse rays sample the sky
+				prd.tmax *= 0.9999f; // Do not let diffuse rays sample the sky
 		}
 
-		Ray ray = make_Ray(ray_origin, ray_direction, RADIANCE_RAY, 0.0f, aft);
+		Ray ray = make_Ray(ray_origin, ray_direction, RADIANCE_RAY, 0.0f, prd.tmax);
 
 		prd.result = make_float3(0.0f);
 		prd.weight = 1.0f;

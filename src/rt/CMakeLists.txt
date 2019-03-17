@@ -218,6 +218,7 @@ if(OptiX_USE)
     fisheye.cu
     gencumulativesky.cu
     isotropsky.cu
+    material_antimatter.cu
     material_diffuse.cu
     material_glass.cu
     material_light.cu
