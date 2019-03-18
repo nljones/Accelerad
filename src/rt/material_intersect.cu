@@ -19,7 +19,6 @@ using namespace optix;
 
 /* Program variables */
 rtDeclareVariable(unsigned int, backvis, , ) = 1u; /* backface visibility (bv) */
-rtDeclareVariable(int, invisible, , ) = RT_PROGRAM_ID_NULL;	/* Program ID for invisible surfaces */
 
 /* Context variables */
 rtDeclareVariable(unsigned int, do_irrad, , ) = 0u;	/* Calculate irradiance (-i) */
@@ -40,6 +39,9 @@ rtDeclareVariable(float3, geometric_normal, attribute geometric_normal, );
 rtDeclareVariable(float3, shading_normal, attribute shading_normal, );
 rtDeclareVariable(int, surface_id, attribute surface_id, );
 rtDeclareVariable(int, mat_id, attribute mat_id, );
+
+/* Context variables */
+rtDeclareVariable(rtObject, top_object, , );
 
 
 RT_PROGRAM void any_hit()
@@ -112,12 +114,16 @@ RT_PROGRAM void closest_hit_radiance()
 		pid = data.mat.diffuse_program_id;
 #ifdef ANTIMATTER
 	if (continue_ray)
-		pid = invisible;
+		pid = RT_PROGRAM_ID_NULL;
 #endif /* ANTIMATTER */
 
 	/* Call the material's callable program. */
 	if (pid != RT_PROGRAM_ID_NULL)
 		prd = rtMarkedCallableProgramId<PerRayData_radiance(IntersectData const&, PerRayData_radiance)>(pid, "closest_hit_radiance_call_site")(data, prd);
+	else {
+		Ray new_ray = make_Ray(ray.origin, ray.direction, RADIANCE_RAY, t_hit + ray_start(data.hit, ray.direction, data.world_geometric_normal, RAY_START), prd.tmax);
+		rtTrace(top_object, new_ray, prd);
+	}
 
 #ifdef HIT_TYPE
 	prd.hit_type = data.mat.type;
@@ -176,11 +182,16 @@ RT_PROGRAM void closest_hit_shadow()
 	int pid = data.mat.shadow_program_id;
 #ifdef ANTIMATTER
 	if (continue_ray)
-		pid = invisible;
+		pid = RT_PROGRAM_ID_NULL;
 #endif /* ANTIMATTER */
 
 	if (pid != RT_PROGRAM_ID_NULL)
 		prd_shadow = rtMarkedCallableProgramId<PerRayData_shadow(IntersectData const&, PerRayData_shadow)>(pid, "closest_hit_shadow_call_site")(data, prd_shadow);
+	else {
+		/* Continue the ray */
+		Ray new_ray = make_Ray(ray.origin, ray.direction, SHADOW_RAY, t_hit + ray_start(data.hit, ray.direction, data.world_geometric_normal, RAY_START), RAY_END);
+		rtTrace(top_object, new_ray, prd_shadow);
+	}
 
 	//#ifdef CONTRIB
 	//	contribution(prd_shadow.rcoef, prd_shadow.result, ray.direction, data.mat.contrib_index, data.mat.contrib_function); //TODO calculate contribution of shadow?
@@ -231,9 +242,14 @@ RT_PROGRAM void closest_hit_point_cloud()
 	int pid = data.mat.point_cloud_program_id;
 #ifdef ANTIMATTER
 	if (continue_ray)
-		pid = invisible;
+		pid = RT_PROGRAM_ID_NULL;
 #endif /* ANTIMATTER */
 
 	if (pid != RT_PROGRAM_ID_NULL)
 		prd_point_cloud = rtMarkedCallableProgramId<PerRayData_point_cloud(IntersectData const&, PerRayData_point_cloud)>(pid, "closest_hit_point_cloud_call_site")(data, prd_point_cloud);
+	else {
+		/* Continue the ray */
+		Ray new_ray = make_Ray(ray.origin, ray.direction, POINT_CLOUD_RAY, t_hit + ray_start(data.hit, ray.direction, data.world_geometric_normal, RAY_START), RAY_END);
+		rtTrace(top_object, new_ray, prd_point_cloud);
+	}
 }

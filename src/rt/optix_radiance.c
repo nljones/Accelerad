@@ -100,9 +100,6 @@ typedef enum
 	M_NORMAL = 0,	/* Normal material type */
 	M_GLASS,		/* Glass material type */
 	M_LIGHT,		/* Light material type */
-#ifdef ANTIMATTER
-	M_CLIP,			/* Antimatter material type */
-#endif
 #ifdef ACCELERAD_RT
 	M_DIFFUSE,		/* Diffuse material type for progressive rendering of normal materials */
 #endif
@@ -208,9 +205,6 @@ static RTmaterial generic_material = NULL;
 static RTprogram any_hit_program = NULL, any_hit_ambient_record_program = NULL;
 static RTprogram closest_hit_programs[RAY_TYPE_COUNT];
 static int closest_hit_callable_programs[RAY_TYPE_COUNT][M_COUNT];
-#ifdef ANTIMATTER
-static RTvariable closest_hit_invisible_var[RAY_TYPE_COUNT];
-#endif
 #ifdef ACCELERAD_RT
 int has_diffuse_normal_closest_hit_program = 0;	/* Flag for including rvu programs. */
 #endif
@@ -1617,7 +1611,6 @@ static void createMaterial(const RTcontext context)
 
 	for (i = 0; i < RAY_TYPE_COUNT; i++) {
 		closest_hit_programs[i] = NULL;
-		closest_hit_invisible_var[i] = NULL;
 		for (j = 0; j < M_COUNT; j++) {
 			closest_hit_callable_programs[i][j] = RT_PROGRAM_ID_NULL;
 		}
@@ -1655,13 +1648,6 @@ static void createMaterialPrograms(const RTcontext context)
 				RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, name, &closest_hit_programs[i]));
 				RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(generic_material, i, closest_hit_programs[i]));
 			}
-
-#ifdef ANTIMATTER
-			if (!closest_hit_invisible_var[i])
-				RT_CHECK_ERROR(rtProgramDeclareVariable(closest_hit_programs[i], "invisible", &closest_hit_invisible_var[i]));
-			RT_CHECK_ERROR(rtVariableSet1i(closest_hit_invisible_var[i], closest_hit_callable_programs[i][M_CLIP]));
-#endif
-
 			sprintf(name, "closest_hit_%s_call_site", ray_type_names[i]);
 			RT_CHECK_ERROR(rtProgramCallsiteSetPotentialCallees(closest_hit_programs[i], name, program_ids, program_id_count)); // TODO need to remove any that are not used?
 		}
@@ -2019,33 +2005,13 @@ static int createClipMaterial(const RTcontext context, OBJREC* rec, Scene* scene
 	applyContribution(context, &matData, NULL, rec, scene);
 #endif
 
-	/* Check that material programs exist. */
-	if (closest_hit_callable_programs[RADIANCE_RAY][M_CLIP] == RT_PROGRAM_ID_NULL) {
-		RTprogram program;
-
-		/* Programs have not been created yet. */
-		char *ptx = ptxString("material_antimatter");
-
-		RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "closest_hit_antimatter_radiance", &program));
-		RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[RADIANCE_RAY][M_CLIP]));
-
-		RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "closest_hit_antimatter_shadow", &program));
-		RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[SHADOW_RAY][M_CLIP]));
-
-		if (calc_ambient) {
-			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_antimatter_point_cloud", &program));
-			RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[POINT_CLOUD_RAY][M_CLIP]));
-		}
-		free(ptx);
-	}
-
 	/* Assign programs. */
-	matData.radiance_program_id = closest_hit_callable_programs[RADIANCE_RAY][M_CLIP];
+	matData.radiance_program_id = RT_PROGRAM_ID_NULL;
 #ifdef ACCELERAD_RT
 	matData.diffuse_program_id = matData.radiance_program_id;
 #endif
-	matData.shadow_program_id = closest_hit_callable_programs[SHADOW_RAY][M_CLIP];
-	matData.point_cloud_program_id = closest_hit_callable_programs[POINT_CLOUD_RAY][M_CLIP];
+	matData.shadow_program_id = RT_PROGRAM_ID_NULL;
+	matData.point_cloud_program_id = RT_PROGRAM_ID_NULL;
 
 	insertArraym(scene->material_data, matData);
 	return (int)scene->material_data->count - 1;
