@@ -35,6 +35,8 @@ double  scale = 0.0;			/* maximum of scale for falsecolor images, zero auto-scal
 int  decades = 0;				/* number of decades for log scale, zero for linear scale (-log) */
 int  base = 10;					/* base for log scale (-base) */
 double  masking = 0.0;			/* minimum value to display in falsecolor images (-m) */
+
+double dstrpix = 0.0;			/* pixel jitter (-pj) */
 #endif
 
 VIEW  ourview = STDVIEW;		/* viewing parameters */
@@ -185,6 +187,12 @@ main(int argc, char *argv[])
 				check(3,"f");
 				maxdiff = atof(argv[++i]);
 				break;
+#ifdef ACCELERAD
+			case 'j':				/* jitter */
+				check(3, "f");
+				dstrpix = atof(argv[++i]);
+				break;
+#endif
 			case 'e':				/* exposure */
 				check(3,"f");
 				exposure = atof(argv[++i]);
@@ -435,6 +443,9 @@ printdefaults(void)			/* print default values to stdout */
 	printf("-pe %f\t\t\t# pixel exposure\n", exposure);
 	printf("-ps %-9d\t\t\t# pixel sample\n", psample);
 	printf("-pt %f\t\t\t# pixel threshold\n", maxdiff);
+#ifdef ACCELERAD
+	printf("-pj %f\t\t\t# pixel jitter\n", dstrpix);
+#endif
 	printf("-o %s\t\t\t\t# output device\n", dvcname);
 	printf(erract[WARNING].pf != NULL ?
 			"-w+\t\t\t\t# warning messages on\n" :

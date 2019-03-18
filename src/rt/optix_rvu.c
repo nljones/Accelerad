@@ -40,6 +40,8 @@ extern int decades;			/* number of decades for log scale, zero for standard scal
 extern int base;			/* base for log scale (-base) */
 extern double masking;		/* minimum value to display in falsecolor images (-m) */
 
+extern double dstrpix;		/* pixel jitter (-pj) */
+
 /* Regions */
 extern int xt, yt, xh, yh, xl, yl;
 extern double omegat, omegah, omegal;
@@ -50,7 +52,7 @@ void setScale(const double maximum);
 
 /* Handles to objects used repeatedly in animation */
 int tonemap_id = RT_TEXTURE_ID_NULL;
-static RTvariable greyscale_var = NULL, exposure_var = NULL, scale_var = NULL, tonemap_var = NULL, decades_var = NULL, base_var = NULL, mask_var = NULL;
+static RTvariable jitter_var = NULL, greyscale_var = NULL, exposure_var = NULL, scale_var = NULL, tonemap_var = NULL, decades_var = NULL, base_var = NULL, mask_var = NULL;
 static RTvariable task_position = NULL, task_angle = NULL, high_position = NULL, high_angle = NULL, low_position = NULL, low_angle = NULL, position_flags = NULL;
 #ifdef VT_ODS
 static RTvariable camera_gaze = NULL;
@@ -106,6 +108,8 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		setupKernel(context, view, NULL, width, height, 0u, NULL);
 
 		/* Apply unique settings */
+		jitter_var = applyContextVariable1f(context, "dstrpix", (float)dstrpix); // -pj
+
 		exposure_var = applyContextVariable1f(context, "exposure", (float)exposure);
 		greyscale_var = applyContextVariable1ui(context, "greyscale", (unsigned int)greyscale);
 		if (fc)
