@@ -88,6 +88,9 @@ typedef struct {
 #endif
 	DistantLightArray* sources;		/* One entry per source object */
 	unsigned int vertex_index_0;	/* Index of first vertex of current object */
+#ifdef ANTIMATTER
+	unsigned int clip_count;		/* Antimatter material counter */
+#endif
 #ifdef CONTRIB
 	LUTAB* modifiers;				/* Modifiers for contribution calculations */
 #endif
@@ -671,6 +674,9 @@ static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifie
 	/* Set the existing instance and transform for this geometry instance (or null for no instance or transform) */
 	scene.root = root;
 	scene.buffer_entry_index = NULL;
+#ifdef ANTIMATTER
+	scene.clip_count = 0u;
+#endif
 
 	/* Create buffers for storing geometry information. */
 	scene.vertices = initArrayf(EXPECTED_VERTICES * 3);
@@ -1782,6 +1788,7 @@ static int createNormalMaterial(const RTcontext context, OBJREC* rec, Scene* sce
 	matData.params.n.rough = (float)rec->oargs.farg[4];
 	matData.params.n.trans = rec->otype == MAT_TRANS ? (float)rec->oargs.farg[5] : 0.0f;
 	matData.params.n.tspec = rec->otype == MAT_TRANS ? (float)rec->oargs.farg[6] : 0.0f;
+	matData.mask = 0u;
 #ifdef CONTRIB
 	applyContribution(context, &matData, NULL, rec, scene);
 #endif
@@ -1853,6 +1860,7 @@ static int createGlassMaterial(const RTcontext context, OBJREC* rec, Scene* scen
 	matData.type = rec->otype;
 	array2cuda3(matData.color, rec->oargs.farg); // Color is the first three entries in farg
 	matData.params.r_index = rec->otype == rec->oargs.nfargs > 3 ? (float)rec->oargs.farg[3] : 1.52f;		/* refractive index of glass */
+	matData.mask = 0u;
 #ifdef CONTRIB
 	applyContribution(context, &matData, NULL, rec, scene);
 #endif
@@ -1898,6 +1906,7 @@ static int createLightMaterial(const RTcontext context, OBJREC* rec, Scene* scen
 	vprintf("Reading light material %s\n", rec->oname);
 	matData.type = rec->otype;
 	array2cuda3(matData.color, rec->oargs.farg); // Color is the first three entries in farg
+	matData.mask = 0u;
 
 	matData.params.l.maxrad = rec->otype == MAT_GLOW ? (float)rec->oargs.farg[3] : (float)FHUGE;
 	if (rec->otype == MAT_SPOT) {
@@ -1968,11 +1977,13 @@ static int createClipMaterial(const RTcontext context, OBJREC* rec, Scene* scene
 
 	vprintf("Reading clipping material %s\n", rec->oname);
 	matData.type = rec->otype;
-	matData.params.mask = 0u;
+	matData.mask = 1 << scene->clip_count++;
 	matData.proxy = OVOID;
 
 	/* Determine the material mask */
-	for (i = 0; i < rec->oargs.nsargs; i++) {
+	if (!matData.mask)
+		objerror(rec, WARNING, "too many antimatter materials");
+	else for (i = 0; i < rec->oargs.nsargs; i++) {
 		if (!strcmp(rec->oargs.sarg[i], VOIDID))
 			continue;
 		if ((mod = lastmod(objndx(rec), rec->oargs.sarg[i])) == OVOID) {
@@ -1986,21 +1997,15 @@ static int createClipMaterial(const RTcontext context, OBJREC* rec, Scene* scene
 			objerror(rec, WARNING, errmsg);
 			continue;
 		}
-		if ((index = scene->buffer_entry_index[addRadianceObject(context, mat, scene)]) > CHAR_BIT * sizeof(matData.params.mask)) {
-			sprintf(errmsg, "out of range modifier \"%s\"", rec->oargs.sarg[i]);
-			objerror(rec, WARNING, errmsg);
-			continue;
-		}
-		if (matData.params.mask & (1 << index)) {
+		index = scene->buffer_entry_index[addRadianceObject(context, mat, scene)];
+		if (scene->material_data->array[index].mask & matData.mask) {
 			objerror(rec, WARNING, "duplicate modifier");
 			continue;
 		}
-		matData.params.mask |= 1 << index;
+		scene->material_data->array[index].mask |= matData.mask; // This will lead to strange behavior if antimatter clips another antimatter material
 		if (!i)
 			matData.proxy = index;
 	}
-	if (!matData.params.mask)
-		objerror(rec, WARNING, "no modifiers clipped");
 #ifdef CONTRIB
 	applyContribution(context, &matData, NULL, rec, scene);
 #endif

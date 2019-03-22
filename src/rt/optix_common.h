@@ -153,12 +153,12 @@ typedef struct struct_material_data
 	unsigned int type;	/* The material type */
 	int proxy;			/* The index of the material to use for direct views (non-shadow rays) of this material */
 	float3 color;		/* The material color */
+	unsigned int mask;	/* Bitmask of antimatter materials affecting this material, or of this antimatter material. */
 
 	union {
 		struct_normal_data n;
 		float r_index;		/* Refractive index of the "glass" object, usually 1.52 */
 		struct_light_data l;
-		unsigned int mask;	/* Bitmask of materials to be clipped. */
 	} params;
 
 	int radiance_program_id;	/* Program ID for radiance rays */

@@ -45,7 +45,7 @@ struct PerRayData_point_cloud
 
 /* OptiX method declaration in the style of RT_PROGRAM */
 #ifndef RT_METHOD
-#define RT_METHOD	static __inline__ __device__
+#define RT_METHOD	static __forceinline__ __device__
 #endif
 
 RT_METHOD void clear(PointDirection& pd);
