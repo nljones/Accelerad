@@ -230,11 +230,12 @@ static void checkDevices()
 {
 	int driver = 0, runtime = 0;
 	unsigned int version = 0, device_count = 0;
+	unsigned int display_major = 0, display_minor = 0;
 	unsigned int i;
 	unsigned int multiprocessor_count, threads_per_block, clock_rate, texture_count, timeout_enabled, tcc_driver, cuda_device;
 	unsigned int compute_capability[2];
 	int major = 1000, minor = 10;
-	char device_name[128];
+	char device_name[128], pci[13];
 	RTsize memory_size;
 
 	/* Check driver version */
@@ -244,16 +245,20 @@ static void checkDevices()
 		eprintf(INTERNAL, "Current graphics driver %d.%d.%d does not support runtime %d.%d.%d. Update your graphics driver.",
 			driver / 1000, (driver % 100) / 10, driver % 10, runtime / 1000, (runtime % 100) / 10, runtime % 10);
 
-	RT_CHECK_WARN_NO_CONTEXT(rtGetVersion(&version));
+	rtGetVersion(&version);
 	if (!version)
 		eprintf(INTERNAL, "Error reading OptiX library. Update your graphics driver.");
 	if (version > 4000) { // Extra digit added in OptiX 4.0.0
 		major *= 10;
 		minor *= 10;
 	}
-	RT_CHECK_ERROR_NO_CONTEXT(rtDeviceGetDeviceCount(&device_count)); // This will return an error if no supported devices are found
-	mprintf("OptiX %d.%d.%d found driver %d.%d.%d and %i GPU device%s:\n",
-		version / major, (version % major) / minor, version % minor, driver / 1000, (driver % 100) / 10, driver % 10,
+	rtDeviceGetDeviceCount(&device_count); // This will return an error if no supported devices are found
+	if (!device_count)
+		eprintf(INTERNAL, "Could not find a supported GPU.");
+	rtGlobalGetAttribute(RT_GLOBAL_ATTRIBUTE_DISPLAY_DRIVER_VERSION_MAJOR, sizeof(display_major), &display_major);
+	rtGlobalGetAttribute(RT_GLOBAL_ATTRIBUTE_DISPLAY_DRIVER_VERSION_MINOR, sizeof(display_minor), &display_minor);
+	mprintf("OptiX %d.%d.%d found display driver %d.%d, CUDA driver %d.%d.%d, and %i GPU device%s:\n",
+		version / major, (version % major) / minor, version % minor, display_major, display_minor, driver / 1000, (driver % 100) / 10, driver % 10,
 		device_count, device_count != 1 ? "s" : "");
 
 	for (i = 0; i < device_count; i++) {
@@ -267,9 +272,10 @@ static void checkDevices()
 		rtDeviceGetAttribute( i, RT_DEVICE_ATTRIBUTE_EXECUTION_TIMEOUT_ENABLED, sizeof(timeout_enabled), &timeout_enabled );
 		rtDeviceGetAttribute( i, RT_DEVICE_ATTRIBUTE_TCC_DRIVER, sizeof(tcc_driver), &tcc_driver );
 		rtDeviceGetAttribute( i, RT_DEVICE_ATTRIBUTE_CUDA_DEVICE_ORDINAL, sizeof(cuda_device), &cuda_device );
-		mprintf("Device %u: %s with %u multiprocessors, %u threads per block, %u Hz, %" PRIu64 " bytes global memory, %u hardware textures, compute capability %u.%u, timeout %sabled, Tesla compute cluster driver %sabled, cuda device %u.%s",
-			i, device_name, multiprocessor_count, threads_per_block, clock_rate, memory_size, texture_count, compute_capability[0], compute_capability[1],
-			timeout_enabled ? "en" : "dis", tcc_driver ? "en" : "dis", cuda_device, i == device_count - 1 ? "\n\n" : "\n");
+		rtDeviceGetAttribute( i, RT_DEVICE_ATTRIBUTE_PCI_BUS_ID, sizeof(pci), &pci );
+		mprintf("Device %u: %s with %u multiprocessors, %u threads per block, %u Hz, %" PRIu64 " bytes global memory, %u hardware textures, compute capability %u.%u, timeout %sabled, Tesla compute cluster driver %sabled, PCI %s.%s",
+			cuda_device, device_name, multiprocessor_count, threads_per_block, clock_rate, memory_size, texture_count, compute_capability[0], compute_capability[1],
+			timeout_enabled ? "en" : "dis", tcc_driver ? "en" : "dis", pci, i == device_count - 1 ? "\n\n" : "\n");
 	}
 }
 
@@ -1998,6 +2004,8 @@ static int createClipMaterial(const RTcontext context, OBJREC* rec, Scene* scene
 			continue;
 		}
 		index = scene->buffer_entry_index[addRadianceObject(context, mat, scene)];
+		if (index == OVOID)
+			continue;
 		if (scene->material_data->array[index].mask & matData.mask) {
 			objerror(rec, WARNING, "duplicate modifier");
 			continue;
