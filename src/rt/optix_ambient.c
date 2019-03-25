@@ -696,9 +696,9 @@ void createAmbientRecords(const RTcontext context, const VIEW* view, const RTsiz
 		RT_CHECK_ERROR(rtBufferSetSize1D(ambient_record_buffer, cluster_counts[level]));
 #ifdef DAYSIM
 		RT_CHECK_ERROR(rtBufferSetSize2D(ambient_dc_buffer, daysimGetCoefficients(), daysimGetCoefficients() ? cluster_counts[level] : 0));
-		calcAmbientValues(context, level, max_level, cluster_counts[level], alarm, ambient_record_buffer, ambient_dc_buffer, segment_var);
+		calcAmbientValues(context, level, max_level, cluster_counts[level], ambient_record_buffer, freport, ambient_dc_buffer, segment_var);
 #else
-		calcAmbientValues(context, level, max_level, cluster_counts[level], alarm, ambient_record_buffer);
+		calcAmbientValues(context, level, max_level, cluster_counts[level], ambient_record_buffer, freport);
 #endif
 
 #else /* AMBIENT_CELL */

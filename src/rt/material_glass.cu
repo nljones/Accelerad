@@ -140,7 +140,7 @@ RT_CALLABLE_PROGRAM PerRayData_radiance closest_hit_glass_radiance(IntersectData
 			}
 
 			setupPayload(new_prd);
-			Ray trans_ray = make_Ray(data.hit, R, RADIANCE_RAY, ray_start(data.hit, R, snormal, RAY_START), RAY_END);
+			Ray trans_ray = make_Ray(data.hit, R, RADIANCE_RAY, ray_start(data.hit, R, snormal, RAY_START), new_prd.tmax);
 			rtTrace(top_object, trans_ray, new_prd);
 			new_prd.result *= trans;
 			result += new_prd.result;
@@ -166,7 +166,7 @@ RT_CALLABLE_PROGRAM PerRayData_radiance closest_hit_glass_radiance(IntersectData
 #endif
 		setupPayload(new_prd);
 		float3 R = reflect(data.ray_direction, ffnormal);
-		Ray refl_ray = make_Ray(data.hit, R, RADIANCE_RAY, ray_start(data.hit, R, snormal, RAY_START), RAY_END);
+		Ray refl_ray = make_Ray(data.hit, R, RADIANCE_RAY, ray_start(data.hit, R, snormal, RAY_START), new_prd.tmax);
 		rtTrace(top_object, refl_ray, new_prd);
 		new_prd.result *= refl;
 		prd.mirror = new_prd.result;

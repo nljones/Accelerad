@@ -72,7 +72,7 @@ RT_METHOD int occupied(const float3& pos, const float3& dir, const float3& world
 #endif
 	const float tmax = ray_start(pos, AMBIENT_RAY_LENGTH);
 	Ray ambient_ray = make_Ray(pos - dir * tmax, dir, AMBIENT_RAY, 0.0f, 2.0f * tmax);
-	rtTrace(top_ambient, ambient_ray, ambient_prd);
+	rtTrace(top_ambient, ambient_ray, ambient_prd, RT_VISIBILITY_ALL, RT_RAY_FLAG_DISABLE_CLOSESTHIT);
 #ifdef HIT_COUNT
 	prd.hit_count += ambient_prd.hit_count;
 #endif

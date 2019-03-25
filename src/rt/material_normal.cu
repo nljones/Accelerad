@@ -285,7 +285,7 @@ RT_CALLABLE_PROGRAM PerRayData_radiance closest_hit_normal_radiance(IntersectDat
 		new_prd.dc = daysimNext(prd.dc);
 #endif
 		setupPayload(new_prd);
-		Ray trans_ray = make_Ray(nd.hit, nd.prdir, RADIANCE_RAY, ray_start(nd.hit, nd.prdir, nd.normal, RAY_START), RAY_END);
+		Ray trans_ray = make_Ray(nd.hit, nd.prdir, RADIANCE_RAY, ray_start(nd.hit, nd.prdir, nd.normal, RAY_START), new_prd.tmax);
 		rtTrace(top_object, trans_ray, new_prd);
 		new_prd.result *= nd.mcolor * nd.tspec;
 		result += new_prd.result;
@@ -335,7 +335,7 @@ RT_CALLABLE_PROGRAM PerRayData_radiance closest_hit_normal_radiance(IntersectDat
 #endif
 		setupPayload(new_prd);
 		float3 vrefl = reflect(data.ray_direction, nd.pnorm);
-		Ray refl_ray = make_Ray(nd.hit, vrefl, RADIANCE_RAY, ray_start(nd.hit, vrefl, nd.normal, RAY_START), RAY_END);
+		Ray refl_ray = make_Ray(nd.hit, vrefl, RADIANCE_RAY, ray_start(nd.hit, vrefl, nd.normal, RAY_START), new_prd.tmax);
 		rtTrace(top_object, refl_ray, new_prd);
 		new_prd.result *= nd.scolor;
 		prd.mirror = new_prd.result;
@@ -628,6 +628,7 @@ RT_METHOD float3 gaussamp(const NORMDAT *nd, const float3& ray_dir, PerRayData_r
 
 			gaus_ray.direction = normalize( gaus_ray.direction );
 			gaus_ray.tmin = ray_start(nd->hit, gaus_ray.direction, nd->normal, RAY_START);
+			gaus_ray.tmax = gaus_prd.tmax;
 
 			setupPayload(gaus_prd);
 			//if (nstaken) // check for prd data that needs to be cleared
@@ -702,6 +703,7 @@ RT_METHOD float3 gaussamp(const NORMDAT *nd, const float3& ray_dir, PerRayData_r
 
 			gaus_ray.direction = normalize( gaus_ray.direction );
 			gaus_ray.tmin = ray_start(nd->hit, gaus_ray.direction, nd->normal, RAY_START);
+			gaus_ray.tmax = gaus_prd.tmax;
 
 #ifdef DAYSIM_COMPATIBLE
 			gaus_prd.dc = daysimNext(prd.dc);
@@ -768,7 +770,7 @@ RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pn
 #endif
 		const float tmax = ray_start(hit, AMBIENT_RAY_LENGTH);
 		Ray ambient_ray = make_Ray(hit - normal * tmax, normal, AMBIENT_RAY, 0.0f, 2.0f * tmax);
-		rtTrace(top_ambient, ambient_ray, ambient_prd);
+		rtTrace(top_ambient, ambient_ray, ambient_prd, RT_VISIBILITY_ALL, RT_RAY_FLAG_DISABLE_CLOSESTHIT);
 #ifdef HIT_COUNT
 		prd.hit_count += ambient_prd.hit_count;
 #endif
@@ -883,10 +885,11 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 			if (dot(amb_ray.direction, normal) <= 0) /* Prevent light leaks */
 				continue;
 			amb_ray.tmin = ray_start( hit, amb_ray.direction, normal, RAY_START );
+			amb_ray.tmax = new_prd.tmax;
 			//dimlist[ndims++] = AI(hp,i,j) + 90171;
 
 			setupPayload(new_prd);
-			//Ray amb_ray = make_Ray( hit, rdir, RADIANCE_RAY, RAY_START, RAY_END );
+			//Ray amb_ray = make_Ray( hit, rdir, RADIANCE_RAY, RAY_START, new_prd.tmax );
 			rtTrace(top_object, amb_ray, new_prd);
 			resolvePayload(prd, new_prd);
 
@@ -1135,6 +1138,7 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& normal, const 
 
 	new_prd.depth = prd.depth + 1;
 	new_prd.ambient_depth = prd.ambient_depth + 1;
+	new_prd.tmax = RAY_END;
 	//new_prd.seed = prd.seed;//lcg( prd.seed );
 	new_prd.state = prd.state;
 #ifdef CONTRIB
@@ -1148,7 +1152,7 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& normal, const 
 	new_prd.dc = daysimNext(dc);
 #endif
 	setupPayload(new_prd);
-	Ray amb_ray = make_Ray( hit, rdir, RADIANCE_RAY, ray_start( hit, rdir, normal, RAY_START ), RAY_END );
+	Ray amb_ray = make_Ray(hit, rdir, RADIANCE_RAY, ray_start(hit, rdir, normal, RAY_START), new_prd.tmax);
 	rtTrace(top_object, amb_ray, new_prd);
 	resolvePayload(prd, new_prd);
 

@@ -232,7 +232,7 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 		return(0);
 
 	setupPayload(new_prd);
-	Ray amb_ray = make_Ray(hit, direction, RADIANCE_RAY, ray_start(hit, direction, normal, RAY_START), RAY_END);
+	Ray amb_ray = make_Ray(hit, direction, RADIANCE_RAY, ray_start(hit, direction, normal, RAY_START), new_prd.tmax);
 	rtTrace(top_object, amb_ray, new_prd);
 	resolvePayload(prd, new_prd);
 

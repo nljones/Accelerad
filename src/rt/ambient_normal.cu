@@ -776,6 +776,7 @@ RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const unsigned int& i, c
 
 	new_prd.depth = prd.result.lvl + 1;//prd.depth + 1;
 	new_prd.ambient_depth = prd.result.lvl + 1;//prd.ambient_depth + 1;
+	new_prd.tmax = RAY_END;
 	//new_prd.seed = prd.seed;//lcg( prd.seed );
 	new_prd.state = prd.state;
 #ifdef CONTRIB
@@ -796,7 +797,7 @@ RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const unsigned int& i, c
 #endif /* AMB_PARALLEL && AMB_SUPER_SAMPLE */
 #endif /* DAYSIM_COMPATIBLE */
 	setupPayload(new_prd);
-	Ray amb_ray = make_Ray( hit, rdir, RADIANCE_RAY, ray_start( hit, rdir, normal, RAY_START ), RAY_END );
+	Ray amb_ray = make_Ray(hit, rdir, RADIANCE_RAY, ray_start(hit, rdir, normal, RAY_START), new_prd.tmax);
 	rtTrace(top_object, amb_ray, new_prd);
 #ifdef RAY_COUNT
 	prd.result.ray_count += new_prd.ray_count;
@@ -1445,6 +1446,7 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point, con
 
 	new_prd.depth = prd.result.lvl + 1;//prd.depth + 1;
 	new_prd.ambient_depth = prd.result.lvl + 1;//prd.ambient_depth + 1;
+	new_prd.tmax = RAY_END;
 	//new_prd.seed = prd.seed;//lcg( prd.seed );
 	new_prd.state = prd.state;
 #ifdef CONTRIB
@@ -1458,7 +1460,7 @@ RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& hit_point, con
 	new_prd.dc = daysimNext(prd.dc);
 #endif
 	setupPayload(new_prd);
-	Ray amb_ray = make_Ray( hit_point, rdir, RADIANCE_RAY, ray_start( hit_point, rdir, normal, RAY_START ), RAY_END );
+	Ray amb_ray = make_Ray(hit_point, rdir, RADIANCE_RAY, ray_start(hit_point, rdir, normal, RAY_START), new_prd.tmax);
 	rtTrace(top_object, amb_ray, new_prd);
 #ifdef RAY_COUNT
 	prd.result.ray_count += new_prd.ray_count;
