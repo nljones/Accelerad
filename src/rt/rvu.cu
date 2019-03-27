@@ -31,6 +31,7 @@ rtDeclareVariable(float2, clip, , ); /* Fore and aft clipping planes (-vo, -va) 
 rtDeclareVariable(float, vdist, , ); /* Focal length */
 rtDeclareVariable(float, dstrpix, , ); /* Pixel sample jitter (-pj) */
 rtDeclareVariable(unsigned int, do_irrad, , ); /* Calculate irradiance (-i) */
+rtDeclareVariable(unsigned int, do_lum, , ); /* Calculate luminance or illuminance */
 #ifdef VT_ODS
 rtDeclareVariable(float, ipd, , ) = 0.07f; /* inter-pupillary distance (this is between 0.055m and 0.07m on most humans) */
 rtDeclareVariable(float3, gaze, , ); /* gaze direction (may be different from W) */
@@ -140,13 +141,14 @@ RT_PROGRAM void ray_generator()
 		accum = direct_buffer[launch_index] = prd.result;
 
 	/* Tone map */
-	const float luminance = bright(accum) * LUMINOUS_EFFICACY;
+	const float efficacy = do_lum ? LUMINOUS_EFFICACY : 1.0f;
+	const float luminance = bright(accum) * efficacy;
 	if (tonemap == RT_TEXTURE_ID_NULL) { // Natural tone mapping
 		//accum *= exposure / fc_scale;
 		if (greyscale)
 			accum = make_float3(luminance * exposure / fc_scale);
 		else
-			accum *= LUMINOUS_EFFICACY * exposure / fc_scale;
+			accum *= efficacy * exposure / fc_scale;
 		if (fc_log > 0)
 			accum = make_float3(logf(accum.x), logf(accum.y), logf(accum.z)) / (logf(fc_base) * fc_log) + 1.0f;
 	}
@@ -169,9 +171,9 @@ RT_PROGRAM void ray_generator()
 	/* Calculate metrics */
 	Metrics metrics;
 	metrics.omega = getSolidAngle(); //TODO what if negative or bad angle?
+	metrics.ev = metrics.dgp = 0.0f;
 	if (do_irrad) {
 		metrics.avlum = luminance; /* In this case it is illuminance. */
-		metrics.ev = metrics.dgp = 0.0f;
 	}
 	else {
 		metrics.avlum = luminance * metrics.omega;
@@ -182,12 +184,12 @@ RT_PROGRAM void ray_generator()
 #endif
 		const float WdotD = dot(gaze_dir, ray_direction);
 		if (WdotD > 0.0f) {
-			float guth = getPositionIndex(ray_direction, gaze_dir);
 			metrics.ev = luminance * metrics.omega * WdotD;
-			metrics.dgp = (metric)luminance * luminance * metrics.omega / (guth * guth);
+			if (do_lum) {
+				float guth = getPositionIndex(ray_direction, gaze_dir);
+				metrics.dgp = (metric)luminance * luminance * metrics.omega / (guth * guth);
+			}
 		}
-		else
-			metrics.ev = metrics.dgp = 0.0f;
 	}
 
 	/* Calculate contributions to task areas */

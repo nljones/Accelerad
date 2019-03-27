@@ -154,24 +154,18 @@ RT_PROGRAM void any_hit_ambient()
 	else {
 		const MaterialData mat = material_data[mat_id];
 
-		// Ignore glass materials
-		if (mat.type == MAT_GLASS || mat.type == MAT_DIELECTRIC)
+		// This only applies to normal materials
+		if (mat.type != MAT_PLASTIC && mat.type != MAT_METAL && mat.type != MAT_TRANS)
+			rtIgnoreIntersection();
+
+		// Check that this material is included
+		if (!mat.params.n.ambincl)
 			rtIgnoreIntersection();
 	}
 }
 
 RT_PROGRAM void closest_hit_ambient()
 {
-	const MaterialData mat = material_data[mat_id];
-
-	// This only applies to normal materials
-	if (mat.type != MAT_PLASTIC && mat.type != MAT_METAL && mat.type != MAT_TRANS)
-		return;
-
-	// Check that this material is included
-	if (!mat.params.n.ambincl)
-		return;
-
 	float3 ffnormal = -ray.direction;
 	float3 hit_point = ray.origin + t_hit * ray.direction;
 

@@ -52,7 +52,7 @@ void setScale(const double maximum);
 
 /* Handles to objects used repeatedly in animation */
 int tonemap_id = RT_TEXTURE_ID_NULL;
-static RTvariable jitter_var = NULL, greyscale_var = NULL, exposure_var = NULL, scale_var = NULL, tonemap_var = NULL, decades_var = NULL, base_var = NULL, mask_var = NULL;
+static RTvariable jitter_var = NULL, luminance_var = NULL, greyscale_var = NULL, exposure_var = NULL, scale_var = NULL, tonemap_var = NULL, decades_var = NULL, base_var = NULL, mask_var = NULL;
 static RTvariable task_position = NULL, task_angle = NULL, high_position = NULL, high_angle = NULL, low_position = NULL, low_angle = NULL, position_flags = NULL;
 #ifdef VT_ODS
 static RTvariable camera_gaze = NULL;
@@ -110,6 +110,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		/* Apply unique settings */
 		jitter_var = applyContextVariable1f(context, "dstrpix", (float)dstrpix); // -pj
 
+		luminance_var = applyContextVariable1ui(context, "do_lum", (unsigned int)do_lum);
 		exposure_var = applyContextVariable1f(context, "exposure", (float)exposure);
 		greyscale_var = applyContextVariable1ui(context, "greyscale", (unsigned int)greyscale);
 		if (fc)
@@ -208,7 +209,7 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 		if (nh) lumH /= omegaH;
 		if (nl) lumL /= omegaL;
 
-		if (ev > FTINY) { // if (ev > 380) {
+		if (do_lum && ev > FTINY) { // if (ev > 380) {
 			/* Calculate DGP */
 			double lum_thresh = 5.0; // Max 100
 			if (nt)
@@ -231,8 +232,8 @@ void renderOptixIterative(const VIEW* view, const int width, const int height, c
 	RT_CHECK_ERROR(rtBufferUnmap(metrics_buffer));
 
 	/* Auto-scaling */
-	int rescaled = auto_scale;
-	if (auto_scale) {
+	int rescaled = auto_scale && avlum > 0.0;
+	if (rescaled) {
 		setScale(2.0 * avlum);
 	}
 
@@ -448,7 +449,9 @@ int updateIrradiance(const int irrad)
 
 void setLuminance(const int lum)
 {
-	do_lum = lum; //TODO set for OptiX
+	do_lum = lum;
+	if (context)
+		RT_CHECK_ERROR(rtVariableSet1ui(luminance_var, (unsigned int)lum));
 }
 
 void setExposure(const double expose)
