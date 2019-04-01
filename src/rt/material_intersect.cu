@@ -217,20 +217,20 @@ RT_PROGRAM void closest_hit_point_cloud()
 	if (data.mat.type == MAT_CLIP) {
 		if (dot(data.world_geometric_normal, ray.direction) < 0.0f) {
 			/* Entering a volume */
-			prd_shadow.mask |= data.mat.mask;
+			prd_point_cloud.mask |= data.mat.mask;
 		}
-		else if ((prd_shadow.mask & data.mat.mask) && prd_shadow.inside > 0 && data.mat.proxy > -1) {
+		else if ((prd_point_cloud.mask & data.mat.mask) && prd_point_cloud.inside > 0 && data.mat.proxy > -1) {
 			/* Leaving a volume and rendering the alternate material */
 			data.mat = material_data[data.mat.proxy]; // TODO this will produce odd results if the proxy material is transparent
 		}
 		else {
 			/* Just leave the volume */
-			prd_shadow.mask &= ~data.mat.mask;
+			prd_point_cloud.mask &= ~data.mat.mask;
 		}
 	}
-	else if (prd_shadow.mask & data.mat.mask) {
+	else if (prd_point_cloud.mask & data.mat.mask) {
 		/* Entering or leaving the material while in antimatter. */
-		prd_shadow.inside += dot(data.world_geometric_normal, ray.direction) < 0.0f ? 1 : -1;
+		prd_point_cloud.inside += dot(data.world_geometric_normal, ray.direction) < 0.0f ? 1 : -1;
 		continue_ray = true;
 	}
 #endif /* ANTIMATTER */

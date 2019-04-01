@@ -152,7 +152,11 @@ RT_PROGRAM void any_hit_ambient()
 		rtIgnoreIntersection();
 	}
 	else {
-		const MaterialData mat = material_data[mat_id];
+		MaterialData mat = material_data[mat_id];
+
+		// Check if an alternate material is used
+		while ((mat.type == MAT_CLIP || mat.type == MAT_ILLUM) && mat.proxy > -1)
+			mat = material_data[mat.proxy];
 
 		// This only applies to normal materials
 		if (mat.type != MAT_PLASTIC && mat.type != MAT_METAL && mat.type != MAT_TRANS)

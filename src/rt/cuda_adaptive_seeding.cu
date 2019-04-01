@@ -176,33 +176,53 @@ void geometric_variation(PointDirection *deviceHits, int *seed,
 				valid |= VALID_HORIZONTAL;
 			if (idY + stride2 < height)
 				valid |= VALID_VERTICAL;
-			float err0 = error[tid];
-			float err1 = (valid & VALID_HORIZONTAL) ? error[tid + stride2] : 0.0f;
-			float err2 = (valid & VALID_VERTICAL) ? error[tid + stride2 * width] : 0.0f;
-			float err3 = (valid & (VALID_HORIZONTAL | VALID_VERTICAL)) == (VALID_HORIZONTAL | VALID_VERTICAL) ? error[tid + stride2 * (width + 1)] : 0.0f;
-			float errSum = err0 + err1 + err2 + err3;
+			float err[4];
+			err[0] = error[tid];
+			err[1] = (valid2 & VALID_HORIZONTAL) ? error[tid + stride2] : 0.0f;
+			err[2] = (valid2 & VALID_VERTICAL) ? error[tid + stride2 * width] : 0.0f;
+			err[3] = (valid2 & (VALID_HORIZONTAL | VALID_VERTICAL)) == (VALID_HORIZONTAL | VALID_VERTICAL) ? error[tid + stride2 * (width + 1)] : 0.0f;
+			float errSum = err[0] + err[1] + err[2] + err[3];
 			int seedSum = seed[tid];
 			float scoreSum = errSum > 0.0f ? seedSum / errSum : 0.0f;
 
 			int s[4];
-			s[0] = scoreSum * err0 + 0.5f;
-			s[1] = scoreSum * err1 + 0.5f;
-			s[2] = scoreSum * err2 + 0.5f;
-			s[3] = scoreSum * err3 + 0.5f;
+			s[0] = scoreSum * err[0];
+			s[1] = scoreSum * err[1];
+			s[2] = scoreSum * err[2];
+			s[3] = scoreSum * err[3];
 			int diff = seedSum - s[0] - s[1] - s[2] - s[3];
 #ifdef PRINT_CUDA
 			if (!tid)
 				printf("calc_score stride=%i, i=%i, errSum=%g, seedSum=%i, scoreSum=%g, diff=%i\n", stride, i, errSum, seedSum, scoreSum, diff);
 #endif
 			if (diff && errSum > 0.0f) {
-				int maxIndex = err0 > err1 ?
-								err0 > err2 ?
-									err0 > err3 ? 0 : 3 :
-									err2 > err3 ? 2 : 3 :
-								err1 > err2 ?
-									err1 > err3 ? 1 : 3 :
-									err2 > err3 ? 2 : 3;
-				s[maxIndex] += diff;
+				float max[3] = { 0.0f, 0.0f, 0.0f }; // Will store up to 3 maximum values in err[]
+				int maxi[3] = { -1, -1, -1 }; // Will store the indices of up to 3 maximum values in err[]
+				for (int j = 0; j < 4; j++) { // Find 3 largest values
+					if (err[j] > max[0]) {
+						max[2] = max[1]; maxi[2] = maxi[1];
+						max[1] = max[0]; maxi[1] = maxi[0];
+						max[0] = err[j]; maxi[0] = j;
+					}
+					else if (err[j] > max[1]) {
+						max[2] = max[1]; maxi[2] = maxi[1];
+						max[1] = err[j]; maxi[1] = j;
+					}
+					else if (err[j] > max[2]) {
+						max[2] = err[j]; maxi[2] = j;
+					}
+				}
+				if (diff > 2 && max[2] > 0.0f) {
+					s[maxi[2]] += 1;
+					diff -= 1;
+				}
+				if (diff > 1 && max[1] > 0.0f) {
+					s[maxi[1]] += 1;
+					diff -= 1;
+				}
+				if (diff && max[0] > 0.0f) {
+					s[maxi[0]] += diff;
+				}
 			}
 
 			seed[tid] = s[0];
@@ -384,33 +404,53 @@ void calc_score(float *error, int *seed, const unsigned int width, const unsigne
 			if (idY + stride2 < height)
 				valid2 |= VALID_VERTICAL;
 			unsigned int lid = tid + width * height * i;
-			float err0 = error[lid];
-			float err1 = (valid2 & VALID_HORIZONTAL) ? error[lid + stride2] : 0.0f;
-			float err2 = (valid2 & VALID_VERTICAL) ? error[lid + stride2 * width] : 0.0f;
-			float err3 = (valid2 & (VALID_HORIZONTAL | VALID_VERTICAL)) == (VALID_HORIZONTAL | VALID_VERTICAL) ? error[lid + stride2 * (width + 1)] : 0.0f;
-			float errSum = err0 + err1 + err2 + err3;
+			float err[4];
+			err[0] = error[lid];
+			err[1] = (valid2 & VALID_HORIZONTAL) ? error[lid + stride2] : 0.0f;
+			err[2] = (valid2 & VALID_VERTICAL) ? error[lid + stride2 * width] : 0.0f;
+			err[3] = (valid2 & (VALID_HORIZONTAL | VALID_VERTICAL)) == (VALID_HORIZONTAL | VALID_VERTICAL) ? error[lid + stride2 * (width + 1)] : 0.0f;
+			float errSum = err[0] + err[1] + err[2] + err[3];
 			int seedSum = seed[tid];
 			float scoreSum = errSum > 0.0f ? seedSum / errSum : 0.0f;
 
 			int s[4];
-			s[0] = scoreSum * err0 + 0.5f;
-			s[1] = scoreSum * err1 + 0.5f;
-			s[2] = scoreSum * err2 + 0.5f;
-			s[3] = scoreSum * err3 + 0.5f;
+			s[0] = scoreSum * err[0];
+			s[1] = scoreSum * err[1];
+			s[2] = scoreSum * err[2];
+			s[3] = scoreSum * err[3];
 			int diff = seedSum - s[0] - s[1] - s[2] - s[3];
 #ifdef PRINT_CUDA
 			if (!tid)
-				printf("calc_score stride=%i, i=%i, lid=%i, scale=%i, errSum=%g, seedSum=%i, scoreSum=%g, diff=%i\n", stride, i, lid, scale, errSum, seedSum, scoreSum, diff);
+				printf("calc_score stride=%i, i=%i, tid=%i, lid=%i, scale=%i, errSum=%g, seedSum=%i, scoreSum=%g, diff=%i\n", stride, i, tid, lid, scale, errSum, seedSum, scoreSum, diff);
 #endif
 			if (diff && errSum > 0.0f) {
-				int maxIndex = err0 > err1 ?
-								err0 > err2 ?
-									err0 > err3 ? 0 : 3 :
-									err2 > err3 ? 2 : 3 :
-								err1 > err2 ?
-									err1 > err3 ? 1 : 3 :
-									err2 > err3 ? 2 : 3;
-				s[maxIndex] += diff;
+				float max[3] = { 0.0f, 0.0f, 0.0f }; // Will store up to 3 maximum values in err[]
+				int maxi[3] = { -1, -1, -1 }; // Will store the indices of up to 3 maximum values in err[]
+				for (int j = 0; j < 4; j++) { // Find 3 largest values
+					if (err[j] > max[0]) {
+						max[2] = max[1]; maxi[2] = maxi[1];
+						max[1] = max[0]; maxi[1] = maxi[0];
+						max[0] = err[j]; maxi[0] = j;
+					}
+					else if (err[j] > max[1]) {
+						max[2] = max[1]; maxi[2] = maxi[1];
+						max[1] = err[j]; maxi[1] = j;
+					}
+					else if (err[j] > max[2]) {
+						max[2] = err[j]; maxi[2] = j;
+					}
+				}
+				if (diff > 2 && max[2] > 0.0f) {
+					s[maxi[2]] += 1;
+					diff -= 1;
+				}
+				if (diff > 1 && max[1] > 0.0f) {
+					s[maxi[1]] += 1;
+					diff -= 1;
+				}
+				if (diff && max[0] > 0.0f) {
+					s[maxi[0]] += diff;
+				}
 			}
 
 			seed[tid] = s[0];

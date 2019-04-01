@@ -415,9 +415,9 @@ void createContext(RTcontext* context, const RTsize width, const RTsize height)
 #ifdef DEBUG_OPTIX
 #ifdef RTX
 	/* Enable debugging callbacks */
-	RT_CHECK_ERROR2(rtContextSetUsageReportCallback(*context, reportCallback, min(max(optix_verbosity, 0), 3), NULL));
+	RT_CHECK_ERROR2(rtContextSetUsageReportCallback(*context, reportCallback, min(max(optix_verbosity - 1, 0), 3), NULL));
 
-	if (optix_verbosity > -1)
+	if (optix_verbosity)
 #endif
 	/* Enable exception checking */
 	RT_CHECK_ERROR2(rtContextSetExceptionEnabled(*context, RT_EXCEPTION_ALL, 1));
@@ -1073,9 +1073,7 @@ static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, Scene* sce
 		// Otherwise it's a pass-through (do nothing)
 		break;
 	default:
-#ifdef DEBUG_OPTIX
 		printObject(rec);
-#endif
 		break;
 	}
 	return index;

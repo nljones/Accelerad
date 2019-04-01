@@ -16,7 +16,11 @@ static const char	RCSid[] = "$Id: renderopts.c,v 2.18 2016/03/21 19:06:08 greg E
 #ifdef ACCELERAD
 unsigned int use_optix = 1u;			/* Flag to use OptiX for ray tracing (-g) */
 #ifdef RTX
+#ifdef ACCELERAD_DEBUG
+int optix_verbosity = 1;				/* Verbosity level for OptiX callbacks (-gv) */
+#else
 int optix_verbosity = 0;				/* Verbosity level for OptiX callbacks (-gv) */
+#endif
 #else
 int optix_stack_size = 4096;			/* Stack size for OptiX program in bytes (-g) */
 #endif
