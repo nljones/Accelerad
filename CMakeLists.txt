@@ -159,5 +159,9 @@ install(DIRECTORY "${CMAKE_BINARY_DIR}/lib/"
   DESTINATION "lib"
 )
 
+# copy make tests to build
+file(COPY test DESTINATION ${CMAKE_BINARY_DIR})
+
+
 include(InstallRequiredSystemLibraries)
 add_subdirectory(InstallRules)

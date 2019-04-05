@@ -252,9 +252,7 @@ static void checkDevices()
 		major *= 10;
 		minor *= 10;
 	}
-	rtDeviceGetDeviceCount(&device_count); // This will return an error if no supported devices are found
-	if (!device_count)
-		eprintf(INTERNAL, "Could not find a supported GPU.");
+	RT_CHECK_ERROR_NO_CONTEXT(rtDeviceGetDeviceCount(&device_count)); // This will return an error if no supported devices are found
 	rtGlobalGetAttribute(RT_GLOBAL_ATTRIBUTE_DISPLAY_DRIVER_VERSION_MAJOR, sizeof(display_major), &display_major);
 	rtGlobalGetAttribute(RT_GLOBAL_ATTRIBUTE_DISPLAY_DRIVER_VERSION_MINOR, sizeof(display_minor), &display_minor);
 	mprintf("OptiX %d.%d.%d found display driver %d.%d, CUDA driver %d.%d.%d, and %i GPU device%s:\n",

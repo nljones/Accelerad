@@ -38,6 +38,8 @@ void printContextInfo( const RTcontext context )
 	int value, device_count = 0, i;
 	int* devices;
 	RTsize size;
+	char *path;
+	RTsize sizes[2];
 
 	if ( !context ) return;
 
@@ -49,21 +51,29 @@ void printContextInfo( const RTcontext context )
 
 	//RT_CHECK_ERROR( rtContextGetRunningState( context, &value ) );
 	//mprintf("OptiX kernel running:             %s\n", value ? "Yes" : "No");
-	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_MAX_TEXTURE_COUNT, sizeof(int), &value ) );
+	RT_CHECK_WARN(rtContextGetAttribute(context, RT_CONTEXT_ATTRIBUTE_MAX_TEXTURE_COUNT, sizeof(value), &value));
 	mprintf("OptiX maximum textures:           %i\n", value);
-	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_CPU_NUM_THREADS, sizeof(int), &value ) ); // This can be set
+	RT_CHECK_WARN(rtContextGetAttribute(context, RT_CONTEXT_ATTRIBUTE_CPU_NUM_THREADS, sizeof(value), &value)); // This can be set
 	mprintf("OptiX host CPU threads:           %i\n", value);
-	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_USED_HOST_MEMORY, sizeof(RTsize), &size ) );
+	RT_CHECK_WARN(rtContextGetAttribute(context, RT_CONTEXT_ATTRIBUTE_USED_HOST_MEMORY, sizeof(size), &size));
 	mprintf("OptiX host memory allocated:      %" PRIu64 " bytes\n", size);
 	for (i = 0; i < device_count; i++) {
 		value = devices[i];
-		RT_CHECK_ERROR(rtContextGetAttribute(context, RT_CONTEXT_ATTRIBUTE_AVAILABLE_DEVICE_MEMORY + value, sizeof(RTsize), &size));
+		RT_CHECK_WARN(rtContextGetAttribute(context, RT_CONTEXT_ATTRIBUTE_AVAILABLE_DEVICE_MEMORY + value, sizeof(size), &size));
 		mprintf("OptiX free memory on device %i:    %" PRIu64 " bytes\n", value, size);
 	}
-	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_GPU_PAGING_ACTIVE, sizeof(int), &value ) );
+	RT_CHECK_WARN(rtContextGetAttribute(context, RT_CONTEXT_ATTRIBUTE_GPU_PAGING_ACTIVE, sizeof(value), &value));
 	mprintf("OptiX software paging:            %s\n", value ? "Yes" : "No");
-	RT_CHECK_ERROR( rtContextGetAttribute( context, RT_CONTEXT_ATTRIBUTE_GPU_PAGING_FORCED_OFF, sizeof(int), &value ) ); // This can be set
+	RT_CHECK_WARN(rtContextGetAttribute(context, RT_CONTEXT_ATTRIBUTE_GPU_PAGING_FORCED_OFF, sizeof(value), &value)); // This can be set
 	mprintf("OptiX software paging prohibited: %s\n", value ? "Yes" : "No");
+#ifdef RTX
+	RT_CHECK_WARN(rtContextGetAttribute(context, RT_CONTEXT_ATTRIBUTE_DISK_CACHE_ENABLED, sizeof(value), &value)); // This can be set
+	mprintf("OptiX disk cache enabled:         %s\n", value ? "Yes" : "No");
+	RT_CHECK_WARN(rtContextGetAttribute(context, RT_CONTEXT_ATTRIBUTE_DISK_CACHE_LOCATION, sizeof(path), &path)); // This can be set
+	mprintf("OptiX disk cache location:        %s\n", path);
+	RT_CHECK_WARN(rtContextGetAttribute(context, RT_CONTEXT_ATTRIBUTE_DISK_CACHE_MEMORY_LIMITS, sizeof(sizes), &sizes)); // This can be set
+	mprintf("OptiX disk cache limits:          %" PRIu64 " to %" PRIu64 "\n", sizes[0], sizes[1]);
+#endif
 	free(devices);
 }
 #endif

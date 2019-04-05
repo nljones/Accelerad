@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: wrapBSDF.c,v 2.22 2017/02/14 19:58:37 greg Exp $";
+static const char RCSid[] = "$Id: wrapBSDF.c,v 2.24 2019/04/04 00:21:14 greg Exp $";
 #endif
 /*
  * Wrap BSDF data in valid WINDOW XML file
@@ -69,7 +69,14 @@ const char	*field_assignment[MAXASSIGN];
 int		nfield_assign = 0;
 #define FASEP	';'
 					/* data file(s) & spectra */
-enum { DTtransForward, DTtransBackward, DTreflForward, DTreflBackward };
+enum { DTransFront, DTransBack, DTreflFront, DTreflBack };
+
+static const char	component_name[4][20] = {
+		"Transmission Front",
+		"Transmission Back",
+		"Reflection Front",
+		"Reflection Back"
+};
 
 enum { DSsolar=-1, DSnir=-2, DSxbar31=-3, DSvisible=-4, DSzbar31=-5,
 	DSuprime=-6, DSvprime=-7 };
@@ -121,6 +128,24 @@ static char	basis_definition[][256] = {
 	"\t\t<IncidentDataStructure>TensorTree4</IncidentDataStructure>\n"
 	"\t</DataDefinition>\n",
 };
+
+/* Check that the last-added data file is unique */
+static int
+check_new_data_file()
+{
+	int	i = ndataf;
+
+	while (i-- > 0)
+		if ((data_file[i].spectrum == data_file[ndataf].spectrum) &
+				(data_file[i].type == data_file[ndataf].type)) {
+			fprintf(stderr,
+				"%s: warning - ignoring duplicate component %s\n",
+					data_file[ndataf].fname,
+					component_name[data_file[i].type]);
+			return 0;
+		}
+	return 1;
+}
 
 /* Copy data from file descriptor to stdout and close */
 static int
@@ -485,23 +510,7 @@ writeBSDFblock(const char *caller, struct s_dfile *df)
 	}
 	puts("\t\t<WavelengthDataBlock>");
 	fputs("\t\t\t<WavelengthDataDirection>", stdout);
-	switch (df->type) {
-	case DTtransForward:
-		fputs("Transmission Front", stdout);
-		break;
-	case DTtransBackward:
-		fputs("Transmission Back", stdout);
-		break;
-	case DTreflForward:
-		fputs("Reflection Front", stdout);
-		break;
-	case DTreflBackward:
-		fputs("Reflection Back", stdout);
-		break;
-	default:
-		fprintf(stderr, "%s: internal - bad BSDF type (%d)\n", caller, df->type);
-		return 0;
-	}
+	fputs(component_name[df->type], stdout);
 	puts("</WavelengthDataDirection>");
 	switch (angle_basis) {
 	case ABklemsFull:
@@ -824,9 +833,9 @@ main(int argc, char *argv[])
 				return 1;
 			}
 			if (!strcmp(argv[i], "-tf"))
-				data_file[ndataf].type = DTtransForward;
+				data_file[ndataf].type = DTransFront;
 			else if (!strcmp(argv[i], "-tb"))
-				data_file[ndataf].type = DTtransBackward;
+				data_file[ndataf].type = DTransBack;
 			else
 				UsageExit(argv[0]);
 			if (!strcmp(argv[++i], "-")) {
@@ -835,7 +844,7 @@ main(int argc, char *argv[])
 			}
 			data_file[ndataf].fname = argv[i];
 			data_file[ndataf].spectrum = cur_spectrum;
-			ndataf++;
+			ndataf += check_new_data_file();
 			continue;
 		case 'r':		/* reflection */
 			if (i >= argc-1)
@@ -846,9 +855,9 @@ main(int argc, char *argv[])
 				return 1;
 			}
 			if (!strcmp(argv[i], "-rf"))
-				data_file[ndataf].type = DTreflForward;
+				data_file[ndataf].type = DTreflFront;
 			else if (!strcmp(argv[i], "-rb"))
-				data_file[ndataf].type = DTreflBackward;
+				data_file[ndataf].type = DTreflBack;
 			else
 				UsageExit(argv[0]);
 			if (!strcmp(argv[++i], "-")) {
@@ -857,7 +866,7 @@ main(int argc, char *argv[])
 			}
 			data_file[ndataf].fname = argv[i];
 			data_file[ndataf].spectrum = cur_spectrum;
-			ndataf++;
+			ndataf += check_new_data_file();
 			continue;
 		case 's':		/* spectrum name or input file */
 			if (++i >= argc)

@@ -17,6 +17,8 @@ static const char	RCSid[] = "$Id: rcmain.c,v 2.18 2018/01/18 19:43:43 greg Exp $
 #include "pmapcontrib.h"
 
 #ifdef ACCELERAD
+#include <ctype.h> // for tolower()
+
 extern void printRayTracingTime(const time_t time, const clock_t clock);
 
 extern char *calfilename;			/* name of the most recently read cal file */

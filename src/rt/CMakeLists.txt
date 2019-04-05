@@ -10,13 +10,13 @@ create_version_file("${VERSION_FILE}")
 # NLJ addition: Simplify PTX file names
 macro(PTX_SHROTEN ptx_short_names ptx_names)
   foreach(file ${ptx_names})
-    get_filename_component(file_path "${file}" PATH)
+    #get_filename_component(file_path "${file}" PATH)
     get_filename_component(file_name "${file}" NAME_WE)
-	string(REGEX REPLACE "^cuda_compile_ptx_[0-9]*_?generated_" "" file_name "${file_name}")
-	#string(REGEX REPLACE "\\.cu\\." "\\." file_name "${new_file}")
-	set(new_file "${file_path}/${file_name}.ptx")
-	add_custom_command(OUTPUT ${new_file} COMMAND ${CMAKE_COMMAND} -E copy "${file}" "${new_file}" DEPENDS "${file}")
-	list(APPEND "${ptx_short_names}" "${new_file}")
+    string(REGEX REPLACE "^cuda_compile_ptx_[0-9]*_?generated_" "" file_name "${file_name}")
+    #string(REGEX REPLACE "\\.cu\\." "\\." file_name "${new_file}")
+    set(new_file "${CMAKE_BINARY_DIR}/lib/${file_name}.ptx")
+    add_custom_command(OUTPUT ${new_file} COMMAND ${CMAKE_COMMAND} -E copy "${file}" "${new_file}" DEPENDS "${file}")
+    list(APPEND "${ptx_short_names}" "${new_file}")
   endforeach()
 endmacro()
 
@@ -152,7 +152,7 @@ if(OptiX_USE)
   # wish from the GUI or from ccmake.
   if(NOT PASSED_FIRST_CONFIGURE)
     ENSURE_NVCC_FLAG("--use_fast_math")
-    ENSURE_NVCC_FLAG("--gpu-architecture sm_20")
+    ENSURE_NVCC_FLAG("--gpu-architecture sm_30")
     #ENSURE_NVCC_FLAG("-rdc true")
     ENSURE_NVCC_FLAG("-Xptxas -v")
 	
@@ -237,7 +237,7 @@ if(OptiX_USE)
     reinhart.cu
     reinhartb.cu
     tregenza.cu
-	uniform.cu
+    uniform.cu
     OPTIONS "-rdc true"
   )
 
