@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AcceleradRT</title>
   <meta name="author" content="Nathaniel Jones" />
-  <meta name="copyright" content="Copyright (c) 2017 Nathaniel Jones" />
+  <meta name="copyright" content="Copyright (c) 2019 Nathaniel Jones" />
   <meta name="description" content="Documentation for AcceleradRT interactive daylighting simulation tool for fast global illumination simulation on graphics hardware" />
   <meta name="keywords" content="Documentation, Accelerad, AcceleradRT, Radiance, Graphics Hardware, GPU, Real Time, Interactive, Daylighting, Building Simulation, Building Energy Performance Simulation, Ray Tracing, Nathaniel Jones, Massachusetts Institute of Technology, Architecture, Sustainable Design Lab">
   <link href="https://architecture.mit.edu/sites/all/themes/sap_arch/favicon.ico" rel="shortcut icon" type="image/vnd.microsoft.icon" />
@@ -36,6 +36,7 @@
       <ul class="navigation">
         <li><a href="index.html">ABOUT</a></li>
         <li><a href="documentation.html">DOCUMENTATION</a></li>
+        <li><a href="rt.html" class="current">REAL TIME</a></li>
         <li><a href="publications.html">PUBLICATIONS</a></li>
         <li><a href="help.html">HELP</a></li>
       </ul>
@@ -45,7 +46,15 @@
   <div>
   <section class="about">
 	<div>
-      <h3>AcceleradRT</h3>
+		<h3>Contents</h3>
+		<ul>
+        	<li><a href="#rt">AcceleradRT</a></li>
+			<li><a href="#vr">AcceleradVR</a></li>
+			<li><a href="#commandline">Command Line Arguments</a></li>
+        </ul>
+    </div>
+	<div>
+      <a name="rt"></a><h3>AcceleradRT</h3>
       
       <p>Introducing Accelerad's real-time interface for glare and visual discomfort prediction: <strong>AcceleradRT</strong> is the first major departure from Accelerad's method of porting Radiance functionality to the GPU. Instead, AcceleradRT adds new functions and combines the capabilities of other programs such as <a href="http://radsite.lbl.gov/radiance/man_html/rpict.1.html" target="_blank">rpict</a>, <a href="http://radsite.lbl.gov/radiance/man_html/rvu.1.html" target="_blank">rvu</a>, <a href="https://www.radiance-online.org/learning/documentation/manual-pages/pdfs/evalglare.pdf/view" target="_blank">evalglare</a>, and <a href="http://tbleicher.github.io/wxfalsecolor/" target="_blank">wxfalsecolor</a> with GPU acceleration.</p>
       
@@ -57,37 +66,90 @@
       
       <ul>
         <li>Change the view position and direction using intuitive mouse and scroll wheel navigation.</li>
-        <li>Change view live updates of vertical eye illuminance (E<sub>v</sub>) and daylight glare probability (DGP).</li>
+        <li>Switch between realistic, greyscale, and false color visualizations.</li>
+        <li>Switch between luminance, illuminance, radiance, and irradiance visualizations.</li>
+        <li>View live updates of vertical eye illuminance (E<sub>v</sub>) and daylight glare probability (DGP).</li>
         <li>Select task areas (<img src="images/ta.png" alt="" width="16px" height="16px" />) and contrast areas (<img src="images/crhigh.png" alt="" width="16px" height="16px" /> and <img src="images/crlow.png" alt="" width="16px" height="16px" />) for luminance or illuminance measurement.</li>
         <li>Adjust exposure settings (<img src="images/exposure.png" alt="" width="16px" height="16px" />), rendering settings (<img src="images/settings.png" alt="" width="16px" height="16px" />), and camera settings (<img src="images/view.png" alt="" width="16px" height="16px" />).</li>
+        <li>Automatically update the model whenever a new octree file is created.</li>
         <li>Save high-dynamic range (HDR) images at any point while progressive rendering runs (<img src="images/save_as.png" alt="" width="16px" height="16px" />).</li>
-        <li>Adjust the false color scale (command line only):
-          <ul>
-            <li><tt>-s maximum</tt>, set <tt>-s 0</tt> to turn off false color.</li>
-            <li><tt>-log decades</tt>, set <tt>-log 0</tt> for linear scale.</li>
-            <li><tt>-mask minimum</tt>, set <tt>-mask 0</tt> to turn off masking.</li>
-          </ul>
-        </li>
       </ul>
       
       <a name="vr"></a><h3>AcceleradVR</h3>
 
-      <p>AcceleradRT includes an experimental feature, <strong>AcceleradVR</strong>, for experiencing the luminous environment in virtual reality. AcceleradVR uses third party software to stream AcceleradRT's real-time rendering to a smart phone. The stereo image can be viewed with any VR headset, including <a href="https://vr.google.com/cardboard/" target="_blank">Google cardboard</a>.</p>
+      <p>AcceleradRT includes an experimental feature, <strong>AcceleradVR</strong>, for experiencing the luminous environment in virtual reality. AcceleradVR uses third party software to stream AcceleradRT's real-time rendering to a smartphone. The stereo image can be viewed with any VR headset, including <a href="https://vr.google.com/cardboard/" target="_blank">Google cardboard</a>. To use AcceleadVR:</p>
       
-      <p>Use head movement, your keyboard, or any USB game controller to move through your virtual space. On game controllers and joysticks, hold down Button 2 to switch from conventional nagivation to vertical movement. For keyboard navigation, use forward (<tt>W</tt>), back (<tt>S</tt>), left (<tt>A</tt>), right (<tt>D</tt>), and arrow keys to move up, down, or spin.</p>
+	  <ol>
+		<li>Install <a href="https://github.com/nljones/Accelerad/releases/latest" target="_blank">Accelerad</a> if it is not already present</li>
+		<li>Install <a href="https://www.trinusvirtualreality.com/trinus-cardboard/" target="_blank">Trinus CB VR</a> server (or a similar screen sharing program) on computer</li>
+		<li>Install Trinus CB VR for <a href="https://itunes.apple.com/us/app/trinusvr/id1101683353" target="_blank">iPhone</a> or <a href="https://play.google.com/store/apps/details?id=com.loxai.trinus.test" target="_blank">Android</a> on phone</li>
+		<li>Launch Trinus CB VR on both computer and phone</li>
+		<li>In the Trinus CB VR server window:
+		  <ol style="list-style-type: lower-alpha;">
+			<li>Set compression high using the slider</li>
+			<li>Turn off "Fake 3D"</li>
+			<li>Adjust the yaw and dead zone as necessary</li>
+		  </ol>
+		</li>
+		<li>Enter phone IP address (shown in app) into Trinus CB VR</li>
+		<li>Click the triangle in the Trinus CB VR phone app</li>
+		<li>Click the triangle in the Trinus CB VR computer app</li>
+		<li>Launch <em>C:\Program Files\Accelerad\demo\test_AcceleradRT.bat</em></li>
+		<li>Click the VR (<img src="images/stereo.png" alt="" width="16px" height="16px" />) button in AcceleradRT app and select the window that opens</li>
+	  </ol>
+	  
+      <p>Use head movement, your keyboard, or any USB game controller to move through your virtual space. On game controllers and joysticks, hold down Button 2 to switch from conventional navigation to vertical movement. For keyboard navigation, use forward (<tt>W</tt>), back (<tt>S</tt>), left (<tt>A</tt>), right (<tt>D</tt>), and arrow keys to move up, down, or spin.</p>
       
       <div class="aspect-ratio">
       <iframe src="https://www.youtube.com/embed/8ILSd5s5IsE" frameborder="0" allowfullscreen></iframe>
       </div>
       
-      <p>Put on your 3D glasses! This early test video will take you on a walk-through and fly-through of Gund Hall on the Harvard campus. Use a virtual reality headset to best experience the real-time falsecolor rendering.</p>
+      <!-- <p>Put on your 3D glasses! This early test video will take you on a walk-through and fly-through of Gund Hall on the Harvard campus. Use a virtual reality headset to best experience the real-time falsecolor rendering.</p>
       
       <div class="aspect-ratio">
       <iframe src="https://www.youtube.com/embed/fVQyM4ky7Vs" frameborder="0" allowfullscreen></iframe>
-      </div>
-    
+	  </div> -->
+	  
+	  <a name="commandline"></a><h3>Command Line Arguments</h3>
+      <p>AcceleradRT does not need to be run from the command line, as most settings can be adjusted in the exposure settings (<img src="images/exposure.png" alt="" width="16px" height="16px" />), rendering settings (<img src="images/settings.png" alt="" width="16px" height="16px" />), or camera settings (<img src="images/view.png" alt="" width="16px" height="16px" />). For convenience, advanced users may still adjust parameters via the command line.</p>
+	  <p>For example, specify an initial hemispherical camera view and octree file as follows:</p>
+
+      <blockquote><tt>
+    	AcceleradRT -vp 2.5 -3 2.5 -vd 0 1 0 -vu 0 0 1 -vta -vv 180 -vh 180 -ab 3 -x 768 -y 768 model.oct
+      </tt></blockquote>
+
+	  <p>AcceleradRT supports <a href="http://radsite.lbl.gov/radiance/man_html/rpict.1.html" target="_blank"><em>rpict</em></a> command line arguments. Because AcceleradRT uses progressive rendering, it will ignore any <em>-aa</em> or <em>-ad</em> parameters it receives. Additional parameters for specifying the false color scale and visual comfort indicators are summarized below:</p>
+
+	<table width="100%">
+		<tr><th width="20%">Argument</th><th width="68%">Description</th><th width="12%"><div align="right">Default Value</div></th></tr>
+		<tr><td><tt>-f</tt></td>
+        	<td>Set whether to use the false color scale. Setting <em>-f+</em> enables the false color scale, while <em>-f-</em> enables true colors.</td>
+            <td><div align="right"><em>-f+</em></div></td></tr>
+		<tr><td><tt>-s <em>maximum</em></tt></td>
+        	<td>Set the color scale maximum to <em>maximum</em>. Set the value to zero to enable auto-selection.</td>
+            <td><div align="right">10000.0</div></td></tr>
+		<tr><td><tt>-log <em>decades</em></tt></td>
+        	<td>Set the number of logarithmic scale increments to <em>decades</em>. Set the value to zero to disable logarithmic scaling.</td>
+            <td><div align="right">3</div></td></tr>
+		<tr><td><tt>-base <em>b</em></tt></td>
+        	<td>Set the base for the logarithmic color scale to <em>b</em>.</td>
+            <td><div align="right">10</div></td></tr>
+		<tr><td><tt>-mask <em>minimum</em></tt></td>
+        	<td>Set the minimum value on the false color scale to <em>minimum</em>. Pixels below this value will not be shaded. Set the value to zero to disable masking.</td>
+            <td><div align="right">0.0</div></td></tr>
+		<tr><td><tt>-pe <em>exposure</em></tt></td>
+        	<td>Set the exposure used for saving HDR image output to <em>exposure</em>.</td>
+            <td><div align="right">1.0</div></td></tr>
+		<tr><td><tt>-T <em>x y angle</em></tt></td>
+        	<td>Set the task area used for task area luminance and glare calculations. The area will be a circle centered on (<em>x</em>, <em>y</em>) in screen space with an opening angle of <em>angle</em> radians. Set <em>angle</em> to zero when no task area is defined.</td>
+            <td><div align="right">0 0 0.0</div></td></tr>
+		<tr><td><tt>-C <em>xh yh ah xl yl al</em></tt></td>
+        	<td>Set the regions to use for measuring contrast. The ratio will be taken between the high circle centered on (<em>xh</em>, <em>yh</em>) in screen space with an opening angle of <em>ah</em> radians and the low circle centered on (<em>xl</em>, <em>yl</em>) in screen space with an opening angle of <em>al</em> radians. Set <em>ah</em> and <em>al</em> to zero when no contrast regions are defined.
+            <td><div align="right">0 0 0.0 0 0 0.0</div></td></tr>
+	</table>
+   
   <!-- More Info Section -->
-  <footer>
+  <!-- <footer>
     <article class="footer_column">
       <h3>What's Included</h3>
       <ul>
@@ -112,21 +174,21 @@
         </li>
       </ul>
     </article>
-  </footer>
+  </footer> -->
   <!-- Stats Gallery Section -->
-  <div class="gallery">
+  <!-- <div class="gallery">
     <a name="register"></a><h3>Become a Beta Tester</h3>
 
     <p>AcceleradRT is still in development but is now available for beta testing by registered users. Register here to give it a spin.</p>  
 
     <a href="https://docs.google.com/forms/d/1Aye5DAYSXoWHG0YITbYyE9V-k3FvuzM8sQHHr0bxJQ4/viewform" target="_blank"><div class="button"><i class="fa fa-pencil"></i> Register</div></a>
-  </div>
+  </div> -->
   </div>
   </section>
   <!-- Copyrights Section -->
-  <div class="copyright">&copy;2017 Nathaniel Jones
+  <div class="copyright">&copy;2019 Nathaniel Jones
   <br/>
-  Last updated 5/15/17</div>
+  Last updated 4/14/19</div>
 </div>
 <!-- Main Container Ends -->
 </body>

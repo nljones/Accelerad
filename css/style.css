@@ -40,9 +40,9 @@ header {
 }
 nav {
 	float: right;
-	width: 75%;
+	width: 80%;
 	text-align: right;
-	margin-right: 25px;
+	//margin-right: 25px;
 }
 header nav ul {
 	list-style: none;
@@ -52,7 +52,6 @@ nav ul li {
 	float: left;
 	color: #FFFFFF;
 	font-size: 14px;
-	text-align: left;
 	margin-right: 25px;
 	letter-spacing: 2px;
 	font-weight: bold;
@@ -106,13 +105,13 @@ nav ul li:hover a {
 }
 /* About Section */
 .text_column {
-	width: 29%;
+	width: 30%;
 	text-align: justify;
 	font-weight: lighter;
 	line-height: 25px;
 	float: left;
-	padding-left: 20px;
-	padding-right: 20px;
+	padding-left: 1.6%;
+	padding-right: 1.6%;
 	color: #717070;
 }
 a {
@@ -189,7 +188,7 @@ footer .footer_column p {
 }
 footer .footer_column ul {
 	padding-left: 15%;
-	padding-right: 15%;
+	padding-right: 5%;
 	color: #717070;
 	background-color: #FFFFFF;
 }
@@ -406,6 +405,9 @@ nav ul li {
 
 /* Small Desktops */
 @media (min-width: 768px) and (max-width: 1096px) {
+nav ul li {
+	margin-right: 10px;
+}
 .text_column {
 	width: 100%;
 }

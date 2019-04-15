@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Accelerad</title>
 <meta name="author" content="Nathaniel Jones" />
-<meta name="copyright" content="Copyright (c) 2017 Nathaniel Jones" />
+<meta name="copyright" content="Copyright (c) 2019 Nathaniel Jones" />
 <meta name="description" content="Accelerad daylighting simulation tool for fast global illumination simulation on graphics hardware" />
 <meta name="keywords" content="Accelerad, Radiance, Graphics Hardware, GPU, Daylighting, Building Simulation, Building Energy Performance Simulation, Ray Tracing, Nathaniel Jones, Massachusetts Institute of Technology, Architecture, Sustainable Design Lab">
 <link href="https://architecture.mit.edu/sites/all/themes/sap_arch/favicon.ico" rel="shortcut icon" type="image/vnd.microsoft.icon" />
@@ -35,6 +35,7 @@
       <ul class="navigation">
         <li><a href="index.html" class="current">ABOUT</a></li>
         <li><a href="documentation.html">DOCUMENTATION</a></li>
+        <li><a href="rt.html">REAL TIME</a></li>
         <li><a href="publications.html">PUBLICATIONS</a></li>
         <li><a href="help.html">HELP</a></li>
       </ul>
@@ -48,35 +49,35 @@
   <!-- About Section -->
   <section class="about" id="about">
     <h2 class="hidden">About</h2>
-    <p class="text_column"><strong>Accelerad</strong> is a free suite of programs for fast and accurate lighting and daylighting analysis and visualization. It was developed by <a href="https://nljones.github.io/" target="_blank">Nathaniel Jones</a> at the <a href="http://mit.edu/sustainabledesignlab/" target="_blank">MIT Sustainable Design Lab</a> and modeled after the popular <a href="http://www.radiance-online.org/" target="_blank">Radiance</a> software suite developed by <a href="http://www.anyhere.com/" target="_blank">Greg Ward</a> at <a href="http://www.lbl.gov/" target="_blank">Lawrence Berkeley National Laboratory</a>. In order to allow for smooth adoption among Radiance users and software developers, Accelerad maintains compatibility with Radiance file formats, materials, and command-line arguments.</p>
-    <p class="text_column"><strong>Parallelism</strong> makes Accelerad up to forty times faster using <a href="http://www.nvidia.com/object/optix.html" target="_blank">OptiX&trade;</a>, a ray tracing engine built for the graphics processing unit (GPU). Accelerad is ideal for simulations that would be impractical to carry out on CPUs because of their size, such as <a href="http://radsite.lbl.gov/radiance/man_html/rpict.1.html" target="_blank">rpict</a> renderings with large numbers of ambient bounces or <a href="http://radsite.lbl.gov/radiance/man_html/rtrace.1.html" target="_blank">rtrace</a> calculations over many thousands of sensor points. New compatibility with <a href="https://www.radiance-online.org/learning/documentation/manual-pages/pdfs/rcontrib.pdf/view" target="_blank">rcontrib</a> allows fast simulation of annual climate-based daylighting metrics throgh <a href="https://www.radiance-online.org/learning/tutorials/Tutorial-ThreePhaseMethod.pdf" target="_blank">three-phase</a> and <a href="https://www.radiance-online.org/learning/tutorials/fivephasetutorialfiles/Tutorial-FivePhaseMethod_v2.pdf" target="_blank">five-phase</a> simulations.</p>
-	<p class="text_column"><strong>AcceleradRT</strong>, the next generation in daylighting simulation, is an interactive interface for real-time daylighting, glare, and visual comfort analysis. <a href="rt.html">AcceleradRT</a> uses progressive path tracing to provide daylighitng simulation results in real time with validated accuracy. It includes <a href="rt.html#vr">AcceleradVR</a>, an immersive visualization interface compatible with most virtual reality headsets. AcceleradRT is currently available for beta testing to <a href="rt.html#register">registed Accelerad users</a>.</p>
+    <p class="text_column"><strong>Accelerad</strong> is a free suite of programs for fast and accurate lighting and daylighting analysis and visualization. It was originally developed by <a href="https://nljones.github.io/" target="_blank">Nathaniel Jones</a> at the <a href="http://mit.edu/sustainabledesignlab/" target="_blank">MIT Sustainable Design Lab</a> and continues to be developed independently. It is modeled after the industry standard <a href="http://www.radiance-online.org/" target="_blank">Radiance</a> software suite developed by <a href="http://www.anyhere.com/" target="_blank">Greg Ward</a> at <a href="http://www.lbl.gov/" target="_blank">Lawrence Berkeley National Laboratory</a>. In order to allow for smooth adoption among Radiance users and software developers, Accelerad maintains compatibility with Radiance file formats, materials, and command-line arguments.</p>
+    <p class="text_column"><strong>Parallelism</strong> and the <strong><a href="https://developer.nvidia.com/rtx" target="_blank">RTX</a></strong> architecture make Accelerad up to one hundred times faster than Radiance thanks to <a href="http://www.nvidia.com/object/optix.html" target="_blank">OptiX&trade;</a>, a graphics processing unit (GPU) based ray tracing engine. Accelerad is ideal for simulations that would be impractical to carry out on CPUs because of their size, such as <a href="http://radsite.lbl.gov/radiance/man_html/rpict.1.html" target="_blank">rpict</a> renderings with large numbers of ambient bounces or <a href="http://radsite.lbl.gov/radiance/man_html/rtrace.1.html" target="_blank">rtrace</a> calculations over many thousands of sensor points. New compatibility with <a href="https://www.radiance-online.org/learning/documentation/manual-pages/pdfs/rcontrib.pdf/view" target="_blank">rcontrib</a> allows fast simulation of annual climate-based daylighting metrics throgh <a href="https://www.radiance-online.org/learning/tutorials/Tutorial-ThreePhaseMethod.pdf" target="_blank">three-phase</a> and <a href="https://www.radiance-online.org/learning/tutorials/fivephasetutorialfiles/Tutorial-FivePhaseMethod_v2.pdf" target="_blank">five-phase</a> simulations.</p>
+	<p class="text_column"><strong>AcceleradRT</strong>, the next generation in daylighting simulation, is an interactive interface for real-time daylighting, glare, and visual comfort analysis. <a href="rt.html#rt">AcceleradRT</a> uses progressive path tracing to provide daylighitng simulation results in real time with validated accuracy. The tool produces visualizations along with light level and visual comfort readings, and it responds automatically to changes in the underlying geometric and material models. It includes <a href="rt.html#vr">AcceleradVR</a>, an immersive visualization interface compatible with most virtual reality headsets.</p>
   </section>
   <!-- Stats Gallery Section -->
   <div class="gallery">
     <div class="thumbnail">
       <a href="http://www.ibpsa.org/proceedings/eSimPapers/2014/4B.3.pdf" target="_blank">
       <h1 class="stats">rtrace</h1>
-      <h4>20x faster</h4>
-      <p>on Tesla K40 accelerator</p></a>
+      <h4>28x faster</h4>
+      <p>on RTX 8000</p></a>
     </div>
     <div class="thumbnail">
       <a href="http://dx.doi.org/10.1016/j.buildenv.2016.08.023" target="_blank">
       <h1 class="stats">rpict</h1>
-      <h4>44x faster</h4>
-      <p>on two Tesla K40 accelerators</p></a>
+      <h4>100x faster</h4>
+      <p>on RTX 8000</p></a>
     </div>
     <div class="thumbnail">
       <a href="https://nljones.github.io/publications/Validated_Interactive_Daylighting_Analysis_for_Architectural_Design.pdf" target="_blank">
       <h1 class="stats">rcontrib</h1>
-      <h4>25x faster</h4>
-      <p>on two Tesla K40 accelerators</p></a>
+      <h4>45x faster</h4>
+      <p>on RTX 8000</p></a>
     </div>
     <div class="thumbnail">
       <a href="http://mit.edu/sustainabledesignlab/publications/1121-Jones01.pdf" target="_blank">
       <h1 class="stats">AcceleradRT</h1>
       <h4>real-time performance</h4>
-      <p>on Quadro K4000</p></a>
+      <p>on RTX 6000</p></a>
     </div>
   </div>
   <!-- More Info Section -->
@@ -92,10 +93,12 @@
           <li><a href="https://www.radiance-online.org/learning/documentation/manual-pages/pdfs/rfluxmtx.pdf/view" target="_blank">rfluxmtx</a></li>
           <li><a href="http://radsite.lbl.gov/radiance/man_html/genBSDF.1.html" target="_blank">genBSDF</a></li>
         </ul></li>
+        <li><a href="rt.html">AcceleradRT</a> (Windows only)</li>
         <li>Required CUDA<sup>&reg;</sup> and OptiX&trade; libraries</li>
         <li>Documentation</li>
         <li>Demo files</li>
         <li><a href="accelerad_eula.html">End user license agreement</a></li>
+        <li><a href="acceleradrt_eula.html">AcceleradRT end user license agreement</a></li>
       </ul>
     </article>
     <article class="footer_column">
@@ -105,10 +108,17 @@
         <ul>
           <li>Windows</li>
           <li>Linux</li>
-          <li>Mac OS X</li>
+          <!--<li>Mac OS X</li>-->
         </ul></li>
-        <li>A <a href="https://developer.nvidia.com/cuda-gpus" target="_blank">CUDA-enabled GPU</a> with compute capability 2.0 to 6.1 (latest)</li>
-      </ul>
+        <li>A <a href="https://developer.nvidia.com/cuda-gpus" target="_blank">CUDA-enabled GPU</a> with compute capability 5.0 to 7.5 (latest)</li>
+	  </ul>
+      <h3><a href="rt.html#vr">AcceleradVR</a> Requirements</h3>
+      <ul>
+            <li>Windows operating system</li>
+            <li><a href="https://vr.google.com/cardboard/" target="_blank">Google cardboard</a> or other VR headset</li>
+            <li><a href="https://www.trinusvirtualreality.com/" target="_blank">TrinusVR</a> or other screen sharing app</li>
+            <li>USB game controller, joystick, or keyboard</li>
+	  </ul>
     </article>
   </footer>
   <!-- Stats Gallery Section -->
@@ -124,9 +134,9 @@
     </div>
   </div>
   <!-- Copyrights Section -->
-  <div class="copyright">&copy;2017 Nathaniel Jones
+  <div class="copyright">&copy;2019 Nathaniel Jones
   <br/>
-  Last updated 5/15/17</div>
+  Last updated 4/14/19</div>
 </div>
 <!-- Main Container Ends -->
 </body>
