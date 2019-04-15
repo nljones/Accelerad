@@ -118,7 +118,7 @@ typedef enum
 #define min(a,b)	(((a)<(b))?(a):(b))
 #endif
 #ifndef max
-#define min(a,b)	(((a)>(b))?(a):(b))
+#define max(a,b)	(((a)>(b))?(a):(b))
 #endif
 
 /* Resizeable array structures */
