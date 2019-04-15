@@ -41,7 +41,6 @@ RT_CALLABLE_PROGRAM PerRayData_radiance closest_hit_light_radiance(IntersectData
 	else
 		prd.result = data.mat.color;
 	prd.mirror = make_float3(0.0f);
-	prd.distance = prd.mirror_distance = data.t;
 	return prd;
 }
 

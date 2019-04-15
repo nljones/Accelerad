@@ -52,7 +52,7 @@ RT_PROGRAM void ray_generator()
 #endif
 	PerRayData_radiance prd;
 	prd.result = prd.mirror = make_float3(0.0f);
-	prd.distance = prd.mirror_distance = 0.0f;
+	prd.distance = prd.mirror_distance = RAY_END;
 	prd.weight = 1.0f;
 	prd.depth = 0;
 	prd.ambient_depth = 0;

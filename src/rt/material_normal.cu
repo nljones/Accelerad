@@ -219,7 +219,6 @@ RT_CALLABLE_PROGRAM PerRayData_radiance closest_hit_normal_radiance(IntersectDat
 
 	PerRayData_radiance new_prd;
 	float3 result = prd.mirror = make_float3(0.0f);
-	prd.distance = prd.mirror_distance = data.t; // in case they don't get set later
 	nd.mcolor = data.mat.color;
 	nd.scolor = make_float3(0.0f);
 	nd.rspec = data.mat.params.n.spec;

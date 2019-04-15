@@ -35,7 +35,8 @@ RT_PROGRAM void ray_generator()
 	const uint2 index = make_uint2(launch_index.x, launch_index.y + contrib_segment);
 	PerRayData_radiance prd;
 	init_rand(&prd.state, index.x + launch_dim.x * index.y);
-	prd.result = make_float3(0.0f); // Probably not necessary
+	prd.result = prd.mirror = make_float3(0.0f); // Probably not necessary
+	prd.distance = prd.mirror_distance = RAY_END;
 	prd.weight = 1.0f;
 	prd.depth = 0;
 	prd.ambient_depth = 0;

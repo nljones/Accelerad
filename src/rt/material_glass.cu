@@ -84,7 +84,6 @@ RT_CALLABLE_PROGRAM PerRayData_radiance closest_hit_glass_radiance(IntersectData
 
 	PerRayData_radiance new_prd;
 	float3 result = prd.mirror = make_float3(0.0f);
-	prd.distance = prd.mirror_distance = data.t; // in case they don't get set later
 	float3 mcolor = data.mat.color;
 
 	/* check transmission */

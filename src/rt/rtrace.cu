@@ -38,6 +38,8 @@ RT_PROGRAM void ray_generator()
 #endif
 	PerRayData_radiance prd;
 	init_rand(&prd.state, launch_index.x + launch_dim.x * launch_index.y);
+	prd.result = prd.mirror = make_float3(0.0f);
+	prd.distance = prd.mirror_distance = RAY_END;
 	prd.weight = 1.0f;
 	prd.depth = 0;
 	prd.ambient_depth = 0;

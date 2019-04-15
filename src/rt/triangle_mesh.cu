@@ -29,11 +29,9 @@
 #include <optixu/optixu_aabb_namespace.h>
 #include "optix_shader_common.h"
 
-using namespace optix;
+#define RTX
 
-// This is to be plugged into an RTgeometry object to represent
-// a triangle mesh with a vertex buffer of triangle soup (triangle list)
-// with an interleaved position, normal, texturecoordinate layout.
+using namespace optix;
 
 /* Program variables */
 rtDeclareVariable(unsigned int, backvis, , ); /* backface visibility (bv) */
@@ -61,6 +59,7 @@ rtDeclareVariable(int, surface_id, attribute surface_id, );
 rtDeclareVariable(int, mat_id, attribute mat_id, );
 
 
+#ifdef RTX
 RT_PROGRAM void mesh_attribute()
 {
 	const uint3 v_idx = vindex_buffer[rtGetPrimitiveIndex()];
@@ -104,7 +103,7 @@ RT_PROGRAM void mesh_attribute()
 		mat = material_buffer[rtGetPrimitiveIndex()];
 	mat_id = mat;
 }
-
+#else
 RT_PROGRAM void mesh_intersect(unsigned int primIdx)
 {
 	uint3 v_idx = vindex_buffer[primIdx];
@@ -173,4 +172,4 @@ RT_PROGRAM void mesh_bounds(unsigned int primIdx, float result[6])
 		aabb->invalidate();
 	}
 }
-
+#endif

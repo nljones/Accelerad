@@ -118,8 +118,10 @@ RT_PROGRAM void closest_hit_radiance()
 #endif /* ANTIMATTER */
 
 	/* Call the material's callable program. */
-	if (pid != RT_PROGRAM_ID_NULL)
+	if (pid != RT_PROGRAM_ID_NULL) {
+		prd.distance = data.t; // in case it isn't set later
 		prd = rtMarkedCallableProgramId<PerRayData_radiance(IntersectData const&, PerRayData_radiance)>(pid, "closest_hit_radiance_call_site")(data, prd);
+	}
 	else {
 		Ray new_ray = make_Ray(ray.origin, ray.direction, RADIANCE_RAY, t_hit + ray_start(data.hit, ray.direction, data.world_geometric_normal, RAY_START), prd.tmax);
 		rtTrace(top_object, new_ray, prd);
