@@ -339,11 +339,12 @@ RT_CALLABLE_PROGRAM PerRayData_radiance closest_hit_normal_radiance(IntersectDat
 		new_prd.result *= nd.scolor;
 		prd.mirror = new_prd.result;
 		result += new_prd.result;
+		prd.mirror_distance = data.t;
 #ifdef DAYSIM_COMPATIBLE
 		daysimAddScaled(prd.dc, new_prd.dc, nd.scolor.x);
 #endif
 		if (nd.specfl & SP_FLAT && (prd.ambient_depth || !hastexture))
-			prd.mirror_distance = data.t + rayDistance(new_prd);
+			prd.mirror_distance += rayDistance(new_prd);
 		resolvePayload(prd, new_prd);
 	}
 
@@ -798,7 +799,7 @@ RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pn
 #ifdef DAYSIM_COMPATIBLE
 		DaysimCoef dc = daysimNext(prd.dc);
 		daysimSet(dc, 0.0f);
-		d = doambient(&acol, normal, pnormal, hit, dc, prd);
+		d = doambient(&acol, normal, pnormal, hit, prd, dc);
 		if (d > FTINY)
 			daysimAdd(prd.dc, dc);
 #else
@@ -843,7 +844,7 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 	float wt = prd.weight;
 
 					/* set number of divisions */
-	if (ambacc <= FTINY && wt > (d = 0.8f * fmaxf(*rcol) * wt / (ambdiv_final * minweight)))
+	if (wt > (d = 0.8f * fmaxf(*rcol) * wt / (ambdiv_final * minweight))) // Ignore ambacc <= FTINY check because this is faking ambacc == 0 calc
 		wt = d;			/* avoid ray termination */
 	int n = sqrtf(ambdiv_final * wt) + 0.5f;
 	int i = 1 + 5 * (ambacc > FTINY);	/* minimum number of samples */
@@ -1074,7 +1075,7 @@ RT_METHOD void inithemi( AMBHEMI  *hp, float3 ac, const float3& normal )
 	int  i;
 	float wt = prd.weight;
 					/* set number of divisions */
-	if (ambacc <= FTINY && wt > (d = 0.8f * fmaxf(ac) * wt / (ambdiv_final * minweight)))
+	if (wt > (d = 0.8f * fmaxf(ac) * wt / (ambdiv_final * minweight))) // Ignore ambacc <= FTINY check because this is faking ambacc == 0 calc
 		wt = d;			/* avoid ray termination */
 	hp->nt = sqrtf(ambdiv_final * wt * M_1_PIf) + 0.5f;
 	i = ambacc > FTINY ? 3 : 1;	/* minimum number of samples */

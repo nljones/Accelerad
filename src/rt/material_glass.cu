@@ -170,8 +170,9 @@ RT_CALLABLE_PROGRAM PerRayData_radiance closest_hit_glass_radiance(IntersectData
 		new_prd.result *= refl;
 		prd.mirror = new_prd.result;
 		result += new_prd.result;
+		prd.mirror_distance = data.t;
 		if (prd.ambient_depth || !hastexture)
-			prd.mirror_distance = data.t + rayDistance(new_prd);
+			prd.mirror_distance += rayDistance(new_prd);
 #ifdef DAYSIM_COMPATIBLE
 		daysimAddScaled(prd.dc, new_prd.dc, refl.x);
 #endif

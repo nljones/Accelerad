@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: glass.c,v 2.27 2018/11/13 19:58:33 greg Exp $";
+static const char RCSid[] = "$Id: glass.c,v 2.28 2019/04/19 19:01:32 greg Exp $";
 #endif
 /*
  *  glass.c - simpler shading function for thin glass surfaces.
@@ -154,12 +154,13 @@ m_glass(		/* color a ray which hit a thin glass surface */
 		multcolor(p.rcol, p.rcoef);
 		copycolor(r->mcol, p.rcol);
 		addcolor(r->rcol, p.rcol);
+		r->rmt = r->rot;
 #ifdef DAYSIM
 		daysimAddScaled(r->daylightCoef, p.daylightCoef, colval(p.rcoef, RED));
 #endif
 		if (r->ro != NULL && isflat(r->ro->otype) &&
 				!hastexture | (r->crtype & AMBIENT))
-			r->rmt = r->rot + raydistance(&p);
+			r->rmt += raydistance(&p);
 	}
 	return(1);
 }
