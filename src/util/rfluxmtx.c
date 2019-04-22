@@ -1294,6 +1294,7 @@ main(int argc, char *argv[])
 #ifdef ACCELERAD
 		case 'g':		/* special case */
 			if (argv[a][2] == 'v') na = 2;
+			else if (argv[a][2] == '+' || argv[a][2] == '-') na = 1;
 			else if (argv[a][2]) goto userr;
 			else
 				na = ((a < argc - 2) && (argv[a + 1][0] != '-')) ? 2 : 1;
