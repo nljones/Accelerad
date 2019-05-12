@@ -204,7 +204,7 @@
     <p>Because ray intersection calculations on the GPU use single-precision floating point arithmetic, some imprecision is likely for geometry that is located far from the origin. In particular, this can lead to stack overflow errors, which appear as warning messages. Additionally, warnings will appear as red pixels in <em>accelerad_rpict</em>. Accelerad makes an effort to avoid these issues, but the result is that surfaces far from the origin may appear incorrectly. As a solution, scale the model in meters and position the model so that relevant geometry is less than 100 meters from the origin.</p>
     
     <a name="highlow"></a><h4>Unexpected high and low values</h4>
-    <p>Accelerad flags computation errors with brightly-colored results. If you see results with much higher radiance values than expected, check the command-line output for error warnings. Most commonly, these indicate stack overflow and can be corrected by increasing the <em>-g</em> parameter.</p>
+    <p>Accelerad flags computation errors with brightly-colored results. If you see results with much higher radiance values than expected, check the command-line output for error warnings.</p>
     <p>Low or patchy radiance results may indicate insufficient ambient coverage. You may correct this by varying the ambient parameters, including the additional <a href="#commandline">Accelerad command line arguments</a>.</p>
 
     <a name="irradaincecaching"></a><h4>Patchy or blotchy rendering</h4>
@@ -404,7 +404,7 @@
   </section>
   <div class="copyright">&copy;2019 Nathaniel Jones
   <br/>
-  Last updated 4/14/19</div>
+  Last updated 5/12/19</div>
 </div>
 </body>
 </html>
