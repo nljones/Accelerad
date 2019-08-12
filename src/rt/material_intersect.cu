@@ -195,9 +195,9 @@ RT_PROGRAM void closest_hit_shadow()
 		rtTrace(top_object, new_ray, prd_shadow);
 	}
 
-	//#ifdef CONTRIB
-	//	contribution(prd_shadow.rcoef, prd_shadow.result, ray.direction, data.mat.contrib_index, data.mat.contrib_function); //TODO calculate contribution of shadow?
-	//#endif
+	#ifdef CONTRIB
+		contribution(prd_shadow.rcoef, prd_shadow.result, ray.direction, data.mat.contrib_index, data.mat.contrib_function);
+	#endif
 }
 
 RT_PROGRAM void closest_hit_point_cloud()

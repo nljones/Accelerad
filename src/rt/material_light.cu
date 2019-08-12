@@ -19,11 +19,52 @@ rtDeclareVariable(int,          directvis, , );		/* Boolean switch for light sou
 
 RT_METHOD int spotout(const IntersectData &data);
 
+/* wrongsource *
+ *
+ * This source is the wrong source (ie. overcounted) if we are
+ * aimed to a different source than the one we hit and the one
+ * we hit is not an illum that should be passed.
+ */
+
+#define  wrongsource(prd_shadow, data)	(data.surface_id != -prd_shadow.target - 1)// && \
+//				(data.mat.type != MAT_ILLUM || illumblock(m,r)))
+
+/* distglow *
+ *
+ * A distant glow is an object that sometimes acts as a light source,
+ * but is too far away from the test point to be one in this case.
+ * (Glows with negative radii should NEVER participate in illumination.)
+ */
+#define  distglow(data)	(data.mat.type == MAT_GLOW && \
+				data.mat.params.l.maxrad >= -FTINY && \
+				data.t > data.mat.params.l.maxrad)
+
+/* badcomponent *
+ *
+ * We must avoid counting light sources in the ambient calculation,
+ * since the direct component is handled separately.  Therefore, any
+ * ambient ray which hits an active light source must be discarded.
+ * The same is true for stray specular samples, since the specular
+ * contribution from light sources is calculated separately.
+ */
+#define  badcomponent(prd, data)   ((prd.ambient_depth > 0 && \
+				!(dot(data.world_shading_normal, data.ray_direction) > 0.0f || \
+		/* not 100% correct */	distglow(data))))
+
+/* srcignore *
+ *
+ * The -dv flag is normally on for sources to be visible. Not for shadow rays.
+ */
+#define  srcignore(prd, data)	!(directvis || (distglow(data) && !prd.depth))
 
 RT_CALLABLE_PROGRAM PerRayData_shadow closest_hit_light_shadow(IntersectData const&data, PerRayData_shadow prd_shadow)
 {
-	if (data.t > data.mat.params.l.maxrad || spotout(data) || dot(data.world_shading_normal, data.ray_direction) > 0.0f || data.surface_id != -prd_shadow.target - 1)
-		prd_shadow.result = make_float3( 0.0f );
+	if (wrongsource(prd_shadow, data) || dot(data.world_shading_normal, data.ray_direction) > 0.0f || spotout(data)) {
+		prd_shadow.result = make_float3(0.0f);
+#ifdef CONTRIB
+		prd_shadow.rcoef = make_contrib3(0.0f);
+#endif
+	}
 	else if (data.mat.params.l.function > RT_PROGRAM_ID_NULL)
 		prd_shadow.result = data.mat.color * ((rtCallableProgramId<float3(const float3, const float3)>)data.mat.params.l.function)(data.ray_direction, data.world_shading_normal);
 	else
@@ -34,8 +75,14 @@ RT_CALLABLE_PROGRAM PerRayData_shadow closest_hit_light_shadow(IntersectData con
 RT_CALLABLE_PROGRAM PerRayData_radiance closest_hit_light_radiance(IntersectData const&data, PerRayData_radiance prd)
 {
 	// no contribution to ambient calculation
-	if (!directvis || data.t > data.mat.params.l.maxrad && prd.depth > 0 || prd.ambient_depth > 0 || spotout(data) || dot(data.world_shading_normal, data.ray_direction) > 0.0f) //TODO need a better ambient test
-		prd.result = make_float3( 0.0f );
+	if (badcomponent(prd, data) || srcignore(prd, data)) {
+		prd.result = make_float3(0.0f);
+#ifdef CONTRIB
+		prd.rcoef = make_contrib3(0.0f);
+#endif
+	}
+	else if (dot(data.world_shading_normal, data.ray_direction) > 0.0f || spotout(data))
+		prd.result = make_float3(0.0f);
 	else if (data.mat.params.l.function > RT_PROGRAM_ID_NULL)
 		prd.result = data.mat.color * ((rtCallableProgramId<float3(const float3, const float3)>)data.mat.params.l.function)(data.ray_direction, data.world_shading_normal);
 	else
