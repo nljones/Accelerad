@@ -57,13 +57,8 @@ RT_PROGRAM void ambient_cloud_camera()
 	prd.result.weight = 1.0f;
 	for ( int i = level; i--; )
 		prd.result.weight *= AVGREFL; // Compute weight as in makeambient() from ambient.c
-#ifndef OLDAMB
 	prd.result.rad = make_float2( 0.0f );
 	prd.result.udir = 0; // Initialize in case something goes wrong
-#else
-	prd.result.rad = 0.0f;
-	prd.result.dir = make_float3( 0.0f ); // Initialize in case something goes wrong
-#endif
 #ifdef DAYSIM_COMPATIBLE
 	prd.dc = make_uint3(0, 0, index - segment_offset);
 	daysimSet(prd.dc, 0.0f);
@@ -92,9 +87,7 @@ RT_PROGRAM void ambient_cloud_camera()
 	}
 
 	checkFinite(prd.result.val);
-#ifndef OLDAMB
 	checkFinite(prd.result.gdir);
-#endif
 
 	ambient_record_buffer[index] = prd.result;
 #ifdef DAYSIM_COMPATIBLE

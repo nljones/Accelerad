@@ -1,4 +1,4 @@
-.\" RCSid "$Id: pvalue.1,v 1.8 2010/12/16 21:34:41 greg Exp $"
+.\" RCSid "$Id: pvalue.1,v 1.11 2019/07/18 14:45:59 greg Exp $"
 .TH PVALUE 1 1/15/99 RADIANCE
 .SH NAME
 pvalue - convert RADIANCE picture to/from alternate formats
@@ -42,6 +42,10 @@ these files.
 .TP 10n
 .BR \-u
 Print only unique values in the output, skipping runs of equal pixels.
+For reverse conversions, the
+.I \-u
+option writes uncompressed output rather than the standard run-length RGBE
+encoding.
 Specifying
 .I \+u
 turns this option off, which is the default.
@@ -76,7 +80,6 @@ causes the resolution string to be printed, which is the default.
 Skip the specified number of bytes on the input header.
 This option is useful for skipping unintelligible headers in
 foreign file formats.
-(Does not work when reading from standard input.)
 .TP
 .BI \-e \ exposure
 Adjust the exposure by the amount specified.
@@ -239,12 +242,7 @@ pflip \-v flipped.hdr > final.hdr
 .SH AUTHOR
 Greg Ward
 .SH BUGS
-The
-.I \-r
-option does not work with the
-.I \-u
-option.
-Also, input pixel locations are ignored during a reverse
+Input pixel locations are ignored during a reverse
 conversion, so this information is not used in determining
 the scanline ordering or picture size.
 .SH "SEE ALSO"

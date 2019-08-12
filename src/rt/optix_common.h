@@ -11,7 +11,6 @@
 #define RAY_COUNT
 //#define HIT_COUNT
 //#define HIT_TYPE
-//#define OLDAMB
 #define LIGHTS
 #define ANTIMATTER
 #define METRICS_DOUBLE
@@ -74,19 +73,12 @@ typedef struct struct_ambient_record
 #endif
 	float3 pos;		/* position in space */
 	float3 val;		/* computed ambient value */
-#ifndef OLDAMB
 	float2 gpos;	/* (u,v) gradient wrt. position */
 	float2 gdir;	/* (u,v) gradient wrt. direction */
 	float2 rad;		/* anisotropic radii (rad.x <= rad.y) */
 	int ndir;		/* encoded surface normal */
 	int udir;		/* u-vector direction */
 	unsigned int corral;	/* potential light leak direction flags */
-#else
-	float3 dir;		/* normal direction */
-	float3 gpos;	/* gradient wrt. position */
-	float3 gdir;	/* gradient wrt. direction */
-	float  rad;		/* validity radius */
-#endif
 	float  weight;	/* weight of parent ray */
 	unsigned int lvl;	/* recursion level of parent ray */
 #ifdef RAY_COUNT

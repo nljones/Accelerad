@@ -6,7 +6,6 @@
 
 #include "accelerad_copyright.h"
 
-#ifndef OLDAMB
 #define	DCSCALE		11585.2f		/* (1<<13)*sqrt(2) */
 #define FXNEG		01
 #define FYNEG		02
@@ -127,20 +126,3 @@ RT_METHOD unsigned int quadratic(float2* r, const float& a, const float& b, cons
 		*r = make_float2((-b2 - disc) / a, (-b2 + disc) / a);
 	return(2);
 }
-#else /* OLDAMB */
-/* Ambient data structures */
-typedef struct {
-	float3 v;		/* division sum (partial) */
-	float  r;		/* 1/distance sum */
-	float  k;		/* variance for this division */
-	int    n;		/* number of subsamples */
-	unsigned short  t, p;	/* theta, phi indices */
-} AMBSAMP;		/* ambient sample division */
-
-typedef struct {
-	float3 ux, uy, uz;	/* x, y and z axis directions */
-	float3 acoef;		/* division contribution coefficient */
-	int    ns;		/* number of super-samples */
-	int    nt, np;		/* number of theta and phi directions */
-} AMBHEMI;		/* ambient sample hemisphere */
-#endif /* OLDAMB */

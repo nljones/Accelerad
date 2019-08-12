@@ -92,7 +92,6 @@ extern RTbuffer dc_scratch_buffer;
 #endif
 static RTgeometry ambient_record_geometry;
 static RTacceleration ambient_record_acceleration;
-#ifndef OLDAMB
 static RTbuffer hess_row_buffer, grad_row_buffer;
 #ifdef AMB_SAVE_MEM
 static RTbuffer amb_samp_buffer, corral_u_buffer, corral_d_buffer;
@@ -102,9 +101,6 @@ static RTbuffer amb_samp_buffer;
 static RTbuffer earr_buffer;
 #endif
 #endif /* AMB_SAVE_MEM */
-#else /* OLDAMB */
-static RTbuffer rprevrow_buffer, bprevrow_buffer;
-#endif /* OLDAMB */
 
 /* Allow faster irradiance cache creation by leaving some amount of threads unused.
 	For 1D launch:
@@ -246,19 +242,11 @@ static double ambientRadius(const double weight)
 
 static unsigned int ambientDivisions(const double weight)
 {
-#ifndef OLDAMB
 	unsigned int divisions = (unsigned int)(sqrt(ambdiv * weight) + 0.5);
 	unsigned int i = 1 + 5 * (ambacc > FTINY);	/* minimum number of samples */
 	if (divisions < i)
 		return i;
 	return divisions;
-#else
-	unsigned int divisions = (unsigned int)(sqrt(ambdiv * weight / PI) + 0.5);
-	unsigned int i = ambacc > FTINY ? 3 : 1;	/* minimum number of samples */
-	if (divisions < i)
-		return i;
-	return PI * divisions + 0.5;
-#endif
 }
 
 void createAmbientDynamicStorage(const RTcontext context, const RTprogram program, const RTsize size)
@@ -266,7 +254,6 @@ void createAmbientDynamicStorage(const RTcontext context, const RTprogram progra
 	unsigned int n = ambientDivisions(1.0);
 
 	/* Create GPU scratch space buffers in global GPU memory */
-#ifndef OLDAMB
 	createCustomBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, 9 * sizeof(float), size ? n - 1 : 0, size, &hess_row_buffer); // Size of optix::Matrix<3, 3>
 	applyProgramObject(context, program, "hess_row_buffer", hess_row_buffer);
 
@@ -297,16 +284,6 @@ void createAmbientDynamicStorage(const RTcontext context, const RTprogram progra
 	applyProgramObject(context, program, "earr_buffer", earr_buffer);
 #endif
 #endif /* AMB_SAVE_MEM */
-#else /* OLDAMB */
-	if (!size)
-		n = 0;
-
-	createBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT, n, size, &rprevrow_buffer);
-	applyProgramObject(context, program, "rprevrow_buffer", rprevrow_buffer);
-
-	createBuffer2D(context, RT_BUFFER_INPUT_OUTPUT | RT_BUFFER_GPU_LOCAL, RT_FORMAT_FLOAT, n, size, &bprevrow_buffer);
-	applyProgramObject(context, program, "bprevrow_buffer", bprevrow_buffer);
-#endif /* OLDAMB */
 }
 
 static void updateAmbientDynamicStorage(const RTcontext context, const RTsize size, const unsigned int level)
@@ -314,7 +291,6 @@ static void updateAmbientDynamicStorage(const RTcontext context, const RTsize si
 	unsigned int n = ambientDivisions(ambientWeight(level));
 
 	/* Create GPU scratch space buffers in global GPU memory */
-#ifndef OLDAMB
 	RT_CHECK_ERROR(rtBufferSetSize2D(hess_row_buffer, size ? n - 1 : 0, size));
 	RT_CHECK_ERROR(rtBufferSetSize2D(grad_row_buffer, size ? n - 1 : 0, size));
 #ifdef AMB_SAVE_MEM
@@ -328,10 +304,6 @@ static void updateAmbientDynamicStorage(const RTcontext context, const RTsize si
 		RT_CHECK_ERROR(rtBufferSetSize3D(earr_buffer, size ? n : 0, size ? n : 0, size));
 #endif
 #endif /* AMB_SAVE_MEM */
-#else /* OLDAMB */
-	RT_CHECK_ERROR(rtBufferSetSize2D(rprevrow_buffer, size ? n : 0, size));
-	RT_CHECK_ERROR(rtBufferSetSize2D(bprevrow_buffer, size ? n : 0, size));
-#endif /* OLDAMB */
 }
 
 static unsigned int populateAmbientRecords( const RTcontext context, const int level )
@@ -413,7 +385,6 @@ static unsigned int gatherAmbientRecords( AMBTREE* at, AmbientRecord** records, 
 		if ( record->lvl <= level ) {
 			array2cuda3( (*records)->pos, record->pos );
 			array2cuda3( (*records)->val, record->val );
-#ifndef OLDAMB
 			array2cuda2( (*records)->gpos, record->gpos );
 			array2cuda2( (*records)->gdir, record->gdir );
 			array2cuda2( (*records)->rad, record->rad );
@@ -421,13 +392,6 @@ static unsigned int gatherAmbientRecords( AMBTREE* at, AmbientRecord** records, 
 			(*records)->ndir = record->ndir;
 			(*records)->udir = record->udir;
 			(*records)->corral = record->corral;
-#else
-			array2cuda3( (*records)->dir, record->dir );
-			array2cuda3( (*records)->gpos, record->gpos );
-			array2cuda3( (*records)->gdir, record->gdir );
-
-			(*records)->rad = record->rad;
-#endif
 			(*records)->lvl = record->lvl;
 			(*records)->weight = record->weight;
 #ifdef DAYSIM
@@ -464,7 +428,6 @@ static int saveAmbientRecords( AmbientRecord* record )
 
 	cuda2array3( amb.pos, record->pos );
 	cuda2array3( amb.val, record->val );
-#ifndef OLDAMB
 	cuda2array2( amb.gpos, record->gpos );
 	cuda2array2( amb.gdir, record->gdir );
 	cuda2array2( amb.rad, record->rad );
@@ -472,13 +435,6 @@ static int saveAmbientRecords( AmbientRecord* record )
 	amb.ndir = record->ndir;
 	amb.udir = record->udir;
 	amb.corral = record->corral;
-#else
-	cuda2array3( amb.dir, record->dir );
-	cuda2array3( amb.gpos, record->gpos );
-	cuda2array3( amb.gdir, record->gdir );
-
-	amb.rad = record->rad;
-#endif
 	amb.lvl = record->lvl;
 	amb.weight = record->weight;
 #ifdef DAYSIM

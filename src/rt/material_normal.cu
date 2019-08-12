@@ -12,9 +12,6 @@
 #ifdef CONTRIB_DOUBLE
 #include "optix_double.h"
 #endif
-#ifdef OLDAMB
-#include "optix_shader_ambient.h"
-#endif
 
 using namespace optix;
 
@@ -77,10 +74,6 @@ rtDeclareVariable(float,        ambacc, , );	/* Ambient accuracy (aa). This valu
 rtDeclareVariable(int,          ambdiv, , );	/* Ambient divisions (ad) */
 rtDeclareVariable(int,          ambdiv_final, , ); /* Number of ambient divisions for final-pass fill (ag) */
 //rtDeclareVariable(int,          ambssamp, , );	/* Ambient super-samples (as) */
-#ifdef OLDAMB
-rtDeclareVariable(float,        maxarad, , );	/* maximum ambient radius */
-rtDeclareVariable(float,        minarad, , );	/* minimum ambient radius */
-#endif /* OLDAMB */
 rtDeclareVariable(float,        avsum, , );		/* computed ambient value sum (log) */
 rtDeclareVariable(unsigned int, navsum, , );	/* number of values in avsum */
 #endif /* AMBIENT */
@@ -100,25 +93,12 @@ RT_METHOD float3 dirnorm(Ray *shadow_ray, PerRayData_shadow *shadow_prd, const N
 RT_METHOD float3 gaussamp(const NORMDAT *nd, const float3& ray_dir, PerRayData_radiance &prd);
 #ifdef AMBIENT
 RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pnormal, const float3& hit, const unsigned int& ambincl, PerRayData_radiance &prd);
-#ifndef OLDAMB
 #ifdef DAYSIM_COMPATIBLE
 RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit, PerRayData_radiance &prd, DaysimCoef dc);
 #else
 RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit, PerRayData_radiance &prd);
 #endif
 //RT_METHOD int ambsample( AMBHEMI *hp, const int& i, const int& j, const float3 normal, const float3 hit );
-#else /* OLDAMB */
-#ifdef DAYSIM_COMPATIBLE
-RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit, DaysimCoef dc );
-RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& normal, const float3& hit, DaysimCoef dc );
-#else
-RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit );
-RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& normal, const float3& hit );
-#endif
-RT_METHOD void inithemi( AMBHEMI  *hp, float3 ac, const float3& normal );
-//RT_METHOD void comperrs( AMBSAMP *da, AMBHEMI *hp );
-//RT_METHOD int ambcmp( const void *p1, const void *p2 );
-#endif /* OLDAMB */
 #endif /* AMBIENT */
 #ifdef LIGHTS
 RT_METHOD unsigned int flatpart( const float3& v, const float3& r0, const float3& r1, const float3& r2, const float& weight );
@@ -758,9 +738,6 @@ RT_METHOD float3 multambient(float3 aval, const float3& normal, const float3& pn
 		ambient_prd.ambient_depth = prd.ambient_depth;
 		ambient_prd.wsum = 0.0f;
 		ambient_prd.weight = prd.weight;
-#ifdef OLDAMB
-		ambient_prd.state = prd.state;
-#endif
 #ifdef DAYSIM_COMPATIBLE
 		ambient_prd.dc = daysimNext(prd.dc);
 		daysimSet(ambient_prd.dc, 0.0f);
@@ -832,7 +809,6 @@ dumbamb:					/* return global value */
 	return aval * d;
 }
 
-#ifndef OLDAMB
 /* sample indirect hemisphere, based on samp_hemi in ambcomp.c */
 #ifdef DAYSIM_COMPATIBLE
 RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit, PerRayData_radiance &prd, DaysimCoef dc)
@@ -919,326 +895,6 @@ RT_METHOD int doambient(float3 *rcol, const float3& normal, const float3& pnorma
 	//}
 	return( 1 );			/* all is well */
 }
-#else /* OLDAMB */
-#ifdef DAYSIM_COMPATIBLE
-RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit, DaysimCoef dc )
-#else
-RT_METHOD float doambient( float3 *rcol, const float3& normal, const float3& pnormal, const float3& hit )
-#endif
-{
-	float  b;//, d;
-	AMBHEMI  hemi;
-	AMBSAMP  *div;
-	AMBSAMP  dnew;
-	float3  acol;
-	AMBSAMP  *dp;
-	float  arad;
-	int  divcnt;
-	int  i, j;
-					/* initialize hemisphere */
-	inithemi(&hemi, *rcol, pnormal);
-	divcnt = hemi.nt * hemi.np;
-					/* initialize */
-	//if (pg != NULL)
-	//	pg[0] = pg[1] = pg[2] = 0.0;
-	//if (dg != NULL)
-	//	dg[0] = dg[1] = dg[2] = 0.0;
-	*rcol = make_float3( 0.0f );
-	if (divcnt == 0)
-		return(0.0f); //TODO does this change the value of rcol in the calling method?
-					/* allocate super-samples */
-	//if (hemi.ns > 0) {// || pg != NULL || dg != NULL) {
-	//	div = (AMBSAMP *)malloc(divcnt*sizeof(AMBSAMP));
-	//	//if (div == NULL) // This is 0
-	//	//	error(SYSTEM, "out of memory in doambient");
-	//} else
-		div = NULL; // This is 0
-					/* sample the divisions */
-	arad = 0.0f;
-	acol = make_float3( 0.0f );
-	if ((dp = div) == NULL)
-		dp = &dnew;
-	divcnt = 0;
-	for (i = 0; i < hemi.nt; i++)
-		for (j = 0; j < hemi.np; j++) {
-			dp->t = i; dp->p = j;
-			dp->v = make_float3( 0.0f );
-			dp->r = 0.0f;
-			dp->n = 0;
-#ifdef DAYSIM_COMPATIBLE
-			if (divsample( dp, &hemi, normal, hit, dc ) < 0) {
-#else
-			if (divsample( dp, &hemi, normal, hit ) < 0) {
-#endif
-				if (div != NULL)
-					dp++;
-				continue;
-			}
-			arad += dp->r;
-			divcnt++;
-			if (div != NULL)
-				dp++;
-			else
-				acol += dp->v;
-		}
-	if (!divcnt) {
-		//if (div != NULL)
-		//	free((void *)div);
-		return(0.0f);		/* no samples taken */
-	}
-	if (divcnt < hemi.nt*hemi.np) {
-		//pg = dg = NULL;		/* incomplete sampling */
-		hemi.ns = 0;
-	} else if (arad > FTINY && divcnt/arad < minarad) {
-		hemi.ns = 0;		/* close enough */
-	} else if (hemi.ns > 0) {	/* else perform super-sampling? */
-		//comperrs(div, &hemi);			/* compute errors */
-		//qsort(div, divcnt, sizeof(AMBSAMP), ambcmp);	/* sort divs */ TODO necessary?
-						/* super-sample */
-		for (i = hemi.ns; i > 0; i--) {
-			dnew = *div;
-#ifdef DAYSIM_COMPATIBLE
-			if (divsample( &dnew, &hemi, normal, hit, dc ) < 0) {
-#else
-			if (divsample( &dnew, &hemi, normal, hit ) < 0) {
-#endif
-				dp++;
-				continue;
-			}
-			dp = div;		/* reinsert */
-			j = divcnt < i ? divcnt : i;
-			while (--j > 0 && dnew.k < dp[1].k) {
-				*dp = *(dp+1);
-				dp++;
-			}
-			*dp = dnew;
-		}
-		//if (pg != NULL || dg != NULL)	/* restore order */
-		//	qsort(div, divcnt, sizeof(AMBSAMP), ambnorm);
-	}
-					/* compute returned values */
-	if (div != NULL) {
-		arad = 0.0f;		/* note: divcnt may be < nt*np */
-		for (i = hemi.nt*hemi.np, dp = div; i-- > 0; dp++) {
-			arad += dp->r;
-			if (dp->n > 1) {
-				b = 1.0f/dp->n;
-				dp->v *= b;
-				dp->r *= b;
-				dp->n = 1;
-			}
-			acol += dp->v;
-		}
-		//b = bright(acol);
-		//if (b > FTINY) {
-		//	b = 1.0f/b;	/* compute & normalize gradient(s) */
-		//	//if (pg != NULL) {
-		//	//	posgradient(pg, div, &hemi);
-		//	//	for (i = 0; i < 3; i++)
-		//	//		pg[i] *= b;
-		//	//}
-		//	//if (dg != NULL) {
-		//	//	dirgradient(dg, div, &hemi);
-		//	//	for (i = 0; i < 3; i++)
-		//	//		dg[i] *= b;
-		//	//}
-		//}
-		//free((void *)div);
-	}
-	*rcol = acol;
-	if (arad <= FTINY)
-		arad = maxarad;
-	else
-		arad = (divcnt+hemi.ns)/arad;
-	//if (pg != NULL) {		/* reduce radius if gradient large */
-	//	d = DOT(pg,pg);
-	//	if (d*arad*arad > 1.0f)
-	//		arad = 1.0f/sqrtf(d);
-	//}
-	if (arad < minarad) {
-		arad = minarad;
-		//if (pg != NULL && d*arad*arad > 1.0f) {	/* cap gradient */
-		//	d = 1.0f/arad/sqrtf(d);
-		//	for (i = 0; i < 3; i++)
-		//		pg[i] *= d;
-		//}
-	}
-	if ((arad /= sqrtf(prd.weight)) > maxarad)
-		arad = maxarad;
-	return(arad);
-}
-
-/* initialize sampling hemisphere */
-RT_METHOD void inithemi( AMBHEMI  *hp, float3 ac, const float3& normal )
-{
-	float	d;
-	int  i;
-	float wt = prd.weight;
-					/* set number of divisions */
-	if (wt > (d = 0.8f * fmaxf(ac) * wt / (ambdiv_final * minweight))) // Ignore ambacc <= FTINY check because this is faking ambacc == 0 calc
-		wt = d;			/* avoid ray termination */
-	hp->nt = sqrtf(ambdiv_final * wt * M_1_PIf) + 0.5f;
-	i = ambacc > FTINY ? 3 : 1;	/* minimum number of samples */
-	if (hp->nt < i)
-		hp->nt = i;
-	hp->np = M_PIf * hp->nt + 0.5f;
-					/* set number of super-samples */
-	hp->ns = ambssamp * wt + 0.5f;
-					/* assign coefficient */
-	hp->acoef = ac;
-	d = 1.0f/(hp->nt*hp->np);
-	hp->acoef *= d;
-					/* make axes */
-	hp->uz = normal;
-	hp->ux = getperpendicular(hp->uz);
-	hp->uy = cross(hp->uz, hp->ux);
-}
-
-/* sample a division */
-#ifdef DAYSIM_COMPATIBLE
-RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& normal, const float3& hit, DaysimCoef dc )
-#else
-RT_METHOD int divsample( AMBSAMP  *dp, AMBHEMI  *h, const float3& normal, const float3& hit )
-#endif
-{
-	PerRayData_radiance new_prd;
-	//RAY  ar;
-	//float3 rcoef; /* contribution coefficient w.r.t. parent */
-	//int3  hlist;
-	float2  spt;
-	float  xd, yd, zd;
-	float  b2;
-	float  phi;
-					/* ambient coefficient for weight */
-	if (ambacc > FTINY)
-		b2 = AVGREFL; // Reusing this variable
-	else
-		b2 = fminf(fmaxf(h->acoef), 1.0f);
-	new_prd.weight = prd.weight * b2;
-	if (new_prd.weight < minweight) //if (rayorigin(&ar, AMBIENT, r, ar.rcoef) < 0)
-		return(-1);
-	//if (ambacc > FTINY) {
-	//	rcoef *= h->acoef;
-	//	rcoef *= 1.0f / AVGREFL; // This all seems unnecessary
-	//}
-	//hlist = make_int3( prd.seed, dp->t, dp->p );
-	//multisamp(spt, 2, urand(ilhash(hlist,3)+dp->n));//TODO implement
-	//spt = multisamp2( frandom() );
-	//int il = ilhash( hlist );
-	//spt = make_float2( rnd( il ) );
-	//spt = make_float2( rnd( prd.seed ) );
-	spt = make_float2( curand_uniform( prd.state ), curand_uniform( prd.state ) );
-	zd = sqrtf((dp->t + spt.x)/h->nt);
-	phi = 2.0f*M_PIf * (dp->p + spt.y)/h->np;
-	xd = cosf(phi) * zd;
-	yd = sinf(phi) * zd;
-	zd = sqrtf(1.0f - zd*zd);
-	float3 rdir = normalize( xd*h->ux + yd*h->uy + zd*h->uz );
-	//dimlist[ndims++] = dp->t*h->np + dp->p + 90171;
-
-	new_prd.depth = prd.depth + 1;
-	new_prd.ambient_depth = prd.ambient_depth + 1;
-	new_prd.tmax = RAY_END;
-	//new_prd.seed = prd.seed;//lcg( prd.seed );
-	new_prd.state = prd.state;
-#ifdef CONTRIB
-	new_prd.rcoef = prd.rcoef * h->acoef;
-#endif
-#ifdef ANTIMATTER
-	new_prd.mask = prd.mask;
-	new_prd.inside = prd.inside;
-#endif
-#ifdef DAYSIM_COMPATIBLE
-	new_prd.dc = daysimNext(dc);
-#endif
-	setupPayload(new_prd);
-	Ray amb_ray = make_Ray(hit, rdir, RADIANCE_RAY, ray_start(hit, rdir, normal, RAY_START), new_prd.tmax);
-	rtTrace(top_object, amb_ray, new_prd);
-	resolvePayload(prd, new_prd);
-
-	//ndims--;
-	if ( isnan( new_prd.result ) ) // TODO How does this happen?
-		return(-1);
-	new_prd.result *= h->acoef;	/* apply coefficient */
-#ifdef DAYSIM_COMPATIBLE
-	daysimAddScaled(dc, new_prd.dc, h->acoef.x);
-#endif
-	dp->v += new_prd.result;
-					/* use rt to improve gradient calc */
-	if (new_prd.distance > FTINY && new_prd.distance < RAY_END)
-		dp->r += 1.0f/new_prd.distance;
-
-					/* (re)initialize error */
-	if (dp->n++) {
-		b2 = bright(dp->v)/dp->n - bright(new_prd.result);
-		b2 = b2*b2 + dp->k*((dp->n-1)*(dp->n-1));
-		dp->k = b2/(dp->n*dp->n);
-	} else
-		dp->k = 0.0f;
-	return(0);
-}
-
-/* compute initial error estimates */
-//RT_METHOD void comperrs( AMBSAMP *da, AMBHEMI *hp )
-//{
-//	float  b, b2;
-//	int  i, j;
-//	AMBSAMP  *dp;
-//				/* sum differences from neighbors */
-//	dp = da;
-//	for (i = 0; i < hp->nt; i++)
-//		for (j = 0; j < hp->np; j++) {
-////#ifdef  DEBUG
-////			if (dp->t != i || dp->p != j)
-////				error(CONSISTENCY,
-////					"division order in comperrs");
-////#endif
-//			b = bright(dp[0].v);
-//			if (i > 0) {		/* from above */
-//				b2 = bright(dp[-hp->np].v) - b;
-//				b2 *= b2 * 0.25f;
-//				dp[0].k += b2;
-//				dp[-hp->np].k += b2;
-//			}
-//			if (j > 0) {		/* from behind */
-//				b2 = bright(dp[-1].v) - b;
-//				b2 *= b2 * 0.25f;
-//				dp[0].k += b2;
-//				dp[-1].k += b2;
-//			} else {		/* around */
-//				b2 = bright(dp[hp->np-1].v) - b;
-//				b2 *= b2 * 0.25f;
-//				dp[0].k += b2;
-//				dp[hp->np-1].k += b2;
-//			}
-//			dp++;
-//		}
-//				/* divide by number of neighbors */
-//	dp = da;
-//	for (j = 0; j < hp->np; j++)		/* top row */
-//		(dp++)->k *= 1.0f/3.0f;
-//	if (hp->nt < 2)
-//		return;
-//	for (i = 1; i < hp->nt-1; i++)		/* central region */
-//		for (j = 0; j < hp->np; j++)
-//			(dp++)->k *= 0.25f;
-//	for (j = 0; j < hp->np; j++)		/* bottom row */
-//		(dp++)->k *= 1.0f/3.0f;
-//}
-
-/* decreasing order */
-//RT_METHOD int ambcmp( const void *p1, const void *p2 )
-//{
-//	const AMBSAMP	*d1 = (const AMBSAMP *)p1;
-//	const AMBSAMP	*d2 = (const AMBSAMP *)p2;
-//
-//	if (d1->k < d2->k)
-//		return(1);
-//	if (d1->k > d2->k)
-//		return(-1);
-//	return(0);
-//}
-#endif /* OLDAMB */
 #endif /* AMBIENT */
 
 #ifdef LIGHTS

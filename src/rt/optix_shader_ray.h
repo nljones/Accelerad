@@ -67,9 +67,6 @@ struct PerRayData_ambient
 	float wsum;
 	float3 surface_normal;
 	float weight;
-#ifdef OLDAMB
-	rand_state* state;
-#endif
 #ifdef DAYSIM_COMPATIBLE
 	DaysimCoef dc;	/* daylight coefficients */
 #endif

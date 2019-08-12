@@ -1,10 +1,10 @@
 #ifndef lint
-static const char	RCSid[] = "$Id: header.c,v 2.32 2018/08/02 18:33:42 greg Exp $";
+static const char	RCSid[] = "$Id: header.c,v 2.35 2019/07/19 17:37:56 greg Exp $";
 #endif
 /*
  *  header.c - routines for reading and writing information headers.
  *
- *  Externals declared in resolu.h
+ *  Externals declared in rtio.h
  *
  *  newheader(t,fp)	start new information header identified by string t
  *  headidval(r,s)	copy header identifier value in s to r
@@ -210,13 +210,17 @@ getheader(		/* get header from file */
 {
 	int   rtotal = 0;
 	char  buf[MAXLINE];
+	int   firstc = fgetc(fp);
 
+	if (!isprint(firstc))
+		return(-1);				/* messed up */
+	ungetc(firstc, fp);
 	for ( ; ; ) {
 		int	rval = 0;
 		buf[MAXLINE-2] = '\n';
 		if (fgets(buf, MAXLINE, fp) == NULL)
 			return(-1);
-		if (buf[buf[0]=='\r'] == '\n')
+		if (buf[buf[0]=='\r'] == '\n')		/* end of header? */
 			return(rtotal);
 		if (buf[MAXLINE-2] != '\n') {
 			ungetc(buf[MAXLINE-2], fp);	/* prevent false end */
@@ -241,10 +245,11 @@ mycheck(			/* check a header line for format info. */
 	void  *cp
 )
 {
-	if (!formatval(((struct check*)cp)->fs, s)
-			&& ((struct check*)cp)->fp != NULL) {
-		fputs(s, ((struct check*)cp)->fp);
-	}
+	struct check	*scp = (struct check *)cp;
+
+	if (!formatval(scp->fs, s) && scp->fp != NULL)
+		fputs(s, scp->fp);
+
 	return(0);
 }
 

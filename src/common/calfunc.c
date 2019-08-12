@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id: calfunc.c,v 2.20 2019/03/04 20:34:13 greg Exp $";
+static const char	RCSid[] = "$Id: calfunc.c,v 2.24 2019/07/24 21:20:28 greg Exp $";
 #endif
 /*
  *  calfunc.c - routines for calcomp using functions.
@@ -40,7 +40,9 @@ static double  libfunc(char *fname, VARDEF *vp);
 #define  MAXLIB		64	/* maximum number of library functions */
 #endif
 
-static double  l_if(char *), l_select(char *), l_rand(char *);
+static double  l_if(char *), l_select(char *);
+static double  l_min(char *), l_max(char *);
+static double  l_rand(char *);
 static double  l_floor(char *), l_ceil(char *);
 static double  l_sqrt(char *);
 static double  l_sin(char *), l_cos(char *), l_tan(char *);
@@ -60,6 +62,8 @@ static LIBR  library[MAXLIB] = {
     { "if", 3, ':', l_if },
     { "log", 1, ':', l_log },
     { "log10", 1, ':', l_log10 },
+    { "max", 1, ':', l_max },
+    { "min", 1, ':', l_min },
     { "rand", 1, ':', l_rand },
     { "select", 1, ':', l_select },
     { "sin", 1, ':', l_sin },
@@ -67,13 +71,13 @@ static LIBR  library[MAXLIB] = {
     { "tan", 1, ':', l_tan },
 };
 
-static int  libsize = 16;
+static int  libsize = 18;
 
 #define  resolve(ep)	((ep)->type==VAR?(ep)->v.ln:argf((ep)->v.chan))
 
 
 int
-fundefined(			/* return # of arguments for function */
+fundefined(			/* return # of req'd arguments for function */
 	char  *fname
 )
 {
@@ -141,8 +145,10 @@ funset(				/* set a library function */
 	;
     if (cp == fname)
 	return;
-    if (cp[-1] == CNTXMARK)
+    while (cp[-1] == CNTXMARK) {
 	*--cp = '\0';
+	if (cp == fname) return;
+    }
     if ((lp = liblookup(fname)) == NULL) {	/* insert */
 	if (libsize >= MAXLIB) {
 	    eputs("Too many library functons!\n");
@@ -194,6 +200,9 @@ argument(int n)			/* return nth argument for active function */
     ACTIVATION  *actp = curact;
     EPNODE  *ep = NULL;
     double  aval;
+
+    if (!n)					/* asking for # arguments? */
+	return((double)nargum());
 
     if (!actp | (--n < 0)) {
 	eputs("Bad call to argument!\n");
@@ -381,16 +390,49 @@ l_if(char *nm)		/* if(cond, then, else) conditional expression */
 static double
 l_select(char *nm)	/* return argument #(A1+1) */
 {
-	int  n;
+	int	narg = nargum();
+	double	a1 = argument(1);
+	int  n = (int)(a1 + .5);
 
-	n = (int)(argument(1) + .5);
-	if (n == 0)
-		return(nargum()-1);
-	if (n < 1 || n > nargum()-1) {
+	if (a1 < -.5 || n >= narg) {
 		errno = EDOM;
 		return(0.0);
 	}
+	if (!n)		/* asking max index? */
+		return(narg-1);
 	return(argument(n+1));
+}
+
+
+static double
+l_max(char *nm)		/* general maximum function */
+{
+	int  n = nargum();
+	int  i = 1;
+	double  vmax = argument(1);
+
+	while (i++ < n) {
+		double  v = argument(i);
+		if (vmax < v)
+			vmax = v;
+	}
+	return(vmax);
+}
+
+
+static double
+l_min(char *nm)		/* general minimum function */
+{
+	int  n = nargum();
+	int  i = 1;
+	double  vmin = argument(1);
+
+	while (i++ < n) {
+		double  v = argument(i);
+		if (vmin > v)
+			vmin = v;
+	}
+	return(vmin);
 }
 
 

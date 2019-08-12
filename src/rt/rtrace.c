@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id: rtrace.c,v 2.76 2019/04/07 16:39:39 greg Exp $";
+static const char	RCSid[] = "$Id: rtrace.c,v 2.83 2019/07/25 16:59:19 greg Exp $";
 #endif
 /*
  *  rtrace.c - program and variables for individual ray tracing.
@@ -59,7 +59,7 @@ static void daysimOutput(RAY* r);
 static RAY  thisray;			/* for our convenience */
 
 typedef void putf_t(RREAL *v, int n);
-static putf_t puta, putd, putf;
+static putf_t puta, putd, putf, putrgbe;
 
 typedef void oputf_t(RAY *r);
 static oputf_t  oputo, oputd, oputv, oputV, oputl, oputL, oputc, oputp,
@@ -129,6 +129,7 @@ rtrace(				/* trace rays from file */
 	unsigned long  vcount = (hresolu > 1) ? (unsigned long)hresolu*vresolu
 					      : (unsigned long)vresolu;
 	long  nextflush = (vresolu > 0) & (hresolu > 1) ? 0 : hresolu;
+	int  something2flush = 0;
 	FILE  *fp;
 	double	d;
 #ifdef DAYSIM
@@ -154,14 +155,18 @@ rtrace(				/* trace rays from file */
 		castonly = 0;
 	else if (castonly)
 		nproc = 1;		/* don't bother multiprocessing */
+	if ((nextflush > 0) & (nproc > nextflush)) {
+		error(WARNING, "reducing number of processes to match flush interval");
+		nproc = nextflush;
+	}
 	switch (outform) {
 	case 'a': putreal = puta; break;
 	case 'f': putreal = putf; break;
 	case 'd': putreal = putd; break;
 	case 'c': 
-		if (strcmp(outvals, "v"))
-			error(USER, "color format with value output only");
-		break;
+		if (outvals[0] && (outvals[1] || !strchr("vrx", outvals[0])))
+			error(USER, "color format only with -ov, -or, -ox");
+		putreal = putrgbe; break;
 	default:
 		error(CONSISTENCY, "botched output format");
 	}
@@ -182,7 +187,8 @@ rtrace(				/* trace rays from file */
 	if (hresolu > 0) {
 		if (vresolu > 0)
 			fprtresolu(hresolu, vresolu, stdout);
-		fflush(stdout);
+		else
+			fflush(stdout);
 	}
 					/* process file */
 	while (getvec(orig, inform, fp) == 0 &&
@@ -195,11 +201,12 @@ rtrace(				/* trace rays from file */
 				bogusray();
 			else
 #endif
-			if (--nextflush <= 0 || !vcount) {
+			if ((--nextflush <= 0) | !vcount && something2flush) {
 				if (ray_pnprocs > 1 && ray_fifo_flush() < 0)
 					error(USER, "child(ren) died");
 				bogusray();
 				fflush(stdout);
+				something2flush = 0;
 				nextflush = (vresolu > 0) & (hresolu > 1) ? 0 :
 								hresolu;
 			} else
@@ -233,7 +240,8 @@ rtrace(				/* trace rays from file */
 					error(USER, "child(ren) died");
 				fflush(stdout);
 				nextflush = hresolu;
-			}
+			} else
+				something2flush = 1;
 		}
 #ifdef ACCELERAD
 		if (use_optix) {
@@ -380,7 +388,7 @@ setoutput(				/* set up output tables */
 		case 'W':				/* coefficient */
 			*table++ = oputW;
 			castonly = 0;
-			if (ambounce > 0 && (ambacc > FTINY || ambssamp > 0))
+			if (ambounce > 0 && (ambacc > FTINY) | (ambssamp > 0))
 				error(WARNING,
 					"-otW accuracy depends on -aa 0 -as 0");
 			break;
@@ -395,15 +403,21 @@ setoutput(				/* set up output tables */
 			break;
 		}
 	*table = NULL;
+							/* compatibility */
+	for (table = ray_out; *table != NULL; table++) {
+		if ((*table == oputV) | (*table == oputW))
+			error(WARNING, "-oVW options require trace mode");
+		if ((do_irrad | imm_irrad) &&
+				(*table == oputr) | (*table == oputR) |
+				(*table == oputx) | (*table == oputX))
+			error(WARNING, "-orRxX options incompatible with -I+ and -i+");
+	}
 }
 
 
 static void
 bogusray(void)			/* print out empty record */
 {
-	thisray.rorg[0] = thisray.rorg[1] = thisray.rorg[2] =
-	thisray.rdir[0] = thisray.rdir[1] = thisray.rdir[2] = 0.0;
-	thisray.rmax = 0.0;
 #ifdef ACCELERAD
 	if (use_optix)
 		return; /* The rest will occur after the OptiX kernel runs. */
@@ -676,14 +690,6 @@ oputv(				/* print value */
 {
 	RREAL	cval[3];
 
-	if (outform == 'c') {
-		COLR  cout;
-		setcolr(cout,	colval(r->rcol,RED),
-				colval(r->rcol,GRN),
-				colval(r->rcol,BLU));
-		putbinary(cout, sizeof(cout), 1, stdout);
-		return;
-	}
 	cval[0] = colval(r->rcol,RED);
 	cval[1] = colval(r->rcol,GRN);
 	cval[2] = colval(r->rcol,BLU);
@@ -753,9 +759,16 @@ oputN(				/* print unperturbed normal */
 	RAY  *r
 )
 {
-	if (r->rot < FHUGE)
-		(*putreal)(r->ron, 3);
-	else
+	if (r->rot < FHUGE) {
+		if (r->rflips & 1) {	/* undo any flippin' flips */
+			FVECT	unrm;
+			unrm[0] = -r->ron[0];
+			unrm[1] = -r->ron[1];
+			unrm[2] = -r->ron[2];
+			(*putreal)(unrm, 3);
+		} else
+			(*putreal)(r->ron, 3);
+	} else
 		(*putreal)(vdummy, 3);
 }
 
@@ -874,7 +887,7 @@ puta(				/* print ascii value(s) */
 
 
 static void
-putd(RREAL *v, int n)		/* print binary double(s) */
+putd(RREAL *v, int n)		/* output binary double(s) */
 {
 #ifdef	SMLFLT
 	double	da[3];
@@ -892,7 +905,7 @@ putd(RREAL *v, int n)		/* print binary double(s) */
 
 
 static void
-putf(RREAL *v, int n)		/* print binary float(s) */
+putf(RREAL *v, int n)		/* output binary float(s) */
 {
 #ifndef	SMLFLT
 	float	fa[3];
@@ -906,6 +919,18 @@ putf(RREAL *v, int n)		/* print binary float(s) */
 #else
 	putbinary(v, sizeof(RREAL), n, stdout);
 #endif
+}
+
+
+static void
+putrgbe(RREAL *v, int n)	/* output RGBE color */
+{
+	COLR  cout;
+
+	if (n != 3)
+		error(INTERNAL, "putrgbe() not called with 3 components");
+	setcolr(cout, v[0], v[1], v[2]);
+	putbinary(cout, sizeof(cout), 1, stdout);
 }
 
 #ifdef DAYSIM

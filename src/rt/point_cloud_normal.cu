@@ -61,9 +61,6 @@ RT_METHOD int occupied(const float3& pos, const float3& dir, const float3& world
 	for ( int i = level; i--; )
 		ambient_prd.weight *= AVGREFL; // Compute weight as in makeambient() from ambient.c
 
-#ifdef OLDAMB
-	ambient_prd.state = prd.state;
-#endif
 #ifdef DAYSIM_COMPATIBLE
 	ambient_prd.dc = make_uint3(0u); // Mark as null (TODO check this)
 #endif

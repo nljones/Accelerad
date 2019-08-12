@@ -28,9 +28,7 @@ rtDeclareVariable(PerRayData_ambient, prd, rtPayload, );
 
 
 RT_METHOD void sumambient();
-#ifndef OLDAMB
 RT_METHOD int plugaleak(const AmbientRecord* record, const float3& anorm, const float3& normal, float ang);
-#endif
 
 
 // Ignore the intersection so that the intersection program will continue to run for all overlapping recrods.
@@ -56,7 +54,6 @@ RT_METHOD void sumambient()
 
 	const float3 normal = ray.direction;
 
-#ifndef OLDAMB
 	/* Direction test using unperturbed normal */
 	float d = dot(w, normal); // Ray direction is unperturbed surface normal
 	if ( d <= 0.0f )		/* >= 90 degrees */
@@ -121,69 +118,6 @@ RT_METHOD void sumambient()
 	if (ambient_dc.size().x && prd.dc.x)
 		daysimAddScaled(prd.dc, &ambient_dc[make_uint2(0, primIdx)], d * wt);
 #endif
-#else /* OLDAMB */
-	/* Ambient radius test. */
-	float3 ck0 = record.pos - prd.surface_point;
-	float e1 = dot( ck0, ck0 ) / ( record.rad * record.rad );
-	float acc = ambacc * ambacc * 1.21f;
-	if ( e1 > acc )
-		return;
-
-	/* Direction test using closest normal. */
-	float d = dot( record.dir, normal ); // Ray direction is unperturbed surface normal
-	//if (rn != r->ron) {
-	//	rn_dot = DOT(av->dir, rn);
-	//	if (rn_dot > 1.0-FTINY)
-	//		rn_dot = 1.0-FTINY;
-	//	if (rn_dot >= d-FTINY) {
-	//		d = rn_dot;
-	//		rn_dot = -2.0;
-	//	}
-	//}
-	float e2 = (1.0f - d) * prd.weight;
-	if (e2 < 0.0f)
-		e2 = 0.0f;
-	else if (e1 + e2 > acc)
-		return;
-
-	/* Ray behind test. */
-	d = dot( ck0, record.dir + normal );
-	if (d * 0.5f > minarad * ambacc + 0.001f )
-		return;
-
-	/* Jittering final test reduces image artifacts. */
-	e1 = sqrtf(e1);
-	e2 = sqrtf(e2);
-	float wt = e1 + e2;
-	if (wt > ambacc * ( 0.9f + 0.2f * curand_uniform( prd.state ) ) )
-		return;
-
-	/* Recompute directional error using perturbed normal */
-	//if (rn_dot > 0.0) {
-	//	e2 = sqrtf( ( 1.0f - rn_dot ) * prd.weight);
-	//	wt = e1 + e2;
-	//}
-	if (wt <= 1e-3f)
-		wt = 1e3f;
-	else
-		wt = 1.0f / wt;
-	prd.wsum += wt; // This assignment to the prd would take place in the any-hit program if there were one
-
-	/* This is extambient from ambient.c */
-	//float d = 1.0f;			/* zeroeth order */
-
-	/* gradient due to translation */
-	d = 1.0f - dot(record.gpos, ck0);
-
-	/* gradient due to rotation */
-	ck0 = cross(record.dir, prd.surface_normal);
-	d += dot(record.gdir, ck0);
-
-	if (d > 0.0f) {
-		// This assignment to the prd would take place in the any-hit program if there were one
-		prd.result += record.val * (d * wt);
-	}
-#endif /* OLDAMB */
 }
 
 // based on makeambient from ambient.c
@@ -217,8 +151,6 @@ RT_PROGRAM void ambient_record_bounds (int primIdx, float result[6])
 {
 	optix::Aabb* aabb = (optix::Aabb*)result;
 	const AmbientRecord record = ambient_records[primIdx];
-
-#ifndef OLDAMB
 	const float2 rad = record.rad * ambacc; // Acceleration structure becomes dirty when ambacc is increased.
 
 	if( rad.x > FTINY && isfinite(rad.y) ) {
@@ -232,20 +164,8 @@ RT_PROGRAM void ambient_record_bounds (int primIdx, float result[6])
 	} else {
 		aabb->invalidate();
 	}
-#else /* OLDAMB */
-	const float rad = record.rad * 1.1f * ambacc; // Acceleration structure becomes dirty when ambacc is increased.
-
-	if( rad > FTINY && isfinite(rad) ) {
-		const float3 dims = rad * sqrtf( 1.0f - record.dir * record.dir );// + FTINY; // Expanding by FTINY seems to help prevent misses
-		aabb->m_min = record.pos - dims;
-		aabb->m_max = record.pos + dims;
-	} else {
-		aabb->invalidate();
-	}
-#endif /* OLDAMB */
 }
 
-#ifndef OLDAMB
 /* Plug a potential leak where ambient cache value is occluded */
 RT_METHOD int plugaleak(const AmbientRecord* record, const float3& anorm, const float3& normal, float ang)
 {
@@ -287,4 +207,3 @@ RT_METHOD int plugaleak(const AmbientRecord* record, const float3& anorm, const 
 	//rtTrace( top_object, shadow_ray, shadow_prd );
 	//return( dot( shadow_prd.result, shadow_prd.result ) < 1.0f );	/* check for occluder */
 }
-#endif /* OLDAMB */

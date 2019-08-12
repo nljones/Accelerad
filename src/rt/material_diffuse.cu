@@ -48,10 +48,6 @@ rtDeclareVariable(float, ambacc, , );	/* Ambient accuracy (aa). This value will 
 rtDeclareVariable(int, ambdiv, , );	/* Ambient divisions (ad) */
 rtDeclareVariable(int, ambdiv_final, , ); /* Number of ambient divisions for final-pass fill (ag) */
 //rtDeclareVariable(int, ambssamp, , );	/* Ambient super-samples (as) */
-#ifdef OLDAMB
-rtDeclareVariable(float, maxarad, , );	/* maximum ambient radius */
-rtDeclareVariable(float, minarad, , );	/* minimum ambient radius */
-#endif /* OLDAMB */
 rtDeclareVariable(float, avsum, , );		/* computed ambient value sum (log) */
 rtDeclareVariable(unsigned int, navsum, , );	/* number of values in avsum */
 

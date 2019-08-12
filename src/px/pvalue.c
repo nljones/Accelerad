@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: pvalue.c,v 2.34 2018/08/02 18:33:46 greg Exp $";
+static const char RCSid[] = "$Id: pvalue.c,v 2.36 2019/07/15 23:42:44 greg Exp $";
 #endif
 /*
  *  pvalue.c - program to print pixel values.
@@ -93,8 +93,9 @@ main(
 	char  **argv
 )
 {
-	double  d, expval = 1.0;
-	int  i;
+	const char	*inpmode = "r";
+	double		d, expval = 1.0;
+	int		i;
 
 	progname = argv[0];
 	mybright = &rgb_bright; /* default */
@@ -251,26 +252,38 @@ unkopt:
 		else
 			fmtid = "16-bit_grey";
 	}
+	if (!reverse || (format != 'a') & (format != 'i'))
+		inpmode = "rb";
 					/* assign reverse ordering */
 	rord[ord[0]] = 0;
 	rord[ord[1]] = 1;
 	rord[ord[2]] = 2;
 					/* get input */
 	if (i == argc) {
+		long	n = skipbytes;
+		if (inpmode[1] == 'b')
+			SET_FILE_BINARY(stdin);
+		while (n-- > 0)
+			if (getchar() == EOF) {
+				fprintf(stderr,
+				"%s: cannot skip %ld bytes on standard input\n",
+						progname, skipbytes);
+				quit(1);
+			}
 		fin = stdin;
 	} else if (i < argc) {
-		if ((fin = fopen(argv[i], "r")) == NULL) {
+		if ((fin = fopen(argv[i], inpmode)) == NULL) {
 			fprintf(stderr, "%s: can't open file \"%s\"\n",
 						progname, argv[i]);
 			quit(1);
 		}
 		if (reverse && putprim != BRIGHT && i == argc-3) {
-			if ((fin2 = fopen(argv[i+1], "r")) == NULL) {
+			if ((fin2 = fopen(argv[i+1], inpmode)) == NULL) {
 				fprintf(stderr, "%s: can't open file \"%s\"\n",
 						progname, argv[i+1]);
 				quit(1);
 			}
-			if ((fin3 = fopen(argv[i+2], "r")) == NULL) {
+			if ((fin3 = fopen(argv[i+2], inpmode)) == NULL) {
 				fprintf(stderr, "%s: can't open file \"%s\"\n",
 						progname, argv[i+2]);
 				quit(1);
@@ -279,12 +292,12 @@ unkopt:
 		} else if (i != argc-1)
 			fin = NULL;
 		if (reverse && putprim != BRIGHT && !interleave) {
-			fin2 = fopen(argv[i], "r");
-			fin3 = fopen(argv[i], "r");
+			fin2 = fopen(argv[i], inpmode);
+			fin3 = fopen(argv[i], inpmode);
 		}
-		if (skipbytes && (fseek(fin, skipbytes, 0) || (fin2 != NULL &&
-				(fseek(fin2, skipbytes, 0) ||
-				fseek(fin3, skipbytes, 0))))) {
+		if (skipbytes && (fseek(fin, skipbytes, SEEK_SET) || (fin2 != NULL &&
+				fseek(fin2, skipbytes, SEEK_SET) |
+				fseek(fin3, skipbytes, SEEK_SET)))) {
 			fprintf(stderr, "%s: cannot skip %ld bytes on input\n",
 					progname, skipbytes);
 			quit(1);
@@ -296,11 +309,7 @@ unkopt:
 	}
 
 	if (reverse) {
-#if defined(_WIN32) || defined(_WIN64)
 		SET_FILE_BINARY(stdout);
-		if (format != 'a' && format != 'i')
-			SET_FILE_BINARY(fin);
-#endif
 					/* get header */
 		if (header) {
 			if (checkheader(fin, fmtid, stdout) < 0) {
@@ -349,11 +358,8 @@ unkopt:
 		fputsresolu(&picres, stdout);	/* always put resolution */
 		valtopix();
 	} else {
-#if defined(_WIN32) || defined(_WIN64)
-		SET_FILE_BINARY(fin);
-		if (format != 'a' && format != 'i')
+		if ((format != 'a') & (format != 'i'))
 			SET_FILE_BINARY(stdout);
-#endif
 						/* get header */
 		getheader(fin, checkhead, NULL);
 		if (wrongformat) {
@@ -419,14 +425,13 @@ checkhead(				/* deal with line from header */
 static void
 pixtoval(void)				/* convert picture to values */
 {
-	register COLOR	*scanln;
+	COLOR	*scanln;
 	int  dogamma;
 	COLOR  lastc;
 	RREAL  hv[2];
 	int  startprim, endprim;
 	long  startpos;
-	int  y;
-	register int  x;
+	int  x, y;
 
 	scanln = (COLOR *)malloc(scanlen(&picres)*sizeof(COLOR));
 	if (scanln == NULL) {
@@ -434,14 +439,14 @@ pixtoval(void)				/* convert picture to values */
 		quit(1);
 	}
 	dogamma = gamcor < .95 || gamcor > 1.05;
-	if (putprim == ALL && !interleave) {
+	if ((putprim == ALL) & !interleave) {
 		startprim = RED; endprim = BLU;
 		startpos = ftell(fin);
 	} else {
 		startprim = putprim; endprim = putprim;
 	}
 	for (putprim = startprim; putprim <= endprim; putprim++) {
-		if (putprim != startprim && fseek(fin, startpos, 0)) {
+		if (putprim != startprim && fseek(fin, startpos, SEEK_SET)) {
 			fprintf(stderr, "%s: seek error on input file\n",
 					progname);
 			quit(1);
@@ -493,10 +498,10 @@ pixtoval(void)				/* convert picture to values */
 static void
 valtopix(void)			/* convert values to a pixel file */
 {
-	int  dogamma;
-	register COLOR	*scanln;
-	int  y;
-	register int  x;
+	int	dogamma;
+	COLOR	*scanln;
+	COLR	rgbe;
+	int	x, y;
 
 	scanln = (COLOR *)malloc(scanlen(&picres)*sizeof(COLOR));
 	if (scanln == NULL) {
@@ -525,13 +530,23 @@ valtopix(void)			/* convert values to a pixel file */
 					pow(colval(scanln[x],BLU), gamcor));
 			if (doexposure)
 				multcolor(scanln[x], exposure);
+			if (uniq) {		/* uncompressed? */
+				setcolr(rgbe,	scanln[x][RED],
+						scanln[x][GRN],
+						scanln[x][BLU]);
+				if (putbinary(rgbe, sizeof(COLR), 1, stdout) != 1)
+					goto writerr;
+			}
 		}
-		if (fwritescan(scanln, scanlen(&picres), stdout) < 0) {
-			fprintf(stderr, "%s: write error\n", progname);
-			quit(1);
-		}
+						/* write scan if compressed */
+		if (!uniq && fwritescan(scanln, scanlen(&picres), stdout) < 0)
+			goto writerr;
 	}
 	free((void *)scanln);
+	return;
+writerr:
+	fprintf(stderr, "%s: write error\n", progname);
+	quit(1);
 }
 
 
@@ -939,7 +954,7 @@ putbbyte(			/* put a byte brightness to stdout */
 	COLOR  col
 )
 {
-	register int  i;
+	int  i;
 	uby8  vb;
 
 	i = (*mybright)(col)*256.;
@@ -1092,10 +1107,10 @@ set_io(void)			/* set put and get functions */
 				if (fin2 == NULL)
 					goto namerr;
 				if (fseek(fin2,
-				(long)sizeof(float)*picres.xr*picres.yr, 1))
+				(long)sizeof(float)*picres.xr*picres.yr, SEEK_CUR))
 					goto seekerr;
 				if (fseek(fin3,
-				(long)sizeof(float)*2*picres.xr*picres.yr, 1))
+				(long)sizeof(float)*2*picres.xr*picres.yr, SEEK_CUR))
 					goto seekerr;
 			}
 		}
@@ -1114,10 +1129,10 @@ set_io(void)			/* set put and get functions */
 				if (fin2 == NULL)
 					goto namerr;
 				if (fseek(fin2,
-				(long)sizeof(double)*picres.xr*picres.yr, 1))
+				(long)sizeof(double)*picres.xr*picres.yr, SEEK_CUR))
 					goto seekerr;
 				if (fseek(fin3,
-				(long)sizeof(double)*2*picres.xr*picres.yr, 1))
+				(long)sizeof(double)*2*picres.xr*picres.yr, SEEK_CUR))
 					goto seekerr;
 			}
 		}
@@ -1154,10 +1169,10 @@ set_io(void)			/* set put and get functions */
 				if (fin2 == NULL)
 					goto namerr;
 				if (fseek(fin2,
-				(long)sizeof(uby8)*picres.xr*picres.yr, 1))
+				(long)sizeof(uby8)*picres.xr*picres.yr, SEEK_CUR))
 					goto seekerr;
 				if (fseek(fin3,
-				(long)sizeof(uby8)*2*picres.xr*picres.yr, 1))
+				(long)sizeof(uby8)*2*picres.xr*picres.yr, SEEK_CUR))
 					goto seekerr;
 			}
 		}
@@ -1176,10 +1191,10 @@ set_io(void)			/* set put and get functions */
 				if (fin2 == NULL)
 					goto namerr;
 				if (fseek(fin2,
-				(long)sizeof(uint16)*picres.xr*picres.yr, 1))
+				(long)sizeof(uint16)*picres.xr*picres.yr, SEEK_CUR))
 					goto seekerr;
 				if (fseek(fin3,
-				(long)sizeof(uint16)*2*picres.xr*picres.yr, 1))
+				(long)sizeof(uint16)*2*picres.xr*picres.yr, SEEK_CUR))
 					goto seekerr;
 			}
 		}

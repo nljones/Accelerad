@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id: lam.c,v 1.17 2016/08/18 00:52:47 greg Exp $";
+static const char	RCSid[] = "$Id: lam.c,v 1.24 2019/07/18 17:45:51 greg Exp $";
 #endif
 /*
  *  lam.c - simple program to laminate files.
@@ -13,42 +13,36 @@ static const char	RCSid[] = "$Id: lam.c,v 1.17 2016/08/18 00:52:47 greg Exp $";
 #include <ctype.h>
 
 #include "platform.h"
-#include "rtprocess.h"
 #include "rtio.h"
 
 #define MAXFILE		512		/* maximum number of files */
 
 #define MAXLINE		65536		/* maximum input line */
 
-long	incnt = 0;			/* limit number of records? */
-
 FILE	*input[MAXFILE];
 int	bytsiz[MAXFILE];
 char	*tabc[MAXFILE];
-int	nfiles;
+int	nfiles = 0;
 
 char	buf[MAXLINE];
 
 int
-main(argc, argv)
-int	argc;
-char	*argv[];
+main(int argc, char *argv[])
 {
+	long	incnt = 0;
 	int	unbuff = 0;
 	int	binout = 0;
-	int	i;
-	char	*curtab;
-	int	curbytes;
+	char	*curtab = "\t";
+	int	curbytes = 0;
 	int	puteol;
+	int	i;
 
-	curtab = "\t";
-	curbytes = 0;
-	nfiles = 0;
 	for (i = 1; i < argc; i++) {
 		if (argv[i][0] == '-') {
 			switch (argv[i][1]) {
 			case 't':
 				curtab = argv[i]+2;
+				if (!*curtab) curtab = "\n";
 				break;
 			case 'u':
 				unbuff = !unbuff;
@@ -59,15 +53,19 @@ char	*argv[];
 					incnt = atol(argv[++i]);
 					break;
 				case 'f':
+				case 'F':
 					curbytes = sizeof(float);
 					break;
 				case 'd':
+				case 'D':
 					curbytes = sizeof(double);
 					break;
 				case 'i':
+				case 'I':
 					curbytes = sizeof(int);
 					break;
 				case 'w':
+				case 'W':
 					curbytes = 2;
 					break;
 				case 'b':
@@ -81,12 +79,13 @@ char	*argv[];
 				}
 				if (isdigit(argv[i][3]))
 					curbytes *= atoi(argv[i]+3);
-				if (abs(curbytes) > MAXLINE) {
+				curbytes += (curbytes == -1);
+				if (curbytes > MAXLINE) {
 					fputs(argv[0], stderr);
 					fputs(": input size too big\n", stderr);
-					exit(1);
+					return(1);
 				}
-				if (curbytes) {
+				if (curbytes > 0) {
 					curtab = "";
 					++binout;
 				}
@@ -96,46 +95,45 @@ char	*argv[];
 				input[nfiles] = stdin;
 				if (curbytes > 0)
 					SET_FILE_BINARY(input[nfiles]);
-				else
-					curbytes = -curbytes;
 				bytsiz[nfiles++] = curbytes;
 				break;
 			badopt:;
 			default:
 				fputs(argv[0], stderr);
 				fputs(": bad option\n", stderr);
-				exit(1);
+				return(1);
 			}
 		} else if (argv[i][0] == '!') {
 			tabc[nfiles] = curtab;
 			if ((input[nfiles] = popen(argv[i]+1, "r")) == NULL) {
 				fputs(argv[i], stderr);
 				fputs(": cannot start command\n", stderr);
-				exit(1);
+				return(1);
 			}
 			if (curbytes > 0)
 				SET_FILE_BINARY(input[nfiles]);
-			else
-				curbytes = -curbytes;
 			bytsiz[nfiles++] = curbytes;
 		} else {
 			tabc[nfiles] = curtab;
 			if ((input[nfiles] = fopen(argv[i], "r")) == NULL) {
 				fputs(argv[i], stderr);
 				fputs(": cannot open file\n", stderr);
-				exit(1);
+				return(1);
 			}
 			if (curbytes > 0)
 				SET_FILE_BINARY(input[nfiles]);
-			else
-				curbytes = -curbytes;
 			bytsiz[nfiles++] = curbytes;
 		}
 		if (nfiles >= MAXFILE) {
 			fputs(argv[0], stderr);
 			fputs(": too many input streams\n", stderr);
-			exit(1);
+			return(1);
 		}
+	}
+	if (!nfiles) {
+		fputs(argv[0], stderr);
+		fputs(": no input streams\n", stderr);
+		return(1);
 	}
 	if (binout)				/* binary output? */
 		SET_FILE_BINARY(stdout);
@@ -146,25 +144,35 @@ char	*argv[];
 #endif
 	puteol = 0;				/* any ASCII output at all? */
 	for (i = nfiles; i--; )
-		if (!bytsiz[i] || isprint(tabc[i][0]) || tabc[i][0] == '\t') {
-			puteol++;
-			break;
-		}
+		puteol += (bytsiz[i] <= 0);
 	do {					/* main loop */
 		for (i = 0; i < nfiles; i++) {
-			if (bytsiz[i]) {		/* binary file */
+			if (bytsiz[i] > 0) {		/* binary input */
 				if (getbinary(buf, bytsiz[i], 1, input[i]) < 1)
 					break;
-				if (i)
-					fputs(tabc[i], stdout);
-				putbinary(buf, bytsiz[i], 1, stdout);
-			} else {
+				if (putbinary(buf, bytsiz[i], 1, stdout) != 1)
+					break;
+			} else if (bytsiz[i] < 0) {	/* multi-line input */
+				int	n = -bytsiz[i];
+				while (n--) {
+					if (fgets(buf, MAXLINE, input[i]) == NULL)
+						break;
+					if ((i > 0) | (n < -bytsiz[i]-1))
+						fputs(tabc[i], stdout);
+					buf[strlen(buf)-1] = '\0';
+					if (fputs(buf, stdout) == EOF)
+						break;
+				}
+				if (n >= 0)		/* fell short? */
+					break;
+			} else {			/* single-line input */
 				if (fgets(buf, MAXLINE, input[i]) == NULL)
 					break;
 				if (i)
 					fputs(tabc[i], stdout);
 				buf[strlen(buf)-1] = '\0';
-				fputs(buf, stdout);
+				if (fputs(buf, stdout) == EOF)
+					break;
 			}
 		}
 		if (i < nfiles)
@@ -174,5 +182,15 @@ char	*argv[];
 		if (unbuff)
 			fflush(stdout);
 	} while (--incnt);
+							/* check ending */
+	if (fflush(stdout) == EOF) {
+		fputs(argv[0], stderr);
+		fputs(": write error on standard output\n", stderr);
+		return(1);
+	}
+	if (incnt > 0) {
+		fputs(argv[0], stderr);
+		fputs(": warning: premature EOD\n", stderr);
+	}
 	return(0);
 }
