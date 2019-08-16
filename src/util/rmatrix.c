@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: rmatrix.c,v 2.32 2019/08/12 04:46:34 greg Exp $";
+static const char RCSid[] = "$Id: rmatrix.c,v 2.35 2019/08/14 18:20:02 greg Exp $";
 #endif
 /*
  * General matrix operations.
@@ -28,7 +28,7 @@ rmx_alloc(int nr, int nc, int n)
 		return(NULL);
 	dnew = (RMATRIX *)malloc(sizeof(RMATRIX)-sizeof(dnew->mtx) +
 					sizeof(dnew->mtx[0])*(n*nr*nc));
-	if (dnew == NULL)
+	if (!dnew)
 		return(NULL);
 	dnew->nrows = nr; dnew->ncols = nc; dnew->ncomp = n;
 	dnew->dtype = DTdouble;
@@ -63,7 +63,7 @@ rmx_newtype(int dtyp1, int dtyp2)
 int
 rmx_addinfo(RMATRIX *rm, const char *info)
 {
-	if (!info || !*info)
+	if (!rm || !info || !*info)
 		return(0);
 	if (!rm->info) {
 		rm->info = (char *)malloc(strlen(info)+1);
@@ -96,6 +96,10 @@ get_dminfo(char *s, void *p)
 	}
 	if (!strncmp(s, "NCOLS=", 6)) {
 		ip->ncols = atoi(s+6);
+		return(0);
+	}
+	if ((i = isbigendian(s)) >= 0) {
+		ip->swapin = (nativebigendian() != i);
 		return(0);
 	}
 	if (!formatval(fmt, s)) {
@@ -137,6 +141,8 @@ rmx_load_float(RMATRIX *rm, FILE *fp)
 	    for (j = 0; j < rm->ncols; j++) {
 		if (getbinary(val, sizeof(val[0]), rm->ncomp, fp) != rm->ncomp)
 		    return(0);
+		if (rm->swapin)
+		    swap32((char *)val, rm->ncomp);
 	        for (k = rm->ncomp; k--; )
 		     rmx_lval(rm,i,j,k) = val[k];
 	    }
@@ -149,9 +155,12 @@ rmx_load_double(RMATRIX *rm, FILE *fp)
 	int	i, j;
 
 	for (i = 0; i < rm->nrows; i++)
-	    for (j = 0; j < rm->ncols; j++)
+	    for (j = 0; j < rm->ncols; j++) {
 		if (getbinary(&rmx_lval(rm,i,j,0), sizeof(double), rm->ncomp, fp) != rm->ncomp)
 		    return(0);
+		if (rm->swapin)
+		    swap64((char *)&rmx_lval(rm,i,j,0), rm->ncomp);
+	    }
 	return(1);
 }
 
@@ -161,7 +170,7 @@ rmx_load_rgbe(RMATRIX *rm, FILE *fp)
 	COLOR	*scan = (COLOR *)malloc(sizeof(COLOR)*rm->ncols);
 	int	i, j;
 
-	if (scan == NULL)
+	if (!scan)
 		return(0);
 	for (i = 0; i < rm->nrows; i++) {
 	    if (freadscan(scan, rm->ncols, fp) < 0) {
@@ -186,11 +195,11 @@ rmx_load(const char *inspec)
 	RMATRIX		dinfo;
 	RMATRIX		*dnew;
 
-	if (inspec == NULL) {			/* reading from stdin? */
+	if (!inspec) {				/* reading from stdin? */
 		inspec = "<stdin>";
 		SET_FILE_BINARY(stdin);
 	} else if (inspec[0] == '!') {
-		if ((fp = popen(inspec+1, "r")) == NULL)
+		if (!(fp = popen(inspec+1, "r")))
 			return(NULL);
 		SET_FILE_BINARY(stdin);
 	} else {
@@ -201,7 +210,7 @@ rmx_load(const char *inspec)
 			--sp;
 		if (!strcasecmp(sp, "XML")) {	/* assume it's a BSDF */
 			CMATRIX	*cm = cm_loadBTDF((char *)inspec);
-			if (cm == NULL)
+			if (!cm)
 				return(NULL);
 			dnew = rmx_from_cmatrix(cm);
 			cm_free(cm);
@@ -209,7 +218,7 @@ rmx_load(const char *inspec)
 			return(dnew);
 		}
 						/* else open it ourselves */
-		if ((fp = fopen(inspec, "rb")) == NULL)
+		if (!(fp = fopen(inspec, "rb")))
 			return(NULL);
 	}
 #ifdef getc_unlocked
@@ -217,6 +226,7 @@ rmx_load(const char *inspec)
 #endif
 	dinfo.nrows = dinfo.ncols = dinfo.ncomp = 0;
 	dinfo.dtype = DTascii;			/* assumed w/o FORMAT */
+	dinfo.swapin = 0;
 	dinfo.info = NULL;
 	if (getheader(fp, get_dminfo, &dinfo) < 0) {
 		fclose(fp);
@@ -236,7 +246,7 @@ rmx_load(const char *inspec)
 		}
 	}
 	dnew = rmx_alloc(dinfo.nrows, dinfo.ncols, dinfo.ncomp);
-	if (dnew == NULL) {
+	if (!dnew) {
 		fclose(fp);
 		return(NULL);
 	}
@@ -249,11 +259,13 @@ rmx_load(const char *inspec)
 		dnew->dtype = DTascii;		/* should leave double? */
 		break;
 	case DTfloat:
+		dnew->swapin = dinfo.swapin;
 		if (!rmx_load_float(dnew, fp))
 			goto loaderr;
 		dnew->dtype = DTfloat;
 		break;
 	case DTdouble:
+		dnew->swapin = dinfo.swapin;
 		if (!rmx_load_double(dnew, fp))
 			goto loaderr;
 		dnew->dtype = DTdouble;
@@ -344,7 +356,7 @@ rmx_write_rgbe(const RMATRIX *rm, FILE *fp)
 	COLR	*scan = (COLR *)malloc(sizeof(COLR)*rm->ncols);
 	int	i, j;
 
-	if (scan == NULL)
+	if (!scan)
 		return(0);
 	for (i = 0; i < rm->nrows; i++) {
 	    for (j = rm->ncols; j--; )
@@ -367,7 +379,7 @@ rmx_write(const RMATRIX *rm, int dtype, FILE *fp)
 	RMATRIX	*mydm = NULL;
 	int	ok = 1;
 
-	if ((rm == NULL) | (fp == NULL))
+	if (!rm | !fp)
 		return(0);
 #ifdef getc_unlocked
 	flockfile(fp);
@@ -391,10 +403,12 @@ rmx_write(const RMATRIX *rm, int dtype, FILE *fp)
 			return(0);
 		cmtx[0] = cmtx[1] = cmtx[2] = 1;
 		mydm = rmx_transform(rm, 3, cmtx);
-		if (mydm == NULL)
+		if (!mydm)
 			return(0);
 		rm = mydm;
 	}
+	if ((dtype == DTfloat) | (dtype == DTdouble))
+		fputendian(fp);			/* important to record */
 	fputformat((char *)cm_fmt_id[dtype], fp);
 	fputc('\n', fp);
 	switch (dtype) {			/* write data */
@@ -419,7 +433,8 @@ rmx_write(const RMATRIX *rm, int dtype, FILE *fp)
 #ifdef getc_unlocked
 	funlockfile(fp);
 #endif
-	rmx_free(mydm);
+	if (mydm)
+		rmx_free(mydm);
 	return(ok);
 }
 
@@ -430,7 +445,7 @@ rmx_identity(const int dim, const int n)
 	RMATRIX	*rid = rmx_alloc(dim, dim, n);
 	int	i, k;
 
-	if (rid == NULL)
+	if (!rid)
 		return(NULL);
 	memset(rid->mtx, 0, sizeof(rid->mtx[0])*n*dim*dim);
 	for (i = dim; i--; )
@@ -445,10 +460,10 @@ rmx_copy(const RMATRIX *rm)
 {
 	RMATRIX	*dnew;
 
-	if (rm == NULL)
+	if (!rm)
 		return(NULL);
 	dnew = rmx_alloc(rm->nrows, rm->ncols, rm->ncomp);
-	if (dnew == NULL)
+	if (!dnew)
 		return(NULL);
 	rmx_addinfo(dnew, rm->info);
 	dnew->dtype = rm->dtype;
@@ -464,18 +479,18 @@ rmx_transpose(const RMATRIX *rm)
 	RMATRIX	*dnew;
 	int	i, j, k;
 
-	if (rm == NULL)
+	if (!rm)
 		return(0);
 	if ((rm->nrows == 1) | (rm->ncols == 1)) {
 		dnew = rmx_copy(rm);
-		if (dnew == NULL)
+		if (!dnew)
 			return(NULL);
 		dnew->nrows = rm->ncols;
 		dnew->ncols = rm->nrows;
 		return(dnew);
 	}
 	dnew = rmx_alloc(rm->ncols, rm->nrows, rm->ncomp);
-	if (dnew == NULL)
+	if (!dnew)
 		return(NULL);
 	if (rm->info) {
 		rmx_addinfo(dnew, rm->info);
@@ -496,11 +511,10 @@ rmx_multiply(const RMATRIX *m1, const RMATRIX *m2)
 	RMATRIX	*mres;
 	int	i, j, k, h;
 
-	if ((m1 == NULL) | (m2 == NULL) ||
-			(m1->ncomp != m2->ncomp) | (m1->ncols != m2->nrows))
+	if (!m1 | !m2 || (m1->ncomp != m2->ncomp) | (m1->ncols != m2->nrows))
 		return(NULL);
 	mres = rmx_alloc(m1->nrows, m2->ncols, m1->ncomp);
-	if (mres == NULL)
+	if (!mres)
 		return(NULL);
 	i = rmx_newtype(m1->dtype, m2->dtype);
 	if (i)
@@ -525,8 +539,7 @@ rmx_elemult(RMATRIX *m1, const RMATRIX *m2, int divide)
 	int	zeroDivides = 0;
 	int	i, j, k;
 
-	if ((m1 == NULL) | (m2 == NULL) ||
-			(m1->ncols != m2->ncols) | (m1->nrows != m2->nrows))
+	if (!m1 | !m2 || (m1->ncols != m2->ncols) | (m1->nrows != m2->nrows))
 		return(0);
 	if ((m2->ncomp > 1) & (m2->ncomp != m1->ncomp))
 		return(0);
@@ -569,7 +582,7 @@ rmx_elemult(RMATRIX *m1, const RMATRIX *m2, int divide)
 			    rmx_lval(m1,i,j,k) *= rmx_lval(m2,i,j,k);
 		}
 	if (zeroDivides) {
-		fputs("Divide by zero in rmx_elemult()\n", stderr);
+		rmx_addinfo(m1, "WARNING: zero divide(s) corrupted results\n");
 		errno = ERANGE;
 	}
 	return(1);
@@ -582,14 +595,14 @@ rmx_sum(RMATRIX *msum, const RMATRIX *madd, const double sf[])
 	double	*mysf = NULL;
 	int	i, j, k;
 
-	if ((msum == NULL) | (madd == NULL) ||
+	if (!msum | !madd ||
 			(msum->nrows != madd->nrows) |
 			(msum->ncols != madd->ncols) |
 			(msum->ncomp != madd->ncomp))
 		return(0);
-	if (sf == NULL) {
+	if (!sf) {
 		mysf = (double *)malloc(sizeof(double)*msum->ncomp);
-		if (mysf == NULL)
+		if (!mysf)
 			return(0);
 		for (k = msum->ncomp; k--; )
 			mysf[k] = 1;
@@ -604,8 +617,8 @@ rmx_sum(RMATRIX *msum, const RMATRIX *madd, const double sf[])
 	    for (j = msum->ncols; j--; )
 		for (k = msum->ncomp; k--; )
 		     rmx_lval(msum,i,j,k) += sf[k] * rmx_lval(madd,i,j,k);
-
-	free(mysf);
+	if (mysf)
+		free(mysf);
 	return(1);
 }
 
@@ -615,7 +628,7 @@ rmx_scale(RMATRIX *rm, const double sf[])
 {
 	int	i, j, k;
 
-	if ((rm == NULL) | (sf == NULL))
+	if (!rm | !sf)
 		return(0);
 	for (i = rm->nrows; i--; )
 	    for (j = rm->ncols; j--; )
@@ -634,10 +647,10 @@ rmx_transform(const RMATRIX *msrc, int n, const double cmat[])
 	int	i, j, ks, kd;
 	RMATRIX	*dnew;
 
-	if ((msrc == NULL) | (n <= 0) | (cmat == NULL))
+	if (!msrc | (n <= 0) | !cmat)
 		return(NULL);
 	dnew = rmx_alloc(msrc->nrows, msrc->ncols, n);
-	if (dnew == NULL)
+	if (!dnew)
 		return(NULL);
 	if (msrc->info) {
 		char	buf[128];
@@ -665,10 +678,10 @@ rmx_from_cmatrix(const CMATRIX *cm)
 	int	i, j;
 	RMATRIX	*dnew;
 
-	if (cm == NULL)
+	if (!cm)
 		return(NULL);
 	dnew = rmx_alloc(cm->nrows, cm->ncols, 3);
-	if (dnew == NULL)
+	if (!dnew)
 		return(NULL);
 	dnew->dtype = DTfloat;
 	for (i = dnew->nrows; i--; )
@@ -688,10 +701,10 @@ cm_from_rmatrix(const RMATRIX *rm)
 	int	i, j;
 	CMATRIX	*cnew;
 
-	if (rm == NULL || rm->ncomp != 3)
+	if (!rm || rm->ncomp != 3)
 		return(NULL);
 	cnew = cm_alloc(rm->nrows, rm->ncols);
-	if (cnew == NULL)
+	if (!cnew)
 		return(NULL);
 	for (i = cnew->nrows; i--; )
 	    for (j = cnew->ncols; j--; ) {

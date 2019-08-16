@@ -1,5 +1,7 @@
 /*
  *  cmglare.c - routines for calculating glare autonomy.
+ *
+ *  N. Jones
  */
 
 #include "accelerad_copyright.h"
@@ -177,12 +179,13 @@ static double get_guth(const FVECT dir, const FVECT forward, const FVECT up)
 	return posindex;
 }
 
-float* cm_glare(const CMATRIX *dcmx, const CMATRIX *evmx, const CMATRIX *smx, const int *occupied, const double dgp_limit, const double dgp_threshold, const FVECT *views, const FVECT up)
+float* cm_glare(const CMATRIX *dcmx, const CMATRIX *evmx, const CMATRIX *smx, const int *occupied, const double dgp_limit, const double dgp_threshold, const FVECT *views, const FVECT dir, const FVECT up)
 {
 	int p, t, c;
 	int hourly_output = dgp_limit < 0;
 	float *dgp_list;
 	ReinhartSky *sky;
+	FVECT vdir;
 
 	/* Check consistancy */
 	if ((dcmx->nrows != evmx->nrows) | (dcmx->ncols != smx->nrows) | (evmx->ncols != smx->ncols)) {
@@ -213,10 +216,12 @@ float* cm_glare(const CMATRIX *dcmx, const CMATRIX *evmx, const CMATRIX *smx, co
 	}
 
 	/* For each position and direction */
+	if (!views) VCOPY(vdir, dir);
 	for (p = 0; p < evmx->nrows; p++) {
 		/* For each time step */
 		int occupied_hours = 0;
 		int glare_hours = 0;
+		if (views) VCOPY(vdir, views[p]);
 		for (t = 0; t < evmx->ncols; t++) {
 			if (!occupied[t]) {
 				/* Not occupied */
@@ -245,10 +250,10 @@ float* cm_glare(const CMATRIX *dcmx, const CMATRIX *evmx, const CMATRIX *smx, co
 							get_patch_direction(sky, c, patch_normal);
 							if (!c) {
 								/* Direction toward the center of the visible ground */
-								VADD(patch_normal, patch_normal, views[p]);
+								VADD(patch_normal, patch_normal, vdir);
 								if (normalize(patch_normal) == 0) continue;
 							}
-							const double cos_theta = DOT(views[p], patch_normal);
+							const double cos_theta = DOT(vdir, patch_normal);
 							if (cos_theta <= FTINY) continue;
 							const double s = LUMINOUS_EFFICACY * bright(cm_lval(smx, c, t));
 							const double omega = get_patch_solid_angle(sky, c, cos_theta);
@@ -258,7 +263,7 @@ float* cm_glare(const CMATRIX *dcmx, const CMATRIX *evmx, const CMATRIX *smx, co
 							if (dgp_threshold < LUMINANCE_THRESHOLD)
 								min_patch_luminance *= illum / PI; // TODO should use average luminance, not illuminance
 							if (patch_luminance < min_patch_luminance) continue;
-							const double P = get_guth(patch_normal, views[p], up);
+							const double P = get_guth(patch_normal, vdir, up);
 							sum += (patch_luminance * patch_luminance * omega) / (P * P);
 						}
 					}
@@ -279,7 +284,7 @@ float* cm_glare(const CMATRIX *dcmx, const CMATRIX *evmx, const CMATRIX *smx, co
 		}
 		if (!hourly_output) {
 			/* Save glare autonomy */
-			dgp_list[p] = (float)glare_hours / occupied_hours;
+			dgp_list[p] = (float)(occupied_hours - glare_hours) / occupied_hours;
 		}
 	}
 
@@ -347,7 +352,7 @@ int cm_load_schedule(const int count, int* schedule, FILE *fp)
 
 		if (i < count) {
 			/* Add the value to the schedule */
-			schedule[i++] = (val != 0);
+			schedule[i++] = (val > 0);
 		}
 		else {
 			fprintf(stderr,

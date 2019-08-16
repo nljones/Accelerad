@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id: rsplit.c,v 1.8 2019/07/22 18:01:03 greg Exp $";
+static const char	RCSid[] = "$Id: rsplit.c,v 1.10 2019/08/14 21:00:14 greg Exp $";
 #endif
 /*
  *  rsplit.c - split input into multiple output streams
@@ -7,17 +7,19 @@ static const char	RCSid[] = "$Id: rsplit.c,v 1.8 2019/07/22 18:01:03 greg Exp $"
  *	7/4/19		Greg Ward
  */
 
-#include <stdlib.h>
 #include <ctype.h>
 
 #include "rtio.h"
 #include "platform.h"
+#include "paths.h"
 #include "resolu.h"
 
 #define	DOHEADER	1
 #define DORESOLU	2
 
 #define MAXFILE		512		/* maximum number of files */
+
+static int		swapped = 0;	/* input is byte-swapped */
 
 static FILE		*output[MAXFILE];
 static int		bytsiz[MAXFILE];
@@ -36,7 +38,7 @@ static int
 headline(char *s, void *p)
 {
 	extern const char	FMTSTR[];
-	int			i = nfiles;
+	int			i;
 
 	if (strstr(s, FMTSTR) == s)
 		return(0);		/* don't copy format */
@@ -46,6 +48,11 @@ headline(char *s, void *p)
 		return(0);
 	if (!strncmp(s, "NCOMP=", 6))
 		return(0);
+	if ((i = isbigendian(s)) >= 0) {
+		swapped = (nativebigendian() != i);
+		return(0);
+	}
+	i = nfiles;
 	while (i--)			/* else copy line to output streams */
 		if (hdrflags[i] & DOHEADER)
 			fputs(s, output[i]);
@@ -274,8 +281,16 @@ main(int argc, char *argv[])
 			if (!(inpflags & DOHEADER))
 				newheader("RADIANCE", output[i]);
 			printargs(argc, argv, output[i]);
-			if (format[i] != NULL)
+			if (format[i] != NULL) {
+				extern const char  BIGEND[];
+				if ((format[i][0] == 'f') |
+						(format[i][0] == 'd')) {
+					fputs(BIGEND, output[i]);
+					fputs(nativebigendian() ^ swapped ?
+						"1\n" : "0\n", output[i]);
+				}
 				fputformat(format[i], output[i]);
+			}
 			fputc('\n', output[i]);
 		}
 		if (hdrflags[i] & DORESOLU)

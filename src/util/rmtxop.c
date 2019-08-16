@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: rmtxop.c,v 2.14 2019/08/12 02:26:46 greg Exp $";
+static const char RCSid[] = "$Id: rmtxop.c,v 2.16 2019/08/12 20:38:19 greg Exp $";
 #endif
 /*
  * General component matrix operations.
@@ -140,19 +140,22 @@ binaryop(const char *inspec, RMATRIX *mleft, int op, RMATRIX *mright)
 
 	if ((mleft == NULL) | (mright == NULL))
 		return(NULL);
-
 	switch (op) {
 	case '.':			/* concatenate */
-		mres = rmx_multiply(mleft, mright);
+		if (mleft->ncomp != mright->ncomp) {
+			fputs(inspec, stderr);
+			fputs(": # components do not match\n", stderr);
+		} else if (mleft->ncols != mright->nrows) {
+			fputs(inspec, stderr);
+			fputs(": mismatched dimensions\n",
+					stderr);
+		} else
+			mres = rmx_multiply(mleft, mright);
 		rmx_free(mleft);
 		rmx_free(mright);
 		if (mres == NULL) {
 			fputs(inspec, stderr);
-			if (mleft->ncols != mright->nrows)
-				fputs(": mismatched dimensions for multiply\n",
-						stderr);
-			else
-				fputs(": concatenation failed\n", stderr);
+			fputs(": concatenation failed\n", stderr);
 			return(NULL);
 		}
 		if (verbose) {
@@ -320,13 +323,13 @@ main(int argc, char *argv[])
 	for (i = 1; i < argc; i++) {
 		if (argv[i][0] && !argv[i][1] &&
 				strchr(".+*/", argv[i][0]) != NULL) {
-			if (mop[nmats].inspec == NULL || mop[nmats].binop) {
+			if (!nmats || mop[nmats-1].binop) {
 				fprintf(stderr,
-			"%s: missing matrix argument for '%c' operation\n",
+			"%s: missing matrix argument before '%c' operation\n",
 						argv[0], argv[i][0]);
 				return(1);
 			}
-			mop[nmats++].binop = argv[i][0];
+			mop[nmats-1].binop = argv[i][0];
 		} else if (argv[i][0] != '-' || !argv[i][1]) {
 			if (argv[i][0] == '-') {
 				if (stdin_used++) {
@@ -391,6 +394,12 @@ main(int argc, char *argv[])
 	}
 	if (mop[0].inspec == NULL)	/* nothing to do? */
 		goto userr;
+	if (mop[nmats-1].binop) {
+		fprintf(stderr,
+			"%s: missing matrix argument after '%c' operation\n",
+				argv[0], mop[nmats-1].binop);
+		return(1);
+	}
 					/* favor quicker concatenation */
 	mop[nmats].mtx = prefer_right2left(mop) ? op_right2left(mop)
 						: op_left2right(mop);
