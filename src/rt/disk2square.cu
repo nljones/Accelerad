@@ -48,6 +48,9 @@ RT_CALLABLE_PROGRAM int scbin(const float3 direction)
 	case 3:
 		out_square = make_float2((in_disk_phi - 3 * M_PI_2f) * in_disk_r / M_PI_4f, -in_disk_r);
 		break;
+	case 4:
+		out_square = make_float2(in_disk_r, -in_disk_r); /* Edge case */
+		break;
 	default:
 		return -1; /* Something's wrong */
 	}
