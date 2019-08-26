@@ -184,7 +184,7 @@
     
     <p>By default, the Windows OS will end processes on the GPU (essentially rebooting it) after two seconds of unresponsiveness, which can happen when the GPU is processing a large amount of data. Possible remedies include:</p>
     <ul>
-        <li>If more than one graphics card is available, set <a href="http://www.acceleware.com/blog/cudavisibledevices-masking-gpus" target="_blank">CUDA_VISIBLE_DEVICES</a> to use only the GPUs that are not connected to monitors.</li>
+        <li>If more than one graphics card is available, set <a href="https://devblogs.nvidia.com/cuda-pro-tip-control-gpu-visibility-cuda_visible_devices/" target="_blank">CUDA_VISIBLE_DEVICES</a> to use only the GPUs that are not connected to monitors.</li>
 		<li>Increase the TDR delay by adding a <a href="http://msdn.microsoft.com/en-us/library/windows/hardware/ff569918(v=vs.85).aspx" target="_blank">registry key</a> and restarting your computer. This is not recommended for novices.</li>
 		<li>Test on a more powerful graphics card or a card which is not connected to a monitor. Tesla cards or other cards with TCC mode enabled are not affected by TDR.</li>
     </ul>
@@ -347,7 +347,7 @@
     
 	<div class="separate">
     <ul class="statuslist">
-<li title="aBSDF&#13;Not yet implemented" class="status unimplemented">BSDF</li>
+<li title="aBSDF&#13;Not yet implemented" class="status unimplemented">aBSDF</li>
 <li title="alias&#13;Implemented since version 0.3 beta" class="status implemented">alias</li>
 <li title="antimatter&#13;Implemented since version 0.7 beta&#13;Implemented for void first string argument since version 0.5 beta" class="status partial">antimatter</li>
 <li title="brightdata&#13;Supported when using corr, flatcorr, boxcorr, or cylcorr from source.cal" class="status partial">brightdata</li>
@@ -404,7 +404,7 @@
   </section>
   <div class="copyright">&copy;2019 Nathaniel Jones
   <br/>
-  Last updated 5/12/19</div>
+  Last updated 8/26/19</div>
 </div>
 </body>
 </html>
