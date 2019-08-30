@@ -28,9 +28,13 @@ rtDeclareVariable(float3, bounds, , ); /* dimensions of axis-aligned box or Z-al
 // Calculate source distribution.
 RT_METHOD float3 source(const float3& dir)
 {
-	float phi = acosf(dir.z);
-	float theta = atan2f(-dir.y, -dir.x);
-	theta += 2.0f * M_PIf * (theta < 0.0f);
+	float theta = acosf(dir.z);
+	float phi = atan2f(-dir.y, -dir.x);
+	phi += 2.0f * M_PIf * (phi < 0.0f);
+
+	if (symmetry > 0.0f) {
+		phi = fabsf(symmetry - fmodf(phi + symmetry, 2 * symmetry));
+	}
 
 	if (transpose) {
 		float temp = phi;
@@ -38,22 +42,18 @@ RT_METHOD float3 source(const float3& dir)
 		theta = temp;
 	}
 
-	if (symmetry > 0.0f) {
-		phi = fabsf(symmetry - fmodf(phi + symmetry, 2 * symmetry));
-	}
-
 	/* Normalize to [0, 1] within range */
-	phi = (180.0f * M_1_PIf * phi - org.x) / siz.x;
-	theta = (180.0f * M_1_PIf * theta - org.y) / siz.y;
+	theta = (180.0f * M_1_PIf * theta - org.x) / siz.x;
+	phi = (180.0f * M_1_PIf * phi - org.y) / siz.y;
 
 	/* Renormalize to remove edges */
 	uint3 ne = rtTexSize(data);
-	phi = (phi * (ne.x - 1) + 0.5f) / ne.x;
-	theta = (theta * (ne.y - 1) + 0.5f) / ne.y;
+	theta = (theta * (ne.x - 1) + 0.5f) / ne.x;
+	phi = (phi * (ne.y - 1) + 0.5f) / ne.y;
 
 	if (type)
-		return make_float3(multiplier * rtTex2D<float>(data, phi, theta)); // this is corr from source.cal
-	float4 tex = rtTex2D<float4>(data, phi, theta);
+		return make_float3(multiplier * rtTex2D<float>(data, theta, phi)); // this is corr from source.cal
+	float4 tex = rtTex2D<float4>(data, theta, phi);
 	return multiplier * make_float3(tex.y, tex.z, tex.w);
 }
 
