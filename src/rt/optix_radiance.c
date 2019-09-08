@@ -95,6 +95,7 @@ typedef struct {
 	LUTAB* modifiers;				/* Modifiers for contribution calculations */
 #endif
 	OBJREC *material;				/* Current material */
+	unsigned int unhandled[NUMOTYPE];	/* Track unknown object types */
 } Scene;
 
 /* Material types */
@@ -165,6 +166,7 @@ static void clearSceneBranch(SceneBranch *branch);
 static SceneBranch* cloneSceneBranch(const RTcontext context, SceneBranch *branch, const int material_override, Scene* scene);
 static RTobject createSceneHierarchy(const RTcontext context, SceneNode* root);
 static void createIrradianceGeometry( const RTcontext context );
+static void unhandledObject(OBJREC* rec, Scene *scene);
 static void printObject(OBJREC* rec);
 
 
@@ -177,8 +179,10 @@ extern unsigned int  nambvals;	/* total number of indirect values */
 extern XF  unitxf;
 
 /* Ambient calculation flags */
-static unsigned int use_ambient = 0u;
-static unsigned int calc_ambient = 0u;
+#define AMBIENT_REQUESTED			0x4	/* irradiance caching should be used according to program arguments */
+#define AMBIENT_CALCULATION_NEEDED	0x2	/* irradiance cahce must be calculated */
+#define AMBIENT_SURFACES_PRESENT	0x1	/* materials that use irradiance caching are present in model */
+static unsigned int ambient_flags = 0u;
 
 /* Handles to objects used in ambient calculation */
 RTvariable avsum_var = NULL;
@@ -355,14 +359,13 @@ void createContext(RTcontext* context, const RTsize width, const RTsize height)
 	unsigned int ray_type_count, entry_point_count;
 
 	/* Check if irradiance cache is used */
-	use_ambient = ambacc > FTINY && ambounce > 0 && ambdiv > 0;
-	calc_ambient = use_ambient && nambvals == 0u;// && (ambfile == NULL || !ambfile[0]); // TODO Should really look at ambfp in ambinet.c to check that file is readable
-
-	if ( calc_ambient ) {
+	ambient_flags = (ambacc > FTINY && ambounce > 0 && ambdiv > 0) ? AMBIENT_REQUESTED : 0u;
+	if (ambient_flags && nambvals == 0u) { // && (ambfile == NULL || !ambfile[0]); // TODO Should really look at ambfp in ambinet.c to check that file is readable
+		ambient_flags |= AMBIENT_CALCULATION_NEEDED;
 		ray_type_count = RAY_TYPE_COUNT;
 		entry_point_count = ENTRY_POINT_COUNT;
 	} else {
-		ray_type_count = RAY_TYPE_COUNT - (use_ambient ? 2 : 3); /* leave out ambient record and point cloud ray types */
+		ray_type_count = RAY_TYPE_COUNT - (ambient_flags ? 2 : 3); /* leave out ambient record and point cloud ray types */
 		entry_point_count = 1u; /* Generate radiance data */
 	}
 
@@ -515,7 +518,7 @@ void setupKernel(const RTcontext context, const VIEW* view, LUTAB* modifiers, co
 
 	/* Set the geometry group as the top level object. */
 	top_object = applyContextObject(context, "top_object", top);
-	if (!use_ambient)
+	if (!(ambient_flags & AMBIENT_SURFACES_PRESENT))
 		top_ambient = applyContextObject(context, "top_ambient", top); // Need to define this because it is referred to by material_normal.cu
 	if (!imm_irrad)
 		top_irrad = applyContextObject(context, "top_irrad", top); // Need to define this because it is referred to by rtrace.cu, rtrace_cloud_generator.cu, and ambient_cloud_generator.cu
@@ -524,8 +527,8 @@ void setupKernel(const RTcontext context, const VIEW* view, LUTAB* modifiers, co
 		createIrradianceGeometry( context );
 
 	/* Set up irradiance cache of ambient values */
-	if ( use_ambient ) { // Don't bother with ambient records if -aa is set to zero
-		if ( calc_ambient ) // Run pre-process only if no ambient file is available
+	if (ambient_flags & AMBIENT_SURFACES_PRESENT) { // Don't bother with ambient records if no surfaces will use them
+		if (ambient_flags & AMBIENT_CALCULATION_NEEDED) // Run pre-process only if no ambient file is available
 			createAmbientRecords( context, view, width, height, freport ); // implementation depends on current settings
 		else
 			setupAmbientCache( context, 0u ); // only need level 0 for final gather
@@ -543,7 +546,7 @@ void updateModel(const RTcontext context, LUTAB* modifiers, const unsigned int i
 
 	/* Set the geometry group as the top level object. */
 	RT_CHECK_ERROR(rtVariableSetObject(top_object, top));
-	if (!use_ambient)
+	if (!(ambient_flags & AMBIENT_SURFACES_PRESENT)) //TODO If ambient surfaces become present, the irradiance cache must be built and the number of entry points needs to change
 		RT_CHECK_ERROR(rtVariableSetObject(top_ambient, top));
 	if (!imm_irrad)
 		RT_CHECK_ERROR(rtVariableSetObject(top_irrad, top));
@@ -700,6 +703,9 @@ static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifie
 	scene.modifiers = modifiers;
 #endif
 	scene.material = NULL; // TODO Change this for modified instances
+	for (i = 0; i < NUMOTYPE; i++) {
+		scene.unhandled[i] = 0;
+	}
 
 	/* Material 0 is Lambertian. */
 	if (do_irrad || imm_irrad) {
@@ -731,10 +737,6 @@ static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifie
 			triangle_count += node->triangle_count;
 		}
 	}
-
-	/* Don't bother with ambient calculation if there are no normal surfaces. */
-	if (!triangle_count || closest_hit_callable_programs[RADIANCE_RAY][M_NORMAL] == RT_PROGRAM_ID_NULL)
-		calc_ambient = 0u;
 
 	/* Create the closest and any hit programs. */
 	createMaterialPrograms(context);
@@ -841,6 +843,12 @@ static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifie
 	/* Free resources used in creating the scene graph. */
 	free(scene.buffer_entry_index);
 	freeArrayp(scene.instances); //TODO keep this if the instances are not going to change
+
+	/* Warn about unhandled object types */
+	for (i = 0; i < NUMOTYPE; i++) {
+		if (scene.unhandled[i])
+			eprintf(WARNING, "no GPU support for %d instance%s of %s", scene.unhandled[i], scene.unhandled[i] != 1 ? "s" : "", ofun[i].funame);
+	}
 
 	geometry_clock = clock() - geometry_clock;
 	mprintf("Geometry build time: %" PRIu64 " milliseconds for %i objects.\n", MILLISECONDS(geometry_clock), nsceneobjs);
@@ -1044,13 +1052,15 @@ static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, Scene* sce
 	//case MAT_TFUNC: // bumpmap function
 	case PAT_BFUNC: // brightness function, used for sky brightness
 	case PAT_CFUNC: // color function, used for sky chromaticity
-		scene->buffer_entry_index[index] = createFunction(context, rec);
+		if (RT_PROGRAM_ID_NULL == (scene->buffer_entry_index[index] = createFunction(context, rec)))
+			unhandledObject(rec, scene);
 		break;
 	//case MAT_TDATA: // bumpmap
 	case PAT_BDATA: // brightness texture, used for IES lighting data
 	case PAT_CDATA: // color texture
 	case PAT_CPICT: // color picture, used as texture map
-		scene->buffer_entry_index[index] = createTexture(context, rec);
+		if (RT_PROGRAM_ID_NULL == (scene->buffer_entry_index[index] = createTexture(context, rec)))
+			unhandledObject(rec, scene);
 		break;
 	case TEX_FUNC:
 		if (rec->oargs.nsargs == 3) {
@@ -1059,7 +1069,7 @@ static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, Scene* sce
 		else if (rec->oargs.nsargs >= 4) {
 			if (!strcmp(filename(rec->oargs.sarg[3]), TCALNAME)) break; // Handled by face
 		}
-		printObject(rec);
+		unhandledObject(rec, scene);
 		break;
 	case MOD_ALIAS:
 		//if (rec->oargs.nsargs) {
@@ -1071,7 +1081,7 @@ static OBJECT addRadianceObject(const RTcontext context, OBJREC* rec, Scene* sce
 		// Otherwise it's a pass-through (do nothing)
 		break;
 	default:
-		printObject(rec);
+		unhandledObject(rec, scene);
 		break;
 	}
 	return index;
@@ -1661,7 +1671,7 @@ static void createMaterialPrograms(const RTcontext context)
 		}
 	}
 	free(ptx);
-	if (calc_ambient && !any_hit_ambient_record_program) {
+	if ((ambient_flags & AMBIENT_CALCULATION_NEEDED) && !any_hit_ambient_record_program) {
 		ptx = ptxString("ambient_normal");
 		RT_CHECK_ERROR(rtProgramCreateFromPTXString(context, ptx, "any_hit_ambient", &any_hit_ambient_record_program));
 		RT_CHECK_ERROR(rtMaterialSetAnyHitProgram(generic_material, AMBIENT_RECORD_RAY, any_hit_ambient_record_program));
@@ -1690,7 +1700,7 @@ static RTmaterial createBSDFMaterial(const RTcontext context, OBJREC* rec, Scene
 	if (rec->oargs.nsargs < 6 || rec->oargs.nfargs > 9 || rec->oargs.nfargs % 3)
 		objerror(rec, USER, "bad number of arguments");
 	if (strcmp(rec->oargs.sarg[5], ".")) {
-		printObject(rec);
+		unhandledObject(rec, scene);
 		return NULL; // TODO accept null ouptut
 	}
 	mf = getfunc(rec, 5, 0x1d, 1);
@@ -1753,7 +1763,7 @@ static RTmaterial createBSDFMaterial(const RTcontext context, OBJREC* rec, Scene
 //	RT_CHECK_ERROR(rtMaterialSetClosestHitProgram(material, DIFFUSE_RAY, diffuse_bsdf_closest_hit_program));
 //#endif
 
-	if (calc_ambient) {
+	if (ambient_flags & AMBIENT_CALCULATION_NEEDED) {
 		if (!ambient_bsdf_closest_hit_program) {
 			ptxFile(path_to_ptx, "ambient_bsdf");
 			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_ambient", &ambient_bsdf_closest_hit_program));
@@ -1812,6 +1822,8 @@ static int createNormalMaterial(const RTcontext context, OBJREC* rec, Scene* sce
 	}
 	else
 		matData.params.n.ambincl = 1u;
+	if ((ambient_flags & AMBIENT_REQUESTED) && matData.params.n.ambincl)
+		ambient_flags |= AMBIENT_SURFACES_PRESENT;
 
 	/* Check that material programs exist. */
 	if (closest_hit_callable_programs[RADIANCE_RAY][M_NORMAL] == RT_PROGRAM_ID_NULL) {
@@ -1835,7 +1847,7 @@ static int createNormalMaterial(const RTcontext context, OBJREC* rec, Scene* sce
 		}
 #endif
 
-		if (calc_ambient) {
+		if (ambient_flags & AMBIENT_CALCULATION_NEEDED) {
 			ptxFile(path_to_ptx, "point_cloud_normal");
 			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_normal_point_cloud", &program));
 			RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[POINT_CLOUD_RAY][M_NORMAL]));
@@ -1881,7 +1893,7 @@ static int createGlassMaterial(const RTcontext context, OBJREC* rec, Scene* scen
 		RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[SHADOW_RAY][M_GLASS]));
 		free(ptx);
 
-		if (calc_ambient) {
+		if (ambient_flags & AMBIENT_CALCULATION_NEEDED) {
 			ptxFile(path_to_ptx, "point_cloud_normal");
 			RT_CHECK_ERROR(rtProgramCreateFromPTXFile(context, path_to_ptx, "closest_hit_glass_point_cloud", &program));
 			RT_CHECK_ERROR(rtProgramGetId(program, &closest_hit_callable_programs[POINT_CLOUD_RAY][M_GLASS]));
@@ -2113,7 +2125,6 @@ static int createFunction(const RTcontext context, OBJREC* rec)
 				applyProgramVariable1f(context, program, "radiance", (float)rec->oargs.farg[0]);
 			}
 			else if (!createGenCumulativeSky(context, rec->oargs.sarg[1], &program)) {
-				printObject(rec);
 				return RT_PROGRAM_ID_NULL;
 			}
 		}
@@ -2136,7 +2147,6 @@ static int createFunction(const RTcontext context, OBJREC* rec)
 				applyProgramVariable3f(context, program, "sun", (float)rec->oargs.farg[1], (float)rec->oargs.farg[2], (float)rec->oargs.farg[3]);
 			}
 			else {
-				printObject(rec);
 				return RT_PROGRAM_ID_NULL;
 			}
 		}
@@ -2148,13 +2158,11 @@ static int createFunction(const RTcontext context, OBJREC* rec)
 			applyProgramVariable3f(context, program, "sun", (float)rec->oargs.farg[1], (float)rec->oargs.farg[2], (float)rec->oargs.farg[3]);
 		}
 		else {
-			printObject(rec);
 			return RT_PROGRAM_ID_NULL;
 		}
 		applyProgramVariable(context, program, "transform", sizeof(transform), transform);
 	}
 	else {
-		printObject(rec);
 		return RT_PROGRAM_ID_NULL;
 	}
 
@@ -2189,7 +2197,6 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 	else if (rec->otype == PAT_CPICT)
 		dp = getpict(rec->oargs.sarg[3]);
 	else {
-		printObject(rec);
 		return RT_PROGRAM_ID_NULL;
 	}
 
@@ -2273,12 +2280,10 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 
 			/* Check compatibility with existing implementation */
 			if (strcmp(rec->oargs.sarg[0], "corr") && strcmp(rec->oargs.sarg[0], "flatcorr") && strcmp(rec->oargs.sarg[0], "boxcorr") && strcmp(rec->oargs.sarg[0], "cylcorr")) {
-				printObject(rec);
 				return RT_PROGRAM_ID_NULL;
 			}
 			if (strncmp(rec->oargs.sarg[3], src_phi, length_phi) || strcmp(rec->oargs.sarg[4], src_theta)) {
 				if (strncmp(rec->oargs.sarg[4], src_phi, length_phi) || strcmp(rec->oargs.sarg[3], src_theta)) {
-					printObject(rec);
 					return RT_PROGRAM_ID_NULL;
 				}
 				transpose = 1;
@@ -2289,7 +2294,6 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 			else if (!strcmp(sym_str, "4"))
 				symmetry = PI / 2;
 			else if (strlen(sym_str)) {
-				printObject(rec);
 				return RT_PROGRAM_ID_NULL;
 			}
 
@@ -2316,13 +2320,11 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 			applyProgramVariable1i(context, program, "type", dp->type == DATATY);
 		}
 		else {
-			printObject(rec);
 			return RT_PROGRAM_ID_NULL;
 		}
 		applyProgramVariable(context, program, "transform", sizeof(transform), transform);
 	}
 	else {
-		printObject(rec);
 		return RT_PROGRAM_ID_NULL;
 	}
 	RT_CHECK_ERROR( rtProgramGetId( program, &tex_id ) );
@@ -2882,11 +2884,18 @@ static void createIrradianceGeometry( const RTcontext context )
 	RT_CHECK_ERROR( rtAccelerationMarkDirty( acceleration ) );
 }
 
+static void unhandledObject(OBJREC* rec, Scene *scene)
+{
+	if (!(scene->unhandled[rec->otype]++)) {
+		objerror(rec, WARNING, "no GPU support"); // Print error only on the first time the object is discovered
+		printObject(rec);
+	}
+}
+
 static void printObject(OBJREC* rec)
 {
 	int i;
 
-	objerror(rec, WARNING, "no GPU support");
 	mprintf(" %s(%i) %s(%i) %s(%i) %i", rec->omod > OVOID ? objptr(rec->omod)->oname : VOIDID, rec->omod, ofun[rec->otype].funame, rec->otype, rec->oname, objndx(rec), rec->oargs.nsargs);
 	for (i = 0; i < rec->oargs.nsargs; i++)
 		mprintf(" %s", rec->oargs.sarg[i]);
