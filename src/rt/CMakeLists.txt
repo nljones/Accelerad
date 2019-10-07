@@ -125,11 +125,11 @@ if(OptiX_USE)
 
   # Suggest a path to the OptiX SDK directory.
   # This line is taken from FindOptiX.cmake,
-  # located in C:\ProgramData\NVIDIA Corporation\OptiX SDK 6.0.0\SDK\CMake.
+  # located in C:\ProgramData\NVIDIA Corporation\OptiX SDK 6.5.0\SDK\CMake.
   if(WIN32)
-    set(OptiX_INSTALL_DIR "C:/ProgramData/NVIDIA Corporation/OptiX SDK 6.0.0" CACHE PATH "Path to OptiX installed location.")
+    set(OptiX_INSTALL_DIR "C:/ProgramData/NVIDIA Corporation/OptiX SDK 6.5.0" CACHE PATH "Path to OptiX installed location.")
   else()
-    set(OptiX_INSTALL_DIR "~/NVIDIA-OptiX-SDK-6.0.0-linux64" CACHE PATH "Path to OptiX installed location.")
+    set(OptiX_INSTALL_DIR "~/NVIDIA-OptiX-SDK-6.5.0-linux64" CACHE PATH "Path to OptiX installed location.")
   endif()
 
   # Add OptiX CMake files to the module path

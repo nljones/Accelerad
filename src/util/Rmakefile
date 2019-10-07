@@ -1,4 +1,4 @@
-# RCSid: $Id: Rmakefile,v 2.95 2019/09/05 17:35:44 greg Exp $
+# RCSid: $Id: Rmakefile,v 2.97 2019/09/10 17:25:02 greg Exp $
 #
 # Radiance makefile for utility programs
 #
@@ -22,7 +22,7 @@ LIBDIR = /usr/local/lib/ray
 PROGS = findglare glarendx rpiece rad ranimate ranimove vwright getinfo \
 		vwrays xglaresrc rsensor dctimestep rttree_reduce rcollate \
 		eplus_adduvf rfluxmtx rmtxop wrapBSDF evalglare radcompare \
-		rcode_depth rcode_norm rcode_ident
+		rcode_depth rcode_norm rcode_ident dcglare
 
 LIBFILES = rambpos.cal ambpos.cal tregsamp.dat reinhartb.cal \
 klems_full.cal klems_half.cal klems_quarter.cal disk2square.cal \
@@ -157,6 +157,10 @@ rcode_norm:	rcode_norm.o
 rcode_ident:	rcode_ident.o
 	$(CC) $(CFLAGS) -o rcode_ident rcode_ident.o -lrtrad
 
+dcglare:	dcglare.o cmbsdf.o cmatrix.o cmglare.o
+	$(CC) $(CFLAGS) -o dcglare dcglare.o cmbsdf.o cmatrix.o cmglare.o \
+-lrtrad $(MLIB)
+
 eplus_adduvf.o:	../common/triangulate.h ../common/rtprocess.h \
 ../common/paths.h ../common/rtio.h ../common/random.h \
 ../common/rtmath.h ../common/mat4.h ../common/fvect.h
@@ -194,7 +198,7 @@ rfluxmtx.o:	../common/rtio.h ../common/random.h ../common/triangulate.h \
 
 rmtxop.o dctimestep.o cmatrix.o:	../common/platform.h
 
-rad.o ranimate.o rpiece.o xglaresrc.o:	../common/standard.h \
+dcglare.o rad.o ranimate.o rpiece.o xglaresrc.o:	../common/standard.h \
 ../common/rtmisc.h ../common/rtio.h \
 ../common/rtmath.h ../common/mat4.h ../common/fvect.h \
 ../common/rterror.h
@@ -283,3 +287,5 @@ rcode_norm.o:	../common/normcodec.h \
 
 rcode_ident.o:	../common/idmap.h ../common/resolu.h \
 ../common/platform.h ../common/rtio.h ../common/lookup.h
+
+dcglare.o:	../common/platform.h ../common/resolu.h cmglare.h
