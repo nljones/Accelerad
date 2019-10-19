@@ -43,6 +43,7 @@ RT_PROGRAM void miss()
 	const float3 H = optix::normalize(ray.direction);
 
 	// compute direct lighting
+	int foundsrc = -1, glowsrc = -1;
 	unsigned int num_lights = lights.size();
 	for (int i = 0; i < num_lights; ++i) {
 		DistantLight light = lights[i];
@@ -56,25 +57,42 @@ RT_PROGRAM void miss()
 		float lDh = optix::dot( L, H );
 		float solid_angle = 2.0f * M_PIf * (1.0f - lDh);
 
+		// Check to see if ray is within solid angle of source
 		if (solid_angle <= light.solid_angle) {
-			if (!directvis && light.casts_shadow) { // srcignore() in source.c
-				prd_radiance.result = make_float3(0.0f);
+			// Use first hit
+			if (light.casts_shadow) {
+				foundsrc = i;
 				break;
 			}
-			float3 color = light.color;
-			if (light.function != RT_PROGRAM_ID_NULL)
-				color *= ((rtCallableProgramId<float3(const float3, const float3)>)light.function)(H, -H);
-			prd_radiance.result += color;
-#ifdef DAYSIM_COMPATIBLE
-			if (daylightCoefficients >= 2) {
-				daysimAddCoef(prd_radiance.dc, daysimComputePatch(ray.direction), color.x);
-			}
-#endif /* DAYSIM_COMPATIBLE */
-#ifdef CONTRIB
-			contribution(prd_radiance.rcoef, color, H, light.contrib_index, light.contrib_function);
-#endif /* CONTRIB */
+			// If it's a glow or transparent illum, just remember it
+			if (glowsrc == -1) glowsrc = i;
 		}
 	}
+
+	// Do we need fallback?
+	if (foundsrc == -1) {
+		if (glowsrc == -1) return;
+		foundsrc = glowsrc;
+	}
+
+	DistantLight light = lights[foundsrc];
+	if (!directvis && light.casts_shadow) { // srcignore() in source.c
+		prd_radiance.result = make_float3(0.0f);
+	}
+	else {
+		float3 color = light.color;
+		if (light.function != RT_PROGRAM_ID_NULL)
+			color *= ((rtCallableProgramId<float3(const float3, const float3)>)light.function)(H, -H);
+		prd_radiance.result = color;
+#ifdef DAYSIM_COMPATIBLE
+		if (daylightCoefficients >= 2) {
+			daysimAddCoef(prd_radiance.dc, daysimComputePatch(ray.direction), color.x);
+		}
+#endif /* DAYSIM_COMPATIBLE */
+	}
+#ifdef CONTRIB
+	contribution(prd_radiance.rcoef, prd_radiance.result, H, light.contrib_index, light.contrib_function);
+#endif /* CONTRIB */
 
 #ifdef HIT_TYPE
 	prd_radiance.hit_type = OBJ_SOURCE;
