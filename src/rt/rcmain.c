@@ -19,7 +19,7 @@ static const char	RCSid[] = "$Id: rcmain.c,v 2.18 2018/01/18 19:43:43 greg Exp $
 #ifdef ACCELERAD
 #include <ctype.h> // for tolower()
 
-extern void printRayTracingTime(const time_t time, const clock_t clock);
+extern void printRayTracingTime(const clock_t clock);
 
 extern char *calfilename;			/* name of the most recently read cal file */
 #endif
@@ -211,7 +211,6 @@ main(int argc, char *argv[])
 	int	rval;
 	int	i;
 #ifdef ACCELERAD
-	time_t rcontrib_time; // Timer in seconds for long jobs
 	clock_t rcontrib_clock; // Timer in clock cycles for short jobs
 #endif
 					/* global program name */
@@ -414,14 +413,11 @@ main(int argc, char *argv[])
 	setambient();			/* initialize ambient calculation */
 	
 #ifdef ACCELERAD
-	rcontrib_time = time((time_t *)NULL);
 	rcontrib_clock = clock();
 #endif
 	rcontrib();			/* trace ray contributions (loop) */
 #ifdef ACCELERAD
-	rcontrib_clock = clock() - rcontrib_clock;
-	rcontrib_time = time((time_t *)NULL) - rcontrib_time;
-	printRayTracingTime(rcontrib_time, rcontrib_clock);
+	printRayTracingTime(clock() - rcontrib_clock);
 #endif
 
 	ambsync();			/* flush ambient file */

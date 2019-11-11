@@ -660,7 +660,7 @@ RT_METHOD int ambsample(AMBHEMI *hp, AmbientSample *ap, const unsigned int& i, c
 #ifdef AMB_PARALLEL
 	if (!n) {
 		if (ap->d == -1.0f) // An exception occurred
-			rtThrow((int)(ap->v.x));
+			rtThrow((int)(ap->v.x) | RT_RETHROWN_EXCEPTION);
 		if (ap->d == 0.0f) // No exception, but bad data
 			return(0);
 

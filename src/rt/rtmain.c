@@ -32,7 +32,7 @@ extern char	*shm_boundary;		/* boundary of shared memory */
 #endif
 
 #ifdef ACCELERAD
-extern void printRayTracingTime(const time_t time, const clock_t clock);
+extern void printRayTracingTime(const clock_t clock);
 #endif
 
 char  *sigerr[NSIG];			/* signal error messages */
@@ -96,7 +96,6 @@ main(int  argc, char  *argv[])
 	char  *outfile = NULL;
 #endif
 #ifdef ACCELERAD
-	time_t rtrace_time; // Timer in seconds for long jobs
 	clock_t rtrace_clock; // Timer in clock cycles for short jobs
 #endif
 					/* global program name */
@@ -453,7 +452,6 @@ runagain:
 #endif
 					/* trace rays */
 #ifdef ACCELERAD
-	rtrace_time = time((time_t *)NULL);
 	rtrace_clock = clock();
 #endif
 #ifdef ACCELERAD_DEBUG
@@ -462,9 +460,7 @@ runagain:
 	rtrace(NULL, nproc);
 #endif
 #ifdef ACCELERAD
-	rtrace_clock = clock() - rtrace_clock;
-	rtrace_time = time((time_t *)NULL) - rtrace_time;
-	printRayTracingTime(rtrace_time, rtrace_clock);
+	printRayTracingTime(clock() - rtrace_clock);
 #endif
 					/* flush ambient file */
 	ambsync();

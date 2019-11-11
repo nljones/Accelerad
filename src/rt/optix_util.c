@@ -27,7 +27,7 @@ static clock_t last_callback_time;  /* time of last callback from GPU */
 #endif
 
 #ifdef CUMULTATIVE_TIME
-static size_t cumulative_millis = 0;  /* cumulative timing of kernel fuctions */
+static clock_t cumulative_time = 0;  /* cumulative timing of kernel fuctions */
 #endif
 
 int verbose_output = 1;	/* Print repetitive outputs. */
@@ -96,7 +96,6 @@ void runKernel3D(const RTcontext context, const unsigned int entry, const RTsize
 static void runKernelImpl(const RTcontext context, const unsigned int entry, const RTsize width, const RTsize height, const RTsize depth, const RTdimension dim)
 {
 	/* Timers */
-	time_t kernel_time; // Timer in seconds for long jobs
 	clock_t kernel_clock; // Timer in clock cycles for short jobs
 
 #ifdef REPORT_GPU_STATE
@@ -111,11 +110,10 @@ static void runKernelImpl(const RTcontext context, const unsigned int entry, con
 	RT_CHECK_ERROR( rtContextCompile( context ) ); // This should happen automatically when necessary.
 	kernel_clock = clock() - kernel_clock;
 	if (kernel_clock > 1)
-		vprintf("OptiX compile %u time: %" PRIu64 " milliseconds.\n", entry, MILLISECONDS(kernel_clock));
+		tprintf(kernel_clock, "OptiX compile %u", entry);
 #endif
 
 	/* Start timers */
-	kernel_time = time((time_t *)NULL);
 	kernel_clock = clock();
 #ifdef TIMEOUT_CALLBACK
 	last_callback_time = kernel_clock;
@@ -135,15 +133,14 @@ static void runKernelImpl(const RTcontext context, const unsigned int entry, con
 	}
 
 	/* Stop timers */
-	kernel_clock = clock() - kernel_clock;
-	kernel_time = time((time_t *)NULL) - kernel_time;
-	if (verbose_output)
-		mprintf("OptiX kernel %u time: %" PRIu64 " milliseconds (%" PRIu64 " seconds).\n", entry, MILLISECONDS(kernel_clock), kernel_time);
+	if (verbose_output) {
+		kernel_clock = clock() - kernel_clock;
+		tprintf(kernel_clock, "OptiX kernel %u", entry);
 #ifdef CUMULTATIVE_TIME
-	cumulative_millis += MILLISECONDS(kernel_clock);
-	if (verbose_output)
-		mprintf("OptiX kernel cumulative time: %" PRIu64 " milliseconds.\n", cumulative_millis);
+		cumulative_time += kernel_clock;
+		tprint(cumulative_time, "OptiX kernel cumulative");
 #endif
+	}
 
 #ifdef REPORT_GPU_STATE
 	/* Print context attributes after */
@@ -151,10 +148,10 @@ static void runKernelImpl(const RTcontext context, const unsigned int entry, con
 #endif
 }
 
-void printRayTracingTime(const time_t time, const clock_t clock)
+void printRayTracingTime(const clock_t clock)
 {
 	/* Print the given elapsed time for ray tracing */
-	mprintf("ray tracing time: %" PRIu64 " milliseconds (%" PRIu64 " seconds).\n", MILLISECONDS(clock), time);
+	tprint(clock, "Ray tracing total");
 }
 
 /* Helper functions */
@@ -622,9 +619,10 @@ void flushExceptionLog(const char* location)
 	error_log = NULL;
 }
 
-void printException(const RTexception type, const int count, const char* location)
+void printException(const RTexception code, const int count, const char* location)
 {
 	char times[16];
+	const RTexception type = code & ~RT_RETHROWN_EXCEPTION;
 	
 	if (count < 1)
 		return;
@@ -635,7 +633,7 @@ void printException(const RTexception type, const int count, const char* locatio
 		times[0] = '\0'; // Empty string
 
 	if (type < RT_EXCEPTION_CUSTOM) {
-		char* msg;
+		char *msg, unknown[30];
 		switch (type) {
 		case RT_EXCEPTION_INF:
 			msg = "Infinite result";			break;
@@ -666,12 +664,12 @@ void printException(const RTexception type, const int count, const char* locatio
 		case RT_EXCEPTION_INTERNAL_ERROR:
 			msg = "Internal error";				break;
 		default:
-			sprintf(errmsg, "Unknown error (%i)", type);
-			msg = errmsg;				        break;
+			sprintf(unknown, "Unknown error (0x%03X)", type);
+			msg = unknown;				        break;
 		}
-		sprintf(errmsg, "%s occurred%s in %s", msg, times, location);
+		sprintf(errmsg, "%s %s%s in %s", msg, code & RT_RETHROWN_EXCEPTION ? "inherited" : "occurred", times, location);
 	} else {
-		sprintf(errmsg, "Exception %i occurred%s in %s", type - RT_EXCEPTION_CUSTOM, times, location);
+		sprintf(errmsg, "Exception %i %s%s in %s", type - RT_EXCEPTION_CUSTOM, code & RT_RETHROWN_EXCEPTION ? "inherited" : "occurred", times, location);
 	}
 	error(WARNING, errmsg);
 }

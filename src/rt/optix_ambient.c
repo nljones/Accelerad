@@ -812,8 +812,7 @@ static size_t chooseAmbientLocations(const RTcontext context, const unsigned int
 
 		kernel_clock = clock();
 		cuda_score_hits(seed_buffer_data, score, (unsigned int)width, (unsigned int)height, (float)(cuda_kmeans_error / (ambacc * maxarad)), (unsigned int)cluster_count);
-		kernel_clock = clock() - kernel_clock;
-		mprintf("Adaptive sampling: %" PRIu64 " milliseconds.\n", MILLISECONDS(kernel_clock));
+		tprint(clock() - kernel_clock, "Adaptive sampling");
 
 		for (i = 0u; i < seed_count; i++) {
 			if (score[i]) {
@@ -979,8 +978,7 @@ static size_t createClusters(const size_t seed_count, PointDirection* seed_buffe
 		}
 	}
 
-	kernel_clock = clock() - kernel_clock;
-	vprintf("Cell time: %" PRIu64 " milliseconds.\nOccupied cells: %u\n", MILLISECONDS(kernel_clock), cell_counter);
+	tprintf(clock() - kernel_clock, "Created %u occupied cells", cell_counter);
 #ifdef DEBUG_OPTIX
 	flushExceptionLog("ambient seeding");
 #endif
@@ -1047,8 +1045,7 @@ static size_t createKMeansClusters( const size_t seed_count, const size_t cluste
 #else
 	clusters = (PointDirection**)cuda_kmeans((float**)seeds, sizeof(PointDirection) / sizeof(float), (unsigned int)good_seed_count, (unsigned int)cluster_count, cuda_kmeans_iterations, (float)cuda_kmeans_threshold, (float)(cuda_kmeans_error / (ambacc * maxarad)), 1u, membership, distance, &loops);
 #endif
-	kernel_clock = clock() - kernel_clock;
-	mprintf("K-means performed %u loop iterations in %" PRIu64 " milliseconds.\n", loops, MILLISECONDS(kernel_clock));
+	tprintf(clock() - kernel_clock, "K-means performed %u loop iterations", loops);
 
 	/* Populate buffer of seed point clusters. */
 	min_distance = (float*) malloc(cluster_count * sizeof(float));

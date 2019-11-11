@@ -259,7 +259,7 @@ static void checkDevices()
 	RT_CHECK_ERROR_NO_CONTEXT(rtDeviceGetDeviceCount(&device_count)); // This will return an error if no supported devices are found
 	rtGlobalGetAttribute(RT_GLOBAL_ATTRIBUTE_DISPLAY_DRIVER_VERSION_MAJOR, sizeof(display_major), &display_major);
 	rtGlobalGetAttribute(RT_GLOBAL_ATTRIBUTE_DISPLAY_DRIVER_VERSION_MINOR, sizeof(display_minor), &display_minor);
-	mprintf("OptiX %d.%d.%d found display driver %d.%d, CUDA driver %d.%d.%d, and %i GPU device%s:\n",
+	mprintf("OptiX %d.%d.%d found display driver %d.%02d, CUDA driver %d.%d.%d, and %i GPU device%s:\n",
 		version / major, (version % major) / minor, version % minor, display_major, display_minor, driver / 1000, (driver % 100) / 10, driver % 10,
 		device_count, device_count != 1 ? "s" : "");
 
@@ -850,8 +850,7 @@ static void createScene(const RTcontext context, SceneNode* root, LUTAB* modifie
 			eprintf(WARNING, "no GPU support for %d instance%s of %s", scene.unhandled[i], scene.unhandled[i] != 1 ? "s" : "", ofun[i].funame);
 	}
 
-	geometry_clock = clock() - geometry_clock;
-	mprintf("Geometry build time: %" PRIu64 " milliseconds for %i objects.\n", MILLISECONDS(geometry_clock), nsceneobjs);
+	tprintf(clock() - geometry_clock, "Geometry build for %i objects", nsceneobjs);
 }
 
 static void createNode(const RTcontext context, Scene* scene, char* name, const OBJECT start, const OBJECT count, MESH* mesh, const int material_id)
@@ -2259,8 +2258,10 @@ static int createTexture(const RTcontext context, OBJREC* rec)
 	RT_CHECK_ERROR( rtTextureSamplerSetIndexingMode( tex_sampler, RT_TEXTURE_INDEX_NORMALIZED_COORDINATES ) );
 	RT_CHECK_ERROR( rtTextureSamplerSetReadMode( tex_sampler, RT_TEXTURE_READ_ELEMENT_TYPE ) );
 	RT_CHECK_ERROR( rtTextureSamplerSetMaxAnisotropy( tex_sampler, 0.0f ) );
+#ifndef RTX
 	RT_CHECK_ERROR( rtTextureSamplerSetMipLevelCount( tex_sampler, 1u ) ); // Currently only one mipmap level supported
 	RT_CHECK_ERROR( rtTextureSamplerSetArraySize( tex_sampler, 1u ) ); // Currently only one element supported
+#endif
 	RT_CHECK_ERROR( rtTextureSamplerSetBuffer( tex_sampler, 0u, 0u, tex_buffer ) );
 	RT_CHECK_ERROR( rtTextureSamplerGetId( tex_sampler, &tex_id ) );
 
@@ -2424,8 +2425,10 @@ static int createGenCumulativeSky(const RTcontext context, char* filename, RTpro
 		RT_CHECK_ERROR(rtTextureSamplerSetIndexingMode(tex_sampler, RT_TEXTURE_INDEX_ARRAY_INDEX));
 		RT_CHECK_ERROR(rtTextureSamplerSetReadMode(tex_sampler, RT_TEXTURE_READ_ELEMENT_TYPE));
 		RT_CHECK_ERROR(rtTextureSamplerSetMaxAnisotropy(tex_sampler, 0.0f));
+#ifndef RTX
 		RT_CHECK_ERROR(rtTextureSamplerSetMipLevelCount(tex_sampler, 1u)); // Currently only one mipmap level supported
 		RT_CHECK_ERROR(rtTextureSamplerSetArraySize(tex_sampler, 1u)); // Currently only one element supported
+#endif
 		RT_CHECK_ERROR(rtTextureSamplerSetBuffer(tex_sampler, 0u, 0u, tex_buffer));
 		RT_CHECK_ERROR(rtTextureSamplerGetId(tex_sampler, &tex_id));
 

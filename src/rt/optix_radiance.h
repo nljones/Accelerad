@@ -91,16 +91,18 @@ typedef enum
 #define RT_CHECK_WARN_NO_CONTEXT( func )	func
 #endif
 
-/* Print statements */
+/* Print formatted error */
 #define eprintf(etype, format, ...) do {	\
 	sprintf(errmsg, format, ##__VA_ARGS__);	\
 	error(etype, errmsg); } while(0)
+/* Print formatted message */
 #define mprintf(format, ...) do {	\
 	if (erract[WARNING].pf) {		\
 		sprintf(errmsg, format, ##__VA_ARGS__);	\
 		(*erract[WARNING].pf)(errmsg); } } while(0)
 
-#ifdef ACCELERAD_DEBUG /* Print extra statements */
+#ifdef ACCELERAD_DEBUG
+/* Print extra statements */
 #define vprintf(format, ...)	mprintf(format, ##__VA_ARGS__)
 #else
 #define vprintf(format, ...)	/* Ignore */
@@ -112,6 +114,19 @@ typedef enum
 #else
 #define MILLISECONDS(c)	((c) * 1000uL / CLOCKS_PER_SEC)
 #endif
+
+/* Print elapsed time for the operation */
+#define tprint(clock, label) do {	\
+	if (erract[WARNING].pf) {		\
+		const size_t milliseconds = MILLISECONDS(clock);	\
+		sprintf(errmsg, "%s: %" PRIu64 ".%03" PRIu64 " seconds.\n", label, milliseconds / 1000, milliseconds % 1000);	\
+		(*erract[WARNING].pf)(errmsg); } } while(0)
+/* Print formatted elapsed time for the operation */
+#define tprintf(clock, format, ...) do {	\
+	if (erract[WARNING].pf) {		\
+		const size_t milliseconds = MILLISECONDS(clock);	\
+		sprintf(errmsg, format ": %" PRIu64 ".%03" PRIu64 " seconds.\n", ##__VA_ARGS__, milliseconds / 1000, milliseconds % 1000);	\
+		(*erract[WARNING].pf)(errmsg); } } while(0)
 
 /* Math */
 #ifndef min
@@ -235,7 +250,7 @@ void handleError( const RTcontext context, const RTresult code, const char* file
 #ifdef DEBUG_OPTIX
 void logException(const RTexception type);
 void flushExceptionLog(const char* location);
-void printException(const RTexception type, const int index, const char* location);
+void printException(const RTexception code, const int index, const char* location);
 #endif
 void ptxFile( char* path, const char* name );
 char* ptxString(const char* name);

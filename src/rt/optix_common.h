@@ -33,7 +33,8 @@ typedef enum
 {
 	RT_EXCEPTION_INF = RT_EXCEPTION_USER,	/*!< Inf error */
 	RT_EXCEPTION_NAN,		/*!< NaN error */
-	RT_EXCEPTION_CUSTOM		/*!< Custom user exception */
+	RT_EXCEPTION_CUSTOM,	/*!< Custom user exception */
+	RT_RETHROWN_EXCEPTION = 0x8000	/* Flag for rethrown exception */
 } RTexceptionUser;
 
 /* Ray types */

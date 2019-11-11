@@ -37,7 +37,7 @@ extern time_t  time();
 extern time_t  tstart;			/* start time */
 
 #ifdef ACCELERAD
-extern void printRayTracingTime(const time_t time, const clock_t clock);
+extern void printRayTracingTime(const clock_t clock);
 #endif
 
 extern int  ralrm;			/* seconds between reports */
@@ -85,7 +85,6 @@ main(int  argc, char  *argv[])
 	int  rval;
 	int  i;
 #ifdef ACCELERAD
-	time_t rpict_time; // Timer in seconds for long jobs
 	clock_t rpict_clock; // Timer in clock cycles for short jobs
 #endif
 					/* record start time */
@@ -351,14 +350,11 @@ runagain:
 #endif
 					/* batch render picture(s) */
 #ifdef ACCELERAD
-	rpict_time = time((time_t *)NULL);
 	rpict_clock = clock();
 #endif
 	rpict(seqstart, outfile, zfile, recover);
 #ifdef ACCELERAD
-	rpict_clock = clock() - rpict_clock;
-	rpict_time = time((time_t *)NULL) - rpict_time;
-	printRayTracingTime(rpict_time, rpict_clock);
+	printRayTracingTime(clock() - rpict_clock);
 #endif
 					/* flush ambient file */
 	ambsync();
