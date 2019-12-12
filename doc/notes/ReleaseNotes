@@ -2321,4 +2321,20 @@ Added new "turbo" palette to falsecolor (thanks to Taoning).
 
 Nathaniel Jones created the "dcglare" program for annual glare
 simulations when the sun and sky are visible through the window.
-Tutorial is posted at "https://github.com/nljones/Accelerad/wiki/The-Imageless-Method-for-Spatial-and-Annual-Glare-Analysis".
+Tutorial is posted at
+"https://github.com/nljones/Accelerad/wiki/The-Imageless-Method-for-Spatial-and-Annual-Glare-Analysis".
+
+Added support for loading RGBE images into matrices in dctimestep.
+
+Added -y option to gensky and gendaylit to support more accurate Michalsky
+solar position calculation.
+
+Changed rsplit so specifying a space as the separator parses words
+between whitespace.
+
+Added ability of vwrays, pinterp, and pmblur2 to read encoded depth files.
+
+Added -o RxCxR1xC1 facility to perform blocking in rcollate.
+
+Made it so number of segments in genworm, genrev, and gensurf can be
+given as expressions of previously defined variables, etc.

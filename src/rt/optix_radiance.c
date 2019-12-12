@@ -43,6 +43,7 @@
 #define DEFAULT_CONE_STEPS		24
 
 #define TCALNAME	"tmesh.cal"	/* the name of our auxiliary file */
+#define RINDEX		1.52f		/* refractive index of glass */
 
 #ifdef ACCELERAD
 
@@ -1872,7 +1873,7 @@ static int createGlassMaterial(const RTcontext context, OBJREC* rec, Scene* scen
 	vprintf("Reading glass material %s\n", rec->oname);
 	matData.type = rec->otype;
 	array2cuda3(matData.color, rec->oargs.farg); // Color is the first three entries in farg
-	matData.params.r_index = rec->otype == rec->oargs.nfargs > 3 ? (float)rec->oargs.farg[3] : 1.52f;		/* refractive index of glass */
+	matData.params.r_index = rec->oargs.nfargs > 3 ? (float)rec->oargs.farg[3] : RINDEX;		/* refractive index of glass */
 	matData.mask = 0u;
 #ifdef CONTRIB
 	applyContribution(context, &matData, NULL, rec, scene);

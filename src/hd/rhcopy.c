@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id: rhcopy.c,v 3.31 2018/10/05 19:19:16 greg Exp $";
+static const char	RCSid[] = "$Id: rhcopy.c,v 3.33 2019/11/07 23:17:58 greg Exp $";
 #endif
 /*
  * Copy data into a holodeck file
@@ -94,6 +94,7 @@ userr:
 #define H_BADF	01
 #define H_OBST	02
 #define H_OBSF	04
+#define H_SWAP	010
 
 static int
 holheadline(		/* check holodeck header line */
@@ -101,6 +102,7 @@ holheadline(		/* check holodeck header line */
 	void	*vhf
 )
 {
+	int	be;
 	char	fmt[MAXFMTLEN];
 	int	*hf = vhf;
 
@@ -122,6 +124,10 @@ holheadline(		/* check holodeck header line */
 			error(WARNING, "bad OBSTRUCTIONS value in holodeck");
 		return(0);
 	}
+	if ((be = isbigendian(s)) >= 0) {
+		if (be != nativebigendian())
+			*hf |= H_SWAP;
+	}
 	return(0);
 }
 
@@ -137,15 +143,15 @@ openholo(		/* open existing holodeck file for i/o */
 	off_t	nextloc;
 	int	n;
 					/* open holodeck file */
-	if ((fp = fopen(fname, append ? "r+" : "r")) == NULL) {
+	if ((fp = fopen(fname, append ? "rb+" : "rb")) == NULL) {
 		sprintf(errmsg, "cannot open \"%s\" for %s", fname,
 				append ? "appending" : "reading");
 		error(SYSTEM, errmsg);
 	}
 					/* check header and magic number */
 	if (getheader(fp, holheadline, &hflags) < 0 ||
-			hflags&H_BADF || getw(fp) != HOLOMAGIC) {
-		sprintf(errmsg, "file \"%s\" not in holodeck format", fname);
+			hflags&(H_BADF|H_SWAP) || getw(fp) != HOLOMAGIC) {
+		sprintf(errmsg, "holodeck \"%s\" not in expected format", fname);
 		error(USER, errmsg);
 	}
 	fd = dup(fileno(fp));			/* dup file handle */
@@ -336,7 +342,7 @@ addpicz(		/* add a picture + depth-buffer */
 	int	j;
 	int	i;
 				/* open files */
-	if ((pfp = fopen(pcf, "r")) == NULL) {
+	if ((pfp = fopen(pcf, "rb")) == NULL) {
 		sprintf(errmsg, "cannot open picture file \"%s\"", pcf);
 		error(SYSTEM, pcf);
 	}
@@ -344,6 +350,7 @@ addpicz(		/* add a picture + depth-buffer */
 		sprintf(errmsg, "cannot open depth file \"%s\"", zbf);
 		error(SYSTEM, pcf);
 	}
+	SET_FD_BINARY(zfd);
 				/* load picture header */
 	phd.vw = stdview;
 	phd.expos = 1.0;
@@ -392,12 +399,12 @@ addpicz(		/* add a picture + depth-buffer */
 		}
 		if (eshft)				/* shift exposure */
 			shiftcolrs(cscn, i, eshft);
-		i *= sizeof(float);			/* read depth */
-		if (read(zfd, (char *)zscn, i) != i) {
+							/* read depth */
+		if (read(zfd, zscn, i*sizeof(float)) != i*sizeof(float)) {
 			sprintf(errmsg, "error reading depth file \"%s\"", zbf);
 			error(USER, errmsg);
 		}
-		for (i = scanlen(&prs); i--; ) {	/* do each pixel */
+		while (i--) {				/* process each pixel */
 			if (zscn[i] <= 0.0)
 				continue;		/* illegal depth */
 			pix2loc(vl, &prs, i, j);
