@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: depthcodec.c,v 2.5 2019/11/07 23:20:28 greg Exp $";
+static const char RCSid[] = "$Id: depthcodec.c,v 2.10 2020/03/05 17:43:22 greg Exp $";
 #endif
 /*
  * Routines to encode/decoded 16-bit depths
@@ -26,7 +26,7 @@ depth2code(double d, double dref)
 	if (d > dref)
 		return (int)(32768.001 - 32768.*dref/d) - 1;
 
-	return (int)(32767.*d/dref - 32768.);
+	return (int)(32767.*d/dref - 32768.999);
 }
 #endif
 
@@ -42,10 +42,10 @@ code2depth(int c, double dref)
 	if (c >= 32767)
 		return FHUGE;
 
-	if (c >= 0)
+	if (c >= -1)
 		return dref*32768./(32766.5 - c);
 
-	return dref*(32767.5 + c)*(1./32767.);
+	return dref*(32768.5 + c)*(1./32767.);
 }
 #endif
 
@@ -97,7 +97,11 @@ headline(char *s, void *p)
 			}
 			return -1;
 		}
-	} else if (isview(s))		/* get view params */
+		if (dcp->hdrflags & HF_ENCODE)
+			return 0;	/* will add this later */
+	} else if (!strncmp(s, "SAMP360=", 8))
+		dcp->gotview--;
+	else if (isview(s))		/* get view params */
 		dcp->gotview += (sscanview(&dcp->vw, s) > 0);
 	if (dcp->hdrflags & HF_HEADOUT)
 		fputs(s, stdout);	/* copy to standard output */
@@ -117,6 +121,7 @@ process_dc_header(DEPTHCODEC *dcp, int ac, char *av[])
 		}
 		return 0;
 	}
+	dcp->gotview *= (dcp->gotview > 0);
 	if (dcp->hdrflags & HF_HEADOUT) {	/* finish header */
 		if (!(dcp->hdrflags & HF_HEADIN))
 			newheader("RADIANCE", stdout);
@@ -314,6 +319,7 @@ seek_dc_pix(DEPTHCODEC *dcp, int x, int y)
 		return -1;
 	}
 	dcp->curpos = seekpos;
+	dcp->use_last = 0;
 	return 1;
 }
 

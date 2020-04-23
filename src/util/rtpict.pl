@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# RCSid $Id: rtpict.pl,v 2.12 2019/08/16 04:32:46 greg Exp $
+# RCSid $Id: rtpict.pl,v 2.15 2020/03/15 16:54:19 greg Exp $
 #
 # Run rtrace in parallel mode to simulate rpict -n option
 # May also be used to render layered images with -o* option
@@ -40,7 +40,7 @@ OPTION:				# sort through options
 while ($#ARGV >= 0 && "$ARGV[0]" =~ /^[-\@]/) {
 	# Check for file inclusion
 	if ("$ARGV[0]" =~ /^\@/) {
-		open my $handle, '<', substr($ARGV[0], 1);
+		open my $handle, '<', substr($ARGV[0], 1) or die "No file for $ARGV[0]\n";
 		shift @ARGV;
 		chomp(my @args = <$handle>);
 		close $handle;
@@ -138,14 +138,14 @@ my @res = split(/\s/, `@vwraysA -d`);
 #####################################################################
 ##### Generating picture with depth buffer?
 if (defined $outzbf) {
-	exec "@vwraysA | @rtraceA -fff -olv @res $oct | " .
-		"rsplit -ih -iH -f -of $outzbf -oh -oH -of3 - | " .
+	exec "@vwraysA | @rtraceA -fff -olv @res '$oct' | " .
+		"rsplit -ih -iH -f -of '$outzbf' -oh -oH -of3 - | " .
 		"pvalue -r -df | getinfo -a 'VIEW=$view'";
 }
 #####################################################################
 ##### Base case with output picture only?
 if (! defined $outdir) {
-	exec "@vwraysA | @rtraceA -ffc @res $oct | getinfo -a 'VIEW=$view'";
+	exec "@vwraysA | @rtraceA -ffc @res '$oct' | getinfo -a 'VIEW=$view'";
 }
 #####################################################################
 ##### Layered image output case
@@ -186,10 +186,12 @@ if (! -d $outdir) {
 foreach my $oval (split //, $outlyr) {
 	die "Duplicate or unsupported type '$oval' in -o$outlyr\n"
 					if (!defined $rtoutC{$oval});
+	my $outfile = "$outdir/$rtoutC{$oval}";
+	die "File '$outfile' already exists\n" if (-e $outfile);
 	my ($otyp) = ($rtoutC{$oval} =~ /(\.[^.]+)$/);
 	push @rsplitA, $rcodeC{$otyp}[0];
-	push @rsplitA, qq{'$rcodeC{$otyp}[1] > "$outdir/$rtoutC{$oval}"'};
+	push @rsplitA, qq{'$rcodeC{$otyp}[1] > "$outfile"'};
 	delete $rtoutC{$oval};
 }
 			# call rtrace + rsplit
-exec "@vwraysA | @rtraceA -fff @res $oct | getinfo -a 'VIEW=$view' | @rsplitA";
+exec "@vwraysA | @rtraceA -fff @res '$oct' | getinfo -a 'VIEW=$view' | @rsplitA";

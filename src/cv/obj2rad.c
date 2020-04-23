@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id: obj2rad.c,v 2.29 2013/11/08 16:49:04 greg Exp $";
+static const char	RCSid[] = "$Id: obj2rad.c,v 2.31 2020/01/28 21:18:02 greg Exp $";
 #endif
 /*
  * Convert a Wavefront .OBJ file to Radiance format.
@@ -11,7 +11,6 @@ static const char	RCSid[] = "$Id: obj2rad.c,v 2.29 2013/11/08 16:49:04 greg Exp 
  */
 
 #include <stdlib.h>
-#include <stdio.h>
 #include <ctype.h>
 
 #include "rtmath.h"
@@ -26,7 +25,7 @@ static const char	RCSid[] = "$Id: obj2rad.c,v 2.29 2013/11/08 16:49:04 greg Exp 
 #define DEFOBJ		"unnamed"	/* default object name */
 #define DEFMAT		"white"		/* default material name */
 
-#define pvect(v)	printf("%18.12g %18.12g %18.12g\n",(v)[0],(v)[1],(v)[2])
+#define pvect(v)	printf(" %18.12g %18.12g %18.12g\n",(v)[0],(v)[1],(v)[2])
 
 FVECT	*vlist;			/* our vertex list */
 int	nvs;			/* number of vertices in our list */

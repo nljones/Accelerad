@@ -1,14 +1,11 @@
 #ifndef lint
-static const char RCSid[] = "$Id: rmatrix.c,v 2.38 2019/09/10 17:22:55 greg Exp $";
+static const char RCSid[] = "$Id: rmatrix.c,v 2.43 2020/03/26 18:05:44 greg Exp $";
 #endif
 /*
  * General matrix operations.
  */
 
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <fcntl.h>
 #include <errno.h>
 #include "rtio.h"
 #include "platform.h"
@@ -103,6 +100,17 @@ get_dminfo(char *s, void *p)
 		ip->swapin = (nativebigendian() != i);
 		return(0);
 	}
+	if (isexpos(s)) {
+		double	d = exposval(s);
+		scalecolor(ip->mtx, d);
+		return(0);
+	}
+	if (iscolcor(s)) {
+		COLOR	ctmp;
+		colcorval(ctmp, s);
+		multcolor(ip->mtx, ctmp);
+		return(0);
+	}
 	if (!formatval(fmt, s)) {
 		rmx_addinfo(ip, s);
 		return(0);
@@ -153,15 +161,20 @@ rmx_load_float(RMATRIX *rm, FILE *fp)
 static int
 rmx_load_double(RMATRIX *rm, FILE *fp)
 {
-	int	i, j;
+	int	i;
 
-	for (i = 0; i < rm->nrows; i++)
-	    for (j = 0; j < rm->ncols; j++) {
-		if (getbinary(&rmx_lval(rm,i,j,0), sizeof(double), rm->ncomp, fp) != rm->ncomp)
-		    return(0);
+	if ((char *)&rmx_lval(rm,0,0,0) - (char *)&rmx_lval(rm,1,0,0) !=
+					sizeof(double)*rm->ncols*rm->ncomp) {
+		fputs("Code error in rmx_load_double()\n", stderr);
+		exit(1);
+	}
+	for (i = 0; i < rm->nrows; i++) {
+		if (getbinary(&rmx_lval(rm,i,0,0), sizeof(double)*rm->ncomp,
+					rm->ncols, fp) != rm->ncols)
+			return(0);
 		if (rm->swapin)
-		    swap64((char *)&rmx_lval(rm,i,j,0), rm->ncomp);
-	    }
+			swap64((char *)&rmx_lval(rm,i,0,0), rm->ncols*rm->ncomp);
+	}
 	return(1);
 }
 
@@ -229,6 +242,7 @@ rmx_load(const char *inspec)
 	dinfo.dtype = DTascii;			/* assumed w/o FORMAT */
 	dinfo.swapin = 0;
 	dinfo.info = NULL;
+	dinfo.mtx[0] = dinfo.mtx[1] = dinfo.mtx[2] = 1.;
 	if (getheader(fp, get_dminfo, &dinfo) < 0) {
 		fclose(fp);
 		return(NULL);
@@ -275,7 +289,14 @@ rmx_load(const char *inspec)
 	case DTxyze:
 		if (!rmx_load_rgbe(dnew, fp))
 			goto loaderr;
-		dnew->dtype = dinfo.dtype;
+		dnew->dtype = dinfo.dtype;	/* undo exposure? */
+		if ((dinfo.mtx[0] != 1.) | (dinfo.mtx[1] != 1.) |
+				(dinfo.mtx[2] != 1.)) {
+			dinfo.mtx[0] = 1./dinfo.mtx[0];
+			dinfo.mtx[1] = 1./dinfo.mtx[1];
+			dinfo.mtx[2] = 1./dinfo.mtx[2];
+			rmx_scale(dnew, dinfo.mtx);
+		}
 		break;
 	default:
 		goto loaderr;

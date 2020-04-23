@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: eplus_adduvf.c,v 2.18 2016/03/06 01:13:18 schorsch Exp $";
+static const char RCSid[] = "$Id: eplus_adduvf.c,v 2.22 2020/02/28 05:18:49 greg Exp $";
 #endif
 /*
  * Add User View Factors to EnergyPlus Input Data File
@@ -8,6 +8,7 @@ static const char RCSid[] = "$Id: eplus_adduvf.c,v 2.18 2016/03/06 01:13:18 scho
  */
 
 #include <stdlib.h>
+#include <ctype.h>
 #include "platform.h"
 #include "rtio.h"
 #include "rtmath.h"
@@ -40,7 +41,7 @@ const char	ADD_HEADER[] =
 #define NAME_FLD	1			/* name field always first? */
 
 #define SS_BASE_FLD	4			/* subsurface base surface */
-#define SS_VERT_FLD	10			/* subsurface vertex count */
+#define SS_VERT_FLD	9			/* subsurface vertex count */
 
 typedef struct {
 	const char	*pname;			/* object type name */
@@ -204,7 +205,7 @@ get_vlist(IDF_OBJECT *param, const char *zname)
 		}
 		res = idf_getfield(param, surf_type[i].vert_fld);
 	}
-	if (!res->val[0]) {			/* hack for missing #vert */
+	if (!res->val[0] || tolower(res->val[0]) == 'a') {  /* autocalculate */
 		IDF_FIELD	*fptr;
 		if (next_fbp >= fld_buf+sizeof(fld_buf))
 			next_fbp = fld_buf;
@@ -654,6 +655,7 @@ compute_zones(void)
 	for (zptr = zone_list; zptr != NULL; zptr = zptr->next) {
 		SUBPROC	rcproc;
 						/* start rcontrib process */
+		rcproc = sp_inactive;
 		if (!start_rcontrib(&rcproc, zptr))
 			return(0);
 						/* compute+add view factors */
@@ -709,6 +711,15 @@ main(int argc, char *argv[])
 		fputs("'\n", stderr);
 		return(1);
 	}
+						/* check version (warning) */
+	if ((pptr = idf_getobject(our_idf, "Version")) != NULL &&
+			pptr->flist != NULL && pptr->flist->val[0] != '9') {
+		fputs(progname, stderr);
+		fputs(": warning - written for IDF version 9.x, not ",
+				stderr);
+		fputs(pptr->flist->val, stderr);
+		fputc('\n', stderr);
+	}
 						/* remove existing UVFs */
 	if ((pptr = idf_getobject(our_idf, UVF_PNAME)) != NULL) {
 		IDF_OBJECT	*pnext;
@@ -717,7 +728,7 @@ main(int argc, char *argv[])
 		do {
 			pnext = pptr->pnext;
 			idf_delobject(our_idf, pptr);
-		} while (pnext != NULL);
+		} while ((pptr = pnext) != NULL);
 	}
 						/* add to header */
 	if (our_idf->hrem == NULL ||

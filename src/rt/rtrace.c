@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id: rtrace.c,v 2.84 2019/08/14 22:33:02 greg Exp $";
+static const char	RCSid[] = "$Id: rtrace.c,v 2.88 2020/03/12 17:19:18 greg Exp $";
 #endif
 /*
  *  rtrace.c - program and variables for individual ray tracing.
@@ -128,7 +128,7 @@ rtrace(				/* trace rays from file */
 {
 	unsigned long  vcount = (hresolu > 1) ? (unsigned long)hresolu*vresolu
 					      : (unsigned long)vresolu;
-	long  nextflush = (vresolu > 0) & (hresolu > 1) ? 0 : hresolu;
+	long  nextflush = (!vresolu | (hresolu <= 1)) * hresolu;
 	int  something2flush = 0;
 	FILE  *fp;
 	double	d;
@@ -195,20 +195,19 @@ rtrace(				/* trace rays from file */
 			getvec(direc, inform, fp) == 0) {
 
 		d = normalize(direc);
-		if (d == 0.0) {				/* zero ==> flush */
+		if (d == 0.0) {				/* flush request? */
 #ifdef ACCELERAD
 			if (use_optix)
 				bogusray();
 			else
 #endif
-			if ((--nextflush <= 0) | !vcount && something2flush) {
+			if (something2flush) {
 				if (ray_pnprocs > 1 && ray_fifo_flush() < 0)
 					error(USER, "child(ren) died");
 				bogusray();
 				fflush(stdout);
+				nextflush = (!vresolu | (hresolu <= 1)) * hresolu;
 				something2flush = 0;
-				nextflush = (vresolu > 0) & (hresolu > 1) ? 0 :
-								hresolu;
 			} else
 				bogusray();
 		} else {				/* compute and print */
@@ -746,7 +745,7 @@ oputp(				/* print point */
 	RAY  *r
 )
 {
-	if (r->rot < FHUGE)
+	if (r->rot < FHUGE*.99)
 		(*putreal)(r->rop, 3);
 	else
 		(*putreal)(vdummy, 3);
@@ -758,7 +757,7 @@ oputN(				/* print unperturbed normal */
 	RAY  *r
 )
 {
-	if (r->rot < FHUGE) {
+	if (r->rot < FHUGE*.99) {
 		if (r->rflips & 1) {	/* undo any flippin' flips */
 			FVECT	unrm;
 			unrm[0] = -r->ron[0];
@@ -779,7 +778,7 @@ oputn(				/* print perturbed normal */
 {
 	FVECT  pnorm;
 
-	if (r->rot >= FHUGE) {
+	if (r->rot >= FHUGE*.99) {
 		(*putreal)(vdummy, 3);
 		return;
 	}

@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: cmatrix.c,v 2.24 2019/11/07 23:10:18 greg Exp $";
+static const char RCSid[] = "$Id: cmatrix.c,v 2.28 2020/03/30 20:41:47 greg Exp $";
 #endif
 /*
  * Color matrix routines.
@@ -21,7 +21,7 @@ const char	*cm_fmt_id[] = {
 		};
 
 const int	cm_elem_size[] = {
-			0, 0, 4, 4, 3*sizeof(float), 3*sizeof(double)
+			0, 4, 4, 3*sizeof(float), 0, 3*sizeof(double)
 		};
 
 /* Allocate a color coefficient matrix */
@@ -83,6 +83,7 @@ typedef struct {
 	int	dtype;		/* data type */
 	int	need2swap;	/* need byte swap? */
 	int	nrows, ncols;	/* matrix size */
+	COLOR	expos;		/* exposure value */
 	char	*err;		/* error message */
 } CMINFO;		/* header info record */
 
@@ -109,6 +110,17 @@ get_cminfo(char *s, void *p)
 		ip->need2swap = (nativebigendian() != i);
 		return(0);
 	}
+	if (isexpos(s)) {
+		double	d = exposval(s);
+		scalecolor(ip->expos, d);
+		return(0);
+	}
+	if (iscolcor(s)) {
+		COLOR	ctmp;
+		colcorval(ctmp, s);
+		multcolor(ip->expos, ctmp);
+		return(0);
+	}
 	if (!formatval(fmt, s))
 		return(0);
 	for (i = 1; i < DTend; i++)
@@ -119,12 +131,13 @@ get_cminfo(char *s, void *p)
 
 /* Load header to obtain/check data type and number of columns */
 char *
-cm_getheader(int *dt, int *nr, int *nc, int *swp, FILE *fp)
+cm_getheader(int *dt, int *nr, int *nc, int *swp, COLOR scale, FILE *fp)
 {
 	CMINFO	cmi;
 						/* read header */
 	cmi.dtype = DTfromHeader;
 	cmi.need2swap = 0;
+	cmi.expos[0] = cmi.expos[1] = cmi.expos[2] = 1.f;
 	cmi.nrows = cmi.ncols = 0;
 	cmi.err = "unexpected EOF in header";
 	if (getheader(fp, get_cminfo, &cmi) < 0)
@@ -152,23 +165,28 @@ cm_getheader(int *dt, int *nr, int *nc, int *swp, FILE *fp)
 	}
 	if (swp)				/* get/check swap? */
 		*swp = cmi.need2swap;
+	if (scale) {				/* transfer exposure comp. */
+		scale[0] = 1.f/cmi.expos[0];
+		scale[1] = 1.f/cmi.expos[1];
+		scale[2] = 1.f/cmi.expos[2];
+	}
 	return(NULL);
 }
 
 /* Allocate and load image data into matrix */
 static CMATRIX *
-cm_load_rgbe(FILE *fp, int nrows, int ncols)
+cm_load_rgbe(FILE *fp, int nrows, int ncols, COLOR scale)
 {
+	int	doscale;
 	CMATRIX	*cm;
 	COLORV	*mp;
 						/* header already loaded */
-	if ((nrows <= 0) | (ncols <= 0) && !fscnresolu(&ncols, &nrows, fp)) {
-		error(USER, "bad picture resolution string");
-		return(NULL);
-	}
 	cm = cm_alloc(nrows, ncols);
 	if (!cm)
 		return(NULL);
+	doscale = (scale[0] < .99) | (scale[0] > 1.01) |
+			(scale[1] < .99) | (scale[1] > 1.01) |
+			(scale[2] < .99) | (scale[2] > 1.01) ;
 	mp = cm->cmem;
 	while (nrows--) {
 		if (freadscan((COLOR *)mp, ncols, fp) < 0) {
@@ -176,7 +194,15 @@ cm_load_rgbe(FILE *fp, int nrows, int ncols)
 			cm_free(cm);
 			return(NULL);
 		}
-		mp += 3*ncols;
+		if (doscale) {
+			int	i = ncols;
+			while (i--) {
+				*mp++ *= scale[0];
+				*mp++ *= scale[1];
+				*mp++ *= scale[2];
+			}
+		} else
+			mp += 3*ncols;
 	}					/* caller closes stream */
 	return(cm);
 }
@@ -188,6 +214,7 @@ cm_load(const char *inspec, int nrows, int ncols, int dtype)
 	const int	ROWINC = 2048;
 	FILE		*fp = stdin;
 	int		swap = 0;
+	COLOR		scale;
 	CMATRIX		*cm;
 
 	if (!inspec)
@@ -208,12 +235,12 @@ cm_load(const char *inspec, int nrows, int ncols, int dtype)
 	if (dtype != DTascii)
 		SET_FILE_BINARY(fp);		/* doesn't really work */
 	if (!dtype | !ncols) {			/* expecting header? */
-		char	*err = cm_getheader(&dtype, &nrows, &ncols, &swap, fp);
+		char	*err = cm_getheader(&dtype, &nrows, &ncols, &swap, scale, fp);
 		if (err)
 			error(USER, err);
-		if (ncols <= 0)
-			error(USER, "unspecified number of columns");
 	}
+	if (ncols <= 0 && !fscnresolu(&ncols, &nrows, fp))
+		error(USER, "unspecified number of columns");
 	switch (dtype) {
 	case DTascii:
 	case DTfloat:
@@ -221,27 +248,26 @@ cm_load(const char *inspec, int nrows, int ncols, int dtype)
 		break;
 	case DTrgbe:
 	case DTxyze:
-		cm = cm_load_rgbe(fp, nrows, ncols);
+		cm = cm_load_rgbe(fp, nrows, ncols, scale);
 		goto cleanup;
 	default:
 		error(USER, "unexpected data type in cm_load()");
 	}
 	if (nrows <= 0) {			/* don't know length? */
 		int	guessrows = 147;	/* usually big enough */
-		if ((dtype != DTascii) & (fp != stdin) & (inspec[0] != '!')) {
+		if (cm_elem_size[dtype] && (fp != stdin) & (inspec[0] != '!')) {
 			long	startpos = ftell(fp);
 			if (fseek(fp, 0L, SEEK_END) == 0) {
+				long	rowsiz = (long)ncols*cm_elem_size[dtype];
 				long	endpos = ftell(fp);
-				long	elemsiz = 3*(dtype==DTfloat ?
-					    sizeof(float) : sizeof(double));
 
-				if ((endpos - startpos) % (ncols*elemsiz)) {
+				if ((endpos - startpos) % rowsiz) {
 					sprintf(errmsg,
 					"improper length for binary file '%s'",
 							inspec);
 					error(USER, errmsg);
 				}
-				guessrows = (endpos - startpos)/(ncols*elemsiz);
+				guessrows = (endpos - startpos)/rowsiz;
 				if (fseek(fp, startpos, SEEK_SET) < 0) {
 					sprintf(errmsg,
 						"fseek() error on file '%s'",
@@ -302,6 +328,14 @@ cm_load(const char *inspec, int nrows, int ncols, int dtype)
 					goto EOFerror;
 			} while (nread < cm->nrows*cm->ncols);
 
+			if (swap) {
+				if (sizeof(COLORV) == 4)
+					swap32((char *)cm->cmem,
+							3*cm->nrows*cm->ncols);
+				else /* sizeof(COLORV) == 8 */
+					swap64((char *)cm->cmem,
+							3*cm->nrows*cm->ncols);
+			}
 		} else if (dtype == DTdouble) {
 			double	dc[3];			/* load from double */
 			COLORV	*cvp = cm->cmem;
@@ -312,6 +346,7 @@ cm_load(const char *inspec, int nrows, int ncols, int dtype)
 			while (n--) {
 				if (getbinary(dc, sizeof(double), 3, fp) != 3)
 					goto EOFerror;
+				if (swap) swap64((char *)dc, 3);
 				copycolor(cvp, dc);
 				cvp += 3;
 			}
@@ -325,6 +360,7 @@ cm_load(const char *inspec, int nrows, int ncols, int dtype)
 			while (n--) {
 				if (getbinary(fc, sizeof(float), 3, fp) != 3)
 					goto EOFerror;
+				if (swap) swap32((char *)fc, 3);
 				copycolor(cvp, fc);
 				cvp += 3;
 			}
@@ -335,12 +371,6 @@ cm_load(const char *inspec, int nrows, int ncols, int dtype)
 						inspec);
 				error(WARNING, errmsg);
 		}
-	}
-	if (swap) {
-		if (dtype == DTfloat)
-			swap32((char *)cm->cmem, 3*cm->nrows*cm->ncols);
-		else if (dtype == DTdouble)
-			swap64((char *)cm->cmem, 3*cm->nrows*cm->ncols);
 	}
 cleanup:
 	if (fp != stdin) {

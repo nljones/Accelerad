@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: pvalue.c,v 2.37 2019/08/14 18:20:02 greg Exp $";
+static const char RCSid[] = "$Id: pvalue.c,v 2.39 2020/03/30 19:02:26 greg Exp $";
 #endif
 /*
  *  pvalue.c - program to print pixel values.
@@ -173,7 +173,7 @@ main(
 				}
 				break;
 			case 'd':		/* data only (no indices) */
-				dataonly = argv[i][0] == '-';
+				dataonly = (argv[i][0] == '-');
 				switch (argv[i][2]) {
 				case '\0':
 				case 'a':		/* ascii */
@@ -312,9 +312,10 @@ unkopt:
 		SET_FILE_BINARY(stdout);
 					/* get header */
 		if (header) {
-			if (checkheader(fin, fmtid, stdout) < 0) {
-				fprintf(stderr, "%s: wrong input format\n",
-						progname);
+			getheader(fin, checkhead, stdout);
+			if (wrongformat) {
+				fprintf(stderr, "%s: wrong input format (expected %s)\n",
+						progname, fmtid);
 				quit(1);
 			}
 			if (fin2 != NULL) {
@@ -361,7 +362,7 @@ unkopt:
 		if ((format != 'a') & (format != 'i'))
 			SET_FILE_BINARY(stdout);
 						/* get header */
-		getheader(fin, checkhead, NULL);
+		getheader(fin, checkhead, header ? stdout : (FILE *)NULL);
 		if (wrongformat) {
 			fprintf(stderr,
 				"%s: input not a Radiance RGBE picture\n",
@@ -374,6 +375,10 @@ unkopt:
 		}
 		if (header) {
 			printargs(i, argv, stdout);
+			printf("NCOMP=%d\n", putprim==ALL ? 3 : 1);
+			if (!resolution && dataonly && !uniq)
+				printf("NCOLS=%d\nNROWS=%d\n", scanlen(&picres),
+						numscans(&picres));
 			if (expval < .99 || expval > 1.01)
 				fputexpos(expval, stdout);
 			if (swapbytes) {
@@ -402,32 +407,44 @@ checkhead(				/* deal with line from header */
 	void	*p
 )
 {
+	FILE	*fout = (FILE *)p;
 	char	fmt[MAXFMTLEN];
 	double	d;
 	COLOR	ctmp;
 	int	rv;
 
 	if (formatval(fmt, line)) {
-		if (!strcmp(fmt, CIEFMT))
+		if (reverse)
+			wrongformat = strcmp(fmt, fmtid);
+		else if (!strcmp(fmt, CIEFMT))
 			mybright = &xyz_bright;
 		else if (!strcmp(fmt, COLRFMT))
 			mybright = &rgb_bright;
 		else
 			wrongformat++;
-	} else if (original && isexpos(line)) {
+		return(1);
+	}
+	if (original && isexpos(line)) {
 		d = 1.0/exposval(line);
 		scalecolor(exposure, d);
 		doexposure++;
-	} else if (original && iscolcor(line)) {
+		return(1);
+	}
+	if (original && iscolcor(line)) {
 		colcorval(ctmp, line);
 		setcolor(exposure, colval(exposure,RED)/colval(ctmp,RED),
 				colval(exposure,GRN)/colval(ctmp,GRN),
 				colval(exposure,BLU)/colval(ctmp,BLU));
 		doexposure++;
-	} else if (reverse && (rv = isbigendian(line)) >= 0) {
-		swapbytes = (nativebigendian() != rv);
-	} else if (header)
-		fputs(line, stdout);
+		return(1);
+	}
+	if ((rv = isbigendian(line)) >= 0) {
+		if (reverse)
+			swapbytes = (nativebigendian() != rv);
+		return(1);
+	}
+	if (fout != NULL)
+		fputs(line, fout);
 	return(0);
 }
 
