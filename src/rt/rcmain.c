@@ -16,14 +16,6 @@ static const char	RCSid[] = "$Id: rcmain.c,v 2.18 2018/01/18 19:43:43 greg Exp $
 #include "pmapray.h"
 #include "pmapcontrib.h"
 
-#ifdef ACCELERAD
-#include <ctype.h> // for tolower()
-
-extern void printRayTracingTime(const clock_t clock);
-
-extern char *calfilename;			/* name of the most recently read cal file */
-#endif
-
 int	gargc;				/* global argc */
 char	**gargv;			/* global argv */
 char	*octname;			/* global octree name */
@@ -165,32 +157,6 @@ override_options(void)
 }
 
 
-#ifdef ACCELERAD /* copied from fixarg0.c to work for Windows and Linux */
-char *file_name(char *av0)		/* extract command name from full path */
-{
-	char  *cp = av0, *end;
-
-	while (*cp) cp++;		/* start from end */
-	end = cp;
-	while (cp-- > av0)
-		switch (*cp) {		/* fix up command name */
-		case '.':			/* remove extension */
-			*cp = '\0';
-			end = cp;
-			continue;
-		case '\\': case '/':			/* remove directory */
-			/* make sure the original pointer remains the same */
-			memmove(av0, cp + 1, end - cp);
-			return(av0);
-		default:			/* convert to lower case */
-			*cp = tolower(*cp);
-			continue;
-	}
-	return(av0);
-}
-#endif /* ACCELERAD */
-
-
 int
 main(int argc, char *argv[])
 {
@@ -210,9 +176,6 @@ main(int argc, char *argv[])
 	int	bincnt = 0;
 	int	rval;
 	int	i;
-#ifdef ACCELERAD
-	clock_t rcontrib_clock; // Timer in clock cycles for short jobs
-#endif
 					/* global program name */
 	progname = argv[0] = fixargv0(argv[0]);
 	gargv = argv;
@@ -289,10 +252,6 @@ main(int argc, char *argv[])
 			if (!argv[i][2]) {
 				check(2,"s");
 				loadfunc(argv[++i]);
-#ifdef ACCELERAD
-				getscanpos(&calfilename, NULL, NULL, NULL); /* file name */
-				calfilename = file_name(savestr(calfilename));
-#endif
 				break;
 			}
 			if (argv[i][2] == 'o') {
@@ -336,19 +295,6 @@ main(int argc, char *argv[])
 			check(2,"s");
 			addmodfile(argv[++i], curout, prms, binval, bincnt);
 			break;
-#ifdef ACCELERAD
-		case 't':				/* timer */
-			check(2, "f");
-			error(WARNING, "GPU callback time (-t) is depricated.");
-			++i;
-			break;
-#endif
-#ifdef ACCELERAD_DEBUG
-		case 'q':				/* input file */
-			check(2, "s");
-			freopen(argv[++i], "r", stdin);
-			break;
-#endif
 		default:
 			goto badopt;
 		}
@@ -402,9 +348,6 @@ main(int argc, char *argv[])
 	/* PMAP: set up & load photon maps */
 	ray_init_pmap();     
 	
-#ifdef ACCELERAD
-	if (!use_optix) /* Don't shoot rays here, since the OptiX program should handle this. */
-#endif
 	marksources();			/* find and mark sources */
 	
 	/* PMAP: init photon map for light source contributions */
@@ -412,13 +355,7 @@ main(int argc, char *argv[])
 
 	setambient();			/* initialize ambient calculation */
 	
-#ifdef ACCELERAD
-	rcontrib_clock = clock();
-#endif
 	rcontrib();			/* trace ray contributions (loop) */
-#ifdef ACCELERAD
-	printRayTracingTime(clock() - rcontrib_clock);
-#endif
 
 	ambsync();			/* flush ambient file */
 

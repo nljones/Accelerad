@@ -187,9 +187,6 @@ ray_init(			/* initialize ray-tracing calculation */
 					/* PMAP: Init & load photon maps */
 	ray_init_pmap();
 					/* find and mark sources */
-#ifdef ACCELERAD
-	if (!use_optix) /* Don't shoot rays here, since the OptiX program should handle this. */
-#endif
 	marksources();
 					/* initialize ambient calculation */
 	setambient();

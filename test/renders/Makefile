@@ -1,10 +1,14 @@
-# RCSid $Id: Makefile,v 1.20 2019/02/13 17:24:06 greg Exp $
+# RCSid $Id: Makefile,v 1.27 2020/07/30 02:19:27 greg Exp $
 #
 # Render and primitive type testing
 #
 
 # Number of processes to use on tests that run multi-core
-NPROC = 2
+ifeq ($(OS),Windows_NT)  # is Windows
+	NPROC := 1
+else
+	NPROC := 2
+endif
 
 # Image reduction for comparisons
 RDU_PFILT = pfilt -1 -r 1 -x 128 -y 128 -pa 1
@@ -21,7 +25,7 @@ test-dielectric-fish test-glass-def test-glass-fish test-glass-up \
 test-tfunc-def test-tfunc-fish test-inst-def test-inst-fish \
 test-mesh-def test-mesh-cyl test-mirror-fish test-mist-def \
 test-trans-def test-trans-fish test-patterns-def test-patterns-plan \
-test-rtrace
+test-rtrace test-obj2mesh
 
 clean:
 	rm -f *.oct *.amb *_ill.dat blinds_ill?.dat *_*.hdr *.unf \
@@ -36,21 +40,24 @@ test-rpiece test-mkpmap:	test-mixtex-def
 ### Special test of xform ###
 
 test-xform:	combined.rad
-	radcompare -max 0.04 ref/combined.rad combined.rad
+	radcompare "-c#" -max 0.04 ref/combined.rad combined.rad
 
 combined.rad:	combined_scene.rad
-	xform -f combined_scene.rad | grep -v '^[ 	]*#' > combined.rad
+	xform -f combined_scene.rad > combined.rad
 
 ### Special test of rad ###
 
-test-rad:	inst.rif
+test-rad:	inst.oct
 	rad -n -s -e inst.rif > inst_rad.txt
 	radcompare ref/inst_rad.txt inst_rad.txt
 
-### Special test of oconv ###
+### Special tests of oconv and obj2mesh ###
 
 test-oconv:	inst.oct
 	radcompare ref/inst.oct inst.oct
+
+test-obj2mesh:	cab.obj
+	obj2mesh -w cab.obj | radcompare ref/cab.rtm -
 
 ### Special test of rtrace ###
 
@@ -67,7 +74,7 @@ rtmirror_fish.hdr:	mirror.oct
 ### Special test for rfluxmtx (and rcontrib) ###
 
 test-rfluxmtx:	ref/rfmirror.mtx rfmirror.mtx
-	radcompare -max .4 -rms .05 ref/rfmirror.mtx rfmirror.mtx
+	radcompare -max .4 -rms .05 -rel 1e-4 ref/rfmirror.mtx rfmirror.mtx
 
 rfmirror.mtx:	mirror.rad dummysky.rad basic.mat diorama_walls.rad \
 closed_end.rad front_cap.rad glass_pane.rad antimatter_portal.rad
@@ -308,7 +315,7 @@ prism2_fish.hdr:	prism2.oct
 
 ### Octree for   tfunc ###
 
-tfunc.oct:	tfunc.rif
+tfunc1.oct:	tfunc.rif
 	rad -v 0   tfunc.rif
 
 ### Reference and test for   tfunc view   def ###
@@ -320,7 +327,7 @@ ref/tfunc_def.hdr:
 	make   tfunc_def.hdr
 	$(RDU_PFILT)   tfunc_def.hdr > ref/tfunc_def.hdr
 
-tfunc_def.hdr:	tfunc.oct
+tfunc_def.hdr:	tfunc1.oct
 	rad -v   def   tfunc.rif
 
 ### End   tfunc-def   tests
@@ -334,7 +341,7 @@ ref/tfunc_fish.hdr:
 	make   tfunc_fish.hdr
 	$(RDU_PFILT)   tfunc_fish.hdr > ref/tfunc_fish.hdr
 
-tfunc_fish.hdr:	tfunc.oct
+tfunc_fish.hdr:	tfunc1.oct
 	rad -v  fish   tfunc.rif
 
 ### End   tfunc-fish  tests
@@ -374,7 +381,7 @@ trans_fish.hdr:	trans.oct
 
 ### Octree for  trans2 ###
 
-trans2.oct:	trans2.rif
+trans21.oct:	trans2.rif
 	rad -v 0  trans2.rif
 
 ### Reference and test for  trans2 view   def ###
@@ -386,7 +393,7 @@ ref/trans2_def.hdr:
 	make  trans2_def.hdr
 	$(RDU_PFILT)  trans2_def.hdr > ref/trans2_def.hdr
 
-trans2_def.hdr:	trans2.oct
+trans2_def.hdr:	trans21.oct
 	rad -v   def  trans2.rif
 
 ### End  trans2-def   tests
@@ -400,7 +407,7 @@ ref/trans2_fish.hdr:
 	make  trans2_fish.hdr
 	$(RDU_PFILT)  trans2_fish.hdr > ref/trans2_fish.hdr
 
-trans2_fish.hdr:	trans2.oct
+trans2_fish.hdr:	trans21.oct
 	rad -v  fish  trans2.rif
 
 ### End  trans2-fish  tests
@@ -414,7 +421,7 @@ ref/trans2_win.hdr:
 	make  trans2_win.hdr
 	$(RDU_PFILT)  trans2_win.hdr > ref/trans2_win.hdr
 
-trans2_win.hdr:	trans2.oct
+trans2_win.hdr:	trans21.oct
 	rad -v   win  trans2.rif
 
 ### End  trans2-win   tests

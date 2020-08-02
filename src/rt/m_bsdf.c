@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: m_bsdf.c,v 2.57 2019/06/10 13:56:52 greg Exp $";
+static const char RCSid[] = "$Id: m_bsdf.c,v 2.61 2020/07/09 17:32:31 greg Exp $";
 #endif
 /*
  *  Shading for materials with BSDFs taken from XML data files
@@ -87,6 +87,7 @@ typedef struct {
 	RREAL	fromloc[3][3];	/* local BSDF coords to world */
 	double	thick;		/* surface thickness */
 	COLOR	cthru;		/* "through" component for MAT_ABSDF */
+	COLOR	cthru_surr;	/* surround for "through" component */
 	SDData	*sd;		/* loaded BSDF data */
 	COLOR	rdiff;		/* diffuse reflection */
 	COLOR	runsamp;	/* BSDF hemispherical reflection */
@@ -96,32 +97,48 @@ typedef struct {
 
 #define	cvt_sdcolor(cv, svp)	ccy2rgb(&(svp)->spec, (svp)->cieY, cv)
 
+typedef struct {
+	double	vy;		/* brightness (for sorting) */
+	FVECT	tdir;		/* through sample direction (normalized) */
+	COLOR	vcol;		/* BTDF color */
+}  PEAKSAMP;		/* BTDF peak sample */
+
+/* Comparison function to put near-peak values in descending order */
+static int
+cmp_psamp(const void *p1, const void *p2)
+{
+	double	diff = (*(const PEAKSAMP *)p1).vy - (*(const PEAKSAMP *)p2).vy;
+	if (diff > 0) return(-1);
+	if (diff < 0) return(1);
+	return(0);
+}
+
 /* Compute "through" component color for MAT_ABSDF */
 static void
 compute_through(BSDFDAT *ndp)
 {
-#define NDIR2CHECK	13
+#define NDIR2CHECK	29
 	static const float	dir2check[NDIR2CHECK][2] = {
-					{0, 0},
-					{-0.8, 0},
-					{0, 0.8},
-					{0, -0.8},
-					{0.8, 0},
-					{-0.8, 0.8},
-					{-0.8, -0.8},
-					{0.8, 0.8},
-					{0.8, -0.8},
-					{-1.6, 0},
-					{0, 1.6},
-					{0, -1.6},
-					{1.6, 0},
+					{0, 0}, {-0.6, 0}, {0, 0.6},
+					{0, -0.6}, {0.6, 0}, {-0.6, 0.6},
+					{-0.6, -0.6}, {0.6, 0.6}, {0.6, -0.6},
+					{-1.2, 0}, {0, 1.2}, {0, -1.2},
+					{1.2, 0}, {-1.2, 1.2}, {-1.2, -1.2},
+					{1.2, 1.2}, {1.2, -1.2}, {-1.8, 0},
+					{0, 1.8}, {0, -1.8}, {1.8, 0},
+					{-1.8, 1.8}, {-1.8, -1.8}, {1.8, 1.8},
+					{1.8, -1.8}, {-2.4, 0}, {0, 2.4},
+					{0, -2.4}, {2.4, 0},
 				};
-	const double	peak_over = 1.3 + .4*frandom();	/* jitter threshold */
+	const double	peak_over = 1.5;
+	PEAKSAMP	psamp[NDIR2CHECK];
 	SDSpectralDF	*dfp;
 	FVECT		pdir;
 	double		tomega, srchrad;
-	COLOR		vpeak, vsum;
-	int		i;
+	double		tomsum, tomsurr;
+	COLOR		vpeak, vsurr;
+	double		vypeak;
+	int		i, ns;
 	SDError		ec;
 
 	if (ndp->pr->rod > 0)
@@ -133,44 +150,60 @@ compute_through(BSDFDAT *ndp)
 		return;				/* no specular transmission */
 	if (bright(ndp->pr->pcol) <= FTINY)
 		return;				/* pattern is black, here */
-	srchrad = sqrt(dfp->minProjSA);		/* else search for peak */
-	setcolor(vpeak, 0, 0, 0);
-	setcolor(vsum, 0, 0, 0);
-	pdir[2] = 0.0;
+	srchrad = sqrt(dfp->minProjSA);		/* else evaluate peak */
 	for (i = 0; i < NDIR2CHECK; i++) {
-		FVECT	tdir;
 		SDValue	sv;
-		COLOR	vcol;
-		tdir[0] = -ndp->vray[0] + dir2check[i][0]*srchrad;
-		tdir[1] = -ndp->vray[1] + dir2check[i][1]*srchrad;
-		tdir[2] = -ndp->vray[2];
-		normalize(tdir);
-		ec = SDevalBSDF(&sv, tdir, ndp->vray, ndp->sd);
+		psamp[i].tdir[0] = -ndp->vray[0] + dir2check[i][0]*srchrad;
+		psamp[i].tdir[1] = -ndp->vray[1] + dir2check[i][1]*srchrad;
+		psamp[i].tdir[2] = -ndp->vray[2];
+		normalize(psamp[i].tdir);
+		ec = SDevalBSDF(&sv, psamp[i].tdir, ndp->vray, ndp->sd);
 		if (ec)
 			goto baderror;
-		cvt_sdcolor(vcol, &sv);
-		addcolor(vsum, vcol);
-		if (sv.cieY > bright(vpeak)) {
-			copycolor(vpeak, vcol);
-			VCOPY(pdir, tdir);
-		}
+		cvt_sdcolor(psamp[i].vcol, &sv);
+		psamp[i].vy = sv.cieY;
 	}
-	if (pdir[2] == 0.0)
-		return;				/* zero neighborhood */
-	ec = SDsizeBSDF(&tomega, pdir, ndp->vray, SDqueryMin, ndp->sd);
-	if (ec)
-		goto baderror;
-	if (tomega > 1.5*dfp->minProjSA)
-		return;				/* not really a peak? */
-	if ((bright(vpeak) - ndp->sd->tLamb.cieY*(1./PI))*tomega <= .001)
+	qsort(psamp, NDIR2CHECK, sizeof(PEAKSAMP), cmp_psamp);
+	if (psamp[0].vy <= FTINY)
+		return;				/* zero area */
+	setcolor(vpeak, 0, 0, 0);
+	setcolor(vsurr, 0, 0, 0);
+	vypeak = tomsum = tomsurr = 0;		/* combine top unique values */
+	ns = 0;
+	for (i = 0; i < NDIR2CHECK; i++) {
+		if (i && psamp[i].vy == psamp[i-1].vy)
+			continue;		/* assume duplicate sample */
+
+		ec = SDsizeBSDF(&tomega, psamp[i].tdir, ndp->vray,
+						SDqueryMin, ndp->sd);
+		if (ec)
+			goto baderror;
+						/* not really a peak? */
+		if (tomega > 1.5*dfp->minProjSA ||
+					vypeak > 8.*psamp[i].vy*ns) {
+			if (!i) return;		/* abort */
+			scalecolor(psamp[i].vcol, tomega);
+			addcolor(vsurr, psamp[i].vcol);
+			tomsurr += tomega;
+			continue;
+		}
+		scalecolor(psamp[i].vcol, tomega);
+		addcolor(vpeak, psamp[i].vcol);
+		tomsum += tomega;
+		vypeak += psamp[i].vy;
+		++ns;
+	}
+	if (vypeak*tomsurr < peak_over*bright(vsurr)*ns)
+		return;				/* peak not peaky enough */
+	if ((vypeak/ns - ndp->sd->tLamb.cieY*(1./PI))*tomsum <= .001)
 		return;				/* < 0.1% transmission */
-	for (i = 3; i--; )			/* remove peak from average */
-		colval(vsum,i) -= colval(vpeak,i);
-	if (peak_over*bright(vsum) >= (NDIR2CHECK-1)*bright(vpeak))
-		return;				/* not peaky enough */
-	copycolor(ndp->cthru, vpeak);		/* else use it */
-	scalecolor(ndp->cthru, tomega);
+	copycolor(ndp->cthru, vpeak);		/* already scaled by omega */
 	multcolor(ndp->cthru, ndp->pr->pcol);	/* modify by pattern */
+	if (tomsurr > FTINY) {			/* surround contribution? */
+		scalecolor(vsurr, 1./tomsurr);	/* this one is avg. BTDF */
+		copycolor(ndp->cthru_surr, vsurr);
+		multcolor(ndp->cthru_surr, ndp->pr->pcol);
+	}
 	return;
 baderror:
 	objerror(ndp->mp, USER, transSDError(ec));
@@ -246,8 +279,12 @@ direct_specular_OK(COLOR cval, FVECT ldir, double omega, BSDFDAT *ndp)
 			((ndp->sd->tb != NULL) ? ndp->sd->tb : ndp->sd->tf) ;
 
 		if (dx*dx + dy*dy <= (2.5*4./PI)*(omega + dfp->minProjSA +
-						2.*sqrt(omega*dfp->minProjSA)))
-			return(0);
+						2.*sqrt(omega*dfp->minProjSA))) {
+			if (bright(ndp->cthru_surr) <= FTINY)
+				return(0);
+			copycolor(cval, ndp->cthru_surr);
+			return(1);	/* return non-zero surround BTDF */
+		}
 	}
 	ec = SDsizeBSDF(&tomega, ndp->vray, vsrc, SDqueryMin, ndp->sd);
 	if (ec)
@@ -285,12 +322,13 @@ direct_specular_OK(COLOR cval, FVECT ldir, double omega, BSDFDAT *ndp)
 		if (tomega2 < .12*tomega)
 			continue;	/* not safe to include */
 		cvt_sdcolor(csmp, &sv);
-
-		if (sf < 2.5*tsr) {	/* weight by Y for small sources */
+#if 0
+		if (sf < 2.5*tsr) {	/* weight by BSDF for small sources */
 			scalecolor(csmp, sv.cieY);
 			wtot += sv.cieY;
 		} else
-			wtot += 1.;
+#endif
+		wtot += 1.;
 		addcolor(cval, csmp);
 	}
 	if (wtot <= FTINY)		/* no valid specular samples? */
@@ -600,9 +638,6 @@ m_bsdf(OBJREC *m, RAY *r)
 	FVECT	upvec, vtmp;
 	MFUNC	*mf;
 	BSDFDAT	nd;
-#ifdef DAYSIM
-	DaysimCoef daylightCoef;
-#endif
 						/* check arguments */
 	if ((m->oargs.nsargs < hasthick+5) | (m->oargs.nfargs > 9) |
 				(m->oargs.nfargs % 3))
@@ -701,6 +736,7 @@ m_bsdf(OBJREC *m, RAY *r)
 		return(1);
 	}
 	setcolor(nd.cthru, 0, 0, 0);		/* consider through component */
+	setcolor(nd.cthru_surr, 0, 0, 0);
 	if (m->otype == MAT_ABSDF) {
 		compute_through(&nd);
 		if (r->crtype & SHADOW) {
@@ -739,13 +775,7 @@ m_bsdf(OBJREC *m, RAY *r)
 	if (bright(ctmp) > FTINY) {		/* ambient from reflection */
 		if (!hitfront)
 			flipsurface(r);
-#ifndef DAYSIM
 		multambient(ctmp, r, nd.pnorm);
-#else
-		daysimSet(daylightCoef, colval(ctmp, RED));
-		multambient(ctmp, r, nd.pnorm, daylightCoef);
-		daysimAdd(r->daylightCoef, daylightCoef);
-#endif
 		addcolor(r->rcol, ctmp);
 		if (!hitfront)
 			flipsurface(r);
@@ -762,23 +792,10 @@ m_bsdf(OBJREC *m, RAY *r)
 		if (nd.thick != 0) {		/* proxy with offset? */
 			VCOPY(vtmp, r->rop);
 			VSUM(r->rop, vtmp, r->ron, nd.thick);
-#ifndef DAYSIM
 			multambient(ctmp, r, bnorm);
-#else
-			daysimSet(daylightCoef, colval(ctmp, RED));
-			multambient(ctmp, r, bnorm, daylightCoef);
-			daysimAdd(r->daylightCoef, daylightCoef);
-#endif
 			VCOPY(r->rop, vtmp);
-		} else {
-#ifndef DAYSIM
+		} else
 			multambient(ctmp, r, bnorm);
-#else
-			daysimSet(daylightCoef, colval(ctmp, RED));
-			multambient(ctmp, r, bnorm, daylightCoef);
-			daysimAdd(r->daylightCoef, daylightCoef);
-#endif
-		}
 		addcolor(r->rcol, ctmp);
 		if (hitfront)
 			flipsurface(r);

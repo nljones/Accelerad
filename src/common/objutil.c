@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: objutil.c,v 2.1 2020/03/30 18:28:35 greg Exp $";
+static const char RCSid[] = "$Id: objutil.c,v 2.9 2020/06/24 01:16:09 greg Exp $";
 #endif
 /*
  *  Basic .OBJ scene handling routines.
@@ -8,6 +8,7 @@ static const char RCSid[] = "$Id: objutil.c,v 2.1 2020/03/30 18:28:35 greg Exp $
  */
 
 #include <stdlib.h>
+#include <ctype.h>
 #include "rtio.h"
 #include "rtmath.h"
 #include "rterror.h"
@@ -18,7 +19,7 @@ static const char RCSid[] = "$Id: objutil.c,v 2.1 2020/03/30 18:28:35 greg Exp $
 int
 findName(const char *nm, const char **nmlist, int n)
 {
-	register int    i;
+	int    i;
 	
 	for (i = n; i-- > 0; )
 		if (!strcmp(nmlist[i], nm))
@@ -321,7 +322,7 @@ replace_vertex(Scene *sc, int prev, int repl, double eps)
 			goto linkerr;
 		/* XXX doesn't allow for multiple references to prev in face */
 		f->v[j].vid = repl;     /* replace vertex itself */
-		if (faceArea(sc, f, NULL) <= FTINY)
+		if (faceArea(sc, f, NULL) <= FTINY*FTINY)
 			f->flags |= FACE_DEGENERATE;
 		if (f->v[j].tid >= 0)   /* replace texture if appropriate */
 			for (i = 0; repl_tex[i] >= 0; i++) {
@@ -546,6 +547,19 @@ addComment(Scene *sc, const char *comment)
 	sc->descr[sc->ndescr++] = savqstr((char *)comment);
 }
 
+/* Find index for comment containing the given string (starting from n) */
+int
+findComment(Scene *sc, const char *match, int n)
+{
+	if (n >= sc->ndescr)
+		return(-1);
+	n *= (n > 0);
+	while (n < sc->ndescr)
+		if (strstr(sc->descr[n], match) != NULL)
+			return(n);
+	return(-1);
+}
+
 /* Clear comments */
 void
 clearComments(Scene *sc)
@@ -596,6 +610,102 @@ newScene(void)
 	sc->matname[sc->nmats++] = savqstr("DEFAULT_MATERIAL");
 
 	return(sc);
+}
+
+/* Add a vertex to a scene */
+int
+addVertex(Scene *sc, double x, double y, double z)
+{
+	sc->vert = chunk_alloc(Vertex, sc->vert, sc->nverts);
+	sc->vert[sc->nverts].p[0] = x;
+	sc->vert[sc->nverts].p[1] = y;
+	sc->vert[sc->nverts].p[2] = z;
+	sc->vert[sc->nverts].vflist = NULL;
+	return(sc->nverts++);
+}
+
+/* Add a texture coordinate to a scene */
+int
+addTexture(Scene *sc, double u, double v)
+{
+	sc->tex = chunk_alloc(TexCoord, sc->tex, sc->ntex);
+	sc->tex[sc->ntex].u = u;
+	sc->tex[sc->ntex].v = v;
+	return(sc->ntex++);
+}
+
+/* Add a surface normal to a scene */
+int
+addNormal(Scene *sc, double xn, double yn, double zn)
+{
+	FVECT   nrm;
+
+	nrm[0] = xn; nrm[1] = yn; nrm[2] = zn;
+	if (normalize(nrm) == .0)
+		return(-1);
+	sc->norm = chunk_alloc(Normal, sc->norm, sc->nnorms);
+	VCOPY(sc->norm[sc->nnorms], nrm);
+	return(sc->nnorms++);
+}
+
+/* Set current (last) group */
+void
+setGroup(Scene *sc, const char *nm)
+{
+	sc->lastgrp = findName(nm, (const char **)sc->grpname, sc->ngrps);
+	if (sc->lastgrp >= 0)
+		return;
+	sc->grpname = chunk_alloc(char *, sc->grpname, sc->ngrps);
+	sc->grpname[sc->lastgrp=sc->ngrps++] = savqstr((char *)nm);
+}
+
+/* Set current (last) material */
+void
+setMaterial(Scene *sc, const char *nm)
+{
+	sc->lastmat = findName(nm, (const char **)sc->matname, sc->nmats);
+	if (sc->lastmat >= 0)
+		return;
+	sc->matname = chunk_alloc(char *, sc->matname, sc->nmats);
+	sc->matname[sc->lastmat=sc->nmats++] = savqstr((char *)nm);
+}
+
+/* Add new face to a scene */
+Face *
+addFace(Scene *sc, VNDX vid[], int nv)
+{
+	Face    *f;
+	int     i;
+	
+	if (nv < 3)
+		return(NULL);
+	f = (Face *)emalloc(sizeof(Face)+sizeof(VertEnt)*(nv-3));
+	f->flags = 0;
+	f->nv = nv;
+	f->grp = sc->lastgrp;
+	f->mat = sc->lastmat;
+	for (i = 0; i < nv; i++) {		/* add each vertex */
+		int     j;
+		f->v[i].vid = vid[i][0];
+		f->v[i].tid = vid[i][1];
+		f->v[i].nid = vid[i][2];
+		f->v[i].fnext = NULL;
+		for (j = i; j-- > 0; )
+			if (f->v[j].vid == vid[i][0])
+				break;
+		if (j < 0) {			/* first occurrence? */
+			f->v[i].fnext = sc->vert[vid[i][0]].vflist;
+			sc->vert[vid[i][0]].vflist = f;
+		} else if (nv == 3)		/* degenerate triangle? */
+			f->flags |= FACE_DEGENERATE;
+	}
+	f->next = sc->flist;			/* push onto face list */
+	sc->flist = f;
+	sc->nfaces++;
+						/* check face area */
+	if (!(f->flags & FACE_DEGENERATE) && faceArea(sc, f, NULL) <= FTINY*FTINY)
+		f->flags |= FACE_DEGENERATE;
+	return(f);
 }
 
 /* Duplicate a scene */
@@ -662,6 +772,85 @@ dupScene(const Scene *osc)
 	}
 	return(sc);
 }
+
+#define MAXAC	100
+
+/* Transform entire scene */
+int
+xfScene(Scene *sc, int xac, char *xav[])
+{
+	char	comm[24+MAXAC*8];
+	char	*cp;
+	XF	myxf;
+	FVECT	vec;
+	int	i;
+
+	if ((sc == NULL) | (xac <= 0) | (xav == NULL))
+		return(0);
+					/* compute matrix */
+	if (xf(&myxf, xac, xav) < xac)
+		return(0);
+					/* transform vertices */
+	for (i = 0; i < sc->nverts; i++) {
+		VCOPY(vec, sc->vert[i].p);
+		multp3(vec, vec, myxf.xfm);
+		VCOPY(sc->vert[i].p, vec);
+	}
+					/* transform normals */
+	for (i = 0; i < sc->nnorms; i++) {
+		VCOPY(vec, sc->norm[i]);
+		multv3(vec, vec, myxf.xfm);
+		vec[0] /= myxf.sca; vec[1] /= myxf.sca; vec[2] /= myxf.sca;
+		VCOPY(sc->norm[i], vec);
+	}
+					/* add comment */
+	cp = strcpy(comm, "Transformed by:");
+	for (i = 0; i < xac; i++) {
+		while (*cp) cp++;
+		*cp++ = ' ';
+		strcpy(cp, xav[i]);
+	}
+	addComment(sc, comm);
+	return(xac);			/* all done */
+}
+
+/* Ditto, using transform string rather than pre-parsed words */
+int
+xfmScene(Scene *sc, const char *xfm)
+{
+	char	*xav[MAXAC+1];
+	int	xac, i;
+
+	if ((sc == NULL) | (xfm == NULL))
+		return(0);
+					/* skip spaces at beginning */
+	while (isspace(*xfm))
+		xfm++;
+	if (!*xfm)
+		return(0);
+					/* parse string into words */
+	xav[0] = strcpy((char *)malloc(strlen(xfm)+1), xfm);
+	xac = 1; i = 0;
+	for ( ; ; ) {
+		while (!isspace(xfm[++i]))
+			if (!xfm[i])
+				break;
+		while (isspace(xfm[i]))
+			xav[0][i++] = '\0';
+		if (!xfm[i])
+			break;
+		if (xac >= MAXAC-1) {
+			free(xav[0]);
+			return(0);
+		}
+		xav[xac++] = xav[0] + i;
+	}
+	xav[xac] = NULL;
+	i = xfScene(sc, xac, xav);
+	free(xav[0]);
+	return(i);
+}
+#undef MAXAC
 
 /* Free a scene */
 void

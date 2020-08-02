@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: radcompare.c,v 2.22 2019/08/24 02:22:02 greg Exp $";
+static const char RCSid[] = "$Id: radcompare.c,v 2.26 2020/07/27 16:49:56 greg Exp $";
 #endif
 /*
  * Compare Radiance files for significant differences
@@ -34,6 +34,8 @@ double	rms_lim = 0.01;		/* RMS difference limit */
 double	max_lim = 0.25;		/* difference limit if non-negative */
 
 int	lin1cnt=0, lin2cnt=0;	/* file line position */
+
+int	comment_c = '\0';	/* comment delimiter for text files */
 
 const char	nsuffix[10][3] = {		/* 1st, 2nd, 3rd, etc. */
 			"th","st","nd","rd","th","th","th","th","th","th"
@@ -111,7 +113,7 @@ usage()
 {
 	fputs("Usage: ", stderr);
 	fputs(progname, stderr);
-	fputs(" [-h][-s|-w|-v][-rel min_test][-rms epsilon][-max epsilon] reference test\n",
+	fputs(" [-h][-c#][-s|-w|-v][-rel min_test][-rms epsilon][-max epsilon] reference test\n",
 			stderr);
 	exit(2);
 }
@@ -148,6 +150,14 @@ read_line(LINEBUF *bp, FILE *fp)
 		bp->str = (char *)realloc(bp->str, bp->siz);
 		if (!bp->str)
 			goto memerr;
+	}
+	if (comment_c) {		/* elide comment? */
+		char	*cp = sskip2(bp->str,0);
+		if (*cp == comment_c) {
+			*cp++ = '\n';
+			*cp = '\0';
+			bp->len = cp - bp->str;
+		}
 	}
 	return(bp->len);
 memerr:
@@ -317,6 +327,7 @@ equiv_string(char *s1, char *s2)
 static int
 setheadvar(char *val, void *p)
 {
+	char	newval[128];
 	LUTAB	*htp = (LUTAB *)p;
 	LUENT	*tep;
 	char	*key;
@@ -359,8 +370,13 @@ setheadvar(char *val, void *p)
 		return(-1);	/* memory allocation error */
 	if (!tep->key)
 		tep->key = strcpy(malloc(kln+1), key);
-	if (tep->data)
+	if (tep->data) {	/* check for special cases */
+		if (!strcmp(key, "EXPOSURE")) {
+			sprintf(newval, "%f", atof(tep->data)*atof(val));
+			vln = strlen(val = newval);
+		}
 		free(tep->data);
+	}
 	tep->data = strcpy(malloc(vln+1), val);
 	return(1);
 }
@@ -469,7 +485,6 @@ identify_type(const char *name, FILE *fin, LUTAB *htp)
 	}
 	if (c)
 		return(TYP_BINARY);
-	SET_FILE_TEXT(fin);			/* originally set to binary */
 	return(TYP_TEXT);
 badeof:
 	if (report != REP_QUIET) {
@@ -552,8 +567,16 @@ compare_text()
 
 	if (report >= REP_VERBOSE) {
 		fputs(progname, stdout);
-		fputs(": comparing inputs as ASCII text\n", stdout);
+		fputs(": comparing inputs as ASCII text", stdout);
+		if (comment_c) {
+			fputs(", ignoring comments starting with '", stdout);
+			fputc(comment_c, stdout);
+			fputc('\'', stdout);
+		}
+		fputc('\n', stdout);
 	}
+	SET_FILE_TEXT(f1in);			/* originally set to binary */
+	SET_FILE_TEXT(f2in);
 	init_line(&l1buf); init_line(&l2buf);	/* compare a line at a time */
 	while (read_line(&l1buf, f1in)) {
 		lin1cnt++;
@@ -696,7 +719,7 @@ set_refdepth(DEPTHCODEC *dcp, LUTAB *htp)
 	static char	depthvar[] = DEPTHSTR;
 	const char	*drval;
 
-	depthvar[LDEPTHSTR] = '\0';
+	depthvar[LDEPTHSTR-1] = '\0';
 	drval = (const char *)lu_find(htp, depthvar)->data;
 	if (!drval)
 		return(0);
@@ -892,6 +915,9 @@ main(int argc, char *argv[])
 		switch (argv[a][1]) {
 		case 'h':			/* ignore header info. */
 			ign_header = !ign_header;
+			continue;
+		case 'c':			/* ignore comments */
+			comment_c = argv[a][2];
 			continue;
 		case 's':			/* silent operation */
 			report = REP_QUIET;

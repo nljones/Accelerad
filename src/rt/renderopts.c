@@ -13,39 +13,6 @@ static const char	RCSid[] = "$Id: renderopts.c,v 2.18 2016/03/21 19:06:08 greg E
 #include  "paths.h"
 #include  "pmapopt.h"
 
-#ifdef ACCELERAD
-unsigned int use_optix = 1u;			/* Flag to use OptiX for ray tracing (-g) */
-#ifdef RTX
-#ifdef ACCELERAD_DEBUG
-int optix_verbosity = 1;				/* Verbosity level for OptiX callbacks (-gv) */
-#else
-int optix_verbosity = 0;				/* Verbosity level for OptiX callbacks (-gv) */
-#endif
-#else
-int optix_stack_size = 4096;			/* Stack size for OptiX program in bytes (-g) */
-#endif
-
-/* For OptiX ambient sampling */
-int optix_amb_scale = 0;				/* Scale to use for ambient sample spacing, zero to use all pixels (-al) */
-int optix_amb_fill = -1;				/* Number of ambient divisions for final-pass fill (-ag) */
-int optix_amb_grid_size = 0;			/* Size of sphere grid to use for ambient seeding, zero for view-dependent seeding (-az) */
-int optix_amb_seeds_per_thread = 16;	/* Number of ambient seeds per OptiX thread (-ay) */
-
-/* For OptiX k-means ambient sampling */
-int cuda_kmeans_clusters = 4096;		/* Number of clusters of ambient for k-means (-ac) */
-int cuda_kmeans_iterations = 100;		/* Maximum number of k-means iterations (-an) */
-double cuda_kmeans_threshold = 0.05;	/* Fraction of seeds that must change cluster to continue k-means iteration (-at) */
-double cuda_kmeans_error = 1.0;			/* Weighting of position in k-means error (-ax) */
-
-#ifdef REMOTE_VCA
-/* For OptiX remote VCA access */
-int optix_remote_nodes = 0;				/* Number of VCA nodes to request */
-int optix_remote_config = 0;			/* Index of VCA configuration */
-char *optix_remote_url = NULL;			/* URL to VCA */
-char *optix_remote_user = NULL;			/* User name for VCA access */
-char *optix_remote_password = NULL;		/* User password for VCA access */
-#endif
-#endif
 
 int
 getrenderopt(		/* get next render option */
@@ -79,42 +46,6 @@ getrenderopt(		/* get next render option */
 			return(0);
 		}
 		break;
-#ifdef ACCELERAD
-	case 'g':				/* Use OptiX */
-#ifdef RTX
-		if (av[0][2] == 'v') {	/* OptiX verbosity */
-			check(3, "i");
-			optix_verbosity = atoi(av[1]);
-			return(1);
-		}
-		if (av[0][2] || badarg(ac - 1, av + 1, "i")) {
-			check_bool(2, use_optix);
-			return(0);
-		}
-		sprintf(errmsg, "stack size (-g) is depricated. Use -g- to disable GPU acceleration");
-		error(WARNING, errmsg);
-		use_optix = atoi(av[1]) > 0;
-#else
-		check(2,"i");
-		optix_stack_size = atoi(av[1]);
-		use_optix = optix_stack_size > 0;
-#endif
-		return(1);
-#ifdef REMOTE_VCA
-	case 'v':				/* Remote VCA */
-		if (av[0][2] == 'c' && av[0][3] == 'a' && av[0][4] == '\0') {
-			check(4, "sssii");
-			optix_remote_url = av[1];
-			optix_remote_user = av[2];
-			optix_remote_password = av[3];
-			optix_remote_nodes = atoi(av[4]);
-			optix_remote_config = atoi(av[5]);
-			av[3] = "*****"; // obscure password
-			return(5);
-		}
-		break;
-#endif
-#endif
 	case 'd':				/* direct */
 		switch (av[0][2]) {
 		case 't':				/* threshold */
@@ -152,9 +83,6 @@ getrenderopt(		/* get next render option */
 			check(3,"f");
 			specthresh = atof(av[1]);
 			return(1);
-#ifdef DAYSIM
-		case 'j':				/* old version for backward compatibility */
-#endif
 		case 's':				/* sampling */
 			check(3,"f");
 			specjitter = atof(av[1]);
@@ -208,44 +136,6 @@ getrenderopt(		/* get next render option */
 			check(3,"i");
 			ambounce = atoi(av[1]);
 			return(1);
-#ifdef ACCELERAD
-		case 'l':				/* Scale to use for ambient sample spacing */
-			check(3,"i");
-			optix_amb_scale = atoi(av[1]);
-			return(1);
-		case 'g':				/* Number of ambient divisions for final-pass fill */
-			check(3,"i");
-			optix_amb_fill = atoi(av[1]);
-			return(1);
-		case 'z':				/* Size of sphere grid to use for ambient seeding */
-			check(3,"i");
-			optix_amb_grid_size = atoi(av[1]);
-			return(1);
-		case 'y':				/* Number of ambient seeds per OptiX thread */
-			check(3,"i");
-			optix_amb_seeds_per_thread = atoi(av[1]);
-			return(1);
-		case 'c':				/* Number of k-means clusters for ambient calculation */
-			check(3,"i");
-			cuda_kmeans_clusters = atoi(av[1]);
-			if (cuda_kmeans_clusters < 1) {
-				sprintf(errmsg, "irradiance cache size (ac) must be positive (currently %i)", cuda_kmeans_clusters);
-				error(USER, errmsg);
-			}
-			return(1);
-		case 'n':				/* Maximum number of k-means iterations */
-			check(3,"i");
-			cuda_kmeans_iterations = atoi(av[1]);
-			return(1);
-		case 't':				/* Fraction of seeds that must change cluster to continue k-means iteration */
-			check(3,"f");
-			cuda_kmeans_threshold = atof(av[1]);
-			return(1);
-		case 'x':				/* Weighting of position in k-means error */
-			check(3,"f");
-			cuda_kmeans_error = atof(av[1]);
-			return(1);
-#endif
 		case 'i':				/* include */
 		case 'I':
 			check(3,"s");
@@ -333,14 +223,6 @@ getrenderopt(		/* get next render option */
 void
 print_rdefaults(void)		/* print default render values to stdout */
 {
-#ifdef ACCELERAD
-#ifdef RTX
-	printf(use_optix ? "-g+\t\t\t\t# GPU acceleration on\n" :
-			"-g-\t\t\t\t# GPU acceleration off\n");
-#else
-	printf("-g  %-9d\t\t\t# GPU stack size (bytes)\n", optix_stack_size);
-#endif
-#endif
 	printf(do_irrad ? "-i+\t\t\t\t# irradiance calculation on\n" :
 			"-i-\t\t\t\t# irradiance calculation off\n");
 	printf(rand_samp ? "-u+\t\t\t\t# uncorrelated Monte Carlo sampling\n" :
@@ -365,15 +247,6 @@ print_rdefaults(void)		/* print default render values to stdout */
 	printf("-ar %-9d\t\t\t# ambient resolution\n", ambres);
 	printf("-ad %-9d\t\t\t# ambient divisions\n", ambdiv);
 	printf("-as %-9d\t\t\t# ambient super-samples\n", ambssamp);
-#ifdef ACCELERAD
-	printf("-al %-9d\t\t\t# ambient sample spacing (GPU only)\n", optix_amb_scale);
-	printf("-ag %-9d\t\t\t# ambient infill divisions (GPU only)\n", optix_amb_fill);
-	printf("-az %-9d\t\t\t# ambient grid density (GPU only)\n", optix_amb_grid_size);
-	printf("-ac %-9d\t\t\t# ambient k-means clusters (GPU only)\n", cuda_kmeans_clusters);
-	printf("-an %-9d\t\t\t# ambient k-means iterations (GPU only)\n", cuda_kmeans_iterations);
-	printf("-at %f\t\t\t# ambient k-means threshold (GPU only)\n", cuda_kmeans_threshold);
-	printf("-ax %f\t\t\t# ambient k-means weighting factor (GPU only)\n", cuda_kmeans_error);
-#endif
 	printf("-me %.2e %.2e %.2e\t# mist extinction coefficient\n",
 			colval(cextinction,RED),
 			colval(cextinction,GRN),

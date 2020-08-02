@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id: rsplit.c,v 1.11 2019/11/07 23:13:12 greg Exp $";
+static const char	RCSid[] = "$Id: rsplit.c,v 1.15 2020/04/05 15:07:09 greg Exp $";
 #endif
 /*
  *  rsplit.c - split input into multiple output streams
@@ -22,8 +22,9 @@ static const char	RCSid[] = "$Id: rsplit.c,v 1.11 2019/11/07 23:13:12 greg Exp $
 static int		swapped = 0;	/* input is byte-swapped */
 
 static FILE		*output[MAXFILE];
+static int		ncomp[MAXFILE];
 static int		bytsiz[MAXFILE];
-static short		hdrflags[MAXFILE];
+static int		hdrflags[MAXFILE];
 static const char	*format[MAXFILE];
 static int		termc[MAXFILE];
 static int		nfiles = 0;
@@ -95,12 +96,16 @@ main(int argc, char *argv[])
 	int		append = 0;
 	long		outcnt = 0;
 	int		bininp = 0;
+	int		nstdoutcomp = 0;
 	int		curterm = '\n';
+	int		curncomp = 1;
 	int		curbytes = 0;
 	int		curflags = 0;
 	const char	*curfmt = "ascii";
-	int	i;
+	short		outndx[MAXFILE];
+	int		i;
 
+	memset(outndx, 0, sizeof(outndx));
 	for (i = 1; i < argc; i++) {
 		if (argv[i][0] == '-') {
 			switch (argv[i][1]) {
@@ -165,30 +170,34 @@ main(int argc, char *argv[])
 					break;
 				case 'a':
 					curfmt = "ascii";
-					curbytes = -1;
+					curbytes = 0;
 					break;
 				default:
 					goto badopt;
 				}
-				if (isdigit(argv[i][3]))
-					curbytes *= atoi(argv[i]+3);
-				curbytes += (curbytes == -1);
-				if (curbytes > (int)sizeof(buf)) {
+				curncomp = isdigit(argv[i][3]) ?
+							atoi(argv[i]+3) : 1 ;
+				if (curbytes*curncomp > (int)sizeof(buf)) {
 					fputs(argv[0], stderr);
 					fputs(": output size too big\n", stderr);
 					return(1);
 				}
 				bininp += (curbytes > 0);
 				break;
-			case '\0':
-				needres |= (curflags & DORESOLU);
-				termc[nfiles] = curterm;
-				hdrflags[nfiles] = curflags;
+			case '\0':			/* stdout */
+				if (!nstdoutcomp) {	/* first use? */
+					needres |= (curflags & DORESOLU);
+					hdrflags[nfiles] = curflags;
+				}
 				output[nfiles] = stdout;
 				if (curbytes > 0)
 					SET_FILE_BINARY(output[nfiles]);
+				termc[nfiles] = curterm;
 				format[nfiles] = curfmt;
-				bytsiz[nfiles++] = curbytes;
+				nstdoutcomp +=
+					ncomp[nfiles] = curncomp;
+				bytsiz[nfiles] = curbytes;
+				outndx[nfiles++] = i;
 				break;
 			badopt:;
 			default:
@@ -196,10 +205,17 @@ main(int argc, char *argv[])
 				fputs(": bad option\n", stderr);
 				return(1);
 			}
+		} else if (argv[i][0] == '.' && !argv[i][1]) {
+			output[nfiles] = NULL;		/* discard data */
+			termc[nfiles] = curterm;
+			format[nfiles] = curfmt;
+			ncomp[nfiles] = curncomp;
+			bytsiz[nfiles] = curbytes;
+			outndx[nfiles++] = i;
 		} else if (argv[i][0] == '!') {
 			needres |= (curflags & DORESOLU);
-			termc[nfiles] = curterm;
 			hdrflags[nfiles] = curflags;
+			termc[nfiles] = curterm;
 			if ((output[nfiles] = popen(argv[i]+1, "w")) == NULL) {
 				fputs(argv[i], stderr);
 				fputs(": cannot start command\n", stderr);
@@ -208,8 +224,19 @@ main(int argc, char *argv[])
 			if (curbytes > 0)
 				SET_FILE_BINARY(output[nfiles]);
 			format[nfiles] = curfmt;
-			bytsiz[nfiles++] = curbytes;
+			ncomp[nfiles] = curncomp;
+			bytsiz[nfiles] = curbytes;
+			outndx[nfiles++] = i;
 		} else {
+			int	j = nfiles;
+			while (j--)			/* check duplicates */
+				if (!strcmp(argv[i], argv[outndx[j]])) {
+					fputs(argv[0], stderr);
+					fputs(": duplicate output: ", stderr);
+					fputs(argv[i], stderr);
+					fputc('\n', stderr);
+					return(1);
+				}
 			if (append & (curflags != 0)) {
 				fputs(argv[0], stderr);
 				fputs(": -a option incompatible with -oh and -oH\n",
@@ -217,8 +244,8 @@ main(int argc, char *argv[])
 				return(1);
 			}
 			needres |= (curflags & DORESOLU);
-			termc[nfiles] = curterm;
 			hdrflags[nfiles] = curflags;
+			termc[nfiles] = curterm;
 			if (!append & !force && access(argv[i], F_OK) == 0) {
 				fputs(argv[i], stderr);
 				fputs(": file exists -- use -f to overwrite\n",
@@ -234,7 +261,9 @@ main(int argc, char *argv[])
 			if (curbytes > 0)
 				SET_FILE_BINARY(output[nfiles]);
 			format[nfiles] = curfmt;
-			bytsiz[nfiles++] = curbytes;
+			ncomp[nfiles] = curncomp;
+			bytsiz[nfiles] = curbytes;
+			outndx[nfiles++] = i;
 		}
 		if (nfiles >= MAXFILE) {
 			fputs(argv[0], stderr);
@@ -252,20 +281,20 @@ main(int argc, char *argv[])
 #ifdef getc_unlocked				/* avoid lock/unlock overhead */
 	flockfile(stdin);
 	for (i = nfiles; i--; )
-		flockfile(output[i]);
+		if (output[i] != NULL)
+			ftrylockfile(output[i]);
 #endif
 						/* load/copy header */
 	if (inpflags & DOHEADER && getheader(stdin, headline, NULL) < 0) {
 		fputs(argv[0], stderr);
-		fputs(": cannot get header from standard input\n",
+		fputs(": cannot read header from standard input\n",
 				stderr);
 		return(1);
 	}
 						/* handle resolution string */
 	if (inpflags & DORESOLU && !fgetsresolu(&ourres, stdin)) {
 		fputs(argv[0], stderr);
-		fputs(": cannot get resolution string from standard input\n",
-				stderr);
+		fputs(": bad resolution string on standard input\n", stderr);
 		return(1);
 	}
 	if (needres && (ourres.xr <= 0) | (ourres.yr <= 0)) {
@@ -287,10 +316,11 @@ main(int argc, char *argv[])
 			if (!(inpflags & DOHEADER))
 				newheader("RADIANCE", output[i]);
 			printargs(argc, argv, output[i]);
+			fprintf(output[i], "NCOMP=%d\n", output[i]==stdout ?
+						nstdoutcomp : ncomp[i]);
 			if (format[i] != NULL) {
 				extern const char  BIGEND[];
-				if ((format[i][0] == 'f') |
-						(format[i][0] == 'd')) {
+				if (bytsiz[i] > 1) {
 					fputs(BIGEND, output[i]);
 					fputs(nativebigendian() ^ swapped ?
 						"1\n" : "0\n", output[i]);
@@ -305,29 +335,36 @@ main(int argc, char *argv[])
 	do {					/* main loop */
 		for (i = 0; i < nfiles; i++) {
 			if (bytsiz[i] > 0) {		/* binary output */
-				if (getbinary(buf, bytsiz[i], 1, stdin) < 1)
+				if (getbinary(buf, bytsiz[i], ncomp[i],
+							stdin) < ncomp[i])
 					break;
-				if (putbinary(buf, bytsiz[i], 1, output[i]) < 1)
+				if (output[i] != NULL &&
+					    putbinary(buf, bytsiz[i], ncomp[i],
+							output[i]) < ncomp[i])
 					break;
-			} else if (bytsiz[i] < 0) {	/* N-field output */
-				int	n = -bytsiz[i];
+			} else if (ncomp[i] > 1) {	/* N-field output */
+				int	n = ncomp[i];
 				while (n--) {
 					if (!scanOK(termc[i]))
 						break;
-					if (fputs(buf, output[i]) == EOF)
+					if (output[i] != NULL &&
+						    fputs(buf, output[i]) == EOF)
 						break;
 				}
 				if (n >= 0)		/* fell short? */
 					break;
-				if (termc[i] != '\n')	/* add EOL if none */
+				if ((output[i] != NULL) &  /* add EOL if none */
+						(termc[i] != '\n'))
 					fputc('\n', output[i]);
 			} else {			/* 1-field output */
 				if (!scanOK(termc[i]))
 					break;
-				if (fputs(buf, output[i]) == EOF)
-					break;
-				if (termc[i] != '\n')	/* add EOL if none */
-					fputc('\n', output[i]);
+				if (output[i] != NULL) {
+					if (fputs(buf, output[i]) == EOF)
+						break;
+					if (termc[i] != '\n')	/* add EOL? */
+						fputc('\n', output[i]);
+				}
 			}
 							/* skip input EOL? */
 			if (!bininp && termc[nfiles-1] != '\n') {

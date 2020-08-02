@@ -101,9 +101,6 @@ m_mirror(			/* shade mirrored ray */
 	copycolor(r->mcol, nr.rcol);
 	addcolor(r->rcol, nr.rcol);
 	r->rmt = r->rot;
-#ifdef DAYSIM
-	daysimAddScaled(r->daylightCoef, nr.daylightCoef, colval(nr.rcoef, RED));
-#endif
 	if (rpure && r->ro != NULL && isflat(r->ro->otype))
 		r->rmt += raydistance(&nr);
 	return(1);

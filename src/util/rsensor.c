@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: rsensor.c,v 2.18 2015/06/09 21:34:15 greg Exp $";
+static const char RCSid[] = "$Id: rsensor.c,v 2.20 2020/07/24 17:09:33 greg Exp $";
 #endif
 
 /*
@@ -9,6 +9,7 @@ static const char RCSid[] = "$Id: rsensor.c,v 2.18 2015/06/09 21:34:15 greg Exp 
  */
 
 #include "ray.h"
+#include "platform.h"
 #include "source.h"
 #include "view.h"
 #include "random.h"
@@ -77,7 +78,9 @@ quit(ec)			/* make sure exit is called */
 int	ec;
 {
 	if (ray_pnprocs > 0)	/* close children if any */
-		ray_pclose(0);		
+		ray_pclose(0);
+	else if (ray_pnprocs < 0)
+		_exit(ec);	/* avoid flush in child */
 	exit(ec);
 }
 

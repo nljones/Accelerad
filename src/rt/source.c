@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: source.c,v 2.71 2020/03/12 17:19:18 greg Exp $";
+static const char RCSid[] = "$Id: source.c,v 2.73 2020/07/03 00:42:20 greg Exp $";
 #endif
 /*
  *  source.c - routines dealing with illumination sources.
@@ -29,9 +29,6 @@ typedef struct {
 	FVECT  dir;		/* source direction */
 	COLOR  coef;		/* material coefficient */
 	COLOR  val;		/* contribution */
-#ifdef DAYSIM
-	DaysimCoef daylightCoef; /* dayligh coefficient */
-#endif
 }  CONTRIB;		/* direct contribution */
 
 typedef struct {
@@ -77,8 +74,8 @@ marksources(void)			/* find and mark source objects */
 				m->otype == MAT_SPOT ? 7 : 3))
 			objerror(m, USER, "bad # arguments");
 
-		if (m->oargs.farg[0] <= FTINY && m->oargs.farg[1] <= FTINY &&
-				m->oargs.farg[2] <= FTINY)
+		if (m->oargs.farg[0] <= FTINY && (m->oargs.farg[1] <= FTINY) &
+				(m->oargs.farg[2] <= FTINY))
 			continue;			/* don't bother */
 		if (m->otype == MAT_GLOW &&
 				o->otype != OBJ_SOURCE &&
@@ -103,6 +100,9 @@ marksources(void)			/* find and mark source objects */
 				foundsource += (ambounce > 0);
 			}
 		} else if (m->otype == MAT_SPOT) {
+			if (source[ns].sflags & SDISTANT)
+				objerror(o, WARNING,
+					"distant source is a spotlight");
 			source[ns].sflags |= SSPOT;
 			if ((source[ns].sl.s = makespot(m)) == NULL)
 				goto memerr;
@@ -131,11 +131,57 @@ marksources(void)			/* find and mark source objects */
 	maxcntr = nsources + MAXSPART;	/* start with this many */
 	srccnt = (CONTRIB *)malloc(maxcntr*sizeof(CONTRIB));
 	cntord = (CNTPTR *)malloc(maxcntr*sizeof(CNTPTR));
-	if ((srccnt == NULL) | (cntord == NULL))
-		goto memerr;
-	return;
+	if ((srccnt != NULL) & (cntord != NULL))
+		return;
 memerr:
 	error(SYSTEM, "out of memory in marksources");
+}
+
+
+void
+distantsources(void)			/* only mark distant sources */
+{
+	int  i;
+	OBJREC  *o, *m;
+	int  ns;
+					/* initialize dispatch table */
+	initstypes();
+					/* sources needed for sourcehit() */
+	for (i = 0; i < nsceneobjs; i++) {
+	
+		o = objptr(i);
+
+		if ((o->otype != OBJ_SOURCE) | (o->omod == OVOID))
+			continue;
+					/* find material */
+		m = findmaterial(objptr(o->omod));
+		if (m == NULL)
+			continue;
+		if (!islight(m->otype))
+			continue;	/* not source modifier */
+	
+		if (m->oargs.nfargs != (m->otype == MAT_GLOW ? 4 :
+				m->otype == MAT_SPOT ? 7 : 3))
+			objerror(m, USER, "bad # arguments");
+
+		if (m->oargs.farg[0] <= FTINY && (m->oargs.farg[1] <= FTINY) &
+				(m->oargs.farg[2] <= FTINY))
+			continue;			/* don't bother */
+		if (sfun[o->otype].of == NULL ||
+				sfun[o->otype].of->setsrc == NULL)
+			objerror(o, USER, "illegal material");
+
+		if ((ns = newsource()) < 0)
+			error(SYSTEM, "out of memory in distantsources");
+
+		setsource(&source[ns], o);
+
+		if (m->otype == MAT_GLOW) {
+			source[ns].sflags |= SPROX|SSKIP;
+			source[ns].sl.prox = m->oargs.farg[3];
+		} else if (m->otype == MAT_SPOT)
+			objerror(o, WARNING, "distant source is a spotlight");
+	}
 }
 
 
@@ -388,18 +434,17 @@ direct(					/* add direct component */
 		cntord[sn].sndx = sn;
 		scp = srccnt + sn;
 		scp->sno = sr.rsrc;
-						/* compute coefficient */
-		(*f)(scp->coef, p, sr.rdir, si.dom);
-		cntord[sn].brt = intens(scp->coef);
-		if (cntord[sn].brt <= 0.0)
-			continue;
-#if SHADCACHE
-						/* check shadow cache */
+#if SHADCACHE					/* check shadow cache */
 		if (si.np == 1 && srcblocked(&sr)) {
 			cntord[sn].brt = 0.0;
 			continue;
 		}
 #endif
+						/* compute coefficient */
+		(*f)(scp->coef, p, sr.rdir, si.dom);
+		cntord[sn].brt = intens(scp->coef);
+		if (cntord[sn].brt <= 0.0)
+			continue;
 		VCOPY(scp->dir, sr.rdir);
 		copycolor(sr.rcoef, scp->coef);
 						/* compute potential */
@@ -408,9 +453,6 @@ direct(					/* add direct component */
 		multcolor(sr.rcol, sr.rcoef);
 		copycolor(scp->val, sr.rcol);
 		cntord[sn].brt = bright(sr.rcol);
-#ifdef DAYSIM
-		daysimAssignScaled(scp->daylightCoef, sr.daylightCoef, colval(sr.rcoef, RED));
-#endif
 	}
 						/* sort contributions */
 	qsort(cntord, sn, sizeof(CNTPTR), cntcmp);
@@ -479,9 +521,6 @@ direct(					/* add direct component */
 			rayparticipate(&sr);
 			multcolor(sr.rcol, sr.rcoef);
 			copycolor(scp->val, sr.rcol);
-#ifdef DAYSIM
-			daysimAssignScaled(scp->daylightCoef, sr.daylightCoef, colval(sr.rcoef, RED));
-#endif
 		} else if (trace != NULL &&
 			(source[scp->sno].sflags & (SDISTANT|SVIRTUAL|SFOLLOW))
 						== (SDISTANT|SFOLLOW) &&
@@ -491,9 +530,6 @@ direct(					/* add direct component */
 		}
 						/* add contribution if hit */
 		addcolor(r->rcol, scp->val);
-#ifdef DAYSIM
-		daysimAdd(r->daylightCoef, scp->daylightCoef);
-#endif
 		nhits++;
 		source[scp->sno].nhits++;
 	}
@@ -515,9 +551,6 @@ direct(					/* add direct component */
 		if (prob < 1.0)
 			scalecolor(scp->val, prob);
 		addcolor(r->rcol, scp->val);
-#ifdef DAYSIM
-		daysimAddScaled(r->daylightCoef, scp->daylightCoef, min(1.0, prob));
-#endif
 	}
 }
 
@@ -751,22 +784,5 @@ m_light(				/* ray hit a light source */
 			  m->oargs.farg[2]);
 						/* modify value */
 	multcolor(r->rcol, r->pcol);
-#ifdef DAYSIM
-	if (daysimGetCoefficients() >= 2) {
-		int patch;
-
-		if (daysimSortMode == 1) {
-			patch = atoi(&m->oname[5]) - 1;
-		}
-		if (daysimSortMode == 2) {
-			patch = daysimComputePatch(r->rdir);
-		}
-		if (patch > daysimGetCoefficients()) { /* daysim remove */
-			sprintf(errmsg, "Parameter N has been set lower than detected segment number %i (N = %i)", patch, daysimGetCoefficients());
-			error(WARNING, errmsg);
-		}
-		daysimAddCoef(r->daylightCoef, patch, colval(r->rcol, RED));
-	}
-#endif
 	return(1);
 }

@@ -1,7 +1,7 @@
 set(VERSION_FILE "${radiance_BINARY_DIR}/src/util/Version.c")
 create_version_file("${VERSION_FILE}")
 
-add_executable(dctimestep dctimestep.c cmbsdf.c cmatrix.c cmglare.c)
+add_executable(dctimestep dctimestep.c cmbsdf.c cmatrix.c)
 target_link_libraries(dctimestep rtrad)
 
 add_executable(findglare findglare.c glareval.c glaresrc.c setscan.c)
@@ -129,6 +129,7 @@ if(UNIX)
 endif()
 
 install(TARGETS
+  dcglare
   dctimestep
   eplus_adduvf
   evalglare
@@ -139,6 +140,9 @@ install(TARGETS
   radcompare
   ranimate
   ranimove
+  rcode_depth
+  rcode_ident
+  rcode_norm
   rcollate
   rfluxmtx
   rmtxop

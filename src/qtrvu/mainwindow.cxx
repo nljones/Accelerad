@@ -17,10 +17,6 @@
 
 #include <iostream>
 
-#ifdef ACCELERAD_RT
-#include "ray.h"
-#endif
-
 // Process a command
 extern "C" void qt_process_command(const char*);
 // set the abort flag to stop a render in progress
@@ -55,12 +51,6 @@ extern int  psample;    /* pixel sample size */
 extern double  maxdiff;   /* max. sample difference */
 void quit(int code);
 }
-
-#ifdef ACCELERAD_RT
-/* from rview.c */
-extern "C" void quit(int code);
-#endif
-
 MainWindow::MainWindow(int width, int height, const char* name, const char* id)
 {
   m_ui = new Ui::MainWindow;
@@ -90,22 +80,6 @@ MainWindow::MainWindow(int width, int height, const char* name, const char* id)
   setWindowTitle(tr(id));
   resize(width, height);
   updatePositionLabels();
-#ifdef ACCELERAD_RT
-  m_exposureDialogUi->scale->setVisible(false);
-  m_exposureDialogUi->scaleSetting->setVisible(false);
-  m_exposureDialogUi->scaleUnits->setVisible(false);
-  m_exposureDialogUi->decades->setVisible(false);
-  m_exposureDialogUi->decadesSetting->setVisible(false);
-  m_exposureDialogUi->decadesUnits->setVisible(false);
-  m_exposureDialogUi->mask->setVisible(false);
-  m_exposureDialogUi->maskSetting->setVisible(false);
-  m_exposureDialogUi->maskUnits->setVisible(false);
-  m_exposureDialogUi->line->setVisible(false);
-  if (use_optix) {
-		mp = new MetricsPlot();
-		m_ui->pushButton->setText("Abort");
-	}
-#endif
 }
 
 MainWindow::~MainWindow()
@@ -117,14 +91,6 @@ MainWindow::~MainWindow()
   delete m_incrementsDialog;
   delete m_commandsDialog;
 }
-
-#ifdef ACCELERAD_RT
-void MainWindow::addData(double *values)
-{
-	if (mp)
-		mp->addData(values);
-}
-#endif
 
 void MainWindow::setProgress(int p)
 {
@@ -144,14 +110,6 @@ void MainWindow::closeEvent(QCloseEvent *event)
   this->m_viewDialog->close();
   this->m_incrementsDialog->close();
   this->m_commandsDialog->close();
-#ifdef ACCELERAD_RT
-  /* Close the plot window. */
-  if (mp)
-	  mp->close();
-
-  /* Destroy the OptiX context. */
-  quit(0);
-#endif
 }
 
 void MainWindow::createActions()
@@ -317,35 +275,12 @@ void MainWindow::buttonPressed()
     }
 }
 
-#ifdef ACCELERAD_RT
-static int getPaddedWidth(const QWidget *widget)
-{
-	return widget->size().width() + widget->contentsMargins().left() + widget->contentsMargins().right();
-}
-
-static int getPaddedHeight(const QWidget *widget)
-{
-	return widget->size().height() + widget->contentsMargins().top() + widget->contentsMargins().bottom();
-}
-#endif
-
 void MainWindow::resizeImage(int width, int height)
 {
-#ifdef ACCELERAD_RT
-	int padW = m_ui->centralwidget->contentsMargins().left() + m_ui->centralwidget->contentsMargins().right() + m_ui->centralwidget->layout()->margin() * 2;
-	padW += getPaddedWidth(m_ui->xWidget) + m_ui->centralwidget->layout()->spacing();
-	int padH = m_ui->centralwidget->contentsMargins().top() + m_ui->centralwidget->contentsMargins().bottom() + m_ui->centralwidget->layout()->margin();
-	padH += getPaddedHeight(m_ui->menubar);
-	padH += getPaddedHeight(m_ui->toolBar);
-	padH += getPaddedHeight(m_ui->lineEdit) + m_ui->centralwidget->layout()->spacing();
-	padH += getPaddedHeight(m_ui->messageBox) + m_ui->centralwidget->layout()->spacing();
-	this->resize(width + padW, height + padH);
-#else
   int pad = m_ui->lineEdit->size().height();
   pad += m_ui->menubar->size().height();
   pad += m_ui->messageBox->size().height();
   this->resize(width+4, height+pad+4);
-#endif
   this->m_ui->rvuWidget->resizeImage(width, height);
 }
 
@@ -391,9 +326,6 @@ void MainWindow::refreshView(VIEW *nv)
 
 void MainWindow::move(int direction, float amount)
 {
-#ifdef ACCELERAD_RT
-	if (!use_optix)
-#endif
   if( m_ui->pushButton->text() == QString("Abort") )
     {
     qt_set_abort(1);
@@ -762,12 +694,6 @@ void MainWindow::showViewDialog()
     {
     m_viewDialogUi->cylindrical->setChecked(true);
     }
-#ifdef VT_ODS
-  else if (ourview.type == VT_ODS)
-  {
-	  m_viewDialogUi->ods->setChecked(true);
-  }
-#endif
 
   m_viewDialogUi->viewX->setText(QString::number(ourview.vp[0]));
   m_viewDialogUi->viewY->setText(QString::number(ourview.vp[1]));
@@ -832,13 +758,6 @@ void MainWindow::adjustView()
     nv.type = VT_CYL;
     changed = true;
     }
-#ifdef VT_ODS
-  if (m_viewDialogUi->ods->isChecked() && nv.type != VT_ODS)
-  {
-	  nv.type = VT_ODS;
-	  changed = true;
-  }
-#endif
 
   //viewpoint
   if(m_viewDialogUi->viewX->isModified())

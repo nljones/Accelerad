@@ -13,11 +13,6 @@ static const char	RCSid[] = "$Id: qt.c,v 1.1 2011/10/22 22:38:10 greg Exp $";
 #include  "rpaint.h"
 #include "color.h"
 
-#include "ray.h" // Contains def of ACCELERAD
-#ifdef ACCELERAD
-#include "optix_rvu.h"
-#endif
-
 static char lastPrompt[1024];
 static const char* currentCommand =0;
 static int abort_render = 0;
@@ -48,11 +43,6 @@ extern int qt_rvu_run();
 extern void qt_window_comout(const char*);
 extern void qt_set_progress(int);
 extern int qt_open_text_dialog(char* , const char*);
-
-#ifdef ACCELERAD_RT
-extern void qt_rvu_paint_image(int xmin, int ymin, int xmax, int ymax, const unsigned char *data);
-extern void qt_rvu_update_plot(double *values, int rescale);
-#endif
 
 extern struct driver *
 qt_init(		/* initialize driver */
@@ -107,16 +97,6 @@ qt_flush(void)			/* flush output */
   if(last_total_progress)
     {
     progress++;
-#ifdef ACCELERAD_RT
-	if (use_optix) {
-		if (cuda_kmeans_iterations > 0)
-			p = pdepth * 100 / cuda_kmeans_iterations + // TODO new variable
-				(int)floor(10 * atan(SCALE * progress / last_total_progress) * 2.0 / 3.141593);
-		else
-			p = (int)floor(100.0 * pdepth / (pdepth + 2));
-	}
-	else
-#endif
     p = pdepth*10 +
       (int)floor(10 *
                  atan( SCALE * progress / last_total_progress) * 2.0/3.141593);
@@ -246,33 +226,6 @@ void qt_process_command(const char* com)
      pointer as the command to process */
   command("");
   /* after processing a command try to do a render */
-#ifdef ACCELERAD_RT
-	if (use_optix) {
-		pdepth = 0;
-		for (;;)
-		{
-			if (cuda_kmeans_iterations < pdepth && cuda_kmeans_iterations > -1) // TODO new variable
-			{
-				qt_set_progress(100);
-				qt_comout("done");
-				return;
-			}
-			errno = 0;
-			sprintf(buf, "%d pass...\n", pdepth);
-			qt_comout(buf);
-			last_total_progress = progress ? progress : 1;
-			progress = 0;
-			renderOptixIterative(&ourview, hresolu, vresolu, !(pdepth++), &qt_rvu_paint_image, &qt_rvu_update_plot);
-			if (dev->inpready)
-			{
-				qt_comout("abort");
-				dev->inpready = 0;
-				return;
-			}
-		}
-		return;
-	}
-#endif
   for ( ; ; )
     {
     if (hresolu <= 1<<pdepth && vresolu <= 1<<pdepth)

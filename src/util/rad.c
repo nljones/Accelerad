@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id: rad.c,v 2.126 2019/02/26 23:31:11 greg Exp $";
+static const char	RCSid[] = "$Id: rad.c,v 2.127 2020/04/07 00:49:09 greg Exp $";
 #endif
 /*
  * Executive program for oconv, rpict and pfilt
@@ -834,8 +834,12 @@ renderopts(			/* set rendering options */
 		op = addarg(addarg(op, "-ap"), pmapf);
 		if (atoi(bw) > 0) op = addarg(op, bw);
 	}
-	if (vdef(RENDER))
+	if (vdef(RENDER)) {
 		op = addarg(op, vval(RENDER));
+		bw = strstr(vval(RENDER), "-aa ");
+		if (bw != NULL && atof(bw+4) <= FTINY)
+			overture = 0;
+	}
 	if (rvdevice != NULL) {
 		if (vdef(RVU)) {
 			if (vval(RVU)[0] != '-') {
@@ -1227,9 +1231,6 @@ specview(				/* get proper view spec from vs */
 	case VT_HEM:
 	case VT_PLS:
 	case VT_CYL:
-#ifdef VT_ODS
-	case VT_ODS:
-#endif
 		viewtype = *vs++;
 		break;
 	default:
@@ -1293,11 +1294,6 @@ specview(				/* get proper view spec from vs */
 		case VT_CYL:
 			cp = addarg(cp, "-vh 180 -vv 90");
 			break;
-#ifdef VT_ODS
-		case VT_ODS:
-			cp = addarg(cp, "-vh 360 -vv 180");
-			break;
-#endif
 		}
 	} else {
 		while (!isspace(*vs))		/* else skip id */

@@ -1,4 +1,4 @@
-/* RCSid $Id: objutil.h,v 2.1 2020/03/30 18:28:35 greg Exp $ */
+/* RCSid $Id: objutil.h,v 2.8 2020/06/23 19:29:40 greg Exp $ */
 /*
  *  Declarations for .OBJ file utility
  *
@@ -23,6 +23,9 @@
 
 struct Face;				/* forward declaration */
 
+typedef int		VNDX[3];	/* vertex indices (point,map,normal) */
+
+/* Structure to hold vertex indices and link back to face list */
 typedef struct {
 	int		vid;		/* vertex id */
 	int		tid;		/* texture id */
@@ -88,8 +91,15 @@ Scene *		loadOBJ(Scene *sc, const char *fspec);
 /* Duplicate a scene */
 Scene *		dupScene(const Scene *sc);
 
+/* Transform entire scene */
+int		xfScene(Scene *sc, int xac, char *xav[]);
+int		xfmScene(Scene *sc, const char *xfm);
+
 /* Add a descriptive comment */
 void		addComment(Scene *sc, const char *comment);
+
+/* Find index for comment containing the given string (starting from n) */
+int		findComment(Scene *sc, const char *match, int n);
 
 /* Clear comments */
 void		clearComments(Scene *sc);
@@ -148,11 +158,23 @@ int		changeGroup(Scene *sc, const char *gname,
 int		changeMaterial(Scene *sc, const char *mname,
 					int flreq, int flexc);
 
-/* Grab texture coord's/normals from another object via ray tracing */
-#define GET_TEXTURE		01
-#define GET_NORMALS		02
-int		traceSurface(Scene *sc, int flreq, int flexc,
-				const char *oct, int what);
+/* Add a vertex to our scene, returning index */
+int		addVertex(Scene *sc, double x, double y, double z);
+
+/* Add a texture coordinate to our scene, returning index */
+int		addTexture(Scene *sc, double u, double v);
+
+/* Add a surface normal to our scene, returning index */
+int		addNormal(Scene *sc, double xn, double yn, double zn);
+
+/* Set current group (sc->lastgrp) to given ID */
+void		setGroup(Scene *sc, const char *nm);
+
+/* Set current material (sc->lastmat) to given ID */
+void		setMaterial(Scene *sc, const char *nm);
+
+/* Add a new face to our scene, using current group and material */
+Face *		addFace(Scene *sc, VNDX vid[], int nv);
 
 /* Free a scene */
 void		freeScene(Scene *sc);

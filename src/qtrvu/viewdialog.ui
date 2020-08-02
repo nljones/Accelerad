@@ -78,13 +78,6 @@
            </property>
           </widget>
          </item>
-         <item>
-          <widget class="QRadioButton" name="ods">
-           <property name="text">
-            <string>Omni‐directional Stereo</string>
-           </property>
-          </widget>
-         </item>
         </layout>
        </widget>
       </item>

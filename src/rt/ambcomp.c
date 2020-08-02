@@ -27,9 +27,6 @@ typedef struct {
 	COLOR	v;		/* hemisphere sample value */
 	float	d;		/* reciprocal distance */
 	FVECT	p;		/* intersection point */
-#ifdef DAYSIM
-	DaysimCoef daylightCoef;
-#endif
 } AMBSAMP;		/* sample value */
 
 typedef struct {
@@ -143,24 +140,14 @@ resample:
 			zd = 10.0*thescene.cusize + 1000.;
 		VSUM(ap->p, ar.rorg, ar.rdir, zd);
 		copycolor(ap->v, ar.rcol);
-#ifdef DAYSIM
-		daysimAssignScaled(ap->daylightCoef, ar.daylightCoef, colval(ar.rcoef, RED));
-#endif
 	} else {			/* else update recorded value */
 		hp->acol[RED] -= colval(ap->v,RED);
 		hp->acol[GRN] -= colval(ap->v,GRN);
 		hp->acol[BLU] -= colval(ap->v,BLU);
 		zd = 1.0/(double)(n+1);
 		scalecolor(ar.rcol, zd);
-#ifdef DAYSIM
-		daysimScale(ar.daylightCoef, zd);
-#endif
 		zd *= (double)n;
 		scalecolor(ap->v, zd);
-#ifdef DAYSIM
-		daysimScale(ap->daylightCoef, zd);
-		daysimAddScaled(ap->daylightCoef, ar.daylightCoef, colval(ar.rcoef, RED));
-#endif
 		addcolor(ap->v, ar.rcol);
 	}
 	addcolor(hp->acol, ap->v);	/* add to our sum */
@@ -258,9 +245,6 @@ samp_hemi(				/* sample indirect hemisphere */
 	COLOR	rcol,
 	RAY	*r,
 	double	wt
-#ifdef DAYSIM
-	, DaysimCoef daylightCoef
-#endif
 )
 {
 	AMBHEMI	*hp;
@@ -314,14 +298,6 @@ samp_hemi(				/* sample indirect hemisphere */
 		ambsupersamp(hp, n);
 		copycolor(rcol, hp->acol);
 	}
-#ifdef DAYSIM
-	daysimSet(daylightCoef, 0.0);
-	for (i = hp->ns; i--;)
-		for (j = hp->ns; j--;) {
-			AMBSAMP	*ap = &ambsam(hp, i, j);
-			daysimAdd(daylightCoef, ap->daylightCoef);
-		}
-#endif
 	return(hp);			/* all is well */
 }
 
@@ -715,16 +691,9 @@ doambient(				/* compute ambient component */
 	float	pg[2],			/* returned (optional) */
 	float	dg[2],			/* returned (optional) */
 	uint32	*crlp			/* returned (optional) */
-#ifdef DAYSIM
-	, DaysimCoef daylightCoef
-#endif
 )
 {
-#ifndef DAYSIM
 	AMBHEMI	*hp = samp_hemi(rcol, r, wt);
-#else
-	AMBHEMI	*hp = samp_hemi(rcol, r, wt, daylightCoef);
-#endif
 	FVECT	my_uv[2];
 	double	d, K;
 	AMBSAMP	*ap;
@@ -806,3 +775,4 @@ doambient(				/* compute ambient component */
 	free(hp);			/* clean up and return */
 	return(1);
 }
+

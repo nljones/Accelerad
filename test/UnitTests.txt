@@ -1,3 +1,7 @@
+# RCSid $Id: UnitTests.txt,v 1.12 2020/07/01 20:11:07 greg Exp $
+#
+# Remember to add binary files using "cvs add -kb file"
+#
 --------------------------
 Tools tested in "renders":
 ==========================
@@ -6,16 +10,11 @@ rad
 oconv
 rfluxmtx
 rcontrib
-vwrays
 rtrace
 mkillum
 mkpmap
-pfilt
-vwrays
+rpict
 rpiece
-++++++++
-Missing:
-++++++++
 obj2mesh
 ----------------------
 Tools tested in "cal":
@@ -25,10 +24,9 @@ rcalc
 total
 histo
 rlam
-++++++++
-Missing:
-++++++++
+rsplit
 tabfunc
+ev
 ----------------------
 Tools tested in "gen":
 ======================
@@ -39,6 +37,7 @@ genrev
 genworm
 genprism
 gensurf
+genblinds
 replmarks
 ++++++++
 Missing:
@@ -48,22 +47,23 @@ gendaylit
 Tools tested in "util":
 =======================
 vwright
+vwrays
 rcollate
 getinfo
 rmtxop
 genskyvec
 dctimestep
+glarendx
+rttree_reduce
+wrapBSDF
 ++++++++
 Missing:
 ++++++++
 findglare
 genBSDF
-glarendx
 ranimate
 ranimove
 rsensor
-rttree_reduce
-wrapBSDF
 evalglare
 ---------------------
 Tools tested in "cv":
@@ -87,25 +87,26 @@ bsdf2rad
 ---------------------
 Tools tested in "px":
 =====================
-++++++++
-Missing:
-++++++++
-falsecolor
-psign
+pfilt
+pflip
 ra_tiff
 normtiff
 pvalue
 pcompos
 protate
 ra_bmp
-ra_t8
 ra_t16
-pcomb
-pinterp
-pflip
-ra_ppm
+ra_xyze
 ra_rgbe
 ra_ps
-pextrem
-ra_xyze
 pcond
+pcomb
+pextrem
+ra_ppm
+pinterp
+psign
+falsecolor
+++++++++
+Missing:
+++++++++
+ra_t8

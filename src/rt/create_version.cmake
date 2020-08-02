@@ -12,34 +12,10 @@ if(DATE)
     OUTPUT_VARIABLE DATE_STR
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
-elseif(WIN32)
-  execute_process(COMMAND "cmd" " /C date /T"
-    OUTPUT_VARIABLE DATE_STR
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-  )
-  #string(REGEX REPLACE "(..)/(..)/..(..).*" "\\1/\\2/\\3" ${RESULT} ${${RESULT}})
-else()
-  message(SEND_ERROR "date not implemented")
-  set(DATE_STR 000000)
 endif()
-find_program(WHO whoami)
-if(WHO)
-  execute_process(COMMAND ${WHO}
-    OUTPUT_VARIABLE WHO_STR
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-  )
-endif()
-find_program(HOSTNAME hostname)
-if(HOSTNAME)
-  execute_process(COMMAND ${HOSTNAME}
-    OUTPUT_VARIABLE HOST_STR
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-  )
-endif()
-
 file(READ "${VERSION_IN_FILE}" VERSION)
 string(STRIP "${VERSION}" VERSION)
-set(CONTENTS "Accelerad ${VERSION} lastmod ${DATE_STR} by ${WHO_STR} on ${HOST_STR} (based on RADIANCE ${RADIANCE_VERSION} by G. Ward)")
-message("${CONTENTS}")
-string(REPLACE "\\" "\\\\" CONTENTS "${CONTENTS}") # look for instances of the escape character
-file(WRITE "${VERSION_OUT_FILE}" "char VersionID[]=\"${CONTENTS}\";\nchar VersionShortID[]=\"${VERSION}\";\n")
+message("${VERSION}")
+file(WRITE "${VERSION_OUT_FILE}"
+  "char VersionID[]=\"${VERSION} ${DATE_STR} LBNL (${RADIANCE_VERSION})\";\n"
+)

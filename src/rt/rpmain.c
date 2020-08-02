@@ -36,10 +36,6 @@ char  *errfile = NULL;			/* error output file */
 extern time_t  time();
 extern time_t  tstart;			/* start time */
 
-#ifdef ACCELERAD
-extern void printRayTracingTime(const clock_t clock);
-#endif
-
 extern int  ralrm;			/* seconds between reports */
 
 extern VIEW  ourview;			/* viewing parameters */
@@ -84,9 +80,6 @@ main(int  argc, char  *argv[])
 	int  duped1 = -1;
 	int  rval;
 	int  i;
-#ifdef ACCELERAD
-	clock_t rpict_clock; // Timer in clock cycles for short jobs
-#endif
 					/* record start time */
 	tstart = time((time_t *)NULL);
 					/* global program name */
@@ -199,13 +192,8 @@ main(int  argc, char  *argv[])
 			recover = argv[++i];
 			break;
 		case 't':				/* timer */
-#ifdef ACCELERAD
-			check(2,"f");
-			ralrm = (int)(0.5 + atof(argv[++i]));
-#else
 			check(2,"i");
 			ralrm = atoi(argv[++i]);
-#endif
 			break;
 #ifdef  PERSIST
 		case 'P':				/* persist file */
@@ -311,9 +299,6 @@ main(int  argc, char  *argv[])
 	          
 	ray_init_pmap();     /* PMAP: set up & load photon maps */
 
-#ifdef ACCELERAD
-	if (!use_optix) /* Don't shoot rays here, since the OptiX program should handle this. */
-#endif
 	marksources();			/* find and mark sources */
 
 	setambient();			/* initialize ambient calculation */
@@ -349,13 +334,7 @@ runagain:
 	}
 #endif
 					/* batch render picture(s) */
-#ifdef ACCELERAD
-	rpict_clock = clock();
-#endif
 	rpict(seqstart, outfile, zfile, recover);
-#ifdef ACCELERAD
-	printRayTracingTime(clock() - rpict_clock);
-#endif
 					/* flush ambient file */
 	ambsync();
 #ifdef  PERSIST

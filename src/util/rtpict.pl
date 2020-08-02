@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# RCSid $Id: rtpict.pl,v 2.15 2020/03/15 16:54:19 greg Exp $
+# RCSid $Id: rtpict.pl,v 2.18 2020/04/08 16:20:00 greg Exp $
 #
 # Run rtrace in parallel mode to simulate rpict -n option
 # May also be used to render layered images with -o* option
@@ -11,10 +11,11 @@ use strict;
 my $nprocs = 1;
 # rtrace options and the associated number of arguments
 my %rtraceC = ('-dt',1, '-dc',1, '-dj',1, '-ds',1, '-dr',1, '-dp',1,
-		'-ss',1, '-st',1, '-e',1, '-am',1,
+		'-ss',1, '-st',1, '-e',1, '-am',1, '-P',1, '-PP',1,
 		'-ab',1, '-af',1, '-ai',1, '-aI',1, '-ae',1, '-aE',1,
 		'-av',3, '-aw',1, '-aa',1, '-ar',1, '-ad',1, '-as',1,
-		'-me',3, '-ma',3, '-mg',1, '-ms',1, '-lr',1, '-lw',1);
+		'-me',3, '-ma',3, '-mg',1, '-ms',1, '-lr',1, '-lw',1,
+		'-ap',2, '-am',1, '-ac',1, '-aC',1);
 # boolean rtrace options
 my @boolO = ('-w', '-bv', '-dv', '-i', '-u');
 # view options and the associated number of arguments
@@ -28,10 +29,11 @@ my @rtraceA = split(' ', 'rtrace -u- -dt .05 -dc .5 -ds .25 -dr 1 ' .
 				'-aa .2 -ar 64 -ad 512 -as 128 -lr 7 -lw 1e-03');
 my @vwraysA = ('vwrays', '-ff', '-pj', '.67');
 my @vwrightA = ('vwright', '-vtv');
-my @rpictA = ('rpict');
+my @rpictA = ('rpict', '-ps', '1');
 my $outpatt = '^-o[vrxlLRXnNsmM]+';
 my $refDepth = "";
 my $irrad = 0;
+my $persist = 0;
 my $outlyr;
 my $outdir;
 my $outpic;
@@ -75,6 +77,7 @@ while ($#ARGV >= 0 && "$ARGV[0]" =~ /^[-\@]/) {
 	}
 	# Check rtrace options
 	if (defined $rtraceC{$ARGV[0]}) {
+		$persist ||= ("$ARGV[0]" =~ /^-PP?$/);
 		push @rtraceA, $ARGV[0];
 		push @rpictA, shift(@ARGV);
 		for (my $i = $rtraceC{$rpictA[-1]}; $i-- > 0; ) {
@@ -124,7 +127,7 @@ if (defined $outpic) {		# redirect output?
 }
 #####################################################################
 ##### May as well run rpict?
-if ($nprocs == 1 && !defined($outdir)) {
+if ($nprocs == 1 && $persist == 0 && !defined($outdir)) {
 	push(@rpictA, $ARGV[0]) if ($#ARGV == 0);
 	exec @rpictA ;
 }

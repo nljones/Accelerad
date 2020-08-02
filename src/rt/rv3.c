@@ -201,10 +201,6 @@ paint(			/* compute and paint a rectangle */
 	static RAY  thisray;
 	double  h, v;
 
-#ifdef ACCELERAD_RT
-	if (use_optix)
-		return(0);
-#endif
 	if ((p->xmax <= p->xmin) | (p->ymax <= p->ymin)) {	/* empty */
 		p->x = p->xmin;
 		p->y = p->ymin;
@@ -298,15 +294,8 @@ newimage(					/* start a new image */
 						/* free old image */
 	freepkids(&ptrunk);
 						/* compute resolution */
-#ifdef ACCELERAD_RT
-	if (hresolu < 1 || hresolu > dev->xsiz)
-		hresolu = dev->xsiz;
-	if (vresolu < 1 || vresolu > dev->ysiz)
-		vresolu = dev->ysiz;
-#else
 	hresolu = dev->xsiz;
 	vresolu = dev->ysiz;
-#endif
 	normaspect(viewaspect(&ourview), &dev->pixaspect, &hresolu, &vresolu);
 	ptrunk.xmin = ptrunk.ymin = pframe.l = pframe.d = 0;
 	ptrunk.xmax = pframe.r = hresolu;
@@ -342,9 +331,6 @@ redraw(void)				/* redraw the image */
 {
 	(*dev->clear)(hresolu, vresolu);
 	(*dev->comout)("redrawing...\n");
-#ifdef ACCELERAD_RT
-	if (!use_optix)
-#endif
 	repaint(0, 0, hresolu, vresolu);
 	(*dev->comout)("\n");
 }

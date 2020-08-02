@@ -38,6 +38,7 @@ if(NOT WIN32)
 endif()
 
 if(WIN32)
+  set(CPACK_NSIS_INSTALL_ROOT "C:")
   set(CPACK_NSIS_MODIFY_PATH 1)
   set(qt_plugin_term "LIBRARY")
 
@@ -123,14 +124,6 @@ if(NOT BUILD_HEADLESS)
   find_package(X11)
   if(APPLE)
      include_directories(${X11_INCLUDE_DIR})
-  endif()
-  
-  #NLJ Addition - find qwt
-  set(Qwt_DIR "C:/Qwt-6.1.3" CACHE PATH "Path to Qwt installed location.")
-  if(EXISTS "${Qwt_DIR}" AND IS_DIRECTORY "${Qwt_DIR}")
-    set(Qwt_FOUND TRUE)
-    set(Qwt_INCLUDE_DIR "${Qwt_DIR}/include" CACHE PATH "Path to Qwt include directory.")
-    set(Qwt_LIBRARIES "${Qwt_DIR}/lib/qwt.lib" CACHE PATH "Path to Qwt library.")
   endif()
 endif()
 

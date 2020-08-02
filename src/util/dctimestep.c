@@ -13,7 +13,6 @@ static const char RCSid[] = "$Id: dctimestep.c,v 2.45 2020/03/25 01:51:09 greg E
 #include "cmatrix.h"
 #include "platform.h"
 #include "resolu.h"
-#include "cmglare.h"
 
 char	*progname;			/* global argv[0] */
 
@@ -145,26 +144,6 @@ main(int argc, char *argv[])
 	CMATRIX		*cmtx;		/* component vector/matrix result */
 	char		fnbuf[256];
 	int		a, i;
-#ifdef DC_GLARE
-	char	*direct_path = NULL;
-	char	*schedule_path = NULL;
-	int		*occupancy = NULL;
-	int		start_hour = 0;
-	int		end_hour = 24;
-	double	dgp_limit = -1;
-	double	dgp_threshold = 2000;
-	char	*view_path = NULL;
-	FILE	*fp;
-	float	*dgp_values = NULL;
-	FVECT	vdir, vup;
-	FVECT	*views = NULL;
-	int		viewfmt = DTascii;
-
-	vdir[0] = vdir[1] = vdir[2] = vup[0] = vup[1] = 0;
-	vup[2] = 1;
-
-	clock_t timer = clock();
-#endif /* DC_GLARE */
 
 	progname = argv[0];
 					/* get options */
@@ -215,64 +194,6 @@ main(int argc, char *argv[])
 				goto userr;
 			}
 			break;
-#ifdef DC_GLARE
-		case 'g':
-			switch (argv[a][2]) {
-			case 'm':	/* single bounce daylight coefficients file */
-				direct_path = argv[++a];
-				break;
-			case 'o':	/* occupancy schedule file */
-				schedule_path = argv[++a];
-				break;
-			case 's':	/* occupancy start hour */
-				start_hour = atoi(argv[++a]);
-				break;
-			case 'e':	/* occupancy end hour */
-				end_hour = atoi(argv[++a]);
-				break;
-			case 'l':	/* perceptible glare threshold */
-				dgp_limit = atof(argv[++a]);
-				break;
-			case 'b':	/* luminance threshold */
-				dgp_threshold = atof(argv[++a]);
-				break;
-			case 'd':	/* forward */
-				//check(3, "fff");
-				vdir[0] = atof(argv[++a]);
-				vdir[1] = atof(argv[++a]);
-				vdir[2] = atof(argv[++a]);
-				if (normalize(vdir) == 0.0) goto userr;
-				break;
-			case 'u':	/* up */
-				//check(3, "fff");
-				vup[0] = atof(argv[++a]);
-				vup[1] = atof(argv[++a]);
-				vup[2] = atof(argv[++a]);
-				if (normalize(vup) == 0.0) goto userr;
-				break;
-			case 'v':	/* view directions file */
-				//check(2, "s");
-				view_path = argv[++a];
-				break;
-			case 'i':
-				switch (argv[a][3]) {
-				case 'f':
-					viewfmt = DTfloat;
-					break;
-				case 'd':
-					viewfmt = DTdouble;
-					break;
-				case 'a':
-					viewfmt = DTascii;
-					break;
-				default:
-					goto userr;
-				}
-			default:
-				goto userr;
-			}
-			break;
-#endif /* DC_GLARE */
 		default:
 			goto userr;
 		}
@@ -302,10 +223,8 @@ main(int argc, char *argv[])
 		cm_free(Tmat); 
 		cm_free(imtx);
 	} else {				/* sky vector/matrix only */
-		TIMER(timer, "read args");
 		cmtx = cm_load(argv[a+1], 0, nsteps, skyfmt);
 		nsteps = cmtx->ncols;
-		TIMER(timer, "load sky matrix");
 	}
 						/* prepare output stream */
 	if ((ofspec != NULL) & (nsteps == 1) && hasNumberFormat(ofspec)) {
@@ -338,7 +257,7 @@ main(int argc, char *argv[])
 					sprintf(fnbuf, ofspec, i);
 					if ((ofp = fopen(fnbuf, "wb")) == NULL) {
 						fprintf(stderr,
-							"%s: cannot open '%s' for output\n",
+					"%s: cannot open '%s' for output\n",
 							progname, fnbuf);
 						return(1);
 					}
@@ -352,7 +271,7 @@ main(int argc, char *argv[])
 				if (ofspec != NULL) {
 					if (fclose(ofp) == EOF) {
 						fprintf(stderr,
-							"%s: error writing to '%s'\n",
+						"%s: error writing to '%s'\n",
 							progname, fnbuf);
 						return(1);
 					}
@@ -364,73 +283,8 @@ main(int argc, char *argv[])
 			return(1);
 	} else {				/* generating vector/matrix */
 		CMATRIX	*Vmat = cm_load(argv[a], 0, cmtx->nrows, DTfromHeader);
-		TIMER(timer, "load view matrix");
 		CMATRIX	*rmtx = cm_multiply(Vmat, cmtx);
-		TIMER(timer, "multiply");
 		cm_free(Vmat);
-#ifdef DC_GLARE
-		if (direct_path) { /* Do glare autonomy calculation */
-			/* Load occupancy schedule */
-			occupancy = (int*)malloc(nsteps * sizeof(int));
-			if (!occupancy) {
-				fprintf(stderr,
-					"%s: out of memory for schedule\n",
-					progname);
-				return(1);
-			}
-			if (schedule_path) {
-				if ((fp = fopen(schedule_path, "r")) == NULL) {
-					fprintf(stderr,
-						"%s: cannot open input file \"%s\"\n",
-						progname, schedule_path);
-					return(1);
-				}
-				if (cm_load_schedule(nsteps, occupancy, fp)) return(1);
-			}
-			else {
-				for (i = 0; i < nsteps; i++) {
-					/* Assume hourly spacing */
-					int hour = i % 24;
-					occupancy[i] = ((hour >= start_hour) & (hour < end_hour));
-				}
-			}
-			TIMER(timer, "load occupancy schedule");
-
-			/* Load view directions */
-			if (view_path == NULL) {
-				if (vdir[0] == 0.0f && vdir[1] == 0.0f && vdir[2] == 0.0f) {
-					fprintf(stderr,
-						"%s: missing view direction\n",
-						progname);
-					return(1);
-				}
-			}
-			else {
-				if ((fp = fopen(view_path, "r")) == NULL) {
-					fprintf(stderr,
-						"%s: cannot open input file \"%s\"\n",
-						progname, view_path);
-					return(1);
-				}
-				if (viewfmt != DTascii)
-					SET_FILE_BINARY(fp);
-				views = cm_load_views(rmtx->nrows, viewfmt, fp);
-				if (!views) return(1);
-				TIMER(timer, "load views");
-			}
-
-			/* Calculate glare values */
-			Vmat = cm_load(direct_path, 0, cmtx->nrows, DTfromHeader);
-			TIMER(timer, "load direct matrix");
-			dgp_values = cm_glare(Vmat, rmtx, cmtx, occupancy, dgp_limit, dgp_threshold, views, vdir, vup);
-			TIMER(timer, "calculate dgp");
-			free(views);
-			cm_free(Vmat);
-
-			/* Check successful calculation */
-			if (!dgp_values) return(1);
-		}
-#endif /* DC_GLARE */
 		if (ofspec != NULL) {		/* multiple vector files? */
 			const char	*wtype = (outfmt==DTascii) ? "w" : "wb";
 			for (i = 0; i < nsteps; i++) {
@@ -478,26 +332,13 @@ main(int argc, char *argv[])
 				printargs(argc, argv, ofp);
 				fputnow(ofp);
 				fprintf(ofp, "NROWS=%d\n", rmtx->nrows);
-#ifdef DC_GLARE
-				fprintf(ofp, "NCOLS=%d\n", (!dgp_values || dgp_limit < 0) ? rmtx->ncols : 1);
-				fprintf(ofp, "NCOMP=%d\n", dgp_values ? 1 : 3);
-#else
 				fprintf(ofp, "NCOLS=%d\n", rmtx->ncols);
 				fputs("NCOMP=3\n", ofp);
-#endif /* DC_GLARE */
 				if ((outfmt == 'f') | (outfmt == 'd'))
 					fputendian(ofp);
 				fputformat((char *)cm_fmt_id[outfmt], ofp);
 				fputc('\n', ofp);
 			}
-#ifdef DC_GLARE
-			if (dgp_values) { /* Write glare autonomy */
-				cm_write_glare(dgp_values, rmtx->nrows, dgp_limit < 0 ? rmtx->ncols : 1, outfmt, ofp);
-				free(dgp_values);
-				TIMER(timer, "write");
-			} 
-			else
-#endif /* DC_GLARE */
 			cm_write(rmtx, outfmt, ofp);
 		}
 		cm_free(rmtx);
@@ -513,9 +354,5 @@ userr:
 				progname);
 	fprintf(stderr, "   or: %s [-n nsteps][-o ospec][-i{f|d|h}][-o{f|d|c}] Vspec Tbsdf Dmat.dat [skyf]\n",
 				progname);
-#ifdef DC_GLARE
-	fprintf(stderr, "   or: %s [-n nsteps][-i{f|d|h}][-o{f|d}] -gm DC1spec [-go occupancy|-gs start -ge end][-gl limit][-gb threshold]{-gv views|-gd x y z}[-gu x y z][-gi{f|d|a}] DC8spec [skyf]\n",
-		progname);
-#endif /* DC_GLARE */
 	return(1);
 }

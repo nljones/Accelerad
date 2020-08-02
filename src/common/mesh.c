@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: mesh.c,v 2.32 2019/12/28 18:05:14 greg Exp $";
+static const char RCSid[] = "$Id: mesh.c,v 2.34 2020/07/14 23:13:50 greg Exp $";
 #endif
 /*
  * Mesh support routines
@@ -509,9 +509,9 @@ addmeshtri(			/* add a new mesh triangle */
 	}
 						/* double link */
 	pp = &mp->patch[pn[i=0]];
-	if (pp->nj2tris >= 256)
+	if (mp->patch[pn[1]].nj2tris < pp->nj2tris)
 		pp = &mp->patch[pn[i=1]];
-	if (pp->nj2tris >= 256)
+	if (mp->patch[pn[2]].nj2tris < pp->nj2tris)
 		pp = &mp->patch[pn[i=2]];
 	if (pp->nj2tris >= 256)
 		error(INTERNAL, "too many patch triangles in addmeshtri");
@@ -578,6 +578,8 @@ checkmesh(MESH *mp)			/* validate mesh data */
 			return("unbounded scene in mesh");
 		if (mp->mat0 < 0 || mp->mat0+mp->nmats > nobjects)
 			return("bad mesh modifier range");
+		if (mp->nmats > 0)	/* allocate during preload_objs()! */
+			getmeshpseudo(mp, mp->mat0);
 		for (i = mp->mat0+mp->nmats; i-- > mp->mat0; ) {
 			int	otyp = objptr(i)->otype;
 			if (!ismodifier(otyp)) {

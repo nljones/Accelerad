@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: rcontrib.c,v 2.35 2019/04/07 16:39:39 greg Exp $";
+static const char RCSid[] = "$Id: rcontrib.c,v 2.36 2020/07/20 15:54:29 greg Exp $";
 #endif
 /*
  * Accumulate ray contributions for a set of materials
@@ -72,17 +72,6 @@ static void mcfree(void *p) { epfree((*(MODCONT *)p).binv); free(p); }
 
 LUTAB	modconttab = LU_SINIT(NULL,mcfree);	/* modifier lookup table */
 
-#ifdef ACCELERAD
-#define EXPECTED_RAY_COUNT	32
-
-/* from optix_radiance.c */
-extern void contribOptix(const size_t width, const size_t height, const size_t ray_count, const unsigned int imm_irrad, const unsigned int lim_dist, const unsigned int contrib, const unsigned int bins, double* rays, LUTAB *modifiers);
-
-static unsigned int total_bins = 0;	/* total number of contribution bins */
-
-char *calfilename = NULL;			/* name of the most recently read cal file */
-#endif
-
 /************************** INITIALIZATION ROUTINES ***********************/
 
 char *
@@ -149,11 +138,6 @@ addmodifier(char *modn, char *outf, char *prms, char *binv, int bincnt)
 	mp->binv = ebinv;
 	mp->bin0 = 0;
 	mp->nbins = bincnt;
-#ifdef ACCELERAD
-	mp->start_bin = total_bins;
-	total_bins += bincnt;
-	mp->file = calfilename;
-#endif
 	memset(mp->cbin, 0, sizeof(DCOLOR)*bincnt);
 					/* figure out starting bin */
 	while (!getostream(mp->outspec, mp->modname, mp->bin0, 1))
@@ -195,6 +179,8 @@ quit(			/* quit program */
 {
 	if (nchild > 0)		/* close children if any */
 		end_children(code != 0);
+	else if (nchild < 0)
+		_exit(code);	/* avoid flush() in child */
 	exit(code);
 }
 
@@ -209,10 +195,6 @@ rcinit(void)
 		sprintf(errmsg, "too many processes requested -- reducing to %d",
 				nproc = MAXPROCESS);
 	if (nproc > 1) {
-#ifdef ACCELERAD
-		if (use_optix) /* Don't allow multiple processes to access the graphics card. */
-			error(USER, "multiprocessing incompatible with GPU implementation");
-#endif
 		preload_objs();		/* preload auxiliary data */
 					/* set shared memory boundary */
 		shm_boundary = strcpy((char *)malloc(16), "SHM_BOUNDARY");
@@ -234,9 +216,6 @@ rcinit(void)
 	if (nproc > 1 && in_rchild())	/* forked child? */
 		return;			/* return to main processing loop */
 
-#ifdef ACCELERAD
-	if (!use_optix) /* Recovery shouldn't be useful for parallel computation. */
-#endif
 	if (recover) {			/* recover previous output? */
 		if (accumulate <= 0)
 			reload_output();
@@ -329,11 +308,7 @@ eval_rad(FVECT org, FVECT dir, double dmax)
 
 
 /* Accumulate and/or output ray contributions (child or only process) */
-#ifdef ACCELERAD
-void
-#else
 static void
-#endif
 done_contrib(void)
 {
 	MODCONT	*mp;
@@ -360,51 +335,11 @@ rcontrib(void)
 	static int	ignore_warning_given = 0;
 	FVECT		orig, direc;
 	double		d;
-#ifdef ACCELERAD
-	size_t width, height, ray_count, ray_capacity;
-	RREAL *ray_cache;
-#endif
 					/* initialize (& fork more of us) */
 	rcinit();
 					/* load rays from stdin & process */
 #ifdef getc_unlocked
 	flockfile(stdin);		/* avoid mutex overhead */
-#endif
-#ifdef ACCELERAD
-	if (use_optix) {
-		/* Populate the set of rays to trace */
-		ray_capacity = raysleft ? raysleft : EXPECTED_RAY_COUNT;
-		ray_cache = (RREAL *)malloc(6 * sizeof(RREAL) * ray_capacity);
-		if (ray_cache == NULL)
-			error(SYSTEM, "out of memory in rcontrib");
-		ray_count = 0u;
-
-		/* load rays from stdin & process */
-		while (getvec(orig) == 0 && getvec(direc) == 0) {
-			/* resize array if necessary (should only happen when vcount == 0) */
-			if (ray_count == ray_capacity) {
-				ray_capacity *= 2;
-				ray_cache = (RREAL *)realloc(ray_cache, 6 * sizeof(RREAL) * ray_capacity);
-				if (ray_cache == NULL)
-					error(SYSTEM, "out of memory in rcontrib");
-			}
-			VCOPY(ray_cache + (6 * ray_count), orig);
-			VCOPY(ray_cache + (6 * ray_count + 3), direc);
-			ray_count++;
-			if (raysleft && !--raysleft)
-				break;		/* preemptive EOI */
-		}
-
-		width = (yres > 0 && xres > 0) ? xres : 1;
-		if (yres > 0 && accumulate > 1)
-			width *= accumulate;
-		height = (ray_count - 1) / width + 1;
-		if (accumulate > 1 && height != ray_count / width)
-			error(WARNING, "partial accumulation in final record");
-		contribOptix(width, height, ray_count, imm_irrad, lim_dist, contrib, total_bins, ray_cache, &modconttab);
-		free(ray_cache);
-	}
-	else
 #endif
 	while (getvec(orig) == 0 && getvec(direc) == 0) {
 		d = normalize(direc);

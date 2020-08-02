@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: readwfobj.c,v 2.1 2020/03/30 18:28:35 greg Exp $";
+static const char RCSid[] = "$Id: readwfobj.c,v 2.4 2020/05/02 00:12:45 greg Exp $";
 #endif
 /*
  *  readobj.c
@@ -12,11 +12,9 @@ static const char RCSid[] = "$Id: readwfobj.c,v 2.1 2020/03/30 18:28:35 greg Exp
 #include "rtio.h"
 #include "rterror.h"
 #include "fvect.h"
-#include <stdlib.h>
+#include "paths.h"
 #include <ctype.h>
 #include "objutil.h"
-
-typedef int	VNDX[3];	/* vertex index (point,map,normal) */
 
 #define MAXARG		512	/* maximum # arguments in a statement */
 
@@ -115,42 +113,6 @@ syntax(const char *fn, const char *er)
 	error(USER, errmsg);
 }
 
-/* Add a vertex to our scene */
-static void
-add_vertex(Scene *sc, double x, double y, double z)
-{
-	sc->vert = chunk_alloc(Vertex, sc->vert, sc->nverts);
-	sc->vert[sc->nverts].p[0] = x;
-	sc->vert[sc->nverts].p[1] = y;
-	sc->vert[sc->nverts].p[2] = z;
-	sc->vert[sc->nverts++].vflist = NULL;
-}
-
-/* Add a texture coordinate to our scene */
-static void
-add_texture(Scene *sc, double u, double v)
-{
-	sc->tex = chunk_alloc(TexCoord, sc->tex, sc->ntex);
-	sc->tex[sc->ntex].u = u;
-	sc->tex[sc->ntex].v = v;
-	sc->ntex++;
-}
-
-/* Add a surface normal to our scene */
-static int
-add_normal(Scene *sc, double xn, double yn, double zn)
-{
-	FVECT   nrm;
-
-	nrm[0] = xn; nrm[1] = yn; nrm[2] = zn;
-	if (normalize(nrm) == .0)
-		return(0);
-	sc->norm = chunk_alloc(Normal, sc->norm, sc->nnorms);
-	VCOPY(sc->norm[sc->nnorms], nrm);
-	sc->nnorms++;
-	return(1);
-}
-
 /* combine multi-group name into single identifier w/o spaces */
 static char *
 group_name(int ac, char **av)
@@ -179,69 +141,27 @@ group_name(int ac, char **av)
 	return(nambuf);
 }
 
-/* set current group */
-static void
-set_group(Scene *sc, const char *nm)
-{
-	sc->lastgrp = findName(nm, (const char **)sc->grpname, sc->ngrps);
-	if (sc->lastgrp >= 0)
-		return;
-	sc->grpname = chunk_alloc(char *, sc->grpname, sc->ngrps);
-	sc->grpname[sc->lastgrp=sc->ngrps++] = savqstr((char *)nm);
-}
-
-/* set current material */
-static void
-set_material(Scene *sc, const char *nm)
-{
-	sc->lastmat = findName(nm, (const char **)sc->matname, sc->nmats);
-	if (sc->lastmat >= 0)
-		return;
-	sc->matname = chunk_alloc(char *, sc->matname, sc->nmats);
-	sc->matname[sc->lastmat=sc->nmats++] = savqstr((char *)nm);
-}
-
-/* Add a new face to scene */
+/* add a new face to scene */
 static int
 add_face(Scene *sc, const VNDX ondx, int ac, char *av[])
 {
-	Face    *f;
+	VNDX	vdef[4];
+	VNDX	*varr = vdef;
+	Face    *f = NULL;
 	int     i;
 	
-	if (ac < 3)
+	if (ac < 3)				/* legal polygon? */
 		return(0);
-	f = (Face *)emalloc(sizeof(Face)+sizeof(VertEnt)*(ac-3));
-	f->flags = 0;
-	f->nv = ac;
-	f->grp = sc->lastgrp;
-	f->mat = sc->lastmat;
-	for (i = 0; i < ac; i++) {		/* add each vertex */
-		VNDX    vin;
-		int     j;
-		if (!cvtndx(vin, sc, ondx, av[i])) {
-			efree((char *)f);
-			return(0);
-		}
-		f->v[i].vid = vin[0];
-		f->v[i].tid = vin[1];
-		f->v[i].nid = vin[2];
-		f->v[i].fnext = NULL;
-		for (j = i; j-- > 0; )
-			if (f->v[j].vid == vin[0])
-				break;
-		if (j < 0) {			/* first occurrence? */
-			f->v[i].fnext = sc->vert[vin[0]].vflist;
-			sc->vert[vin[0]].vflist = f;
-		} else if (ac == 3)		/* degenerate triangle? */
-			f->flags |= FACE_DEGENERATE;
-	}
-	f->next = sc->flist;			/* push onto face list */
-	sc->flist = f;
-	sc->nfaces++;
-						/* check face area */
-	if (!(f->flags & FACE_DEGENERATE) && faceArea(sc, f, NULL) <= FTINY)
-		f->flags |= FACE_DEGENERATE;
-	return(1);
+	if (ac > 4)				/* need to allocate array? */
+		varr = (VNDX *)emalloc(ac*sizeof(VNDX));
+	for (i = ac; i--; )			/* index each vertex */
+		if (!cvtndx(varr[i], sc, ondx, av[i]))
+			break;
+	if (i < 0)				/* create face if indices OK */
+		f = addFace(sc, varr, ac);
+	if (varr != vdef)
+		efree((char *)varr);
+	return(f != NULL);
 }
 
 /* Load a .OBJ file */
@@ -288,7 +208,7 @@ loadOBJ(Scene *sc, const char *fspec)
 					syntax(fspec, "bad vertex");
 					goto failure;
 				}
-				add_vertex(sc, atof(argv[1]),
+				addVertex(sc, atof(argv[1]),
 						atof(argv[2]),
 						atof(argv[3]));
 				break;
@@ -297,7 +217,7 @@ loadOBJ(Scene *sc, const char *fspec)
 					goto unknown;
 				if (badarg(argc-1,argv+1,"ff"))
 					goto unknown;
-				add_texture(sc, atof(argv[1]), atof(argv[2]));
+				addTexture(sc, atof(argv[1]), atof(argv[2]));
 				break;
 			case 'n':			/* normal */
 				if (argv[0][2])
@@ -306,9 +226,9 @@ loadOBJ(Scene *sc, const char *fspec)
 					syntax(fspec, "bad normal");
 					goto failure;
 				}
-				if (!add_normal(sc, atof(argv[1]),
+				if (addNormal(sc, atof(argv[1]),
 						atof(argv[2]),
-						atof(argv[3]))) {
+						atof(argv[3])) < 0) {
 					syntax(fspec, "zero normal");
 					goto failure;
 				}
@@ -334,7 +254,7 @@ loadOBJ(Scene *sc, const char *fspec)
 				syntax(fspec, "bad # arguments");
 				goto failure;
 			}
-			set_material(sc, argv[1]);
+			setMaterial(sc, argv[1]);
 			break;
 		case 'o':		/* object name */
 		case 'g':		/* group name */
@@ -342,7 +262,7 @@ loadOBJ(Scene *sc, const char *fspec)
 				syntax(fspec, "missing argument");
 				goto failure;
 			}
-			set_group(sc, group_name(argc-1, argv+1));
+			setGroup(sc, group_name(argc-1, argv+1));
 			break;
 		case '#':		/* comment */
 			continue;

@@ -60,10 +60,6 @@ typedef struct {
 	const char	*params;	/* parameter list */
 	EPNODE		*binv;		/* bin value expression */
 	int		bin0;		/* starting bin offset */
-#ifdef ACCELERAD
-	int		start_bin;		/* index of first contribution bin */
-	const char	*file;		/* file containing definition */
-#endif
 	int		nbins;		/* number of contribution bins */
 	DCOLOR		cbin[1];	/* contribution bins (extends struct) */
 } MODCONT;			/* modifier contribution */

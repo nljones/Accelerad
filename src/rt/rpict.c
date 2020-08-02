@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: rpict.c,v 2.93 2019/05/04 00:32:47 greg Exp $";
+static const char RCSid[] = "$Id: rpict.c,v 2.94 2020/07/20 15:52:30 greg Exp $";
 #endif
 /*
  *  rpict.c - routines and variables for picture generation.
@@ -43,12 +43,6 @@ static const char RCSid[] = "$Id: rpict.c,v 2.93 2019/05/04 00:32:47 greg Exp $"
 #ifdef SIGIO     /* XXX can we live without this? */
 #define SIGCONT		SIGIO
 #endif
-#endif
-
-#ifdef ACCELERAD
-/* in optix_rpict.c */
-extern void renderOptix(const VIEW* view, const size_t width, const size_t height, const double dstrpix, const double mblur, const double dblur, COLOR* colors, float* depths, void (*freport)(double));
-extern void endOptix();
 #endif
 
 CUBE  thescene;				/* our scene */
@@ -125,9 +119,6 @@ int  hres, vres;			/* resolution for this frame */
 
 static VIEW	lastview;		/* the previous view input */
 
-#ifdef ACCELERAD
-void reportProgress(double percent);
-#endif
 static void report(int);
 static int nextview(FILE *fp);
 static void render(char *zfile, char *oldfile);
@@ -144,8 +135,7 @@ static int pixnumber(int  x, int  y, int  xres, int  yres);
 
 
 void
-quit(code)			/* quit program */
-int  code;
+quit(int code)			/* quit program */
 {
 	if (code)			/* report status */
 		report(0);
@@ -156,14 +146,6 @@ int  code;
 	exit(code);
 }
 
-#ifdef ACCELERAD
-void reportProgress(double percent)
-{
-	pctdone = percent;
-	if (ralrm > 0)
-		report(0);
-}
-#endif
 
 #ifndef NON_POSIX
 static void
@@ -368,12 +350,6 @@ rpict(			/* generate image(s) */
 		prvr = NULL;
 		npicts++;
 	} while (seq++);
-#ifdef ACCELERAD
-	if (use_optix) {
-		/* Destroy the OptiX context. */
-		endOptix();
-	}
-#endif
 					/* check that we did something */
 	if (npicts == 0)
 		error(WARNING, "no output produced");
@@ -417,52 +393,6 @@ render(				/* render the scene */
 		fprtresolu(0, 0, stdout);
 		return;
 	}
-#ifdef ACCELERAD
-	if (use_optix) {
-		/* Allocate memory to save the color and depth information once it is retrieved from the output buffer. */
-		colptr = (COLOR *)malloc(sizeof(COLOR) * hres * vres);
-		zptr = (float *)malloc(sizeof(float) * hres * vres);
-		if (colptr == NULL || zptr == NULL)
-			goto memerr;
-
-		/* Initialize progress bar for some applications like IES<VE> */
-		pctdone = 0.0;
-		if (ralrm > 0)
-			report(0);
-
-		/* Now lets render an image on the graphics card */
-		renderOptix(&ourview, hres, vres, dstrpix, mblur, dblur, colptr, zptr, &reportProgress);
-
-		/* open z-file */
-		if (zfile != NULL) {
-			if ((zfd = open(zfile, O_WRONLY | O_CREAT, 0666)) == -1) {
-				sprintf(errmsg, "cannot open z-file \"%s\"", zfile);
-				error(SYSTEM, errmsg);
-			}
-			SET_FD_BINARY(zfd);
-		}
-		else {
-			zfd = -1;
-		}
-
-		/* Quick output handling */
-		fprtresolu(hres, vres, stdout);
-		for (i = vres; i--;) {
-			if (zfd != -1 && write(zfd, (char *)(zptr + hres * i), hres * sizeof(float)) < hres * sizeof(float))
-				goto writerr;
-			fwritescan(colptr + hres * i, hres, stdout);
-			if (fflush(stdout) == EOF)
-				goto writerr;
-		}
-
-		/* Unallocate the memory that was used to save the output transfered back from OptiX rendering. */
-		free(colptr);
-		free(zptr);
-		psample = -1;
-		sampdens = NULL;
-		goto alldone;
-	}
-#endif /* ACCELERAD */
 					/* allocate scanlines */
 	for (i = 0; i <= psample; i++) {
 		scanbar[i] = (COLOR *)malloc(hres*sizeof(COLOR));

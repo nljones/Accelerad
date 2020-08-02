@@ -18,8 +18,6 @@ static const char RCSid[] = "$Id: rfluxmtx.c,v 2.51 2020/03/02 22:00:05 greg Exp
 #include "triangulate.h"
 #include "platform.h"
 
-#include "accelerad.h"
-
 #ifndef MAXRCARG
 #define MAXRCARG	10000
 #endif
@@ -28,12 +26,7 @@ char		*progname;		/* global argv[0] */
 
 int		verbose = 0;		/* verbose mode (< 0 no warnings) */
 
-#ifdef ACCELERAD
-#define ACCEL_CHARS	10		/* length of "accelerad_" string */
-char		*rcarg[MAXRCARG + 1] = { "accelerad_rcontrib", "-fo+" };
-#else
 char		*rcarg[MAXRCARG+1] = {"rcontrib", "-fo+"};
-#endif
 int		nrcargs = 2;
 
 const char	overflowerr[] = "%s: too many arguments!\n";
@@ -1245,14 +1238,6 @@ main(int argc, char *argv[])
 	FILE	*rcfp;
 	int	nsbins;
 	int	a, i;
-#ifdef ACCELERAD
-	char	nametest[128];
-#if defined(_WIN32) || defined(_WIN64)
-	char	nulldest[4] = "NUL";
-#else
-	char	nulldest[10] = "/dev/null";
-#endif
-#endif
 					/* screen rcontrib options */
 	progname = argv[0];
 	for (a = 1; a < argc-2; a++) {
@@ -1323,9 +1308,6 @@ main(int argc, char *argv[])
 		case 'n':		/* options with 1 argument */
 		case 's':
 		case 'o':
-#ifdef ACCELERAD
-		case 't':		/* now depricated, but let it pass for rcontrib to generate a warning */
-#endif
 			na = 2;
 			break;
 		case 'b':		/* special case */
@@ -1354,15 +1336,6 @@ main(int argc, char *argv[])
 			if (!argv[a][2]) goto userr;
 			na = (argv[a][2] == 'e') | (argv[a][2] == 'a') ? 4 : 2;
 			break;
-#ifdef ACCELERAD
-		case 'g':		/* special case */
-			if (argv[a][2] == 'v') na = 2;
-			else if (argv[a][2] == '+' || argv[a][2] == '-') na = 1;
-			else if (argv[a][2]) goto userr;
-			else
-				na = ((a < argc - 2) && (argv[a + 1][0] != '-')) ? 2 : 1;
-			break;
-#endif
 		default:		/* anything else is verbotten */
 			goto userr;
 		}
@@ -1419,11 +1392,6 @@ main(int argc, char *argv[])
 	if (load_scene(argv[a], add_recv_object) < 0)
 		return(1);
 	finish_receiver();
-#ifdef ACCELERAD
-	sprintf(nametest, "%s -version > %s 2>&1", rcarg[0], nulldest);
-	if (system(nametest)) /* check existance of accelerad_rcontrib */
-		rcarg[0] += ACCEL_CHARS;
-#endif
 	if (sendfn == NULL) {		/* pass-through mode? */
 		CHECKARGC(1);		/* add octree */
 		rcarg[nrcargs++] = oconv_command(argc-a, argv+a);

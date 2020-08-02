@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id: raypcalls.c,v 2.30 2019/04/19 16:28:57 greg Exp $";
+static const char	RCSid[] = "$Id: raypcalls.c,v 2.34 2020/06/16 17:58:11 greg Exp $";
 #endif
 /*
  *  raypcalls.c - interface for parallel rendering using Radiance
@@ -147,7 +147,7 @@ static const char	RCSid[] = "$Id: raypcalls.c,v 2.30 2019/04/19 16:28:57 greg Ex
 #include  "selcall.h"
 
 #ifndef RAYQLEN
-#define RAYQLEN		12		/* # rays to send at once */
+#define RAYQLEN		24		/* # rays to send at once */
 #endif
 
 #ifndef MAX_RPROCS
@@ -212,7 +212,7 @@ ray_pflush(void)			/* send queued rays to idle children */
 	for (i = ray_pnprocs; nc && i--; ) {
 		if (r_proc[i].npending > 0)
 			continue;	/* child looks busy */
-		n = (r_send_next - sfirst)/nc--;
+		n = (r_send_next - sfirst) / nc--;
 		if (!n)
 			continue;
 					/* smuggle set size in crtype */

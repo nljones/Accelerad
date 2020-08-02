@@ -15,20 +15,6 @@ static const char	RCSid[] = "$Id: rview.c,v 2.37 2013/10/18 17:04:13 greg Exp $"
 #include  "ray.h"
 #include  "rpaint.h"
 
-#ifdef ACCELERAD_RT
-#include  "optix_rvu.h"
-#endif
-#ifdef ACCELERAD_DEBUG
-#define __STDC_FORMAT_MACROS
-#include  <inttypes.h>
-//#include  "optix_radiance.h"
-#endif
-
-#ifdef ACCELERAD_RT
-extern void qt_rvu_paint_image(int xmin, int ymin, int xmax, int ymax, const unsigned char *data);
-extern void qt_rvu_update_plot(double *values, int rescale);
-#endif
-
 #define	 CTRL(c)	((c)-'@')
 
 
@@ -74,10 +60,6 @@ devopen(				/* open device driver */
 void
 devclose(void)				/* close our device */
 {
-#ifdef ACCELERAD_RT
-	/* Destroy the OptiX context. */
-	endOptix();
-#endif
 	if (dev != NULL)
 		(*dev->close)();
 	dev = NULL;
@@ -98,52 +80,13 @@ void
 rview(void)				/* do a view */
 {
 	char  buf[32];
-#ifdef ACCELERAD_DEBUG
-	clock_t kernel_clock; // Timer in clock cycles for short jobs
-#endif
 
 	devopen(dvcname);		/* open device */
 	newimage(NULL);			/* start image */
 
-#ifdef ACCELERAD_DEBUG
-	kernel_clock = clock();
-#endif
-#ifdef ACCELERAD_RT
-	if (use_optix) {
-		dev->flush();
-
-		for (;;) {			/* quit in command() */
-			while (cuda_kmeans_iterations < pdepth && cuda_kmeans_iterations > -1) // TODO new variable
-#ifdef ACCELERAD_DEBUG
-			{
-				kernel_clock = clock() - kernel_clock;
-				sprintf(errmsg, "done (%" PRIu64 " milliseconds): ", kernel_clock);
-				command(errmsg);
-			}
-#else
-				command("done: ");
-#endif
-			errno = 0;
-			sprintf(buf, "%d pass...\n", pdepth);
-			(*dev->comout)(buf);
-			renderOptixIterative(&ourview, hresolu, vresolu, !(pdepth++), &qt_rvu_paint_image, &qt_rvu_update_plot);
-			if (dev->inpready)		/* noticed some input */
-				command(": ");
-		}
-		return;
-	}
-#endif
 	for ( ; ; ) {			/* quit in command() */
 		while (hresolu <= 1<<pdepth && vresolu <= 1<<pdepth)
-#ifdef ACCELERAD_DEBUG
-		{
-			kernel_clock = clock() - kernel_clock;
-			sprintf(errmsg, "done (%" PRIu64 " milliseconds): ", kernel_clock);
-			command(errmsg);
-		}
-#else
 			command("done: ");
-#endif
 		errno = 0;
 		if (hresolu <= psample<<pdepth && vresolu <= psample<<pdepth) {
 			sprintf(buf, "%d sampling...\n", 1<<pdepth);

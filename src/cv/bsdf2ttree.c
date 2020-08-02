@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: bsdf2ttree.c,v 2.44 2019/12/28 18:05:14 greg Exp $";
+static const char RCSid[] = "$Id: bsdf2ttree.c,v 2.52 2020/05/18 20:08:57 greg Exp $";
 #endif
 /*
  * Load measured BSDF interpolant and write out as XML file with tensor tree.
@@ -25,11 +25,9 @@ static double		pctcull = 90.;
 				/* sampling order */
 static int		samp_order = 6;
 				/* super-sampling threshold */
-const double		ssamp_thresh = 0.35;
+static double		ssamp_thresh = 0.35;
 				/* number of super-samples */
-#ifndef NSSAMP
-#define	NSSAMP		64
-#endif
+static int		nssamp = 256;
 				/* limit on number of RBF lobes */
 static int		lobe_lim = 15000;
 				/* progress bar length */
@@ -129,6 +127,9 @@ eval_isotropic(char *funame)
 {
 	const int	sqres = 1<<samp_order;
 	const double	sqfact = 1./(double)sqres;
+	float		*val_last = NULL;
+	float		*val_next = NULL;
+	SDValue		*sdv_next = NULL;
 	FILE		*ofp, *uvfp[2];
 	int		assignD = 0;
 	char		cmd[128];
@@ -189,32 +190,65 @@ eval_isotropic(char *funame)
 	}
 	if (funame != NULL)			/* need to assign Dx, Dy, Dz? */
 		assignD = (fundefined(funame) < 6);
+	val_last = (float *)calloc(sqres, sizeof(float));
+	if (funame == NULL)
+		sdv_next = (SDValue *)malloc(sizeof(SDValue)*sqres);
+	else
+		val_next = (float *)malloc(sizeof(float)*sqres);
 						/* run through directions */
 	for (ix = 0; ix < sqres/2; ix++) {
-		RBFNODE	*rbf = NULL;
+		const int	zipsgn = (ix & 1)*2 - 1;
+		RBFNODE		*rbf = NULL;
 		iovec[0] = 2.*sqfact*(ix+.5) - 1.;
-		iovec[1] = .0;
-		iovec[2] = input_orient * sqrt(1. - iovec[0]*iovec[0]);
+		iovec[1] = zipsgn*sqfact*.5;
+		iovec[2] = input_orient * sqrt(1. - iovec[0]*iovec[0]
+						- iovec[1]*iovec[1]);
 		if (funame == NULL)
 			rbf = advect_rbf(iovec, lobe_lim);
-		for (ox = 0; ox < sqres; ox++) {
-		    float	last_bsdf = -1;
-		    for (oy = 0; oy < sqres; oy++) {
-			SDsquare2disk(iovec+3, (ox+.5)*sqfact, (oy+.5)*sqfact);
-			iovec[5] = output_orient *
+						/* presample first row */
+		for (oy = 0; oy < sqres; oy++) {
+		    SDsquare2disk(iovec+3, .5*sqfact, (oy+.5)*sqfact);
+		    iovec[5] = output_orient *
 				sqrt(1. - iovec[3]*iovec[3] - iovec[4]*iovec[4]);
+		    if (funame == NULL) {
+			eval_rbfcol(&sdv_next[oy], rbf, iovec+3);
+		    } else {
+			if (assignD) {
+			    varset("Dx", '=', -iovec[3]);
+			    varset("Dy", '=', -iovec[4]);
+			    varset("Dz", '=', -iovec[5]);
+			    ++eclock;
+			}
+			val_next[oy] = funvalue(funame, 6, iovec);
+		    }
+		}
+		for (ox = 0; ox < sqres; ox++) {
+		    /*
+		     * Super-sample when we detect a difference from before
+		     * or after in this row, above or below.
+		     */
+		    for (oy = 0; oy < sqres; oy++) {
+			if (ox < sqres-1) {	/* keeping one row ahead... */
+			    SDsquare2disk(iovec+3, (ox+1.5)*sqfact, (oy+.5)*sqfact);
+			    iovec[5] = output_orient *
+				sqrt(1. - iovec[3]*iovec[3] - iovec[4]*iovec[4]);
+			}
 			if (funame == NULL) {
-			    SDValue	sdv;
-			    eval_rbfcol(&sdv, rbf, iovec+3);
+			    SDValue	sdv = sdv_next[oy];
 			    bsdf = sdv.cieY;
-#if (NSSAMP > 0)
-			    if (abs_diff(bsdf, last_bsdf) > ssamp_thresh) {
+			    if (ox < sqres-1)
+				eval_rbfcol(&sdv_next[oy], rbf, iovec+3);
+			    if (abs_diff(bsdf, sdv_next[oy].cieY) > ssamp_thresh ||
+				(ox && abs_diff(bsdf, val_last[oy]) > ssamp_thresh) ||
+				(oy && abs_diff(bsdf, val_last[oy-1]) > ssamp_thresh) ||
+				(oy < sqres-1 &&
+				    abs_diff(bsdf, sdv_next[oy+1].cieY) > ssamp_thresh)) {
 				int	ssi;
 				double	ssa[2], sum = 0, usum = 0, vsum = 0;
 						/* super-sample voxel */
-				for (ssi = NSSAMP; ssi--; ) {
-				    SDmultiSamp(ssa, 2, (ssi+frandom()) *
-							(1./NSSAMP));
+				for (ssi = nssamp; ssi--; ) {
+				    SDmultiSamp(ssa, 2, (ssi+frandom()) /
+							(double)nssamp);
 				    SDsquare2disk(iovec+3, (ox+ssa[0])*sqfact,
 							(oy+ssa[1])*sqfact);
 				    iovec[5] = output_orient *
@@ -228,13 +262,12 @@ eval_isotropic(char *funame)
 					vsum += 9.*sdv.spec.cy * sdv.cieY;
 				    }
 				}
-				bsdf = sum * (1./NSSAMP);
+				bsdf = sum / (double)nssamp;
 				if (rbf_colorimetry == RBCtristimulus) {
 				    uv[0] = usum / (sum+FTINY);
 				    uv[1] = vsum / (sum+FTINY);
 				}
 			    } else
-#endif
 			    if (rbf_colorimetry == RBCtristimulus) {
 				uv[0] = uv[1] = 1. /
 				    (-2.*sdv.spec.cx + 12.*sdv.spec.cy + 3.);
@@ -242,27 +275,38 @@ eval_isotropic(char *funame)
 				uv[1] *= 9.*sdv.spec.cy;
 			    }
 			} else {
-			    if (assignD) {
-				varset("Dx", '=', -iovec[3]);
-				varset("Dy", '=', -iovec[4]);
-				varset("Dz", '=', -iovec[5]);
-				++eclock;
+			    bsdf = val_next[oy];
+			    if (ox < sqres-1) {
+				if (assignD) {
+				    varset("Dx", '=', -iovec[3]);
+				    varset("Dy", '=', -iovec[4]);
+				    varset("Dz", '=', -iovec[5]);
+				    ++eclock;
+				}
+				val_next[oy] = funvalue(funame, 6, iovec);
 			    }
-			    bsdf = funvalue(funame, 6, iovec);
-#if (NSSAMP > 0)
-			    if (abs_diff(bsdf, last_bsdf) > ssamp_thresh) {
+			    if (abs_diff(bsdf, val_next[oy]) > ssamp_thresh ||
+				(ox && abs_diff(bsdf, val_last[oy]) > ssamp_thresh) ||
+				(oy && abs_diff(bsdf, val_last[oy-1]) > ssamp_thresh) ||
+				(oy < sqres-1 &&
+				    abs_diff(bsdf, val_next[oy+1]) > ssamp_thresh)) {
 				int	ssi;
-				double	ssa[3], ssvec[6], sum = 0;
+				double	ssa[4], ssvec[6], sum = 0;
 						/* super-sample voxel */
-				for (ssi = NSSAMP; ssi--; ) {
-				    SDmultiSamp(ssa, 3, (ssi+frandom()) *
-							(1./NSSAMP));
+				for (ssi = nssamp; ssi--; ) {
+				    SDmultiSamp(ssa, 4, (ssi+frandom()) /
+							(double)nssamp);
 				    ssvec[0] = 2.*sqfact*(ix+ssa[0]) - 1.;
-				    ssvec[1] = .0;
-				    ssvec[2] = input_orient *
-						sqrt(1. - ssvec[0]*ssvec[0]);
-				    SDsquare2disk(ssvec+3, (ox+ssa[1])*sqfact,
-						(oy+ssa[2])*sqfact);
+				    ssvec[1] = zipsgn*sqfact*ssa[1];
+				    ssvec[2] = 1. - ssvec[0]*ssvec[0]
+							- ssvec[1]*ssvec[1];
+				    if (ssvec[2] < .0) {
+					ssvec[1] = 0;
+					ssvec[2] = 1. - ssvec[0]*ssvec[0];
+				    }
+				    ssvec[2] = input_orient * sqrt(ssvec[2]);
+				    SDsquare2disk(ssvec+3, (ox+ssa[2])*sqfact,
+						(oy+ssa[3])*sqfact);
 				    ssvec[5] = output_orient *
 						sqrt(1. - ssvec[3]*ssvec[3] -
 							ssvec[4]*ssvec[4]);
@@ -274,9 +318,8 @@ eval_isotropic(char *funame)
 				    }
 				    sum += funvalue(funame, 6, ssvec);
 				}
-				bsdf = sum * (1./NSSAMP);
+				bsdf = sum / (double)nssamp;
 			    }
-#endif
 			}
 			if (pctcull >= 0)
 				putbinary(&bsdf, sizeof(bsdf), 1, ofp);
@@ -292,7 +335,8 @@ eval_isotropic(char *funame)
 					fprintf(uvfp[1], "\t%.3e\n", uv[1]);
 				}
 			}
-			last_bsdf = bsdf;
+			if (val_last != NULL)
+				val_last[oy] = bsdf;
 		    }
 		}
 		if (rbf != NULL)
@@ -300,6 +344,11 @@ eval_isotropic(char *funame)
 		prog_show((ix+1.)*(2.*sqfact));
 	}
 	prog_done();
+	if (val_last != NULL) {
+		free(val_last);
+		if (val_next != NULL) free(val_next);
+		if (sdv_next != NULL) free(sdv_next);
+	}
 	if (pctcull >= 0) {			/* finish output */
 		if (pclose(ofp)) {
 			fprintf(stderr, "%s: error running rttree_reduce on Y\n",
@@ -343,6 +392,9 @@ eval_anisotropic(char *funame)
 {
 	const int	sqres = 1<<samp_order;
 	const double	sqfact = 1./(double)sqres;
+	float		*val_last = NULL;
+	float		*val_next = NULL;
+	SDValue		*sdv_next = NULL;
 	FILE		*ofp, *uvfp[2];
 	int		assignD = 0;
 	char		cmd[128];
@@ -408,6 +460,11 @@ eval_anisotropic(char *funame)
 	}
 	if (funame != NULL)			/* need to assign Dx, Dy, Dz? */
 		assignD = (fundefined(funame) < 6);
+	val_last = (float *)calloc(sqres, sizeof(float));
+	if (funame == NULL)
+		sdv_next = (SDValue *)malloc(sizeof(SDValue)*sqres);
+	else
+		val_next = (float *)malloc(sizeof(float)*sqres);
 						/* run through directions */
 	for (ix = 0; ix < sqres; ix++)
 	    for (iy = 0; iy < sqres; iy++) {
@@ -417,24 +474,50 @@ eval_anisotropic(char *funame)
 				sqrt(1. - iovec[0]*iovec[0] - iovec[1]*iovec[1]);
 		if (funame == NULL)
 			rbf = advect_rbf(iovec, lobe_lim);
-		for (ox = 0; ox < sqres; ox++) {
-		    float	last_bsdf = -1;
-		    for (oy = 0; oy < sqres; oy++) {
-			SDsquare2disk(iovec+3, (ox+.5)*sqfact, (oy+.5)*sqfact);
-			iovec[5] = output_orient *
+						/* presample first row */
+		for (oy = 0; oy < sqres; oy++) {
+		    SDsquare2disk(iovec+3, .5*sqfact, (oy+.5)*sqfact);
+		    iovec[5] = output_orient *
 				sqrt(1. - iovec[3]*iovec[3] - iovec[4]*iovec[4]);
+		    if (funame == NULL) {
+			eval_rbfcol(&sdv_next[oy], rbf, iovec+3);
+		    } else {
+			if (assignD) {
+			    varset("Dx", '=', -iovec[3]);
+			    varset("Dy", '=', -iovec[4]);
+			    varset("Dz", '=', -iovec[5]);
+			    ++eclock;
+			}
+			val_next[oy] = funvalue(funame, 6, iovec);
+		    }
+		}
+		for (ox = 0; ox < sqres; ox++) {
+		    /*
+		     * Super-sample when we detect a difference from before
+		     * or after in this row, above or below.
+		     */
+		    for (oy = 0; oy < sqres; oy++) {
+			if (ox < sqres-1) {	/* keeping one row ahead... */
+			    SDsquare2disk(iovec+3, (ox+1.5)*sqfact, (oy+.5)*sqfact);
+			    iovec[5] = output_orient *
+				sqrt(1. - iovec[3]*iovec[3] - iovec[4]*iovec[4]);
+			}
 			if (funame == NULL) {
-			    SDValue	sdv;
-			    eval_rbfcol(&sdv, rbf, iovec+3);
+			    SDValue	sdv = sdv_next[oy];
 			    bsdf = sdv.cieY;
-#if (NSSAMP > 0)
-			    if (abs_diff(bsdf, last_bsdf) > ssamp_thresh) {
+			    if (ox < sqres-1)
+				eval_rbfcol(&sdv_next[oy], rbf, iovec+3);
+			    if (abs_diff(bsdf, sdv_next[oy].cieY) > ssamp_thresh ||
+				(ox && abs_diff(bsdf, val_last[oy]) > ssamp_thresh) ||
+				(oy && abs_diff(bsdf, val_last[oy-1]) > ssamp_thresh) ||
+				(oy < sqres-1 &&
+				    abs_diff(bsdf, sdv_next[oy+1].cieY) > ssamp_thresh)) {
 				int	ssi;
 				double	ssa[2], sum = 0, usum = 0, vsum = 0;
 						/* super-sample voxel */
-				for (ssi = NSSAMP; ssi--; ) {
-				    SDmultiSamp(ssa, 2, (ssi+frandom()) *
-							(1./NSSAMP));
+				for (ssi = nssamp; ssi--; ) {
+				    SDmultiSamp(ssa, 2, (ssi+frandom()) /
+							(double)nssamp);
 				    SDsquare2disk(iovec+3, (ox+ssa[0])*sqfact,
 							(oy+ssa[1])*sqfact);
 				    iovec[5] = output_orient *
@@ -448,13 +531,12 @@ eval_anisotropic(char *funame)
 					vsum += 9.*sdv.spec.cy * sdv.cieY;
 				    }
 				}
-				bsdf = sum * (1./NSSAMP);
+				bsdf = sum / (double)nssamp;
 				if (rbf_colorimetry == RBCtristimulus) {
 				    uv[0] = usum / (sum+FTINY);
 				    uv[1] = vsum / (sum+FTINY);
 				}
 			    } else
-#endif
 			    if (rbf_colorimetry == RBCtristimulus) {
 				uv[0] = uv[1] = 1. /
 				    (-2.*sdv.spec.cx + 12.*sdv.spec.cy + 3.);
@@ -462,21 +544,27 @@ eval_anisotropic(char *funame)
 				uv[1] *= 9.*sdv.spec.cy;
 			    }
 			} else {
-			    if (assignD) {
-				varset("Dx", '=', -iovec[3]);
-				varset("Dy", '=', -iovec[4]);
-				varset("Dz", '=', -iovec[5]);
-				++eclock;
+			    bsdf = val_next[oy];
+			    if (ox < sqres-1) {
+				if (assignD) {
+				    varset("Dx", '=', -iovec[3]);
+				    varset("Dy", '=', -iovec[4]);
+				    varset("Dz", '=', -iovec[5]);
+				    ++eclock;
+				}
+				val_next[oy] = funvalue(funame, 6, iovec);
 			    }
-			    bsdf = funvalue(funame, 6, iovec);
-#if (NSSAMP > 0)
-			    if (abs_diff(bsdf, last_bsdf) > ssamp_thresh) {
+			    if (abs_diff(bsdf, val_next[oy]) > ssamp_thresh ||
+				(ox && abs_diff(bsdf, val_last[oy]) > ssamp_thresh) ||
+				(oy && abs_diff(bsdf, val_last[oy-1]) > ssamp_thresh) ||
+				(oy < sqres-1 &&
+				    abs_diff(bsdf, val_next[oy+1]) > ssamp_thresh)) {
 				int	ssi;
 				double	ssa[4], ssvec[6], sum = 0;
 						/* super-sample voxel */
-				for (ssi = NSSAMP; ssi--; ) {
-				    SDmultiSamp(ssa, 4, (ssi+frandom()) *
-							(1./NSSAMP));
+				for (ssi = nssamp; ssi--; ) {
+				    SDmultiSamp(ssa, 4, (ssi+frandom()) /
+							(double)nssamp);
 				    SDsquare2disk(ssvec, 1.-(ix+ssa[0])*sqfact,
 						1.-(iy+ssa[1])*sqfact);
 				    ssvec[2] = input_orient *
@@ -495,9 +583,8 @@ eval_anisotropic(char *funame)
 				    }
 				    sum += funvalue(funame, 6, ssvec);
 				}
-				bsdf = sum * (1./NSSAMP);
+				bsdf = sum / (double)nssamp;
 			    }
-#endif
 			}
 			if (pctcull >= 0)
 				putbinary(&bsdf, sizeof(bsdf), 1, ofp);
@@ -513,7 +600,8 @@ eval_anisotropic(char *funame)
 					fprintf(uvfp[1], "\t%.3e\n", uv[1]);
 				}
 			}
-			last_bsdf = bsdf;
+			if (val_last != NULL)
+				val_last[oy] = bsdf;
 		    }
 		}
 		if (rbf != NULL)
@@ -521,6 +609,11 @@ eval_anisotropic(char *funame)
 		prog_show((ix*sqres+iy+1.)/(sqres*sqres));
 	    }
 	prog_done();
+	if (val_last != NULL) {
+		free(val_last);
+		if (val_next != NULL) free(val_next);
+		if (sdv_next != NULL) free(sdv_next);
+	}
 	if (pctcull >= 0) {			/* finish output */
 		if (pclose(ofp)) {
 			fprintf(stderr, "%s: error running rttree_reduce on Y\n",
@@ -626,6 +719,8 @@ main(int argc, char *argv[])
 		switch (argv[i][1]) {		/* get options */
 		case 'e':
 			scompile(argv[++i], NULL, 0);
+			if (single_plane_incident < 0)
+				single_plane_incident = 0;
 			break;
 		case 'f':
 			if (!argv[i][2]) {
@@ -642,7 +737,8 @@ main(int argc, char *argv[])
 						return(1);
 					}
 					fcompile(fpath);
-					single_plane_incident = 0;
+					if (single_plane_incident < 0)
+						single_plane_incident = 0;
 				}
 			} else
 				dofwd = (argv[i][0] == '+');
@@ -652,6 +748,16 @@ main(int argc, char *argv[])
 			break;
 		case 'b':
 			dobwd = (argv[i][0] == '+');
+			break;
+		case 'n':
+			nssamp = atoi(argv[++i]);
+			if (nssamp <= 0)
+				goto userr;
+			break;
+		case 's':
+			ssamp_thresh = atof(argv[++i]);
+			if (ssamp_thresh <= FTINY)
+				goto userr;
 			break;
 		case 't':
 			switch (argv[i][2]) {
@@ -765,10 +871,10 @@ main(int argc, char *argv[])
 	return(wrap_up());
 userr:
 	fprintf(stderr,
-	"Usage: %s [{+|-}a][-g Nlog2][-t pctcull][-l maxlobes] [bsdf.sir ..] > bsdf.xml\n",
+	"Usage: %s [{+|-}a][-g Nlog2][-t pctcull][-n nss][-s thresh][-l maxlobes] [bsdf.sir ..] > bsdf.xml\n",
 				progname);
 	fprintf(stderr,
-	"   or: %s -t{3|4} [{+|-}a][-g Nlog2][-t pctcull][{+|-}for[ward]][{+|-}b[ackward]][-e expr][-f file] bsdf_func > bsdf.xml\n",
+	"   or: %s -t{3|4} [{+|-}a][-g Nlog2][-t pctcull][-n nss][-s thresh][{+|-}for[ward]][{+|-}b[ackward]][-e expr][-f file] bsdf_func > bsdf.xml\n",
 				progname);
 	return(1);
 }

@@ -6,8 +6,6 @@
 #include "fvect.h"
 #include "rpaint.h"
 
-#include "metricsplot.h"
-
 class QAction;
 class QDialog;
 class RvuWidget;
@@ -35,10 +33,6 @@ public:
   void setStatus(const char*);
   void setProgress(int);
   void pick( int* x, int* y);
-#ifdef ACCELERAD_RT
-  void addData(double *values);
-#endif
-
 protected:
   void closeEvent(QCloseEvent *event);
   void doSubmit();
@@ -125,12 +119,7 @@ private:
   /** Commands Dialog */
   QDialog *m_commandsDialog;
   Ui::commandsDialog *m_commandsDialogUi;
-
-#ifdef ACCELERAD_RT
-  /* Plot results */
-  MetricsPlot *mp;
-#endif
-
+  
   /** save image */
   QString currentImageName;
 };

@@ -22,29 +22,8 @@ static const char	RCSid[] = "$Id: rvmain.c,v 2.17 2016/08/18 00:52:48 greg Exp $
 
 extern char  *progname;			/* global argv[0] */
 
-#ifdef ACCELERAD
-int  xt = 0, yt = 0;			/* position of task area (-T) */
-double  omegat = 0.0;			/* opening angle of task area in radians (-T) */
-int  xh = 0, yh = 0;			/* position of contrast high luminance area (-C) */
-double  omegah = 0.0;			/* opening angle of contrast high luminance area (-C) */
-int  xl = 0, yl = 0;			/* position of contrast high luminance area (-C) */
-double  omegal = 0.0;			/* opening angle of contrast high luminance area (-C) */
-int  do_lum = 1;				/* show luminance rather than radiance */
-int  fc = 1;					/* use falsecolor tonemapping, zero for natural tonemapping (-f) */
-double  scale = 0.0;			/* maximum of scale for falsecolor images, zero auto-scaling (-s) */
-int  decades = 0;				/* number of decades for log scale, zero for linear scale (-log) */
-int  base = 10;					/* base for log scale (-base) */
-double  masking = 0.0;			/* minimum value to display in falsecolor images (-m) */
-
-double dstrpix = 0.0;			/* pixel jitter (-pj) */
-#endif
-
 VIEW  ourview = STDVIEW;		/* viewing parameters */
-#ifdef ACCELERAD
-int  hresolu = 0, vresolu = 0;	/* image resolution */
-#else
 int  hresolu, vresolu;			/* image resolution */
-#endif
 
 int  psample = 8;			/* pixel sample size */
 double	maxdiff = .15;			/* max. sample difference */
@@ -168,14 +147,7 @@ main(int argc, char *argv[])
 			}
 			break;
 		case 'b':				/* grayscale */
-#ifdef ACCELERAD
-			if (argv[i][2] == 'a') { /* base for color scale */
-				check(5, "i");
-				base = atoi(argv[++i]);
-				break;
-			}
-#endif
-			check_bool(2, greyscale);
+			check_bool(2,greyscale);
 			break;
 		case 'p':				/* pixel */
 			switch (argv[i][2]) {
@@ -187,12 +159,6 @@ main(int argc, char *argv[])
 				check(3,"f");
 				maxdiff = atof(argv[++i]);
 				break;
-#ifdef ACCELERAD
-			case 'j':				/* jitter */
-				check(3, "f");
-				dstrpix = atof(argv[++i]);
-				break;
-#endif
 			case 'e':				/* exposure */
 				check(3,"f");
 				exposure = atof(argv[++i]);
@@ -221,69 +187,10 @@ main(int argc, char *argv[])
 			check(2,"s");
 			strcpy(rifname, argv[++i]);
 			break;
-#ifdef ACCELERAD
-		case 'x':				/* x resolution */
-			check(2, "i");
-			hresolu = atoi(argv[++i]);
-			break;
-		case 'y':				/* y resolution */
-			check(2, "i");
-			vresolu = atoi(argv[++i]);
-			break;
-		case 'T':				/* task area luminance */
-			check(2, "iif");
-			xt = atoi(argv[++i]);
-			yt = atoi(argv[++i]);
-			omegat = atof(argv[++i]);
-			break;
-		case 'C':				/* contrast area luminance */
-			check(2, "iifiif");
-			xh = atoi(argv[++i]);
-			yh = atoi(argv[++i]);
-			omegah = atof(argv[++i]);
-			xl = atoi(argv[++i]);
-			yl = atoi(argv[++i]);
-			omegal = atof(argv[++i]);
-			break;
-		case 'f':				/* use falsecolor images */
-			check_bool(2, fc);
-			break;
-		case 's':				/* scale for falsecolor images */
-			check(2, "f");
-			scale = atof(argv[++i]);
-			break;
-		case 'l':				/* decades in log scale for falsecolor images */
-			check(4, "i");
-			decades = atoi(argv[++i]);
-			break;
-		case 'm':				/* minimum value for falsecolor images */
-			check(2, "f");
-			masking = atof(argv[++i]);
-			break;
-		case 't':				/* timer */
-			check(2, "f");
-			error(WARNING, "GPU callback time (-t) is depricated.");
-			++i;
-			break;
-#endif
 		default:
 			goto badopt;
 		}
 	}
-#ifdef ACCELERAD_RT
-	if (use_optix) {
-		if (nproc > 1) /* Don't allow multiple processes to access the graphics card. */
-			error(USER, "multiprocessing incompatible with GPU implementation");
-		if (ambacc > FTINY) {
-			ambacc = 0.0;
-			error(WARNING, "ambient accuracy set to zero for progressive path tracing");
-		}
-		if (ambdiv > 1 || optix_amb_fill > 1) {
-			ambdiv = optix_amb_fill = 1;
-			error(WARNING, "ambient divisions set to one for progressive path tracing");
-		}
-	}
-#endif
 	err = setview(&ourview);	/* set viewing parameters */
 	if (err != NULL)
 		error(USER, err);
@@ -443,21 +350,9 @@ printdefaults(void)			/* print default values to stdout */
 	printf("-pe %f\t\t\t# pixel exposure\n", exposure);
 	printf("-ps %-9d\t\t\t# pixel sample\n", psample);
 	printf("-pt %f\t\t\t# pixel threshold\n", maxdiff);
-#ifdef ACCELERAD
-	printf("-pj %f\t\t\t# pixel jitter\n", dstrpix);
-#endif
 	printf("-o %s\t\t\t\t# output device\n", dvcname);
 	printf(erract[WARNING].pf != NULL ?
 			"-w+\t\t\t\t# warning messages on\n" :
 			"-w-\t\t\t\t# warning messages off\n");
-#ifdef ACCELERAD
-	printf("-x %-9d\t\t\t# x resolution\n", hresolu);
-	printf("-y %-9d\t\t\t# y resolution\n", vresolu);
-	printf("-T %-9d %-9d %f\t# position and opening angle of task area\n", xt, yt, omegat);
-	printf("-C %-9d %-9d %f %-9d %-9d %f\t# position and opening angle of high and low contrast areas\n", xh, yh, omegah, xl, yl, omegal);
-	printf("-s %f\t\t\t# scale for falsecolor images\n", scale);
-	printf("-log %-9d\t\t\t# decades in log scale for falsecolor images\n", decades);
-	printf("-m %f\t\t\t# minimum value for falsecolor images\n", masking);
-#endif
 	print_rdefaults();
 }

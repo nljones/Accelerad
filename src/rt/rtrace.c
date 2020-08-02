@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id: rtrace.c,v 2.88 2020/03/12 17:19:18 greg Exp $";
+static const char	RCSid[] = "$Id: rtrace.c,v 2.99 2020/07/20 15:54:29 greg Exp $";
 #endif
 /*
  *  rtrace.c - program and variables for individual ray tracing.
@@ -45,18 +45,20 @@ extern int  traincl;			/* include == 1, exclude == 0 */
 extern int  hresolu;			/* horizontal resolution */
 extern int  vresolu;			/* vertical resolution */
 
-static int  castonly = 0;
+int  castonly = 0;			/* only doing ray-casting? */
 
 #ifndef  MAXTSET
 #define	 MAXTSET	8191		/* maximum number in trace set */
 #endif
 OBJECT	traset[MAXTSET+1]={0};		/* trace include/exclude set */
 
-#ifdef DAYSIM
-static void daysimOutput(RAY* r);
-#endif
-
 static RAY  thisray;			/* for our convenience */
+
+static FILE  *inpfp = NULL;		/* input stream pointer */
+
+static FVECT	*inp_queue = NULL;	/* ray input queue if flushing */
+static int	inp_qpos = 0;		/* next ray to return */
+static int	inp_qend = 0;		/* number of rays in this work group */
 
 typedef void putf_t(RREAL *v, int n);
 static putf_t puta, putd, putf, putrgbe;
@@ -66,26 +68,21 @@ static oputf_t  oputo, oputd, oputv, oputV, oputl, oputL, oputc, oputp,
 		oputr, oputR, oputx, oputX, oputn, oputN, oputs,
 		oputw, oputW, oputm, oputM, oputtilde;
 
-static void setoutput(char *vs);
 extern void tranotify(OBJECT obj);
+static int is_fifo(FILE *fp);
 static void bogusray(void);
 static void raycast(RAY *r);
 static void rayirrad(RAY *r);
 static void rtcompute(FVECT org, FVECT dir, double dmax);
 static int printvals(RAY *r);
 static int getvec(FVECT vec, int fmt, FILE *fp);
+static int iszerovec(const FVECT vec);
+static double nextray(FVECT org, FVECT dir);
 static void tabin(RAY *r);
 static void ourtrace(RAY *r);
 
 static oputf_t *ray_out[32], *every_out[32];
 static putf_t *putreal;
-
-#ifdef ACCELERAD
-#define EXPECTED_RAY_COUNT	32
-
-/* from optix_rtrace.c */
-extern void computeOptix(const size_t width, const size_t height, const unsigned int imm_irrad, RAY* rays);
-#endif
 
 
 void
@@ -95,8 +92,10 @@ quit(			/* quit program */
 {
 	if (ray_pnprocs > 0)	/* close children if any */
 		ray_pclose(0);		
+	else if (ray_pnprocs < 0)
+		_exit(code);	/* avoid flush() in child */
 #ifndef  NON_POSIX
-	else if (!ray_pnprocs) {
+	else {
 		headclean();	/* delete header file */
 		pfclean();	/* clean up persist files */
 	}
@@ -120,7 +119,7 @@ formstr(				/* return format identifier */
 }
 
 
-extern void
+void
 rtrace(				/* trace rays from file */
 	char  *fname,
 	int  nproc
@@ -132,28 +131,22 @@ rtrace(				/* trace rays from file */
 	int  something2flush = 0;
 	FILE  *fp;
 	double	d;
-#ifdef DAYSIM
-	int j = 0;
-#endif
 	FVECT  orig, direc;
-#ifdef ACCELERAD
-	size_t current_ray, total_rays;
-	RAY* ray_cache;
-#endif
 					/* set up input */
 	if (fname == NULL)
-		fp = stdin;
-	else if ((fp = fopen(fname, "r")) == NULL) {
+		inpfp = stdin;
+	else if ((inpfp = fopen(fname, "r")) == NULL) {
 		sprintf(errmsg, "cannot open input file \"%s\"", fname);
 		error(SYSTEM, errmsg);
 	}
+#ifdef getc_unlocked
+	flockfile(inpfp);		/* avoid lock/unlock overhead */
+	flockfile(stdout);
+#endif
 	if (inform != 'a')
-		SET_FILE_BINARY(fp);
+		SET_FILE_BINARY(inpfp);
 					/* set up output */
-	setoutput(outvals);
-	if (imm_irrad)
-		castonly = 0;
-	else if (castonly)
+	if (castonly || every_out[0] != NULL)
 		nproc = 1;		/* don't bother multiprocessing */
 	if ((nextflush > 0) & (nproc > nextflush)) {
 		error(WARNING, "reducing number of processes to match flush interval");
@@ -164,22 +157,12 @@ rtrace(				/* trace rays from file */
 	case 'f': putreal = putf; break;
 	case 'd': putreal = putd; break;
 	case 'c': 
-		if (outvals[0] && (outvals[1] || !strchr("vrx", outvals[0])))
+		if (outvals[1] || !strchr("vrx", outvals[0]))
 			error(USER, "color format only with -ov, -or, -ox");
 		putreal = putrgbe; break;
 	default:
 		error(CONSISTENCY, "botched output format");
 	}
-#ifdef ACCELERAD
-	if (use_optix) {
-		/* Populate the set of rays to trace */
-		total_rays = vcount ? vcount : EXPECTED_RAY_COUNT;
-		ray_cache = (RAY *)malloc(sizeof(RAY) * total_rays);
-		if (ray_cache == NULL)
-			error(SYSTEM, "out of memory in rtrace");
-		current_ray = 0u;
-	} else /* OptiX kernel can only be launched from a single thread. */
-#endif
 	if (nproc > 1) {		/* start multiprocessing */
 		ray_popen(nproc);
 		ray_fifo_out = printvals;
@@ -190,17 +173,9 @@ rtrace(				/* trace rays from file */
 		else
 			fflush(stdout);
 	}
-					/* process file */
-	while (getvec(orig, inform, fp) == 0 &&
-			getvec(direc, inform, fp) == 0) {
-
-		d = normalize(direc);
+					/* process input rays */
+	while ((d = nextray(orig, direc)) >= 0.0) {
 		if (d == 0.0) {				/* flush request? */
-#ifdef ACCELERAD
-			if (use_optix)
-				bogusray();
-			else
-#endif
 			if (something2flush) {
 				if (ray_pnprocs > 1 && ray_fifo_flush() < 0)
 					error(USER, "child(ren) died");
@@ -211,30 +186,8 @@ rtrace(				/* trace rays from file */
 			} else
 				bogusray();
 		} else {				/* compute and print */
-#ifdef DAYSIM
-			if (NumberOfSensorsInDaysimFile > 0) {  /* sensor units are specified using option '-U' */
-				if (j < NumberOfSensorsInDaysimFile) {
-					if (DaysimSensorUnits[j] == 1)
-						imm_irrad = 1;
-					else
-						imm_irrad = 0;
-
-					rtcompute(orig, direc, lim_dist ? d : 0.0);
-					j++;
-				} else { /* not enough sensors specified under '-U' */
-					error(WARNING, "Not enough sensor units given under \'-U\'");
-				}
-			} else {
-				rtcompute(orig, direc, lim_dist ? d : 0.0);
-			}
-#else
 			rtcompute(orig, direc, lim_dist ? d : 0.0);
-#endif
-							/* flush if time */
-#ifdef ACCELERAD
-			if (!use_optix)
-#endif
-			if (!--nextflush) {
+			if (!--nextflush) {		/* flush if time */
 				if (ray_pnprocs > 1 && ray_fifo_flush() < 0)
 					error(USER, "child(ren) died");
 				fflush(stdout);
@@ -242,48 +195,25 @@ rtrace(				/* trace rays from file */
 			} else
 				something2flush = 1;
 		}
-#ifdef ACCELERAD
-		if (use_optix) {
-			/* resize array if necessary (should only happen when vcount == 0) */
-			if (current_ray == total_rays) {
-				total_rays *= 2;
-				ray_cache = (RAY *)realloc(ray_cache, sizeof(RAY) * total_rays);
-				if (ray_cache == NULL)
-					error(SYSTEM, "out of memory in rtrace");
-			}
-			ray_cache[current_ray++] = thisray;
-		} else /* Nothing ready to write yet. */
-#endif
 		if (ferror(stdout))
 			error(SYSTEM, "write error");
 		if (vcount && !--vcount)		/* check for end */
 			break;
 	}
-#ifdef ACCELERAD
-	if (use_optix) {
-		/* Run OptiX kernel. */
-		total_rays = current_ray;
-		computeOptix(hresolu ? hresolu : 1, vresolu ? vresolu : total_rays, imm_irrad, ray_cache);
-
-		/* Write output */
-		for ( current_ray = 0u; current_ray < total_rays; ) {
-			printvals(&ray_cache[current_ray++]);
-		}
-
-		free(ray_cache);
-	} else /* OptiX kernel can only be launched from a single thread. */
-#endif
 	if (ray_pnprocs > 1) {				/* clean up children */
 		if (ray_fifo_flush() < 0)
 			error(USER, "unable to complete processing");
 		ray_pclose(0);
 	}
+	if (vcount)
+		error(WARNING, "unexpected EOF on input");
 	if (fflush(stdout) < 0)
 		error(SYSTEM, "write error");
-	if (vcount)
-		error(USER, "unexpected EOF on input");
-	if (fname != NULL)
-		fclose(fp);
+	if (fname != NULL) {
+		fclose(inpfp);
+		inpfp = NULL;
+	}
+	nextray(NULL, NULL);
 }
 
 
@@ -297,22 +227,25 @@ trace_sources(void)			/* trace rays to light sources, also */
 }
 
 
-static void
-setoutput(				/* set up output tables */
-	char  *vs
-)
+int
+setrtoutput(void)			/* set up output tables, return #comp */
 {
+	char  *vs = outvals;
 	oputf_t **table = ray_out;
+	int  ncomp = 0;
 
-	castonly = 1;
-	while (*vs)
-		switch (*vs++) {
+	if (!*vs)
+		error(USER, "empty output specification");
+
+	castonly = 1;			/* sets castonly as side-effect */
+	do
+		switch (*vs) {
 		case 'T':				/* trace sources */
-			if (!*vs) break;
+			if (!vs[1]) break;
 			trace_sources();
 			/* fall through */
 		case 't':				/* trace */
-			if (!*vs) break;
+			if (!vs[1]) break;
 			*table = NULL;
 			table = every_out;
 			trace = ourtrace;
@@ -320,71 +253,82 @@ setoutput(				/* set up output tables */
 			break;
 		case 'o':				/* origin */
 			*table++ = oputo;
+			ncomp += 3;
 			break;
 		case 'd':				/* direction */
 			*table++ = oputd;
+			ncomp += 3;
 			break;
 		case 'r':				/* reflected contrib. */
 			*table++ = oputr;
+			ncomp += 3;
 			castonly = 0;
 			break;
 		case 'R':				/* reflected distance */
 			*table++ = oputR;
+			ncomp++;
 			castonly = 0;
 			break;
 		case 'x':				/* xmit contrib. */
 			*table++ = oputx;
+			ncomp += 3;
 			castonly = 0;
 			break;
 		case 'X':				/* xmit distance */
 			*table++ = oputX;
+			ncomp++;
 			castonly = 0;
 			break;
 		case 'v':				/* value */
 			*table++ = oputv;
+			ncomp += 3;
 			castonly = 0;
 			break;
 		case 'V':				/* contribution */
 			*table++ = oputV;
+			ncomp += 3;
+			castonly = 0;
 			if (ambounce > 0 && (ambacc > FTINY || ambssamp > 0))
 				error(WARNING,
 					"-otV accuracy depends on -aa 0 -as 0");
 			break;
 		case 'l':				/* effective distance */
 			*table++ = oputl;
+			ncomp++;
 			castonly = 0;
 			break;
-#ifdef DAYSIM
-		case 'c':               /* daylight coefficients */
-			*table++ = daysimOutput;
-			castonly = 0;
-			break;
-#else
 		case 'c':				/* local coordinates */
 			*table++ = oputc;
+			ncomp += 2;
 			break;
-#endif
 		case 'L':				/* single ray length */
 			*table++ = oputL;
+			ncomp++;
 			break;
 		case 'p':				/* point */
 			*table++ = oputp;
+			ncomp += 3;
 			break;
 		case 'n':				/* perturbed normal */
 			*table++ = oputn;
+			ncomp += 3;
 			castonly = 0;
 			break;
 		case 'N':				/* unperturbed normal */
 			*table++ = oputN;
+			ncomp += 3;
 			break;
 		case 's':				/* surface */
 			*table++ = oputs;
+			ncomp++;
 			break;
 		case 'w':				/* weight */
 			*table++ = oputw;
+			ncomp++;
 			break;
 		case 'W':				/* coefficient */
 			*table++ = oputW;
+			ncomp += 3;
 			castonly = 0;
 			if (ambounce > 0 && (ambacc > FTINY) | (ambssamp > 0))
 				error(WARNING,
@@ -392,16 +336,27 @@ setoutput(				/* set up output tables */
 			break;
 		case 'm':				/* modifier */
 			*table++ = oputm;
+			ncomp++;
 			break;
 		case 'M':				/* material */
 			*table++ = oputM;
+			ncomp++;
 			break;
 		case '~':				/* tilde */
 			*table++ = oputtilde;
 			break;
+		default:
+			sprintf(errmsg, "unrecognized output option '%c'", *vs);
+			error(USER, errmsg);
 		}
+	while (*++vs);
+
 	*table = NULL;
+	if (*every_out != NULL)
+		ncomp = 0;
 							/* compatibility */
+	if ((do_irrad | imm_irrad) && castonly)
+		error(USER, "-I+ and -i+ options require some value output");
 	for (table = ray_out; *table != NULL; table++) {
 		if ((*table == oputV) | (*table == oputW))
 			error(WARNING, "-oVW options require trace mode");
@@ -410,16 +365,13 @@ setoutput(				/* set up output tables */
 				(*table == oputx) | (*table == oputX))
 			error(WARNING, "-orRxX options incompatible with -I+ and -i+");
 	}
+	return(ncomp);
 }
 
 
 static void
 bogusray(void)			/* print out empty record */
 {
-#ifdef ACCELERAD
-	if (use_optix)
-		return; /* The rest will occur after the OptiX kernel runs. */
-#endif
 	rayorigin(&thisray, PRIMARY, NULL, NULL);
 	printvals(&thisray);
 }
@@ -483,10 +435,6 @@ rtcompute(			/* compute and print ray value(s) */
 		if (castonly)
 			thisray.revf = raycast;
 	}
-#ifdef ACCELERAD
-	if (use_optix)
-		return; /* The rest will occur after the OptiX kernel runs. */
-#endif
 	if (ray_pnprocs > 1) {		/* multiprocessing FIFO? */
 		if (ray_fifo_in(&thisray) < 0)
 			error(USER, "lost children");
@@ -516,7 +464,24 @@ printvals(			/* print requested ray values */
 
 
 static int
-getvec(		/* get a vector from fp */
+is_fifo(		/* check if file pointer connected to pipe */
+	FILE *fp
+)
+{
+#ifdef S_ISFIFO
+	struct stat  sbuf;
+
+	if (fstat(fileno(fp), &sbuf) < 0)
+		error(SYSTEM, "fstat() failed on input stream");
+	return(S_ISFIFO(sbuf.st_mode));
+#else
+	return (fp == stdin);		/* just a guess, really */
+#endif
+}
+
+
+static int
+getvec(			/* get a vector from fp */
 	FVECT  vec,
 	int  fmt,
 	FILE  *fp
@@ -550,6 +515,65 @@ getvec(		/* get a vector from fp */
 		error(CONSISTENCY, "botched input format");
 	}
 	return(0);
+}
+
+
+static int
+iszerovec(const FVECT vec)
+{
+	return (vec[0] == 0.0) & (vec[1] == 0.0) & (vec[2] == 0.0);
+}
+
+
+static double
+nextray(		/* return next ray in work group (-1.0 if EOF) */
+	FVECT org,
+	FVECT dir
+)
+{
+	const size_t	qlength = !vresolu * hresolu;
+
+	if ((org == NULL) | (dir == NULL)) {
+		if (inp_queue != NULL)	/* asking to free queue */
+			free(inp_queue);
+		inp_queue = NULL;
+		inp_qpos = inp_qend = 0;
+		return(-1.);
+	}
+	if (!inp_qend) {		/* initialize FIFO queue */
+		int	rsiz = 6*20;	/* conservative ascii ray size */
+		if (inform == 'f') rsiz = 6*sizeof(float);
+		else if (inform == 'd') rsiz = 6*sizeof(double);
+					/* check against pipe limit */
+		if (qlength*rsiz > 512 && is_fifo(inpfp))
+			inp_queue = (FVECT *)malloc(sizeof(FVECT)*2*qlength);
+		inp_qend = -(inp_queue == NULL);	/* flag for no queue */
+	}
+	if (inp_qend < 0) {		/* not queuing? */
+		if (getvec(org, inform, inpfp) < 0 ||
+				getvec(dir, inform, inpfp) < 0)
+			return(-1.);
+		return normalize(dir);
+	}
+	if (inp_qpos >= inp_qend) {	/* need to refill input queue? */
+		for (inp_qend = 0; inp_qend < qlength; inp_qend++) {
+			if (getvec(inp_queue[2*inp_qend], inform, inpfp) < 0
+					|| getvec(inp_queue[2*inp_qend+1],
+							inform, inpfp) < 0)
+				break;		/* hit EOF */
+			if (iszerovec(inp_queue[2*inp_qend+1])) {
+				++inp_qend;	/* flush request */
+				break;
+			}
+		}
+		inp_qpos = 0;
+	}
+	if (inp_qpos >= inp_qend)	/* unexpected EOF? */
+		return(-1.);
+	VCOPY(org, inp_queue[2*inp_qpos]);
+	VCOPY(dir, inp_queue[2*inp_qpos+1]);
+	++inp_qpos;
+	return normalize(dir);
 }
 
 
@@ -930,56 +954,3 @@ putrgbe(RREAL *v, int n)	/* output RGBE color */
 	setcolr(cout, v[0], v[1], v[2]);
 	putbinary(cout, sizeof(cout), 1, stdout);
 }
-
-#ifdef DAYSIM
-static void daysimOutput(RAY *r)				/* new function to print daylight_coef static int daysimOutput( RAY *r )*/
-{
-	int    k;
-	double ratio, sum;
-
-	if (outform == 'c') {
-		float daylightCoef[DAYSIM_MAX_COEFS + 1];
-
-		daylightCoef[0] = 0.0;
-		for (k = 0; k < daysimGetCoefficients(); k++) {
-			daylightCoef[0] += r->daylightCoef[k];
-			daylightCoef[k + 1] = r->daylightCoef[k];
-		}
-
-		fwrite((char*)daylightCoef, sizeof(daylightCoef), 1, stdout);
-		return;
-	}
-
-	if (daysimGetCoefficients() >= 2) {
-		sum = 0.0;
-
-		for (k = 0; k < daysimGetCoefficients(); k++) {
-			RREAL dc = r->daylightCoef[k] / daysimLuminousSkySegments;
-			sum += r->daylightCoef[k];
-
-			(*putreal)(&dc, 1); // TODO one at a time may not be the most efficient way to do this
-		}
-
-		if (sum >= colval(r->rcol, RED)) { /* test whether the sum of daylight
-										   coefficients corresponds to value for red */
-			if (sum == 0)
-				ratio = 1.0;
-			else
-				ratio = colval(r->rcol, RED) / sum;
-		} else {
-			if (colval(r->rcol, RED) == 0)
-				ratio = 1.0;
-			else
-				ratio = sum / colval(r->rcol, RED);
-		}
-		if (ratio < 0.9999) {
-			sprintf(errmsg,
-				"The sum of the daylight cofficients is %e and does not equal the total red illuminance %e",
-				sum, colval(r->rcol, RED));
-			error(WARNING, errmsg);
-		} else {
-			//printf( "\n# ratio %12.9g\t[min( sum(DC)/ray-value, ray-value/sum(DC) )]", ratio );
-		}
-	}
-}
-#endif

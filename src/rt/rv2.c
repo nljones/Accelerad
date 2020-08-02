@@ -21,10 +21,6 @@ static const char	RCSid[] = "$Id: rv2.c,v 2.70 2020/03/12 17:19:18 greg Exp $";
 #include  "otspecial.h"
 #include  "rpaint.h"
 
-#ifdef ACCELERAD
-#include "optix_rvu.h"
-#endif
-
 extern int  psample;			/* pixel sample size */
 extern double  maxdiff;			/* max. sample difference */
 
@@ -468,9 +464,6 @@ getexposure(				/* get new exposure */
 		else				/* multiplier */
 			e *= atof(cp);
 	}
-#ifdef ACCELERAD
-	if (!use_optix)
-#endif
 	if (p != NULL) {		/* relative setting */
 		compavg(p);
 		if (bright(p->v) < 1e-15) {
@@ -484,9 +477,6 @@ getexposure(				/* get new exposure */
 	}
 	if (e <= FTINY || fabs(1.0 - e) <= FTINY)
 		return;
-#ifdef ACCELERAD
-	if (!use_optix)
-#endif
 	scalepict(&ptrunk, e);
 	exposure *= e;
 	redraw();
@@ -885,11 +875,6 @@ writepict(				/* write the picture to a file */
 	putc('\n', fp);
 	fprtresolu(hresolu, vresolu, fp);
 
-#ifdef ACCELERAD_RT
-	if (use_optix)
-		scanline = (COLR *)malloc(hresolu * vresolu * sizeof(COLR));
-	else
-#endif /* ACCELERAD_RT */
 	scanline = (COLR *)malloc(hresolu*sizeof(COLR));
 	if (scanline == NULL) {
 		error(COMMAND, "not enough memory!");
@@ -897,14 +882,6 @@ writepict(				/* write the picture to a file */
 		unlink(fname);
 		return;
 	}
-#ifdef ACCELERAD_RT
-	if (use_optix) {
-		retreiveOptixImage(hresolu, vresolu, exposure, scanline);
-		for (y = vresolu; y--;)
-			if (fwritecolrs(scanline + hresolu * y, hresolu, fp) < 0)
-				break;
-	} else
-#endif /* ACCELERAD_RT */
 	for (y = vresolu-1; y >= 0; y--) {
 		getpictcolrs(y, scanline, &ptrunk, hresolu, vresolu);
 		if (fwritecolrs(scanline, hresolu, fp) < 0)

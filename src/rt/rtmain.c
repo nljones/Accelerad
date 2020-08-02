@@ -1,5 +1,5 @@
 #ifndef lint
-static const char	RCSid[] = "$Id: rtmain.c,v 2.30 2019/08/14 20:07:20 greg Exp $";
+static const char	RCSid[] = "$Id: rtmain.c,v 2.34 2020/04/08 00:57:39 greg Exp $";
 #endif
 /*
  *  rtmain.c - main for rtrace per-ray calculation program
@@ -19,7 +19,6 @@ static const char	RCSid[] = "$Id: rtmain.c,v 2.30 2019/08/14 20:07:20 greg Exp $
 #include  "paths.h"
 #include  "pmapray.h"
 
-
 extern char	*progname;		/* global argv[0] */
 
 extern char	*shm_boundary;		/* boundary of shared memory */
@@ -31,22 +30,22 @@ extern char	*shm_boundary;		/* boundary of shared memory */
 #define  PCHILD		3		/* child of normal persist */
 #endif
 
-#ifdef ACCELERAD
-extern void printRayTracingTime(const clock_t clock);
-#endif
-
 char  *sigerr[NSIG];			/* signal error messages */
 char  *errfile = NULL;			/* error output file */
 
 int  nproc = 1;				/* number of processes */
 
-extern char  *formstr();		/* string from format */
+extern char  *formstr(int f);		/* string from format */
+extern int  setrtoutput(void);		/* set output values */
+
 int  inform = 'a';			/* input format */
 int  outform = 'a';			/* output format */
 char  *outvals = "v";			/* output specification */
 
 int  hresolu = 0;			/* horizontal (scan) size */
 int  vresolu = 0;			/* vertical resolution */
+
+extern int  castonly;			/* only doing ray-casting? */
 
 int  imm_irrad = 0;			/* compute immediate irradiance? */
 int  lim_dist = 0;			/* limit distance? */
@@ -88,16 +87,6 @@ main(int  argc, char  *argv[])
 	int  duped1 = -1;
 	int  rval;
 	int  i;
-#ifdef DAYSIM
-	int j;
-#endif
-#ifdef ACCELERAD_DEBUG
-	char  *infile = NULL;
-	char  *outfile = NULL;
-#endif
-#ifdef ACCELERAD
-	clock_t rtrace_clock; // Timer in clock cycles for short jobs
-#endif
 					/* global program name */
 	progname = argv[0] = fixargv0(argv[0]);
 					/* add trace notify function */
@@ -242,27 +231,10 @@ main(int  argc, char  *argv[])
 					*tralp = NULL;
 				}
 				break;
-#ifdef ACCELERAD
-			case '\0':				/* timer */
-				check(2,"f");
-				error(WARNING, "GPU callback time (-t) is depricated.");
-				++i;
-				break;
-#endif
 			default:
 				goto badopt;
 			}
 			break;
-#ifdef ACCELERAD_DEBUG
-		case 'p':				/* input file */
-			check(2,"s");
-			infile = argv[++i];
-			break;
-		case 'q':				/* output file */
-			check(2,"s");
-			outfile = argv[++i];
-			break;
-#endif
 #ifdef  PERSIST
 		case 'P':				/* persist file */
 			if (argv[i][2] == 'P') {
@@ -275,71 +247,12 @@ main(int  argc, char  *argv[])
 			persistfile(argv[++i]);
 			break;
 #endif
-#ifdef DAYSIM
-		// A number of options have been added to the Daysim version of rtrace
-		// to allow for an efficient calculation of daylight coefficients with
-		// only to rtrace runs. Details of the implementation can be found in
-		// the Daysim manual (www.daysim.com) and in:
-		// Reinhart C F, Walkenhorst O, "Dynamic RADIANCE-based daylight simulations
-		// for a full-scale test office with outer venetian blinds." Energy & Buildings,
-		// 33:7 pp. 683-697, 2001.
-		case 'L':				/* choose luminance of sky segments */
-			daysimLuminousSkySegments = atof(argv[++i]);
-
-			if (daysimLuminousSkySegments == 0)
-				error(USER, "The parameter L must not be set to zero!");
-			break;
-		case 'D':		// switch to set how the daylight coefficients are sorted
-			// -Dm sort by sky segment modifier number (direct calculation)
-			// -Dd sort by loaction of sky segment (diffuse calculation) using 3 ground daylight coefficients
-			// -Dn sort by loaction of sky segment (diffuse calculation) using 1 ground daylight coefficient
-			switch (argv[i][2]) {
-			case 'm':			/* sorts by modifier number */
-				daysimSortMode = 1;
-				break;
-			case 'd':			/* sorts by ray direction (3 ground DC; original version)*/
-				daysimSortMode = 2;
-				break;
-			default:
-				goto badopt;
-			}
-			break;
-		case 'N':	// choose number of daylight coefficients
-			// for the diffuse calculation this number is always 148
-			// for the diffuse calculation the number depends on the number
-			// of direct daylight coefficients chosen which in turn depends on
-			// the geographic latitude of the scene site
-			if (daysimInit(atoi(argv[++i])) == 0) {
-				sprintf(errmsg, "The parameter N must lie between 0 and %d!", DAYSIM_MAX_COEFS);
-				error(USER, errmsg);
-			}
-			break;
-		case 'U':	/* allow rtrace to calculate irradiances and radiances */
-			//   within the same run. The information which sensor
-			//   points have which units is taken from a Daysim header file.
-			NumberOfSensorsInDaysimFile = atoi(argv[++i]);
-			if ((DaysimSensorUnits = (int*)malloc(sizeof(int)* NumberOfSensorsInDaysimFile)) == NULL)
-				error(SYSTEM, "out of memory reading in sensor units");
-			for (j = 0; j < NumberOfSensorsInDaysimFile; j++)
-				DaysimSensorUnits[j] = atoi(argv[++i]);
-			break;
-#endif
 		default:
 			goto badopt;
 		}
 	}
-	if (nproc > 1) {
-#ifdef ACCELERAD
-		if (use_optix) /* Don't allow multiple processes to access the graphics card. */
-			error(USER, "multiprocessing incompatible with GPU implementation");
-#endif
-		if (persist)
-			error(USER, "multiprocessing incompatible with persist file");
-		if (!vresolu && hresolu > 0 && hresolu < nproc)
-			error(WARNING, "number of cores should not exceed horizontal resolution");
-		if (trace != NULL)
-			error(WARNING, "multiprocessing does not work properly with trace mode");
-	}
+	if (nproc > 1 && persist)
+		error(USER, "multiprocessing incompatible with persist file");
 					/* initialize object types */
 	initotypes();
 					/* initialize urand */
@@ -389,13 +302,6 @@ main(int  argc, char  *argv[])
 	if (octnm == NULL)
 		error(USER, "missing octree argument");
 					/* set up output */
-#ifdef ACCELERAD_DEBUG
-	/* Write output to file. */
-	if (outfile != NULL && freopen(outfile, "w", stdout) == NULL) {
-		sprintf(errmsg, "cannot open output file \"%s\"", outfile);
-		error(SYSTEM, errmsg);
-	}
-#endif
 #ifdef  PERSIST
 	if (persist) {
 		duped1 = dup(fileno(stdout));	/* don't lose our output */
@@ -404,6 +310,7 @@ main(int  argc, char  *argv[])
 #endif
 	if (outform != 'a')
 		SET_FILE_BINARY(stdout);
+	rval = setrtoutput();
 	readoct(octname = octnm, loadflags, &thescene, NULL);
 	nsceneobjs = nobjects;
 
@@ -411,21 +318,23 @@ main(int  argc, char  *argv[])
 		printargs(i, argv, stdout);
 		printf("SOFTWARE= %s\n", VersionID);
 		fputnow(stdout);
+		if (rval > 0)		/* saved from setrtoutput() call */
+			printf("NCOMP=%d\n", rval);
 		if ((outform == 'f') | (outform == 'd'))
 			fputendian(stdout);
 		fputformat(formstr(outform), stdout);
 		putchar('\n');
 	}
-	
-	ray_init_pmap();     /* PMAP: set up & load photon maps */
-	
-#ifdef ACCELERAD
-	if (!use_optix) /* Don't shoot rays here, since the OptiX program should handle this. */
-#endif
-	marksources();			/* find and mark sources */
 
-	setambient();			/* initialize ambient calculation */
-	
+	if (!castonly) {	/* any actual ray traversal to do? */
+
+		ray_init_pmap();	/* PMAP: set up & load photon maps */
+		
+		marksources();		/* find and mark sources */
+
+		setambient();		/* initialize ambient calculation */
+	} else
+		distantsources();	/* else mark only distant sources */
 #ifdef  PERSIST
 	if (persist) {
 		fflush(stdout);
@@ -451,17 +360,7 @@ runagain:
 		dupheader();			/* send header to stdout */
 #endif
 					/* trace rays */
-#ifdef ACCELERAD
-	rtrace_clock = clock();
-#endif
-#ifdef ACCELERAD_DEBUG
-	rtrace(infile, nproc);
-#else
 	rtrace(NULL, nproc);
-#endif
-#ifdef ACCELERAD
-	printRayTracingTime(clock() - rtrace_clock);
-#endif
 					/* flush ambient file */
 	ambsync();
 #ifdef  PERSIST
@@ -607,11 +506,4 @@ printdefaults(void)			/* print default values to stdout */
 			"-w+\t\t\t\t# warning messages on\n" :
 			"-w-\t\t\t\t# warning messages off\n");
 	print_rdefaults();
-#ifdef DAYSIM
-	printf("-L  %f\t\t\t# luminance of sky segments\n", daysimLuminousSkySegments);
-	printf(daysimSortMode == 1 ?
-		"-Dm\t\t\t\t# sort by sky segment modifier number (direct calculation)\n" :
-		"-Dd\t\t\t\t# sort by loaction of sky segment (diffuse calculation)\n");
-	printf("-N  %-9d\t\t\t# number of daylight coefficients\n", daysimGetCoefficients());
-#endif
 }
