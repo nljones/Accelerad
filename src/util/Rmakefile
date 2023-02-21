@@ -183,7 +183,7 @@ dctimestep.o:	../common/standard.h \
 ../common/rtmath.h ../common/mat4.h ../common/fvect.h \
 ../common/rterror.h ../common/resolu.h
 
-dctimestep.o cmatrix.o cmbsdf.o:	cmatrix.h ../common/color.h
+dctimestep.o cmatrix.o cmbsdf.o cmglare.o:	cmatrix.h ../common/color.h
 
 cmatrix.o cmbsdf.o:	../common/standard.h \
 ../common/rtmisc.h ../common/rtio.h \
